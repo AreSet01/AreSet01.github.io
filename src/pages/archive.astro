@@ -1,0 +1,50 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { getCollection } from 'astro:content';
+import { formatDate, sortPostsByDate } from '../utils/date';
+
+const allPosts = await getCollection('posts', ({ data }) => !data.draft);
+const posts = sortPostsByDate(allPosts);
+
+// 按年份分组
+const postsByYear = posts.reduce((acc, post) => {
+  const year = new Date(post.data.pubDate).getFullYear();
+  if (!acc[year]) acc[year] = [];
+  acc[year].push(post);
+  return acc;
+}, {} as Record<number, typeof posts>);
+
+const years = Object.keys(postsByYear).sort((a, b) => Number(b) - Number(a));
+---
+
+<BaseLayout title="归档 - My Blog">
+  <Header />
+  <main class="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">归档</h1>
+    <p class="text-gray-500 mb-8">共 {posts.length} 篇文章</p>
+
+    {years.map(year => (
+      <section class="mb-10">
+        <h2 class="text-2xl font-bold text-gray-300 mb-4">{year}</h2>
+        <ul class="space-y-3">
+          {postsByYear[Number(year)].map(post => (
+            <li class="flex items-baseline gap-4">
+              <time class="text-sm text-gray-400 shrink-0 w-24">
+                {formatDate(post.data.pubDate)}
+              </time>
+              <a
+                href={`/posts/${post.id}`}
+                class="text-gray-700 hover:text-blue-500 transition-colors"
+              >
+                {post.data.title}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))}
+  </main>
+  <Footer />
+</BaseLayout>

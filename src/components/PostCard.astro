@@ -1,0 +1,36 @@
+---
+import { formatDate } from '../utils/date';
+
+interface Props {
+  title: string;
+  description?: string;
+  pubDate: Date;
+  tags?: string[];
+  slug: string;
+}
+
+const { title, description, pubDate, tags = [], slug } = Astro.props;
+---
+
+<article class="py-6 border-b border-gray-100 last:border-0">
+  <a href={`/posts/${slug}`} class="group block">
+    <h2 class="text-xl font-semibold text-gray-900 group-hover:text-blue-500 transition-colors">
+      {title}
+    </h2>
+    {description && (
+      <p class="mt-2 text-gray-600 text-sm line-clamp-2">{description}</p>
+    )}
+    <div class="mt-3 flex items-center gap-3">
+      <time datetime={pubDate.toISOString()} class="text-xs text-gray-400">
+        {formatDate(pubDate)}
+      </time>
+      {tags.length > 0 && (
+        <div class="flex gap-2">
+          {tags.map(tag => (
+            <span class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded">{tag}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  </a>
+</article>

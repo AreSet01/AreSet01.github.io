@@ -1,0 +1,41 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import PostCard from '../components/PostCard.astro';
+import { getCollection } from 'astro:content';
+import { sortPostsByDate } from '../utils/date';
+
+const allPosts = await getCollection('posts', ({ data }) => !data.draft);
+const posts = sortPostsByDate(allPosts);
+---
+
+<BaseLayout title="My Blog - 日常记录与技术分享">
+  <Header />
+  <main class="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
+    <section class="mb-12">
+      <h1 class="text-3xl font-bold mb-2">Welcome</h1>
+      <p class="text-gray-600">日常记录与技术分享</p>
+    </section>
+
+    <section>
+      <h2 class="text-xl font-semibold mb-6">最新文章</h2>
+      {posts.length === 0 ? (
+        <p class="text-gray-500">暂无文章，快去写一篇吧！</p>
+      ) : (
+        <div>
+          {posts.map(post => (
+            <PostCard
+              title={post.data.title}
+              description={post.data.description}
+              pubDate={post.data.pubDate}
+              tags={post.data.tags}
+              slug={post.id}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>

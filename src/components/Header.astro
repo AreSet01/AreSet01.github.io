@@ -1,0 +1,33 @@
+---
+const navItems = [
+  { label: '首页', href: '/' },
+  { label: '归档', href: '/archive' },
+  { label: '关于', href: '/about' },
+];
+
+const currentPath = Astro.url.pathname;
+---
+
+<header class="border-b border-gray-200">
+  <nav class="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
+    <a href="/" class="text-xl font-bold text-gray-900 hover:text-blue-500 transition-colors">
+      My Blog
+    </a>
+    <ul class="flex gap-6">
+      {navItems.map(item => (
+        <li>
+          <a
+            href={item.href}
+            class={`text-sm transition-colors ${
+              currentPath === item.href
+                ? 'text-blue-500 font-medium'
+                : 'text-gray-600 hover:text-blue-500'
+            }`}
+          >
+            {item.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+</header>
