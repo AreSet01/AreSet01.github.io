@@ -5,23 +5,38 @@ const navItems = [
   { label: '关于', href: '/about' },
 ];
 
-const currentPath = Astro.url.pathname;
+const normalizePath = (path: string) =>
+  path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+
+const currentPath = normalizePath(Astro.url.pathname);
+const isActive = (href: string) => {
+  if (href === '/') return currentPath === '/';
+  return currentPath.startsWith(href);
+};
 ---
 
-<header class="border-b border-gray-200">
-  <nav class="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
-    <a href="/" class="text-xl font-bold text-gray-900 hover:text-blue-500 transition-colors">
-      My Blog
+<header class="sticky top-0 z-40 px-4 pt-4">
+  <nav class="panel mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 rounded-[28px] px-5 py-4">
+    <a href="/" class="group flex items-center gap-4">
+      <span class="soft-float flex h-12 w-12 items-center justify-center rounded-[20px] bg-[linear-gradient(135deg,var(--accent),var(--gold))] text-sm font-semibold text-white shadow-[0_16px_32px_rgba(14,124,116,0.24)]">
+        梦
+      </span>
+      <div>
+        <span class="eyebrow text-[0.62rem]">Digital Garden</span>
+        <p class="font-display mt-1 text-xl text-[var(--text)] transition duration-300 group-hover:text-[var(--accent-strong)]">
+          梦付千秋
+        </p>
+      </div>
     </a>
-    <ul class="flex gap-6">
+    <ul class="flex flex-wrap items-center gap-2 text-sm">
       {navItems.map(item => (
         <li>
           <a
             href={item.href}
-            class={`text-sm transition-colors ${
-              currentPath === item.href
-                ? 'text-blue-500 font-medium'
-                : 'text-gray-600 hover:text-blue-500'
+            class={`rounded-full px-4 py-2.5 font-semibold transition duration-300 ${
+              isActive(item.href)
+                ? 'bg-[var(--text)] text-white shadow-[0_12px_28px_rgba(36,25,17,0.18)]'
+                : 'text-[var(--muted)] hover:bg-white/70 hover:text-[var(--text)]'
             }`}
           >
             {item.label}
