@@ -194,13 +194,32 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         let previewSourceEl = null;
         let previewCleanupTimer = 0;
         let previewOpenFrame = 0;
+        let previewOpenAnimation = null;
+        let previewMotion = {
+          startX: 0,
+          startY: 24,
+          startScale: 0.94,
+          startRadius: 20,
+        };
 
         function syncPreviewScrollbar() {
           const scrollbarWidth = Math.max(window.innerWidth - document.documentElement.clientWidth, 0);
           document.documentElement.style.setProperty('--preview-scrollbar-width', `${scrollbarWidth}px`);
         }
 
+        function cancelPreviewOpenAnimation() {
+          if (!previewOpenAnimation) return;
+          previewOpenAnimation.cancel();
+          previewOpenAnimation = null;
+        }
+
         function resetPreviewMotion() {
+          previewMotion = {
+            startX: 0,
+            startY: 24,
+            startScale: 0.94,
+            startRadius: 20,
+          };
           modal.style.removeProperty('--preview-start-x');
           modal.style.removeProperty('--preview-start-y');
           modal.style.removeProperty('--preview-start-scale');
@@ -215,19 +234,76 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
           const sourceRect = previewSourceEl.getBoundingClientRect();
           const modalRect = modal.getBoundingClientRect();
+          const sourceStyle = window.getComputedStyle(previewSourceEl);
           const startX = sourceRect.left + sourceRect.width / 2 - window.innerWidth / 2;
           const startY = sourceRect.top + sourceRect.height / 2 - window.innerHeight / 2;
           const scaleRatioX = sourceRect.width / Math.max(modalRect.width, 1);
           const scaleRatioY = sourceRect.height / Math.max(modalRect.height, 1);
           const startScale = Math.max(0.32, Math.min(0.92, Math.sqrt(scaleRatioX * scaleRatioY)));
+          const startRadius = parseFloat(sourceStyle.borderTopLeftRadius) || 16;
+
+          previewMotion = {
+            startX,
+            startY,
+            startScale,
+            startRadius,
+          };
 
           modal.style.setProperty('--preview-start-x', `${startX.toFixed(2)}px`);
           modal.style.setProperty('--preview-start-y', `${startY.toFixed(2)}px`);
           modal.style.setProperty('--preview-start-scale', startScale.toFixed(3));
         }
+
+        function animatePreviewOpen() {
+          cancelPreviewOpenAnimation();
+
+          const { startX, startY, startScale, startRadius } = previewMotion;
+          const settleX = startX * -0.07;
+          const settleY = startY * -0.07;
+          const overshootScale = Math.min(1.028, 1 + (1 - startScale) * 0.08);
+
+          previewOpenAnimation = modal.animate(
+            [
+              {
+                transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScale})`,
+                borderRadius: `${Math.max(16, startRadius)}px`,
+                opacity: 0.18,
+                filter: 'blur(6px) saturate(0.92)',
+              },
+              {
+                transform: `translate3d(${settleX.toFixed(2)}px, ${settleY.toFixed(2)}px, 0) scale(${overshootScale.toFixed(3)})`,
+                borderRadius: '26px',
+                opacity: 1,
+                filter: 'blur(0px) saturate(1.03)',
+                offset: 0.72,
+              },
+              {
+                transform: 'translate3d(0, 0, 0) scale(1)',
+                borderRadius: '20px',
+                opacity: 1,
+                filter: 'none',
+              },
+            ],
+            {
+              duration: 640,
+              easing: 'cubic-bezier(0.18, 0.88, 0.2, 1.12)',
+              fill: 'both',
+            }
+          );
+
+          previewOpenAnimation.onfinish = () => {
+            previewOpenAnimation = null;
+          };
+
+          previewOpenAnimation.oncancel = () => {
+            previewOpenAnimation = null;
+          };
+        }
+
         function openPreview(url, sourceEl) {
           window.clearTimeout(previewCleanupTimer);
           cancelAnimationFrame(previewOpenFrame);
+          cancelPreviewOpenAnimation();
           syncPreviewScrollbar();
           currentUrl = url;
           setPreviewMotion(sourceEl);
@@ -241,8 +317,9 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           `;
           bodyEl.scrollTop = 0;
           document.body.classList.add('preview-open');
+          overlay.classList.add('is-open');
           previewOpenFrame = requestAnimationFrame(() => {
-            overlay.classList.add('is-open');
+            animatePreviewOpen();
             previewOpenFrame = 0;
           });
           setTimeout(() => closeBtn.focus(), 100);
@@ -294,6 +371,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
         function closePreview() {
           const restoreFocusEl = previewSourceEl;
+          cancelPreviewOpenAnimation();
           overlay.classList.remove('is-open');
           currentUrl = '';
           cancelAnimationFrame(previewOpenFrame);
