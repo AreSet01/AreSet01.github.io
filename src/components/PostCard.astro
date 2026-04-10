@@ -25,12 +25,15 @@ const { title, description, pubDate, tags = [], slug, index = 0 } = Astro.props;
         {formatDate(pubDate)}
       </time>
     </div>
+
     <h2 class="font-display mt-4 text-[1.15rem] leading-snug text-[var(--text-strong)] transition duration-300 group-hover:text-[var(--accent-strong)]">
       {title}
     </h2>
+
     {description && (
       <p class="mt-2.5 text-[0.88rem] leading-relaxed text-[var(--muted)] line-clamp-3">{description}</p>
     )}
+
     {tags.length > 0 && (
       <div class="mt-5 flex flex-wrap gap-1.5">
         {tags.slice(0, 3).map(tag => (
@@ -38,8 +41,9 @@ const { title, description, pubDate, tags = [], slug, index = 0 } = Astro.props;
         ))}
       </div>
     )}
+
     <div class="mt-auto flex items-center justify-between gap-3 pt-6">
-      <span class="text-[0.84rem] font-medium text-[var(--accent-strong)] whitespace-nowrap">阅读全文 →</span>
+      <span class="whitespace-nowrap text-[0.84rem] font-medium text-[var(--accent-strong)]">阅读全文 -></span>
       <span class="shrink-0 rounded-full border border-[var(--border-strong)] bg-white/65 px-2.5 py-0.5 text-[0.7rem] font-medium text-[var(--muted)] whitespace-nowrap">
         {String(tags.length).padStart(2, '0')} tags
       </span>

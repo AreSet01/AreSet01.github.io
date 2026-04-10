@@ -679,7 +679,7 @@ img {
   -webkit-backdrop-filter: blur(18px) saturate(85%) brightness(0.72);
   opacity: 0;
   visibility: hidden;
-  transition: opacity 380ms var(--ease), visibility 380ms var(--ease);
+  pointer-events: none;
 }
 
 .preview-overlay::before {
@@ -693,12 +693,13 @@ img {
 .preview-overlay.is-open {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .preview-modal {
   --preview-start-x: 0px;
   --preview-start-y: 24px;
-  --preview-start-scale: 0.94;
+  --preview-start-scale: 0.9;
   position: relative;
   z-index: 1;
   width: min(100%, 52rem);
@@ -717,15 +718,10 @@ img {
   transform: translate3d(var(--preview-start-x), var(--preview-start-y), 0) scale(var(--preview-start-scale));
   transform-origin: center center;
   opacity: 0;
-  transition: transform 460ms cubic-bezier(0.24, 1, 0.32, 1), opacity 320ms ease, border-radius 460ms cubic-bezier(0.24, 1, 0.32, 1);
-  will-change: transform, opacity;
+  will-change: transform, opacity, filter;
   backface-visibility: hidden;
+  transform-style: preserve-3d;
   overflow: hidden;
-}
-
-.preview-overlay.is-open .preview-modal {
-  transform: translate3d(0, 0, 0) scale(1);
-  opacity: 1;
 }
 
 .preview-modal-header {
