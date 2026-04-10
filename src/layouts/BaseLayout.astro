@@ -1,6 +1,8 @@
 ---
 import '../styles/global.css';
 
+const searchIndexPath = `${import.meta.env.BASE_URL ?? '/'}search-index.json`;
+
 interface Props {
   title: string;
   description?: string;
@@ -25,7 +27,53 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <div class="site-shell">
       <slot />
     </div>
-    <script>
+    <div class="search-overlay" id="site-search" aria-hidden="true">
+      <div class="search-modal" role="dialog" aria-modal="true" aria-labelledby="search-title">
+        <div class="search-panel">
+          <div class="search-header">
+            <div class="search-heading">
+              <p class="eyebrow">Command Palette</p>
+              <h2 class="search-title" id="search-title">搜索文章</h2>
+            </div>
+            <button class="search-close-btn" type="button" aria-label="关闭搜索">
+              Esc
+            </button>
+          </div>
+          <label class="search-input-shell" for="site-search-input">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"></circle>
+              <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+            </svg>
+            <input
+              id="site-search-input"
+              class="search-input"
+              type="search"
+              placeholder="搜索标题、标签或摘要..."
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </label>
+          <div class="search-status" data-search-status>输入关键词，或直接浏览最近更新。</div>
+          <div class="search-results" data-search-results></div>
+          <div class="search-footer">
+            <div class="search-footer-item">
+              <span class="search-kbd">↑</span>
+              <span class="search-kbd">↓</span>
+              <span>切换结果</span>
+            </div>
+            <div class="search-footer-item">
+              <span class="search-kbd">Enter</span>
+              <span>打开文章</span>
+            </div>
+            <div class="search-footer-item">
+              <span class="search-kbd">Esc</span>
+              <span>关闭面板</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script define:vars={{ searchIndexPath }}>
       (() => {
         const sparkleColors = [
           '#7cb3f0', '#5a9ee6', '#a8d0f8',
@@ -83,8 +131,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           const isPreviewInteraction =
             previewClickActive ||
             event.target.closest('[data-post-preview], .preview-overlay, .preview-close-btn, .preview-read-full');
+          const isSearchInteraction = event.target.closest(
+            '[data-search-trigger], .search-overlay, .search-close-btn, [data-search-result]'
+          );
 
-          if (isPreviewInteraction) return;
+          if (isPreviewInteraction || isSearchInteraction) return;
           sparkle(event.clientX, event.clientY, 18);
         });
 
@@ -95,7 +146,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             return;
           }
 
-          if (event.target.closest('.preview-overlay, .preview-close-btn, .preview-read-full')) {
+          if (event.target.closest('.preview-overlay, .preview-close-btn, .preview-read-full, .search-overlay, .search-close-btn')) {
             return;
           }
 
@@ -213,6 +264,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         const bodyEl = overlay.querySelector('.preview-modal-body');
         const closeBtn = overlay.querySelector('.preview-close-btn');
         const readFullBtn = overlay.querySelector('.preview-read-full');
+        const searchOverlay = document.querySelector('.search-overlay');
+        const searchInput = searchOverlay?.querySelector('.search-input');
+        const searchResultsEl = searchOverlay?.querySelector('[data-search-results]');
+        const searchStatusEl = searchOverlay?.querySelector('[data-search-status]');
+        const searchCloseBtn = searchOverlay?.querySelector('.search-close-btn');
+        const searchIndexUrl = searchIndexPath;
+        const searchReady = searchOverlay && searchInput && searchResultsEl && searchStatusEl && searchCloseBtn;
 
         let currentUrl = '';
         const previewCache = new Map();
@@ -221,6 +279,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         let previewOverlayAnimation = null;
         let previewModalAnimation = null;
         let previewState = 'closed';
+        let searchIndexPromise = null;
+        let searchItems = [];
+        let searchResults = [];
+        let searchActiveIndex = -1;
+        let searchSourceEl = null;
+        let searchCloseTimer = 0;
+        let searchState = 'idle';
         let previewMotion = {
           startX: 0,
           startY: 24,
@@ -235,6 +300,292 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         };
 
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const syncScrollbarOffset = () => {
+          const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+          document.documentElement.style.setProperty('--scrollbar-offset', `${scrollbarWidth}px`);
+        };
+
+        syncScrollbarOffset();
+        window.addEventListener('resize', syncScrollbarOffset);
+
+        function clearSearchCloseTimer() {
+          if (!searchCloseTimer) return;
+          window.clearTimeout(searchCloseTimer);
+          searchCloseTimer = 0;
+        }
+
+        function escapeHtml(value) {
+          return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+
+        function normalizeSearchText(value) {
+          return String(value ?? '').toLocaleLowerCase().normalize('NFKC').trim();
+        }
+
+        function buildSearchIndexEntry(item) {
+          const titleText = normalizeSearchText(item.title);
+          const descriptionText = normalizeSearchText(item.description);
+          const excerptText = normalizeSearchText(item.excerpt);
+          const tagsText = normalizeSearchText((item.tags ?? []).join(' '));
+          const slugText = normalizeSearchText(item.slug);
+
+          return {
+            ...item,
+            _search: {
+              titleText,
+              descriptionText,
+              excerptText,
+              tagsText,
+              slugText,
+            },
+          };
+        }
+
+        function setSearchStatus(message) {
+          if (!searchStatusEl) return;
+          searchStatusEl.textContent = message;
+        }
+
+        function syncActiveSearchResult() {
+          if (!searchResultsEl) return;
+
+          const nodes = searchResultsEl.querySelectorAll('[data-search-result]');
+          nodes.forEach((node, index) => {
+            const isActive = index === searchActiveIndex;
+            node.classList.toggle('is-active', isActive);
+            node.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            if (isActive) {
+              node.scrollIntoView({ block: 'nearest' });
+            }
+          });
+        }
+
+        function setActiveSearchResult(nextIndex) {
+          if (!searchResults.length) {
+            searchActiveIndex = -1;
+            return;
+          }
+
+          const safeIndex = (nextIndex + searchResults.length) % searchResults.length;
+          searchActiveIndex = safeIndex;
+          syncActiveSearchResult();
+        }
+
+        function renderSearchResults() {
+          if (!searchResultsEl || !searchInput) return;
+
+          const rawQuery = searchInput.value.trim();
+
+          if (searchState === 'loading') {
+            setSearchStatus('正在整理搜索索引...');
+            searchResultsEl.innerHTML = `
+              <div class="search-empty">
+                <p>第一次打开时会稍等一下，随后就会很快。</p>
+              </div>
+            `;
+            return;
+          }
+
+          if (searchState === 'error') {
+            setSearchStatus('搜索索引加载失败。');
+            searchResultsEl.innerHTML = `
+              <div class="search-empty">
+                <p>暂时无法加载搜索内容，稍后再试试。</p>
+              </div>
+            `;
+            return;
+          }
+
+          if (!searchResults.length) {
+            setSearchStatus(rawQuery ? '没有找到匹配的文章。' : '最近更新');
+            searchResultsEl.innerHTML = `
+              <div class="search-empty">
+                <p>${rawQuery ? '换个关键词试试，比如标题、标签或一句摘要。' : '还没有可以搜索的文章。'}</p>
+              </div>
+            `;
+            return;
+          }
+
+          setSearchStatus(rawQuery ? `找到 ${searchResults.length} 篇相关文章` : '最近更新');
+          searchResultsEl.innerHTML = searchResults.map((item, index) => {
+            const summary = item.description || item.excerpt || '打开这篇文章继续阅读。';
+            const tags = (item.tags ?? [])
+              .slice(0, 3)
+              .map((tag) => `<span class="search-chip">${escapeHtml(tag)}</span>`)
+              .join('');
+
+            return `
+              <a
+                href="${escapeHtml(item.href)}"
+                class="search-result${index === searchActiveIndex ? ' is-active' : ''}"
+                data-search-result
+                data-index="${index}"
+                aria-selected="${index === searchActiveIndex ? 'true' : 'false'}"
+              >
+                <div class="search-result-top">
+                  <p class="search-result-title">${escapeHtml(item.title)}</p>
+                  <span class="search-result-date">${escapeHtml(item.dateLabel)}</span>
+                </div>
+                <p class="search-result-summary">${escapeHtml(summary)}</p>
+                <div class="search-result-meta">
+                  <div class="search-chip-group">${tags}</div>
+                  <span class="search-result-slug">/${escapeHtml(item.slug)}</span>
+                </div>
+              </a>
+            `;
+          }).join('');
+        }
+
+        function scoreSearchItem(item, fullQuery, tokens) {
+          let score = 0;
+          const { titleText, descriptionText, excerptText, tagsText, slugText } = item._search;
+
+          if (titleText.includes(fullQuery)) score += 120 - Math.min(titleText.indexOf(fullQuery), 40);
+          if (tagsText.includes(fullQuery)) score += 72 - Math.min(tagsText.indexOf(fullQuery), 30);
+          if (descriptionText.includes(fullQuery)) score += 46 - Math.min(descriptionText.indexOf(fullQuery), 24);
+          if (excerptText.includes(fullQuery)) score += 24;
+          if (slugText.includes(fullQuery)) score += 18;
+
+          for (const token of tokens) {
+            if (!token) continue;
+            if (titleText.includes(token)) score += 34;
+            if (tagsText.includes(token)) score += 20;
+            if (descriptionText.includes(token)) score += 12;
+            if (excerptText.includes(token)) score += 8;
+            if (slugText.includes(token)) score += 6;
+          }
+
+          return score;
+        }
+
+        function updateSearchResults(resetActive = true) {
+          if (!searchInput) return;
+
+          const fullQuery = normalizeSearchText(searchInput.value);
+          const tokens = fullQuery.split(/\s+/).filter(Boolean);
+
+          if (!fullQuery) {
+            searchResults = searchItems.slice(0, 6);
+          } else {
+            searchResults = searchItems
+              .map((item) => ({
+                item,
+                score: scoreSearchItem(item, fullQuery, tokens),
+              }))
+              .filter((entry) => entry.score > 0)
+              .sort((left, right) => right.score - left.score || right.item.publishedAt - left.item.publishedAt)
+              .slice(0, 8)
+              .map((entry) => entry.item);
+          }
+
+          if (resetActive) {
+            searchActiveIndex = searchResults.length ? 0 : -1;
+          } else if (searchActiveIndex >= searchResults.length) {
+            searchActiveIndex = searchResults.length ? searchResults.length - 1 : -1;
+          }
+
+          searchState = 'ready';
+          renderSearchResults();
+        }
+
+        function ensureSearchIndex() {
+          if (!searchReady) return Promise.resolve([]);
+          if (searchItems.length) {
+            updateSearchResults();
+            return Promise.resolve(searchItems);
+          }
+
+          if (searchIndexPromise) return searchIndexPromise;
+
+          searchState = 'loading';
+          renderSearchResults();
+
+          searchIndexPromise = fetch(searchIndexUrl)
+            .then((response) => {
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              return response.json();
+            })
+            .then((items) => {
+              searchItems = Array.isArray(items) ? items.map(buildSearchIndexEntry) : [];
+              updateSearchResults();
+              return searchItems;
+            })
+            .catch((error) => {
+              searchIndexPromise = null;
+              searchState = 'error';
+              renderSearchResults();
+              throw error;
+            });
+
+          return searchIndexPromise;
+        }
+
+        function openSearch(sourceEl) {
+          if (!searchReady) return;
+          if (searchOverlay.classList.contains('is-open')) {
+            searchInput.focus({ preventScroll: true });
+            searchInput.select();
+            return;
+          }
+
+          if (overlay.classList.contains('is-open')) {
+            closePreview();
+            window.setTimeout(() => openSearch(sourceEl), prefersReducedMotion ? 0 : 220);
+            return;
+          }
+
+          clearSearchCloseTimer();
+          searchSourceEl = sourceEl instanceof HTMLElement ? sourceEl : null;
+          syncScrollbarOffset();
+          document.body.classList.add('search-lock');
+          searchOverlay.setAttribute('aria-hidden', 'false');
+          updateSearchResults();
+
+          requestAnimationFrame(() => {
+            searchOverlay.classList.add('is-open');
+            document.body.classList.add('search-open');
+          });
+
+          ensureSearchIndex().catch(() => {});
+
+          window.setTimeout(() => {
+            searchInput.focus({ preventScroll: true });
+            searchInput.select();
+          }, prefersReducedMotion ? 0 : 120);
+        }
+
+        function closeSearch(restoreFocus = true) {
+          if (!searchReady || !searchOverlay.classList.contains('is-open')) return;
+
+          clearSearchCloseTimer();
+          searchOverlay.classList.remove('is-open');
+          document.body.classList.remove('search-open');
+
+          const finishSearchClose = () => {
+            document.body.classList.remove('search-lock');
+            searchOverlay.setAttribute('aria-hidden', 'true');
+            syncScrollbarOffset();
+
+            if (restoreFocus && searchSourceEl instanceof HTMLElement && searchSourceEl.isConnected) {
+              searchSourceEl.focus({ preventScroll: true });
+            }
+
+            searchSourceEl = null;
+            searchCloseTimer = 0;
+          };
+
+          if (prefersReducedMotion) {
+            finishSearchClose();
+            return;
+          }
+
+          searchCloseTimer = window.setTimeout(finishSearchClose, 260);
+        }
 
         function releaseAnimation(animation) {
           if (!animation) return;
@@ -418,6 +769,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             </div>
           `;
           bodyEl.scrollTop = 0;
+          syncScrollbarOffset();
           document.body.classList.add('preview-lock');
           document.body.classList.add('preview-active');
           overlay.classList.add('is-open');
@@ -484,6 +836,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           document.body.classList.remove('preview-open');
           document.body.classList.remove('preview-lock');
           document.body.classList.remove('preview-active');
+          syncScrollbarOffset();
           clearPreviewInlineStyles();
           resetPreviewMotion();
           currentUrl = '';
@@ -591,7 +944,84 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           closePreview();
         });
 
+        if (searchReady) {
+          document.querySelectorAll('[data-search-trigger]').forEach((trigger) => {
+            trigger.addEventListener('click', (event) => {
+              event.preventDefault();
+              openSearch(trigger);
+            });
+          });
+
+          searchOverlay.addEventListener('click', (event) => {
+            if (event.target === searchOverlay) closeSearch();
+          });
+
+          searchCloseBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            closeSearch();
+          });
+
+          searchInput.addEventListener('input', () => {
+            updateSearchResults();
+          });
+
+          searchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              setActiveSearchResult(searchActiveIndex + 1);
+              return;
+            }
+
+            if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              setActiveSearchResult(searchActiveIndex - 1);
+              return;
+            }
+
+            if (event.key === 'Enter' && searchActiveIndex >= 0 && searchResults[searchActiveIndex]) {
+              event.preventDefault();
+              window.location.assign(searchResults[searchActiveIndex].href);
+              return;
+            }
+
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              closeSearch();
+            }
+          });
+
+          searchResultsEl.addEventListener('mousemove', (event) => {
+            const target = event.target.closest('[data-search-result]');
+            if (!target) return;
+            setActiveSearchResult(Number(target.getAttribute('data-index')));
+          });
+
+          searchResultsEl.addEventListener('click', (event) => {
+            const target = event.target.closest('[data-search-result]');
+            if (!target) return;
+            closeSearch(false);
+          });
+        }
+
         document.addEventListener('keydown', (event) => {
+          const isSearchShortcut =
+            event.key.toLowerCase() === 'k' && (event.ctrlKey || event.metaKey);
+
+          if (isSearchShortcut && !event.shiftKey && !event.altKey) {
+            event.preventDefault();
+            if (searchOverlay?.classList.contains('is-open')) {
+              closeSearch();
+            } else {
+              openSearch(document.querySelector('[data-search-trigger]'));
+            }
+            return;
+          }
+
+          if (event.key === 'Escape' && searchOverlay?.classList.contains('is-open')) {
+            closeSearch();
+            return;
+          }
+
           if (event.key === 'Escape' && overlay.classList.contains('is-open')) closePreview();
         });
       })();
