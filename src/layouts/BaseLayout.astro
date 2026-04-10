@@ -191,9 +191,46 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         const readFullBtn = overlay.querySelector('.preview-read-full');
         let currentUrl = '';
         const previewCache = new Map();
+        let previewSourceEl = null;
+        let previewCleanupTimer = 0;
+        let previewOpenFrame = 0;
 
-        function openPreview(url) {
+        function syncPreviewScrollbar() {
+          const scrollbarWidth = Math.max(window.innerWidth - document.documentElement.clientWidth, 0);
+          document.documentElement.style.setProperty('--preview-scrollbar-width', `${scrollbarWidth}px`);
+        }
+
+        function resetPreviewMotion() {
+          modal.style.removeProperty('--preview-start-x');
+          modal.style.removeProperty('--preview-start-y');
+          modal.style.removeProperty('--preview-start-scale');
+        }
+
+        function setPreviewMotion(sourceEl) {
+          previewSourceEl = sourceEl instanceof Element ? sourceEl : null;
+          if (!previewSourceEl) {
+            resetPreviewMotion();
+            return;
+          }
+
+          const sourceRect = previewSourceEl.getBoundingClientRect();
+          const modalRect = modal.getBoundingClientRect();
+          const startX = sourceRect.left + sourceRect.width / 2 - window.innerWidth / 2;
+          const startY = sourceRect.top + sourceRect.height / 2 - window.innerHeight / 2;
+          const scaleRatioX = sourceRect.width / Math.max(modalRect.width, 1);
+          const scaleRatioY = sourceRect.height / Math.max(modalRect.height, 1);
+          const startScale = Math.max(0.32, Math.min(0.92, Math.sqrt(scaleRatioX * scaleRatioY)));
+
+          modal.style.setProperty('--preview-start-x', `${startX.toFixed(2)}px`);
+          modal.style.setProperty('--preview-start-y', `${startY.toFixed(2)}px`);
+          modal.style.setProperty('--preview-start-scale', startScale.toFixed(3));
+        }
+        function openPreview(url, sourceEl) {
+          window.clearTimeout(previewCleanupTimer);
+          cancelAnimationFrame(previewOpenFrame);
+          syncPreviewScrollbar();
           currentUrl = url;
+          setPreviewMotion(sourceEl);
           readFullBtn.href = url;
           titleEl.textContent = '加载中…';
           bodyEl.innerHTML = `
@@ -204,7 +241,10 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           `;
           bodyEl.scrollTop = 0;
           document.body.classList.add('preview-open');
-          overlay.classList.add('is-open');
+          previewOpenFrame = requestAnimationFrame(() => {
+            overlay.classList.add('is-open');
+            previewOpenFrame = 0;
+          });
           setTimeout(() => closeBtn.focus(), 100);
 
           if (previewCache.has(url)) {
@@ -253,9 +293,21 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         }
 
         function closePreview() {
+          const restoreFocusEl = previewSourceEl;
           overlay.classList.remove('is-open');
-          document.body.classList.remove('preview-open');
           currentUrl = '';
+          cancelAnimationFrame(previewOpenFrame);
+          window.clearTimeout(previewCleanupTimer);
+          previewCleanupTimer = window.setTimeout(() => {
+            if (overlay.classList.contains('is-open')) return;
+            document.body.classList.remove('preview-open');
+            document.documentElement.style.setProperty('--preview-scrollbar-width', '0px');
+            resetPreviewMotion();
+            previewSourceEl = null;
+            if (restoreFocusEl instanceof HTMLElement && restoreFocusEl.isConnected) {
+              restoreFocusEl.focus({ preventScroll: true });
+            }
+          }, 420);
         }
 
         // 拦截 PostCard 点击（capture 阶段，优先于 pop 动画）
@@ -263,9 +315,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
           const link = e.target.closest('[data-post-preview]');
           if (!link) return;
+          const previewUrl = link.getAttribute('data-post-preview');
+          if (!previewUrl) return;
           e.preventDefault();
           previewClickActive = true;
-          openPreview(link.getAttribute('data-post-preview'));
+          openPreview(previewUrl, link);
         }, true);
 
         // 点击遮罩关闭

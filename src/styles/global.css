@@ -35,6 +35,7 @@
   --pink: #f0a8c8;
   --pink-strong: #e88ab0;
   --rose: #f0a8c8;
+  --preview-scrollbar-width: 0px;
 
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -668,12 +669,24 @@ img {
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: rgba(14, 20, 40, 0.35);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at top, rgba(124, 179, 240, 0.14) 0%, rgba(124, 179, 240, 0) 38%),
+    linear-gradient(180deg, rgba(8, 12, 24, 0.56) 0%, rgba(8, 12, 24, 0.62) 100%);
+  backdrop-filter: blur(18px) saturate(85%) brightness(0.72);
+  -webkit-backdrop-filter: blur(18px) saturate(85%) brightness(0.72);
   opacity: 0;
   visibility: hidden;
   transition: opacity 380ms var(--ease), visibility 380ms var(--ease);
+}
+
+.preview-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 8, 18, 0.08);
+  pointer-events: none;
 }
 
 .preview-overlay.is-open {
@@ -682,7 +695,11 @@ img {
 }
 
 .preview-modal {
+  --preview-start-x: 0px;
+  --preview-start-y: 24px;
+  --preview-start-scale: 0.94;
   position: relative;
+  z-index: 1;
   width: min(100%, 52rem);
   max-height: calc(100vh - 3rem);
   max-height: calc(100dvh - 3rem);
@@ -696,14 +713,16 @@ img {
   -webkit-backdrop-filter: blur(24px) saturate(150%);
   border: 1px solid var(--glass-border-strong);
   box-shadow: var(--glass-shadow-lg), var(--glass-inner-top), var(--glass-inner-bottom);
-  transform: translateY(24px) scale(0.97);
+  transform: translate3d(var(--preview-start-x), var(--preview-start-y), 0) scale(var(--preview-start-scale));
+  transform-origin: center center;
   opacity: 0;
   transition: transform 420ms var(--ease), opacity 420ms var(--ease);
+  will-change: transform, opacity;
   overflow: hidden;
 }
 
 .preview-overlay.is-open .preview-modal {
-  transform: translateY(0) scale(1);
+  transform: translate3d(0, 0, 0) scale(1);
   opacity: 1;
 }
 
@@ -820,6 +839,7 @@ img {
 
 body.preview-open {
   overflow: hidden;
+  padding-right: var(--preview-scrollbar-width);
 }
 
 @media (prefers-reduced-motion: reduce) {
