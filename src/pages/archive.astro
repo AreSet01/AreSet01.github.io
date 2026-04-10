@@ -32,18 +32,30 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
             这里按年份整理了所有公开内容，适合从时间线回看每一段学习、记录和思考的变化。
           </p>
         </div>
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <div class="stat-card">
-            <p class="stat-label">总文章</p>
-            <p class="mt-2 text-2xl font-bold tracking-tight text-[var(--text-strong)]">{posts.length}</p>
+        <div class="archive-metrics-grid">
+          <div class="stat-card archive-metric-card">
+            <div class="archive-metric-top">
+              <p class="archive-metric-label">总文章</p>
+              <span class="archive-metric-dot" aria-hidden="true"></span>
+            </div>
+            <p class="archive-metric-value">{posts.length}</p>
+            <p class="archive-metric-note">篇公开文章</p>
           </div>
-          <div class="stat-card">
-            <p class="stat-label">年份</p>
-            <p class="mt-2 text-2xl font-bold tracking-tight text-[var(--text-strong)]">{years.length}</p>
+          <div class="stat-card archive-metric-card">
+            <div class="archive-metric-top">
+              <p class="archive-metric-label">年份</p>
+              <span class="archive-metric-dot" aria-hidden="true"></span>
+            </div>
+            <p class="archive-metric-value">{years.length}</p>
+            <p class="archive-metric-note">个归档年份</p>
           </div>
-          <div class="stat-card col-span-2 sm:col-span-1">
-            <p class="stat-label">最近更新</p>
-            <p class="mt-2 text-2xl font-bold tracking-tight text-[var(--text-strong)]">{latestYear}</p>
+          <div class="stat-card archive-metric-card">
+            <div class="archive-metric-top">
+              <p class="archive-metric-label">最近更新</p>
+              <span class="archive-metric-dot" aria-hidden="true"></span>
+            </div>
+            <p class="archive-metric-value">{latestYear}</p>
+            <p class="archive-metric-note">最近活跃年份</p>
           </div>
         </div>
       </div>
