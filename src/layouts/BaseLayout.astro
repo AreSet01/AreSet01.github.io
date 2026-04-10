@@ -25,5 +25,54 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <div class="site-shell">
       <slot />
     </div>
+    <script>
+      (() => {
+        const colors = [
+          '#7cb3f0', '#5a9ee6', '#a8d0f8',
+          '#f0a8c8', '#e88ab0', '#f8c8dc',
+          '#c8a0e0', '#b8d8f8', '#f0b8d8',
+        ];
+
+        function sparkle(x, y, count) {
+          const frag = document.createDocumentFragment();
+          for (let i = 0; i < count; i++) {
+            const el = document.createElement('div');
+            const size = Math.random() * 5 + 3;
+            const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.5;
+            const dist = Math.random() * 60 + 30;
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            Object.assign(el.style, {
+              position: 'fixed',
+              left: x + 'px',
+              top: y + 'px',
+              width: size + 'px',
+              height: size + 'px',
+              borderRadius: '50%',
+              background: color,
+              pointerEvents: 'none',
+              zIndex: '9999',
+              boxShadow: `0 0 ${size + 2}px ${color}`,
+              transition: 'none',
+            });
+            frag.appendChild(el);
+
+            requestAnimationFrame(() => {
+              Object.assign(el.style, {
+                transition: 'all 0.6s cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px) scale(0)`,
+                opacity: '0',
+              });
+            });
+
+            setTimeout(() => el.remove(), 650);
+          }
+          document.body.appendChild(frag);
+        }
+
+        document.addEventListener('click', (e) => {
+          sparkle(e.clientX, e.clientY, 10);
+        });
+      })();
+    </script>
   </body>
 </html>
