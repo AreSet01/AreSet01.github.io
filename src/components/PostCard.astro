@@ -16,19 +16,19 @@ const { title, description, pubDate, tags = [], slug, index = 0 } = Astro.props;
 <article class="reveal-up h-full" style={`animation-delay: ${Math.min(index * 100, 360)}ms;`}>
   <a
     href={`/posts/${slug}`}
-    class="panel group flex h-full flex-col overflow-hidden rounded-[18px] p-5 transition duration-500 hover:-translate-y-1.5"
+    class="panel group flex h-full flex-col overflow-hidden rounded-[16px] px-6 py-6 transition duration-500 hover:-translate-y-1.5"
   >
-    <div class="flex items-center justify-between gap-4 text-[0.76rem] font-medium text-[var(--muted)]">
-      <span>Note {String(index + 1).padStart(2, '0')}</span>
-      <time datetime={pubDate.toISOString()}>
+    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[0.74rem] font-medium text-[var(--muted)]">
+      <span class="whitespace-nowrap">Note {String(index + 1).padStart(2, '0')}</span>
+      <time datetime={pubDate.toISOString()} class="whitespace-nowrap">
         {formatDate(pubDate)}
       </time>
     </div>
-    <h2 class="font-display mt-4 text-[1.2rem] leading-snug text-[var(--text-strong)] transition duration-300 group-hover:text-[var(--accent-strong)]">
+    <h2 class="font-display mt-4 text-[1.15rem] leading-snug text-[var(--text-strong)] transition duration-300 group-hover:text-[var(--accent-strong)]">
       {title}
     </h2>
     {description && (
-      <p class="mt-2.5 text-[0.9rem] leading-relaxed text-[var(--muted)] line-clamp-3">{description}</p>
+      <p class="mt-2.5 text-[0.88rem] leading-relaxed text-[var(--muted)] line-clamp-3">{description}</p>
     )}
     {tags.length > 0 && (
       <div class="mt-5 flex flex-wrap gap-1.5">
@@ -37,9 +37,9 @@ const { title, description, pubDate, tags = [], slug, index = 0 } = Astro.props;
         ))}
       </div>
     )}
-    <div class="mt-auto flex items-center justify-between pt-6">
-      <span class="text-[0.85rem] font-medium text-[var(--accent-strong)]">阅读全文 →</span>
-      <span class="rounded-full border border-[var(--border-strong)] bg-white/65 px-2.5 py-0.5 text-[0.72rem] font-medium text-[var(--muted)]">
+    <div class="mt-auto flex items-center justify-between gap-3 pt-6">
+      <span class="text-[0.84rem] font-medium text-[var(--accent-strong)] whitespace-nowrap">阅读全文 →</span>
+      <span class="shrink-0 rounded-full border border-[var(--border-strong)] bg-white/65 px-2.5 py-0.5 text-[0.7rem] font-medium text-[var(--muted)] whitespace-nowrap">
         {String(tags.length).padStart(2, '0')} tags
       </span>
     </div>

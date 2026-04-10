@@ -284,8 +284,8 @@ img {
 /* ================= Stat card ================= */
 
 .stat-card {
-  padding: 1rem 1.1rem;
-  border-radius: 14px;
+  padding: 1.15rem 1.35rem;
+  border-radius: 12px;
   background: var(--glass-bg-soft);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -397,9 +397,9 @@ img {
 
 .timeline-link {
   display: flex;
-  gap: 1rem;
-  padding: 0.9rem 1rem;
-  border-radius: 14px;
+  gap: 1.1rem;
+  padding: 0.95rem 1.1rem;
+  border-radius: 12px;
   transition: background 300ms var(--ease), transform 300ms var(--ease);
 }
 

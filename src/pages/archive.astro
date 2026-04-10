@@ -23,7 +23,7 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
 <BaseLayout title="归档 - 梦付千秋">
   <Header />
   <main class="container-medium flex-1 pb-12 pt-6 md:pb-16">
-    <section class="panel reveal-up rounded-[22px] px-6 py-8 md:px-8 md:py-10">
+    <section class="panel reveal-up rounded-[20px] px-7 py-9 md:px-10 md:py-10">
       <p class="eyebrow">Archive</p>
       <div class="mt-4 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
@@ -55,18 +55,18 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
           class="reveal-up grid gap-4 lg:grid-cols-[120px_minmax(0,1fr)]"
           style={`animation-delay: ${120 + yearIndex * 90}ms;`}
         >
-          <div class="panel flex items-center justify-center rounded-[18px] px-5 py-5 text-center">
+          <div class="panel flex items-center justify-center rounded-[16px] px-6 py-6 text-center">
             <div>
               <p class="text-[0.72rem] font-medium text-[var(--muted)]">Year</p>
               <p class="font-display mt-2 text-2xl tracking-tight text-[var(--text-strong)]">{year}</p>
             </div>
           </div>
-          <div class="panel rounded-[18px] p-3 md:p-4">
+          <div class="panel rounded-[16px] px-5 py-5 md:px-6 md:py-6">
             <ul class="space-y-1">
               {postsByYear[Number(year)].map(post => (
                 <li>
                   <a href={`/posts/${post.id}`} class="timeline-link group">
-                    <time class="mt-0.5 w-20 shrink-0 text-[0.78rem] font-medium text-[var(--muted)]">
+                    <time class="mt-0.5 w-24 shrink-0 text-[0.78rem] font-medium text-[var(--muted)]">
                       {formatDate(post.data.pubDate)}
                     </time>
                     <div class="min-w-0 flex-1">
