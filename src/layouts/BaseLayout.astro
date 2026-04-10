@@ -418,11 +418,12 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             </div>
           `;
           bodyEl.scrollTop = 0;
-          document.body.classList.add('preview-open');
+          document.body.classList.add('preview-active');
           overlay.classList.add('is-open');
           applyPreviewStartStyles();
 
           previewOpenFrame = requestAnimationFrame(() => {
+            document.body.classList.add('preview-open');
             animatePreviewOpen();
             previewOpenFrame = 0;
           });
@@ -480,6 +481,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           stopPreviewAnimations();
           overlay.classList.remove('is-open');
           document.body.classList.remove('preview-open');
+          document.body.classList.remove('preview-active');
           clearPreviewInlineStyles();
           resetPreviewMotion();
           currentUrl = '';
@@ -504,6 +506,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           }
 
           previewState = 'closing';
+          document.body.classList.remove('preview-open');
           applyPreviewOpenStyles();
 
           previewOverlayAnimation = overlay.animate(
