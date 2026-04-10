@@ -16,6 +16,7 @@ const { title, description, pubDate, tags = [], slug, index = 0 } = Astro.props;
 <article class="reveal-up h-full" style={`animation-delay: ${Math.min(index * 100, 360)}ms;`}>
   <a
     href={`/posts/${slug}`}
+    data-post-preview={`/posts/${slug}`}
     class="panel group flex h-full flex-col overflow-hidden rounded-[16px] px-6 py-6 transition duration-500 hover:-translate-y-1.5"
   >
     <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[0.74rem] font-medium text-[var(--muted)]">

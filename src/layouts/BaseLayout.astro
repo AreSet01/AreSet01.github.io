@@ -82,7 +82,9 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         });
 
         /* ========== 2. 可点击元素弹出动画 ========== */
+        let previewClickActive = false;
         document.addEventListener('click', (e) => {
+          if (previewClickActive) { previewClickActive = false; return; }
           const el = e.target.closest('a, button, .tag-chip, .nav-link, .timeline-link, .btn-primary, .btn-secondary, .stat-card');
           if (!el) return;
           el.classList.remove('pop-active');
@@ -160,6 +162,127 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           requestAnimationFrame(drawDots);
         }
         requestAnimationFrame(drawDots);
+
+        /* ========== 4. 文章预览模态框 ========== */
+        const overlay = document.createElement('div');
+        overlay.className = 'preview-overlay';
+        overlay.innerHTML = `
+          <div class="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+            <div class="preview-modal-header">
+              <h2 class="preview-modal-title" id="preview-title"></h2>
+              <button class="preview-close-btn" aria-label="关闭预览" type="button">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/>
+                </svg>
+              </button>
+            </div>
+            <div class="preview-modal-body"></div>
+            <div class="preview-modal-footer">
+              <a class="btn-primary preview-read-full" href="#">阅读全文 →</a>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const modal = overlay.querySelector('.preview-modal');
+        const titleEl = overlay.querySelector('.preview-modal-title');
+        const bodyEl = overlay.querySelector('.preview-modal-body');
+        const closeBtn = overlay.querySelector('.preview-close-btn');
+        const readFullBtn = overlay.querySelector('.preview-read-full');
+        let currentUrl = '';
+        const previewCache = new Map();
+
+        function openPreview(url) {
+          currentUrl = url;
+          readFullBtn.href = url;
+          titleEl.textContent = '加载中…';
+          bodyEl.innerHTML = `
+            <div class="preview-loading">
+              <div class="preview-spinner"></div>
+              <span>正在加载预览…</span>
+            </div>
+          `;
+          bodyEl.scrollTop = 0;
+          document.body.classList.add('preview-open');
+          overlay.classList.add('is-open');
+          setTimeout(() => closeBtn.focus(), 100);
+
+          if (previewCache.has(url)) {
+            renderPreview(previewCache.get(url));
+            return;
+          }
+
+          fetch(url)
+            .then(res => {
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              return res.text();
+            })
+            .then(html => {
+              const parsed = parsePostHtml(html);
+              previewCache.set(url, parsed);
+              if (currentUrl === url) renderPreview(parsed);
+            })
+            .catch(() => {
+              if (currentUrl === url) {
+                titleEl.textContent = '加载失败';
+                bodyEl.innerHTML = `
+                  <div class="preview-error">
+                    <div style="font-size:2rem;opacity:0.5">!</div>
+                    <p style="font-size:0.95rem;line-height:1.5">
+                      无法加载文章预览<br>
+                      <a href="${url}" style="color:var(--accent-strong);text-decoration:underline">点击这里直接阅读</a>
+                    </p>
+                  </div>
+                `;
+              }
+            });
+        }
+
+        function parsePostHtml(html) {
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          const titleNode = doc.querySelector('.section-title');
+          const title = titleNode ? titleNode.textContent.trim() : '';
+          const proseEl = doc.querySelector('.prose');
+          const content = proseEl ? proseEl.innerHTML : '<p>无法解析文章内容。</p>';
+          return { title, content };
+        }
+
+        function renderPreview({ title, content }) {
+          titleEl.textContent = title || '文章预览';
+          bodyEl.innerHTML = `<div class="prose">${content}</div>`;
+        }
+
+        function closePreview() {
+          overlay.classList.remove('is-open');
+          document.body.classList.remove('preview-open');
+          currentUrl = '';
+        }
+
+        // 拦截 PostCard 点击（capture 阶段，优先于 pop 动画）
+        document.addEventListener('click', (e) => {
+          if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+          const link = e.target.closest('[data-post-preview]');
+          if (!link) return;
+          e.preventDefault();
+          previewClickActive = true;
+          openPreview(link.getAttribute('data-post-preview'));
+        }, true);
+
+        // 点击遮罩关闭
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) closePreview();
+        });
+
+        // 关闭按钮
+        closeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          closePreview();
+        });
+
+        // Escape 关闭
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && overlay.classList.contains('is-open')) closePreview();
+        });
       })();
     </script>
   </body>
