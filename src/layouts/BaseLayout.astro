@@ -6,7 +6,7 @@ interface Props {
   description?: string;
 }
 
-const { title, description = '我的个人博客 - 日常记录与技术分享' } = Astro.props;
+const { title, description = '梦付千秋 - 日常记录与技术分享' } = Astro.props;
 ---
 
 <!DOCTYPE html>
@@ -15,7 +15,7 @@ const { title, description = '我的个人博客 - 日常记录与技术分享' 
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#f6efe3" />
+    <meta name="theme-color" content="#f4efe3" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -23,12 +23,6 @@ const { title, description = '我的个人博客 - 日常记录与技术分享' 
   </head>
   <body>
     <div class="site-shell">
-      <div class="site-backdrop" aria-hidden="true">
-        <div class="site-grid"></div>
-        <div class="site-orb site-orb-one"></div>
-        <div class="site-orb site-orb-two"></div>
-        <div class="site-orb site-orb-three"></div>
-      </div>
       <slot />
     </div>
   </body>
