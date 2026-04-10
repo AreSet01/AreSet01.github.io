@@ -47,8 +47,8 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
             Object.assign(el.style, {
               position: 'fixed',
-              left: `${x}px`,
-              top: `${y}px`,
+              left: `${x - size / 2}px`,
+              top: `${y - size / 2}px`,
               width: `${size}px`,
               height: `${size}px`,
               borderRadius: shape,
@@ -418,6 +418,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             </div>
           `;
           bodyEl.scrollTop = 0;
+          document.body.classList.add('preview-lock');
           document.body.classList.add('preview-active');
           overlay.classList.add('is-open');
           applyPreviewStartStyles();
@@ -481,6 +482,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           stopPreviewAnimations();
           overlay.classList.remove('is-open');
           document.body.classList.remove('preview-open');
+          document.body.classList.remove('preview-lock');
           document.body.classList.remove('preview-active');
           clearPreviewInlineStyles();
           resetPreviewMotion();
@@ -507,12 +509,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
           previewState = 'closing';
           document.body.classList.remove('preview-open');
+          document.body.classList.remove('preview-active');
           applyPreviewOpenStyles();
 
           previewOverlayAnimation = overlay.animate(
             [{ opacity: 1 }, { opacity: 0 }],
             {
-              duration: 280,
+              duration: 220,
               easing: 'cubic-bezier(0.36, 0, 0.2, 1)',
               fill: 'both',
             }
@@ -540,7 +543,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               },
             ],
             {
-              duration: 620,
+              duration: 520,
               easing: 'cubic-bezier(0.4, 0, 0.14, 1)',
               fill: 'both',
             }
