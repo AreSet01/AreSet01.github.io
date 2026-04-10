@@ -81,7 +81,17 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           sparkle(e.clientX, e.clientY, 18);
         });
 
-        /* ========== 2. 页面氛围粒子 ========== */
+        /* ========== 2. 可点击元素弹出动画 ========== */
+        document.addEventListener('click', (e) => {
+          const el = e.target.closest('a, button, .tag-chip, .nav-link, .timeline-link, .btn-primary, .btn-secondary, .stat-card');
+          if (!el) return;
+          el.classList.remove('pop-active');
+          void el.offsetWidth;
+          el.classList.add('pop-active');
+          el.addEventListener('animationend', () => el.classList.remove('pop-active'), { once: true });
+        });
+
+        /* ========== 3. 页面氛围粒子 ========== */
         const canvas = document.createElement('canvas');
         Object.assign(canvas.style, {
           position: 'fixed',

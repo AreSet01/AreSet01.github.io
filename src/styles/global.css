@@ -429,6 +429,19 @@ img {
   filter: blur(4px);
 }
 
+/* ================= Click pop animation ================= */
+
+@keyframes bounce-pop {
+  0%   { scale: 1; }
+  35%  { scale: 0.94; }
+  65%  { scale: 1.03; }
+  100% { scale: 1; }
+}
+
+.pop-active {
+  animation: bounce-pop 420ms var(--ease) !important;
+}
+
 /* ================= Reveal animation ================= */
 
 .reveal-up {
