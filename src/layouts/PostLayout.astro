@@ -20,22 +20,22 @@ const { title, description, pubDate, tags = [] } = Astro.props;
   <Header />
   <main class="container-medium flex-1 pb-12 pt-6 md:pb-16">
     <article class="space-y-8">
-      <header class="panel reveal-up overflow-hidden rounded-[22px] px-6 py-8 md:px-10 md:py-12">
-        <div class="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--muted)]">
+      <header class="panel reveal-up overflow-hidden rounded-[22px] px-6 py-8 md:px-10 md:py-11">
+        <div class="flex flex-wrap items-center gap-2.5 text-[0.78rem] font-medium text-[var(--muted)]">
           <a href="/archive" class="transition hover:text-[var(--accent-strong)]">Archive</a>
-          <span class="h-1 w-1 rounded-full bg-[var(--gold)]"></span>
+          <span class="h-1 w-1 rounded-full bg-[var(--accent)]"></span>
           <span>Published {formatDate(pubDate)}</span>
         </div>
-        <h1 class="section-title mt-6 max-w-4xl text-4xl md:text-5xl lg:text-6xl">{title}</h1>
+        <h1 class="section-title mt-5 max-w-3xl text-2xl md:text-[2rem] lg:text-[2.25rem]">{title}</h1>
         {description && (
-          <p class="mt-5 max-w-3xl text-base leading-8 text-[var(--muted)] md:text-lg">{description}</p>
+          <p class="mt-4 max-w-2xl text-[0.98rem] leading-relaxed text-[var(--muted)]">{description}</p>
         )}
-        <div class="mt-8 flex flex-wrap items-center gap-5">
-          <div class="stat-card min-w-[180px]">
+        <div class="mt-7 flex flex-wrap items-center gap-4">
+          <div class="stat-card min-w-[160px]">
             <p class="stat-label">发布日期</p>
-            <p class="mt-2 text-base font-semibold text-[var(--text)]">{formatDate(pubDate)}</p>
+            <p class="mt-1.5 text-[0.95rem] font-semibold text-[var(--text-strong)]">{formatDate(pubDate)}</p>
           </div>
-          {tags.length > 0 && <TagList tags={tags} class="max-w-3xl" />}
+          {tags.length > 0 && <TagList tags={tags} class="max-w-2xl" />}
         </div>
       </header>
       <div class="panel reveal-up rounded-[22px] px-5 py-6 md:px-8 md:py-8" style="animation-delay: 120ms;">
