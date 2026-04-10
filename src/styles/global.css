@@ -16,6 +16,10 @@
   --border-strong: rgba(99, 73, 45, 0.22);
   --card-shadow: 0 24px 60px rgba(58, 37, 20, 0.12);
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --radius-xl: 22px;
+  --radius-lg: 18px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
 }
 
 * {
@@ -211,7 +215,7 @@ img {
 
 .stat-card {
   border: 1px solid var(--border);
-  border-radius: 1.45rem;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.58);
   padding: 1rem 1.1rem;
   backdrop-filter: blur(12px);
@@ -257,7 +261,7 @@ img {
   display: flex;
   align-items: flex-start;
   gap: 1rem;
-  border-radius: 1.35rem;
+  border-radius: var(--radius-md);
   padding: 1rem 1.15rem;
   transition:
     transform 260ms var(--ease-spring),
@@ -342,7 +346,7 @@ img {
 
 .prose code {
   border: 1px solid rgba(36, 25, 17, 0.08);
-  border-radius: 0.55rem;
+  border-radius: 0.4rem;
   background: rgba(36, 25, 17, 0.06);
   padding: 0.15em 0.45em;
   font-size: 0.9em;
@@ -353,7 +357,7 @@ img {
   margin: 2em 0;
   overflow-x: auto;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 1.4rem;
+  border-radius: var(--radius-md);
   background: #11181a;
   color: #eef7f5;
   padding: 1.35em 1.4em;
@@ -370,7 +374,7 @@ img {
 .prose blockquote {
   margin: 2rem 0;
   border-left: 4px solid var(--gold);
-  border-radius: 1.25rem;
+  border-radius: var(--radius-md);
   background: linear-gradient(135deg, rgba(197, 138, 68, 0.12), rgba(255, 255, 255, 0.72));
   padding: 1.25rem 1.4rem;
   color: #5d4b3c;
@@ -396,7 +400,7 @@ img {
   max-width: 100%;
   margin: 2rem 0;
   border: 1px solid var(--border);
-  border-radius: 1.5rem;
+  border-radius: var(--radius-md);
   box-shadow: var(--card-shadow);
 }
 
@@ -413,7 +417,7 @@ img {
   overflow-x: auto;
   margin: 2rem 0;
   border: 1px solid var(--border);
-  border-radius: 1.25rem;
+  border-radius: var(--radius-md);
   border-collapse: collapse;
   background: rgba(255, 255, 255, 0.72);
 }

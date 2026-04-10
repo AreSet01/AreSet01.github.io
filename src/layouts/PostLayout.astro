@@ -20,7 +20,7 @@ const { title, description, pubDate, tags = [] } = Astro.props;
   <Header />
   <main class="container-medium flex-1 pb-12 pt-6 md:pb-16">
     <article class="space-y-8">
-      <header class="panel reveal-up overflow-hidden rounded-[40px] px-6 py-8 md:px-10 md:py-12">
+      <header class="panel reveal-up overflow-hidden rounded-[22px] px-6 py-8 md:px-10 md:py-12">
         <div class="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--muted)]">
           <a href="/archive" class="transition hover:text-[var(--accent-strong)]">Archive</a>
           <span class="h-1 w-1 rounded-full bg-[var(--gold)]"></span>
@@ -38,7 +38,7 @@ const { title, description, pubDate, tags = [] } = Astro.props;
           {tags.length > 0 && <TagList tags={tags} class="max-w-3xl" />}
         </div>
       </header>
-      <div class="panel reveal-up rounded-[32px] px-5 py-6 md:px-8 md:py-8" style="animation-delay: 120ms;">
+      <div class="panel reveal-up rounded-[22px] px-5 py-6 md:px-8 md:py-8" style="animation-delay: 120ms;">
         <div class="prose">
           <slot />
         </div>
