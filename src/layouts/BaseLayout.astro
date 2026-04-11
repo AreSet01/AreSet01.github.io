@@ -77,6 +77,24 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     </div>
     <script define:vars={{ searchIndexPath }}>
       (() => {
+        const cleanupKey = '__areSetSiteUiCleanup__';
+        const initKey = '__areSetSiteUiInit__';
+        const listenerKey = '__areSetSiteUiPageLoadBound__';
+
+        function initSiteUi() {
+          const previousCleanup = window[cleanupKey];
+          if (typeof previousCleanup === 'function') previousCleanup();
+
+          const controller = new AbortController();
+          const { signal } = controller;
+          let isDisposed = false;
+          let ambientFrame = 0;
+
+          document.querySelectorAll('canvas[data-ambient-canvas]').forEach((node) => node.remove());
+          document.querySelectorAll('.preview-overlay[data-generated-preview]').forEach((node) => node.remove());
+          document.body.classList.remove('search-lock', 'search-open', 'preview-lock', 'preview-active', 'preview-open');
+          document.documentElement.style.setProperty('--scrollbar-offset', '0px');
+
         const sparkleColors = [
           '#7cb3f0', '#5a9ee6', '#a8d0f8',
           '#f0a8c8', '#e88ab0', '#f8c8dc',
@@ -139,7 +157,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
           if (isPreviewInteraction || isSearchInteraction) return;
           sparkle(event.clientX, event.clientY, 18);
-        });
+        }, { signal });
 
         let previewClickActive = false;
         document.addEventListener('click', (event) => {
@@ -158,10 +176,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           el.classList.remove('pop-active');
           void el.offsetWidth;
           el.classList.add('pop-active');
-          el.addEventListener('animationend', () => el.classList.remove('pop-active'), { once: true });
-        });
+          el.addEventListener('animationend', () => el.classList.remove('pop-active'), { once: true, signal });
+        }, { signal });
 
         const canvas = document.createElement('canvas');
+        canvas.dataset.ambientCanvas = 'true';
         Object.assign(canvas.style, {
           position: 'fixed',
           inset: '0',
@@ -181,7 +200,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         }
 
         resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('resize', resizeCanvas, { signal });
 
         if (ctx) {
           const dots = [];
@@ -234,14 +253,15 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               ctx.fill();
             }
 
-            requestAnimationFrame(drawDots);
+            ambientFrame = requestAnimationFrame(drawDots);
           }
 
-          requestAnimationFrame(drawDots);
+          ambientFrame = requestAnimationFrame(drawDots);
         }
 
         const overlay = document.createElement('div');
         overlay.className = 'preview-overlay';
+        overlay.dataset.generatedPreview = 'true';
         overlay.innerHTML = `
           <div class="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title">
             <div class="preview-modal-header">
@@ -308,7 +328,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         };
 
         syncScrollbarOffset();
-        window.addEventListener('resize', syncScrollbarOffset);
+        window.addEventListener('resize', syncScrollbarOffset, { signal });
 
         function clearSearchCloseTimer() {
           if (!searchCloseTimer) return;
@@ -935,37 +955,37 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           event.preventDefault();
           previewClickActive = true;
           openPreview(previewUrl, link);
-        }, true);
+        }, { capture: true, signal });
 
         overlay.addEventListener('click', (event) => {
           if (event.target === overlay) closePreview();
-        });
+        }, { signal });
 
         closeBtn.addEventListener('click', (event) => {
           event.stopPropagation();
           closePreview();
-        });
+        }, { signal });
 
         if (searchReady) {
           document.querySelectorAll('[data-search-trigger]').forEach((trigger) => {
             trigger.addEventListener('click', (event) => {
               event.preventDefault();
               openSearch(trigger);
-            });
+            }, { signal });
           });
 
           searchOverlay.addEventListener('click', (event) => {
             if (event.target === searchOverlay) closeSearch();
-          });
+          }, { signal });
 
           searchCloseBtn.addEventListener('click', (event) => {
             event.preventDefault();
             closeSearch();
-          });
+          }, { signal });
 
           searchInput.addEventListener('input', () => {
             updateSearchResults();
-          });
+          }, { signal });
 
           searchInput.addEventListener('keydown', (event) => {
             if (event.key === 'ArrowDown') {
@@ -990,19 +1010,19 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               event.preventDefault();
               closeSearch();
             }
-          });
+          }, { signal });
 
           searchResultsEl.addEventListener('mousemove', (event) => {
             const target = event.target.closest('[data-search-result]');
             if (!target) return;
             setActiveSearchResult(Number(target.getAttribute('data-index')));
-          });
+          }, { signal });
 
           searchResultsEl.addEventListener('click', (event) => {
             const target = event.target.closest('[data-search-result]');
             if (!target) return;
             closeSearch(false);
-          });
+          }, { signal });
         }
 
         document.addEventListener('keydown', (event) => {
@@ -1025,64 +1045,123 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           }
 
           if (event.key === 'Escape' && overlay.classList.contains('is-open')) closePreview();
+        }, { signal });
+        window[cleanupKey] = () => {
+          if (isDisposed) return;
+          isDisposed = true;
+          controller.abort();
+          cancelAnimationFrame(ambientFrame);
+          cancelAnimationFrame(previewOpenFrame);
+          clearSearchCloseTimer();
+          stopPreviewAnimations();
+          overlay.remove();
+          canvas.remove();
+          document.body.classList.remove('search-lock', 'search-open', 'preview-lock', 'preview-active', 'preview-open');
+          document.documentElement.style.setProperty('--scrollbar-offset', '0px');
+        };
+      }
+
+      window[initKey] = initSiteUi;
+      initSiteUi();
+
+      if (!window[listenerKey]) {
+        document.addEventListener('astro:page-load', () => {
+          const init = window[initKey];
+          if (typeof init === 'function') init();
         });
+        window[listenerKey] = true;
+      }
 
         /* ========== 5. 鼠标光标追踪光晕 ========== */
         // 已移至独立 script 标签
       })();
     </script>
     <script>
-      function initCursorGlow() {
-        if (document.querySelector('.cursor-glow')) return;
-        if (!window.matchMedia('(pointer: fine)').matches) return;
+      (() => {
+        const cleanupKey = '__areSetCursorGlowCleanup__';
+        const initKey = '__areSetCursorGlowInit__';
+        const listenerKey = '__areSetCursorGlowPageLoadBound__';
 
-        const glow = document.createElement('div');
-        glow.className = 'cursor-glow';
-        document.body.appendChild(glow);
+        function initCursorGlow() {
+          const previousCleanup = window[cleanupKey];
+          if (typeof previousCleanup === 'function') previousCleanup();
 
-        let glowX = 0, glowY = 0;
-        let targetX = 0, targetY = 0;
-        let isVisible = false;
-        let isHovering = false;
+          document.querySelectorAll('.cursor-glow').forEach((node) => node.remove());
 
-        function updateGlow() {
-          glowX += (targetX - glowX) * 0.12;
-          glowY += (targetY - glowY) * 0.12;
-          const offset = isHovering ? 170 : 140;
-          glow.style.transform = `translate3d(${glowX - offset}px, ${glowY - offset}px, 0)`;
-          requestAnimationFrame(updateGlow);
-        }
-        requestAnimationFrame(updateGlow);
-
-        document.addEventListener('mousemove', (e) => {
-          targetX = e.clientX;
-          targetY = e.clientY;
-          if (!isVisible) {
-            isVisible = true;
-            glow.classList.add('is-visible');
+          if (!window.matchMedia('(pointer: fine)').matches) {
+            window[cleanupKey] = null;
+            return;
           }
-        });
 
-        document.addEventListener('mouseleave', () => {
-          isVisible = false;
-          isHovering = false;
-          glow.classList.remove('is-visible', 'is-hovering');
-        });
+          const controller = new AbortController();
+          const { signal } = controller;
+          const glow = document.createElement('div');
+          glow.className = 'cursor-glow';
+          document.body.appendChild(glow);
 
-        document.addEventListener('mouseover', (e) => {
-          const interactive = (e.target as Element)?.closest?.('a, button, .tag-chip, .nav-link, .btn-primary, .btn-secondary, .stat-card, .timeline-link, [data-post-preview]');
-          if (interactive) {
-            isHovering = true;
-            glow.classList.add('is-hovering');
-          } else {
+          let glowFrame = 0;
+          let glowX = 0;
+          let glowY = 0;
+          let targetX = 0;
+          let targetY = 0;
+          let isVisible = false;
+          let isHovering = false;
+
+          function updateGlow() {
+            glowX += (targetX - glowX) * 0.12;
+            glowY += (targetY - glowY) * 0.12;
+            const offset = isHovering ? 170 : 140;
+            glow.style.transform = `translate3d(${glowX - offset}px, ${glowY - offset}px, 0)`;
+            glowFrame = requestAnimationFrame(updateGlow);
+          }
+
+          glowFrame = requestAnimationFrame(updateGlow);
+
+          document.addEventListener('mousemove', (event) => {
+            targetX = event.clientX;
+            targetY = event.clientY;
+            if (!isVisible) {
+              isVisible = true;
+              glow.classList.add('is-visible');
+            }
+          }, { signal });
+
+          document.addEventListener('mouseleave', () => {
+            isVisible = false;
             isHovering = false;
-            glow.classList.remove('is-hovering');
-          }
-        });
-      }
+            glow.classList.remove('is-visible', 'is-hovering');
+          }, { signal });
 
-      initCursorGlow();
-      document.addEventListener('astro:page-load', initCursorGlow);
+          document.addEventListener('mouseover', (event) => {
+            const target = event.target instanceof Element ? event.target : null;
+            const interactive = target?.closest('a, button, .tag-chip, .nav-link, .btn-primary, .btn-secondary, .stat-card, .timeline-link, [data-post-preview], [data-search-trigger], [data-search-result]');
+            if (interactive) {
+              isHovering = true;
+              glow.classList.add('is-hovering');
+            } else {
+              isHovering = false;
+              glow.classList.remove('is-hovering');
+            }
+          }, { signal });
+
+          window[cleanupKey] = () => {
+            controller.abort();
+            cancelAnimationFrame(glowFrame);
+            glow.remove();
+          };
+        }
+
+        window[initKey] = initCursorGlow;
+        initCursorGlow();
+
+        if (!window[listenerKey]) {
+          document.addEventListener('astro:page-load', () => {
+            const init = window[initKey];
+            if (typeof init === 'function') init();
+          });
+          window[listenerKey] = true;
+        }
+      })();
     </script>
   </body>
 </html>
