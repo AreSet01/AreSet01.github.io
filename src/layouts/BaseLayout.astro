@@ -23,6 +23,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <ClientRouter />
+    <script is:inline>
+      (function(){
+        var s = localStorage.getItem('theme');
+        var d = (!s && window.matchMedia('(prefers-color-scheme:dark)').matches) ? 'dark' : (s || 'light');
+        document.documentElement.setAttribute('data-theme', d);
+      })();
+    </script>
     <title>{title}</title>
   </head>
   <body>
@@ -1216,6 +1223,58 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           window[listenerKey] = true;
         }
       })();
+    </script>
+    <script>
+      /* ========== 深色模式切换 ========== */
+      function bindThemeToggle() {
+        document.querySelectorAll('[data-theme-toggle]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+          });
+        });
+      }
+      bindThemeToggle();
+      document.addEventListener('astro:page-load', bindThemeToggle);
+    </script>
+    <script>
+      /* ========== 阅读进度条 ========== */
+      function initReadingProgress() {
+        const existing = document.querySelector('.reading-progress');
+        if (existing) existing.remove();
+
+        const prose = document.querySelector('.prose');
+        if (!prose) return;
+
+        const bar = document.createElement('div');
+        bar.className = 'reading-progress';
+        document.body.appendChild(bar);
+
+        function updateProgress() {
+          const rect = prose.getBoundingClientRect();
+          const top = -rect.top;
+          const total = rect.height - window.innerHeight;
+          if (total <= 0) {
+            bar.style.width = '100%';
+            return;
+          }
+          const pct = Math.min(100, Math.max(0, (top / total) * 100));
+          bar.style.width = `${pct}%`;
+          if (pct >= 99.5) {
+            bar.classList.add('is-hidden');
+          } else {
+            bar.classList.remove('is-hidden');
+          }
+        }
+
+        window.addEventListener('scroll', updateProgress, { passive: true });
+        window.addEventListener('resize', updateProgress, { passive: true });
+        updateProgress();
+      }
+      initReadingProgress();
+      document.addEventListener('astro:page-load', initReadingProgress);
     </script>
   </body>
 </html>
