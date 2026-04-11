@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css';
-import { ViewTransitions } from 'astro:transitions';
+import { ClientRouter } from 'astro:transitions';
 
 const searchIndexPath = `${import.meta.env.BASE_URL ?? '/'}search-index.json`;
 
@@ -22,7 +22,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <ViewTransitions />
+    <ClientRouter />
     <title>{title}</title>
   </head>
   <body>
