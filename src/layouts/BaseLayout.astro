@@ -26,6 +26,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <script is:inline>
       (function(){
         var runtimeKey = '__areSetThemeRuntimeBound__';
+        var themeTransitionTimer = 0;
 
         function getStoredTheme() {
           try {
@@ -63,6 +64,14 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           }
         }
 
+        function markThemeSwitching() {
+          document.documentElement.classList.add('theme-switching');
+          window.clearTimeout(themeTransitionTimer);
+          themeTransitionTimer = window.setTimeout(function() {
+            document.documentElement.classList.remove('theme-switching');
+          }, 860);
+        }
+
         function applyTheme(explicitTheme) {
           var nextTheme = resolveTheme(explicitTheme);
           document.documentElement.setAttribute('data-theme', nextTheme);
@@ -74,8 +83,56 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           return nextTheme;
         }
 
+        function transitionTheme(nextTheme, sourceEl) {
+          var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+          if (
+            prefersReducedMotion ||
+            !sourceEl ||
+            typeof document.startViewTransition !== 'function'
+          ) {
+            markThemeSwitching();
+            applyTheme(nextTheme);
+            return;
+          }
+
+          var rect = sourceEl.getBoundingClientRect();
+          var x = rect.left + rect.width / 2;
+          var y = rect.top + rect.height / 2;
+          var endRadius = Math.hypot(
+            Math.max(x, window.innerWidth - x),
+            Math.max(y, window.innerHeight - y)
+          );
+
+          var transition = document.startViewTransition(function() {
+            markThemeSwitching();
+            applyTheme(nextTheme);
+          });
+
+          transition.ready
+            .then(function() {
+              document.documentElement.animate(
+                {
+                  clipPath: [
+                    'circle(18px at ' + x + 'px ' + y + 'px)',
+                    'circle(' + endRadius + 'px at ' + x + 'px ' + y + 'px)',
+                  ],
+                  opacity: [0.72, 1],
+                  filter: ['brightness(0.96) saturate(0.96)', 'brightness(1) saturate(1)'],
+                },
+                {
+                  duration: 760,
+                  easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                  pseudoElement: '::view-transition-new(root)',
+                }
+              );
+            })
+            .catch(function() {});
+        }
+
         window.__getPreferredTheme = resolveTheme;
         window.__applyTheme = applyTheme;
+        window.__transitionTheme = transitionTheme;
         applyTheme();
 
         if (window[runtimeKey]) return;
@@ -1310,7 +1367,9 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             localStorage.setItem('theme', next);
           } catch (error) {}
 
-          if (typeof window.__applyTheme === 'function') {
+          if (typeof window.__transitionTheme === 'function') {
+            window.__transitionTheme(next, btn);
+          } else if (typeof window.__applyTheme === 'function') {
             window.__applyTheme(next);
           } else {
             document.documentElement.setAttribute('data-theme', next);

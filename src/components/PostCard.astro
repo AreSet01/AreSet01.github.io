@@ -44,7 +44,7 @@ const { title, description, pubDate, tags = [], slug, index = 0 } = Astro.props;
 
     <div class="mt-auto flex items-center justify-between gap-3 pt-6">
       <span class="whitespace-nowrap text-[0.84rem] font-medium text-[var(--accent-strong)]">阅读全文 -></span>
-      <span class="shrink-0 rounded-full border border-[var(--border-strong)] bg-white/65 px-2.5 py-0.5 text-[0.7rem] font-medium text-[var(--muted)] whitespace-nowrap">
+      <span class="surface-pill shrink-0 px-2.5 py-0.5 text-[0.7rem] font-medium whitespace-nowrap">
         {String(tags.length).padStart(2, '0')} tags
       </span>
     </div>

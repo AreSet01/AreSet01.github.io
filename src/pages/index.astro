@@ -18,7 +18,7 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
   <main class="container-wide flex-1 pb-12 pt-6 md:pb-16">
     <section class="grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
       <div class="panel reveal-up overflow-hidden rounded-[20px] px-7 py-9 md:px-11 md:py-12">
-        <div class="absolute right-7 top-7 hidden h-20 w-20 rounded-full border border-white/60 bg-white/40 md:block"></div>
+        <div class="hero-orb absolute right-7 top-7 hidden h-20 w-20 rounded-full md:block"></div>
         <p class="eyebrow">Digital Garden</p>
         <h1 class="section-title mt-5 max-w-3xl text-3xl md:text-4xl lg:text-[2.75rem]">
           把日常、灵感和前端实验，写成一座会呼吸的静态花园。
@@ -54,7 +54,7 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
             <a
               href={`/posts/${latestPost.id}`}
               data-post-preview={`/posts/${latestPost.id}`}
-              class="mt-4 block rounded-[12px] border border-[var(--border)] bg-white/55 px-5 py-4 transition duration-500 hover:-translate-y-1 hover:bg-white/80"
+              class="surface-link mt-4 px-5 py-4"
             >
               <p class="text-xs font-medium text-[var(--muted)]">
                 {formatDate(latestPost.data.pubDate)}
