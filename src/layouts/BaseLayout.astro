@@ -1108,8 +1108,8 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           let isHovering = false;
 
           function updateGlow() {
-            glowX += (targetX - glowX) * 0.22;
-            glowY += (targetY - glowY) * 0.22;
+            glowX += (targetX - glowX) * 0.18;
+            glowY += (targetY - glowY) * 0.18;
             const offset = glow.offsetWidth * 0.5;
             glow.style.transform = `translate3d(${glowX - offset}px, ${glowY - offset}px, 0)`;
             glowFrame = requestAnimationFrame(updateGlow);
@@ -1117,7 +1117,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
           glowFrame = requestAnimationFrame(updateGlow);
 
-          document.addEventListener('mousemove', (event) => {
+          document.addEventListener('pointermove', (event) => {
             targetX = event.clientX;
             targetY = event.clientY;
             if (!isVisible) {
@@ -1126,7 +1126,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             }
           }, { signal });
 
-          document.addEventListener('mouseleave', () => {
+          document.addEventListener('pointerleave', () => {
             isVisible = false;
             isHovering = false;
             glow.classList.remove('is-visible', 'is-hovering');
