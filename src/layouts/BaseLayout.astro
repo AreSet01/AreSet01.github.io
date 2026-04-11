@@ -1035,16 +1035,17 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
           let glowX = 0, glowY = 0;
           let targetX = 0, targetY = 0;
-          let rafId = 0;
           let isVisible = false;
+          let isHovering = false;
 
           function updateGlow() {
             glowX += (targetX - glowX) * 0.12;
             glowY += (targetY - glowY) * 0.12;
-            glow.style.transform = `translate3d(${glowX - 140}px, ${glowY - 140}px, 0)`;
-            rafId = requestAnimationFrame(updateGlow);
+            const offset = isHovering ? 170 : 140;
+            glow.style.transform = `translate3d(${glowX - offset}px, ${glowY - offset}px, 0)`;
+            requestAnimationFrame(updateGlow);
           }
-          rafId = requestAnimationFrame(updateGlow);
+          requestAnimationFrame(updateGlow);
 
           document.addEventListener('mousemove', (e) => {
             targetX = e.clientX;
@@ -1057,14 +1058,17 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
           document.addEventListener('mouseleave', () => {
             isVisible = false;
+            isHovering = false;
             glow.classList.remove('is-visible', 'is-hovering');
           });
 
           document.addEventListener('mouseover', (e) => {
             const interactive = e.target.closest('a, button, .tag-chip, .nav-link, .btn-primary, .btn-secondary, .stat-card, .timeline-link, [data-post-preview]');
             if (interactive) {
+              isHovering = true;
               glow.classList.add('is-hovering');
             } else {
+              isHovering = false;
               glow.classList.remove('is-hovering');
             }
           });

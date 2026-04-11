@@ -1449,17 +1449,16 @@ body.preview-open .site-shell {
   height: 280px;
   border-radius: 50%;
   pointer-events: none;
-  z-index: 1;
+  z-index: 9990;
   opacity: 0;
-  transition: opacity 0.4s ease;
+  transition: opacity 0.4s ease, width 0.35s ease, height 0.35s ease;
   background: radial-gradient(
     circle,
-    rgba(124, 179, 240, 0.12) 0%,
-    rgba(196, 181, 253, 0.08) 30%,
-    rgba(249, 168, 212, 0.05) 55%,
-    transparent 70%
+    rgba(124, 179, 240, 0.22) 0%,
+    rgba(196, 181, 253, 0.15) 25%,
+    rgba(249, 168, 212, 0.10) 45%,
+    transparent 68%
   );
-  mix-blend-mode: screen;
   will-change: transform, opacity;
 }
 
@@ -1472,10 +1471,10 @@ body.preview-open .site-shell {
   height: 340px;
   background: radial-gradient(
     circle,
-    rgba(124, 179, 240, 0.18) 0%,
-    rgba(196, 181, 253, 0.12) 30%,
-    rgba(249, 168, 212, 0.07) 55%,
-    transparent 70%
+    rgba(124, 179, 240, 0.30) 0%,
+    rgba(196, 181, 253, 0.20) 25%,
+    rgba(249, 168, 212, 0.12) 45%,
+    transparent 68%
   );
 }
 
