@@ -1028,52 +1028,61 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         });
 
         /* ========== 5. 鼠标光标追踪光晕 ========== */
-        if (!document.querySelector('.cursor-glow') && window.matchMedia('(pointer: fine)').matches) {
-          const glow = document.createElement('div');
-          glow.className = 'cursor-glow';
-          document.body.appendChild(glow);
-
-          let glowX = 0, glowY = 0;
-          let targetX = 0, targetY = 0;
-          let isVisible = false;
-          let isHovering = false;
-
-          function updateGlow() {
-            glowX += (targetX - glowX) * 0.12;
-            glowY += (targetY - glowY) * 0.12;
-            const offset = isHovering ? 170 : 140;
-            glow.style.transform = `translate3d(${glowX - offset}px, ${glowY - offset}px, 0)`;
-            requestAnimationFrame(updateGlow);
-          }
-          requestAnimationFrame(updateGlow);
-
-          document.addEventListener('mousemove', (e) => {
-            targetX = e.clientX;
-            targetY = e.clientY;
-            if (!isVisible) {
-              isVisible = true;
-              glow.classList.add('is-visible');
-            }
-          });
-
-          document.addEventListener('mouseleave', () => {
-            isVisible = false;
-            isHovering = false;
-            glow.classList.remove('is-visible', 'is-hovering');
-          });
-
-          document.addEventListener('mouseover', (e) => {
-            const interactive = e.target.closest('a, button, .tag-chip, .nav-link, .btn-primary, .btn-secondary, .stat-card, .timeline-link, [data-post-preview]');
-            if (interactive) {
-              isHovering = true;
-              glow.classList.add('is-hovering');
-            } else {
-              isHovering = false;
-              glow.classList.remove('is-hovering');
-            }
-          });
-        }
+        // 已移至独立 script 标签
       })();
+    </script>
+    <script>
+      function initCursorGlow() {
+        if (document.querySelector('.cursor-glow')) return;
+        if (!window.matchMedia('(pointer: fine)').matches) return;
+
+        const glow = document.createElement('div');
+        glow.className = 'cursor-glow';
+        document.body.appendChild(glow);
+
+        let glowX = 0, glowY = 0;
+        let targetX = 0, targetY = 0;
+        let isVisible = false;
+        let isHovering = false;
+
+        function updateGlow() {
+          glowX += (targetX - glowX) * 0.12;
+          glowY += (targetY - glowY) * 0.12;
+          const offset = isHovering ? 170 : 140;
+          glow.style.transform = `translate3d(${glowX - offset}px, ${glowY - offset}px, 0)`;
+          requestAnimationFrame(updateGlow);
+        }
+        requestAnimationFrame(updateGlow);
+
+        document.addEventListener('mousemove', (e) => {
+          targetX = e.clientX;
+          targetY = e.clientY;
+          if (!isVisible) {
+            isVisible = true;
+            glow.classList.add('is-visible');
+          }
+        });
+
+        document.addEventListener('mouseleave', () => {
+          isVisible = false;
+          isHovering = false;
+          glow.classList.remove('is-visible', 'is-hovering');
+        });
+
+        document.addEventListener('mouseover', (e) => {
+          const interactive = (e.target as Element)?.closest?.('a, button, .tag-chip, .nav-link, .btn-primary, .btn-secondary, .stat-card, .timeline-link, [data-post-preview]');
+          if (interactive) {
+            isHovering = true;
+            glow.classList.add('is-hovering');
+          } else {
+            isHovering = false;
+            glow.classList.remove('is-hovering');
+          }
+        });
+      }
+
+      initCursorGlow();
+      document.addEventListener('astro:page-load', initCursorGlow);
     </script>
   </body>
 </html>
