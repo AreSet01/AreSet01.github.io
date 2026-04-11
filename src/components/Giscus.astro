@@ -35,6 +35,14 @@
       crossorigin="anonymous"
       async
     ></script>
+    <script is:inline>
+      (function() {
+        var giscusScript = document.currentScript && document.currentScript.previousElementSibling;
+        if (!giscusScript) return;
+        var theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark_dimmed' : 'light';
+        giscusScript.setAttribute('data-theme', theme);
+      })();
+    </script>
   </div>
   <noscript>
     <p class="mt-4 text-sm text-[var(--muted)]">请启用 JavaScript 以查看评论。</p>

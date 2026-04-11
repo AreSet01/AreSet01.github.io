@@ -25,9 +25,78 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <ClientRouter />
     <script is:inline>
       (function(){
-        var s = localStorage.getItem('theme');
-        var d = (!s && window.matchMedia('(prefers-color-scheme:dark)').matches) ? 'dark' : (s || 'light');
-        document.documentElement.setAttribute('data-theme', d);
+        var runtimeKey = '__areSetThemeRuntimeBound__';
+
+        function getStoredTheme() {
+          try {
+            var stored = localStorage.getItem('theme');
+            return stored === 'dark' || stored === 'light' ? stored : null;
+          } catch (error) {
+            return null;
+          }
+        }
+
+        function resolveTheme(explicitTheme) {
+          if (explicitTheme === 'dark' || explicitTheme === 'light') return explicitTheme;
+          var storedTheme = getStoredTheme();
+          if (storedTheme) return storedTheme;
+          return window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+        }
+
+        function syncThemeColor(theme) {
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#0f1729' : '#f4efe3');
+          document.documentElement.style.colorScheme = theme;
+        }
+
+        function syncGiscusTheme(theme) {
+          var giscusTheme = theme === 'dark' ? 'dark_dimmed' : 'light';
+          var script = document.querySelector('script[src="https://giscus.app/client.js"]');
+          if (script) script.setAttribute('data-theme', giscusTheme);
+
+          var frame = document.querySelector('iframe.giscus-frame');
+          if (frame && frame.contentWindow) {
+            frame.contentWindow.postMessage(
+              { giscus: { setConfig: { theme: giscusTheme } } },
+              'https://giscus.app'
+            );
+          }
+        }
+
+        function applyTheme(explicitTheme) {
+          var nextTheme = resolveTheme(explicitTheme);
+          document.documentElement.setAttribute('data-theme', nextTheme);
+          syncThemeColor(nextTheme);
+
+          requestAnimationFrame(function() { syncGiscusTheme(nextTheme); });
+          window.setTimeout(function() { syncGiscusTheme(nextTheme); }, 180);
+          window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme: nextTheme } }));
+          return nextTheme;
+        }
+
+        window.__getPreferredTheme = resolveTheme;
+        window.__applyTheme = applyTheme;
+        applyTheme();
+
+        if (window[runtimeKey]) return;
+
+        document.addEventListener('astro:after-swap', function() {
+          applyTheme();
+        });
+
+        document.addEventListener('astro:page-load', function() {
+          applyTheme();
+        });
+
+        var media = window.matchMedia('(prefers-color-scheme:dark)');
+        if (media && typeof media.addEventListener === 'function') {
+          media.addEventListener('change', function() {
+            if (getStoredTheme()) return;
+            applyTheme();
+          });
+        }
+
+        window[runtimeKey] = true;
       })();
     </script>
     <title>{title}</title>
@@ -1226,14 +1295,30 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     </script>
     <script is:inline>
       /* ========== 深色模式切换 ========== */
-      document.addEventListener('click', function(e) {
-        var btn = e.target.closest('[data-theme-toggle]');
-        if (!btn) return;
-        var current = document.documentElement.getAttribute('data-theme');
-        var next = current === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', next);
-        localStorage.setItem('theme', next);
-      });
+      (function() {
+        var toggleKey = '__areSetThemeToggleBound__';
+        if (window[toggleKey]) return;
+
+        document.addEventListener('click', function(e) {
+          var btn = e.target.closest('[data-theme-toggle]');
+          if (!btn) return;
+
+          var current = document.documentElement.getAttribute('data-theme') || 'light';
+          var next = current === 'dark' ? 'light' : 'dark';
+
+          try {
+            localStorage.setItem('theme', next);
+          } catch (error) {}
+
+          if (typeof window.__applyTheme === 'function') {
+            window.__applyTheme(next);
+          } else {
+            document.documentElement.setAttribute('data-theme', next);
+          }
+        });
+
+        window[toggleKey] = true;
+      })();
     </script>
     <script is:inline>
       /* ========== 阅读进度条 ========== */
