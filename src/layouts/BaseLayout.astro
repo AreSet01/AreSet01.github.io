@@ -148,14 +148,14 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         }
 
         document.addEventListener('click', (event) => {
-          const isPreviewInteraction =
+          const isPreviewOpen =
             previewClickActive ||
-            event.target.closest('[data-post-preview], .preview-overlay, .preview-close-btn, .preview-read-full');
+            event.target.closest('[data-post-preview]');
           const isSearchInteraction = event.target.closest(
-            '[data-search-trigger], .search-overlay, .search-close-btn, [data-search-result]'
+            '[data-search-trigger], .search-close-btn, [data-search-result]'
           );
 
-          if (isPreviewInteraction || isSearchInteraction) return;
+          if (isPreviewOpen || isSearchInteraction) return;
           sparkle(event.clientX, event.clientY, 18);
         }, { signal });
 
@@ -1108,8 +1108,8 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           let isHovering = false;
 
           function updateGlow() {
-            glowX += (targetX - glowX) * 0.18;
-            glowY += (targetY - glowY) * 0.18;
+            glowX += (targetX - glowX) * 0.12;
+            glowY += (targetY - glowY) * 0.12;
             const offset = glow.offsetWidth * 0.5;
             glow.style.transform = `translate3d(${glowX - offset}px, ${glowY - offset}px, 0)`;
             glowFrame = requestAnimationFrame(updateGlow);
