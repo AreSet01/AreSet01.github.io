@@ -1266,8 +1266,19 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         const cleanupKey = '__areSetCursorGlowCleanup__';
         const initKey = '__areSetCursorGlowInit__';
         const listenerKey = '__areSetCursorGlowPageLoadBound__';
+        const stateKey = '__areSetCursorGlowState__';
 
         function initCursorGlow() {
+          const state = window[stateKey] || { colorIndex: 0, glowColors: [
+            '124, 179, 240',
+            '240, 168, 200',
+          ] };
+          window[stateKey] = state;
+
+          if (state.glow && state.glow.isConnected) {
+            return;
+          }
+
           const previousCleanup = window[cleanupKey];
           if (typeof previousCleanup === 'function') previousCleanup();
 
@@ -1283,6 +1294,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           const glow = document.createElement('div');
           glow.className = 'cursor-glow';
           document.body.appendChild(glow);
+          const glowColors = state.glowColors;
 
           let glowFrame = 0;
           let glowX = 0;
@@ -1291,11 +1303,19 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           let targetY = 0;
           let isVisible = false;
           let isHovering = false;
-          let cachedOffset = 18;
+          let cachedOffset = 12;
+
+          function applyGlowColor(index) {
+            const color = glowColors[index] || glowColors[0];
+            glow.style.setProperty('--cursor-rgb', color);
+          }
+
+          applyGlowColor(state.colorIndex || 0);
 
           function updateGlow() {
-            glowX += (targetX - glowX) * 0.35;
-            glowY += (targetY - glowY) * 0.35;
+            const followStrength = isHovering ? 0.48 : 0.62;
+            glowX += (targetX - glowX) * followStrength;
+            glowY += (targetY - glowY) * followStrength;
             glow.style.transform = `translate3d(${glowX - cachedOffset}px, ${glowY - cachedOffset}px, 0)`;
             glowFrame = requestAnimationFrame(updateGlow);
           }
@@ -1306,6 +1326,8 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             targetX = event.clientX;
             targetY = event.clientY;
             if (!isVisible) {
+              glowX = targetX;
+              glowY = targetY;
               isVisible = true;
               glow.classList.add('is-visible');
             }
@@ -1317,16 +1339,22 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             glow.classList.remove('is-visible', 'is-hovering');
           }, { signal });
 
+          document.addEventListener('pointerdown', (event) => {
+            if (event.button !== 0) return;
+            state.colorIndex = ((state.colorIndex || 0) + 1) % glowColors.length;
+            applyGlowColor(state.colorIndex);
+          }, { signal });
+
           document.addEventListener('mouseover', (event) => {
             const target = event.target instanceof Element ? event.target : null;
             const interactive = target?.closest('a, button, .tag-chip, .nav-link, .btn-primary, .btn-secondary, .stat-card, .timeline-link, [data-post-preview], [data-search-trigger], [data-search-result]');
             if (interactive) {
               isHovering = true;
-              cachedOffset = 22;
+              cachedOffset = 15;
               glow.classList.add('is-hovering');
             } else {
               isHovering = false;
-              cachedOffset = 18;
+              cachedOffset = 12;
               glow.classList.remove('is-hovering');
             }
           }, { signal });
@@ -1334,8 +1362,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           window[cleanupKey] = () => {
             controller.abort();
             cancelAnimationFrame(glowFrame);
+            state.glow = null;
             glow.remove();
           };
+
+          state.glow = glow;
         }
 
         window[initKey] = initCursorGlow;
