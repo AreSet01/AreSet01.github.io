@@ -37,8 +37,8 @@ git clone https://github.com/baldurk/renderdoc.git
 - **Capture Child Processes**：开启
 - **Tool->Setings->Allow Global Hooking**：开启
 - **Enable Process Injection**：开启
-![alt text](Picture\renderdocseting1.png)
-![alt text](Picture\renderdocseting2.png)
+![alt text](Picture/renderdocseting1.png)
+![alt text](Picture/renderdocseting2.png)
 ## 抓帧
 在 renderdoc 中，点击 "Launch" 启动即可打开Mumu12模拟器，此时左上角会出现如图所示字样，代表开启成功
-![image](Picture\success.png)
+![image](Picture/success.png)
