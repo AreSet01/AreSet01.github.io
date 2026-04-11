@@ -89,6 +89,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           const { signal } = controller;
           let isDisposed = false;
           let ambientFrame = 0;
+          let revealObserver = null;
 
           document.querySelectorAll('canvas[data-ambient-canvas]').forEach((node) => node.remove());
           document.querySelectorAll('.preview-overlay[data-generated-preview]').forEach((node) => node.remove());
@@ -146,6 +147,55 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
           document.body.appendChild(frag);
         }
+
+        function initRevealUp() {
+          const revealNodes = Array.from(document.querySelectorAll('.reveal-up'));
+          if (!revealNodes.length) return;
+          let revealDirection = 1;
+          let revealLastScrollY = window.scrollY;
+
+          window.addEventListener('scroll', () => {
+            const nextScrollY = window.scrollY;
+            const delta = nextScrollY - revealLastScrollY;
+            if (Math.abs(delta) > 1) {
+              revealDirection = delta > 0 ? 1 : -1;
+            }
+            revealLastScrollY = nextScrollY;
+          }, { passive: true, signal });
+
+          if (!('IntersectionObserver' in window)) {
+            revealNodes.forEach((node) => {
+              node.classList.add('reveal-from-bottom', 'is-revealed');
+            });
+            return;
+          }
+
+          revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+              const target = entry.target;
+
+              if (!entry.isIntersecting) {
+                target.classList.remove('is-revealed', 'reveal-from-bottom', 'reveal-from-top');
+                return;
+              }
+
+              const directionClass = revealDirection >= 0 ? 'reveal-from-bottom' : 'reveal-from-top';
+              target.classList.remove('is-revealed', 'reveal-from-bottom', 'reveal-from-top');
+              target.classList.add(directionClass);
+              void target.offsetWidth;
+              target.classList.add('is-revealed');
+            });
+          }, {
+            threshold: 0.16,
+            rootMargin: '0px 0px -8% 0px',
+          });
+
+          revealNodes.forEach((node) => {
+            revealObserver.observe(node);
+          });
+        }
+
+        initRevealUp();
 
         document.addEventListener('click', (event) => {
           const isPreviewOpen =
@@ -1050,6 +1100,8 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           if (isDisposed) return;
           isDisposed = true;
           controller.abort();
+          revealObserver?.disconnect();
+          revealObserver = null;
           cancelAnimationFrame(ambientFrame);
           cancelAnimationFrame(previewOpenFrame);
           clearSearchCloseTimer();
@@ -1106,12 +1158,12 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           let targetY = 0;
           let isVisible = false;
           let isHovering = false;
+          let cachedOffset = 18;
 
           function updateGlow() {
-            glowX += (targetX - glowX) * 0.12;
-            glowY += (targetY - glowY) * 0.12;
-            const offset = glow.offsetWidth * 0.5;
-            glow.style.transform = `translate3d(${glowX - offset}px, ${glowY - offset}px, 0)`;
+            glowX += (targetX - glowX) * 0.35;
+            glowY += (targetY - glowY) * 0.35;
+            glow.style.transform = `translate3d(${glowX - cachedOffset}px, ${glowY - cachedOffset}px, 0)`;
             glowFrame = requestAnimationFrame(updateGlow);
           }
 
@@ -1137,9 +1189,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             const interactive = target?.closest('a, button, .tag-chip, .nav-link, .btn-primary, .btn-secondary, .stat-card, .timeline-link, [data-post-preview], [data-search-trigger], [data-search-result]');
             if (interactive) {
               isHovering = true;
+              cachedOffset = 22;
               glow.classList.add('is-hovering');
             } else {
               isHovering = false;
+              cachedOffset = 18;
               glow.classList.remove('is-hovering');
             }
           }, { signal });
