@@ -1,8 +1,8 @@
 ---
-title: "renderdoc 抓取鸣朝帧并还原模型教程"
-description: "如何使用renderdoc抓帧鸣朝并在blender中把模型还原出来。"
+title: "renderdoc 抓取鸣潮帧并还原模型教程"
+description: "如何使用renderdoc抓帧鸣潮并在blender中把模型还原出来。"
 pubDate: 2026-04-12
-tags: ["renderdoc", "鸣朝", "抓帧"]
+tags: ["renderdoc", "鸣潮", "抓帧"]
 draft: false
 ---
 
@@ -10,7 +10,7 @@ draft: false
 
 首先，按照之前的教程配置好renderdoc和Mumu12模拟器，然后打开需要抓帧的游戏，进入到需要抓取的场景中，按下F12键进行抓帧
 
-由于我并不玩鸣朝，也懒得去过新手教程啦，所以我就直接在选角界面抓了一帧用以还原啦
+由于我并不玩鸣潮，也懒得去过新手教程啦，所以我就直接在选角界面抓了一帧用以还原啦
 
 ![抓帧结果](Picture/Capture.png)
 
@@ -42,7 +42,7 @@ draft: false
 
 **Github：**[PowerSerg10/UE5_RenderDoc_To_OBJ](https://github.com/PowerSerg10/UE5_RenderDoc_To_OBJ.git)
 
-但是它的脚本对于使用了Vulkan的鸣朝似乎有点不是很适用，于是我使用了AI对它的脚本进行了一些修改，以将我刚刚抓到的CSV文件成功转换OBJ文件
+但是它的脚本对于使用了Vulkan的鸣潮似乎有点不是很适用，于是我使用了AI对它的脚本进行了一些修改，以将我刚刚抓到的CSV文件成功转换OBJ文件
 
 **Github：**[魔改后的脚本](https://github.com/AreSet01/UE5_RenderDoc_To_OBJ.git)
 
