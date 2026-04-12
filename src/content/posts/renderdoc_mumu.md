@@ -7,14 +7,14 @@ draft: false
 ---
 
 ## Download Renderdoc.
-首先，下载 renderdoc 的最新版本。可以从 [renderdoc 官网](https://renderdoc.org/) 获取。
+首先，下载 renderdoc 的最新版本。可以从 [renderdoc 官网](https://renderdoc.org/) 获取
 
 或者，在GitHub中克隆最新的 renderdoc 仓库：
 
 ```bash
 git clone https://github.com/baldurk/renderdoc.git
 ```
-然后对其进行编译，但是要注意由于renderdoc使用的是2015版本的Visual Studio编译器，所以要下载对应的v140版本的编译工具链。
+然后对其进行编译，但是要注意由于renderdoc使用的是2015版本的Visual Studio编译器，所以要下载对应的v140版本的编译工具链
 
 ### why choose to compile renderdoc by yourself?
 
@@ -37,8 +37,8 @@ git clone https://github.com/baldurk/renderdoc.git
 - **Capture Child Processes**：开启
 - **Tool->Setings->Allow Global Hooking**：开启
 - **Enable Process Injection**：开启
-![alt text](Picture/renderdocseting1.png)
-![alt text](Picture/renderdocseting2.png)
+![配置](Picture/renderdocseting1.png)
+![配置](Picture/renderdocseting2.png)
 ## 抓帧
 在 renderdoc 中，点击 "Launch" 启动即可打开Mumu12模拟器，此时左上角会出现如图所示字样，代表开启成功
-![image](Picture/success.png)
+![验证](Picture/success.png)
