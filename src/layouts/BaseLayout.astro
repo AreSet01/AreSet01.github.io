@@ -226,7 +226,8 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
           document.querySelectorAll('canvas[data-ambient-canvas]').forEach((node) => node.remove());
           document.querySelectorAll('.preview-overlay[data-generated-preview]').forEach((node) => node.remove());
-          document.body.classList.remove('search-lock', 'search-open', 'preview-lock', 'preview-active', 'preview-open');
+          document.querySelectorAll('.image-viewer-overlay[data-generated-image-viewer]').forEach((node) => node.remove());
+          document.body.classList.remove('search-lock', 'search-open', 'preview-lock', 'preview-active', 'preview-open', 'image-view-open');
           document.documentElement.style.setProperty('--scrollbar-offset', '0px');
 
         const sparkleColors = [
@@ -286,6 +287,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           if (!revealNodes.length) return;
           let revealDirection = 1;
           let revealLastScrollY = window.scrollY;
+          const revealThreshold = 0.16;
 
           window.addEventListener('scroll', () => {
             const nextScrollY = window.scrollY;
@@ -306,9 +308,16 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           revealObserver = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
               const target = entry.target;
+              const isVisible = target.dataset.revealVisible === 'true';
 
               if (!entry.isIntersecting) {
+                if (!isVisible) return;
+                target.dataset.revealVisible = 'false';
                 target.classList.remove('is-revealed', 'reveal-from-bottom', 'reveal-from-top');
+                return;
+              }
+
+              if (isVisible || entry.intersectionRatio < revealThreshold) {
                 return;
               }
 
@@ -317,10 +326,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               target.classList.add(directionClass);
               void target.offsetWidth;
               target.classList.add('is-revealed');
+              target.dataset.revealVisible = 'true';
             });
           }, {
-            threshold: 0.16,
-            rootMargin: '0px 0px -8% 0px',
+            threshold: [0, revealThreshold],
+            rootMargin: '10% 0px 10% 0px',
           });
 
           revealNodes.forEach((node) => {
@@ -337,8 +347,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           const isSearchInteraction = event.target.closest(
             '[data-search-trigger], .search-close-btn, [data-search-result]'
           );
+          const isImageInteraction = event.target.closest(
+            '.prose img, .image-viewer-overlay, .image-viewer-close'
+          );
 
-          if (isPreviewOpen || isSearchInteraction) return;
+          if (isPreviewOpen || isSearchInteraction || isImageInteraction) return;
           sparkle(event.clientX, event.clientY, 18);
         }, { signal });
 
@@ -469,6 +482,28 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         const bodyEl = overlay.querySelector('.preview-modal-body');
         const closeBtn = overlay.querySelector('.preview-close-btn');
         const readFullBtn = overlay.querySelector('.preview-read-full');
+        const imageOverlay = document.createElement('div');
+        imageOverlay.className = 'image-viewer-overlay';
+        imageOverlay.dataset.generatedImageViewer = 'true';
+        imageOverlay.innerHTML = `
+          <div class="image-viewer-shell" role="dialog" aria-modal="true" aria-labelledby="image-viewer-caption">
+            <button class="image-viewer-close" aria-label="关闭图片预览" type="button">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="3" y1="3" x2="13" y2="13"></line>
+                <line x1="13" y1="3" x2="3" y2="13"></line>
+              </svg>
+            </button>
+            <div class="image-viewer-stage">
+              <img class="image-viewer-media" alt="" />
+              <p class="image-viewer-caption" id="image-viewer-caption" hidden></p>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(imageOverlay);
+        const imageViewerCloseBtn = imageOverlay.querySelector('.image-viewer-close');
+        const imageViewerShell = imageOverlay.querySelector('.image-viewer-shell');
+        const imageViewerMedia = imageOverlay.querySelector('.image-viewer-media');
+        const imageViewerCaption = imageOverlay.querySelector('.image-viewer-caption');
         const searchOverlay = document.querySelector('.search-overlay');
         const searchInput = searchOverlay?.querySelector('.search-input');
         const searchResultsEl = searchOverlay?.querySelector('[data-search-results]');
@@ -491,6 +526,22 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         let searchSourceEl = null;
         let searchCloseTimer = 0;
         let searchState = 'idle';
+        let imageViewerSourceEl = null;
+        let imageViewerOverlayAnimation = null;
+        let imageViewerShellAnimation = null;
+        let imageViewerState = 'closed';
+        let imageViewerMotion = {
+          startX: 0,
+          startY: 18,
+          startScaleX: 0.86,
+          startScaleY: 0.82,
+          pinchScaleX: 0.68,
+          pinchScaleY: 1.01,
+          driftX: 0,
+          driftY: -8,
+          overshootScaleX: 1.01,
+          overshootScaleY: 0.992,
+        };
         let previewMotion = {
           startX: 0,
           startY: 24,
@@ -517,6 +568,56 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           if (!searchCloseTimer) return;
           window.clearTimeout(searchCloseTimer);
           searchCloseTimer = 0;
+        }
+
+        function getImageCaption(sourceEl) {
+          const figureCaption = sourceEl.closest('figure')?.querySelector('figcaption')?.textContent?.trim();
+          if (figureCaption) return figureCaption;
+          return sourceEl.getAttribute('alt')?.trim() || '';
+        }
+
+        function rememberSourceImageHidden(sourceEl) {
+          if (!(sourceEl instanceof HTMLImageElement)) return;
+          sourceEl.dataset.imageViewerOpacity = sourceEl.style.opacity || '';
+          sourceEl.style.opacity = '0';
+        }
+
+        function restoreSourceImageHidden(sourceEl = imageViewerSourceEl) {
+          if (!(sourceEl instanceof HTMLImageElement)) return;
+          sourceEl.style.opacity = sourceEl.dataset.imageViewerOpacity || '';
+          delete sourceEl.dataset.imageViewerOpacity;
+        }
+
+        function openImageViewer(sourceEl) {
+          if (!(sourceEl instanceof HTMLImageElement)) return;
+
+          const imageSrc = sourceEl.currentSrc || sourceEl.src;
+          if (!imageSrc) return;
+
+          stopImageViewerAnimations();
+          imageViewerSourceEl = sourceEl;
+          imageViewerMedia.src = imageSrc;
+          imageViewerMedia.alt = sourceEl.alt || '';
+
+          const captionText = getImageCaption(sourceEl);
+          imageViewerCaption.textContent = captionText;
+          imageViewerCaption.hidden = !captionText;
+
+          syncScrollbarOffset();
+          document.body.classList.add('image-view-open');
+          imageOverlay.classList.add('is-open');
+          rememberSourceImageHidden(sourceEl);
+          setImageViewerMotion(sourceEl);
+          applyImageViewerStartStyles();
+
+          requestAnimationFrame(() => {
+            if (!imageOverlay.classList.contains('is-open')) return;
+            animateImageViewerOpen();
+          });
+
+          window.setTimeout(() => {
+            if (imageOverlay.classList.contains('is-open')) imageViewerCloseBtn.focus();
+          }, 120);
         }
 
         function escapeHtml(value) {
@@ -797,6 +898,263 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           animation.onfinish = null;
           animation.oncancel = null;
           animation.cancel();
+        }
+
+        function stopImageViewerAnimations() {
+          releaseAnimation(imageViewerOverlayAnimation);
+          releaseAnimation(imageViewerShellAnimation);
+          imageViewerOverlayAnimation = null;
+          imageViewerShellAnimation = null;
+        }
+
+        function resetImageViewerMotion() {
+          imageViewerMotion = {
+            startX: 0,
+            startY: 18,
+            startScaleX: 0.86,
+            startScaleY: 0.82,
+            pinchScaleX: 0.68,
+            pinchScaleY: 1.01,
+            driftX: 0,
+            driftY: -8,
+            overshootScaleX: 1.01,
+            overshootScaleY: 0.992,
+          };
+        }
+
+        function setImageViewerMotion(sourceEl) {
+          if (!(sourceEl instanceof Element)) {
+            resetImageViewerMotion();
+            return;
+          }
+
+          const sourceRect = sourceEl.getBoundingClientRect();
+          const shellRect = imageViewerShell.getBoundingClientRect();
+          const sourceStyle = window.getComputedStyle(sourceEl);
+          const startX = sourceRect.left + sourceRect.width / 2 - window.innerWidth / 2;
+          const startY = sourceRect.top + sourceRect.height / 2 - window.innerHeight / 2;
+          const scaleRatioX = sourceRect.width / Math.max(shellRect.width, 1);
+          const scaleRatioY = sourceRect.height / Math.max(shellRect.height, 1);
+          const sourceRadius = parseFloat(sourceStyle.borderTopLeftRadius) || 16;
+          const startScaleX = Math.max(0.18, Math.min(0.86, scaleRatioX));
+          const startScaleY = Math.max(0.14, Math.min(0.82, scaleRatioY));
+          const pinchScaleX = Math.max(0.18, startScaleX * 0.66);
+          const pinchScaleY = Math.min(1.04, Math.max(0.5, startScaleY * 1.18));
+          const driftX = startX * -0.12;
+          const driftY = startY * -0.08 - Math.max(6, sourceRadius * 0.18);
+
+          imageViewerMotion = {
+            startX,
+            startY,
+            startScaleX,
+            startScaleY,
+            pinchScaleX,
+            pinchScaleY,
+            driftX,
+            driftY,
+            overshootScaleX: 1.01,
+            overshootScaleY: 0.992,
+          };
+        }
+
+        function applyImageViewerStartStyles() {
+          const { startX, startY, startScaleX, startScaleY } = imageViewerMotion;
+          imageOverlay.style.opacity = '0';
+          imageViewerShell.style.transform = `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`;
+          imageViewerShell.style.opacity = '0.08';
+        }
+
+        function applyImageViewerOpenStyles() {
+          imageOverlay.style.opacity = '1';
+          imageViewerShell.style.transform = 'translate3d(0, 0, 0) scale(1, 1)';
+          imageViewerShell.style.opacity = '1';
+        }
+
+        function clearImageViewerInlineStyles() {
+          imageOverlay.style.removeProperty('opacity');
+          imageViewerShell.style.removeProperty('transform');
+          imageViewerShell.style.removeProperty('opacity');
+        }
+
+        function animateImageViewerOpen() {
+          stopImageViewerAnimations();
+
+          if (prefersReducedMotion) {
+            applyImageViewerOpenStyles();
+            imageViewerState = 'open';
+            return;
+          }
+
+          const {
+            startX,
+            startY,
+            startScaleX,
+            startScaleY,
+            pinchScaleX,
+            pinchScaleY,
+            driftX,
+            driftY,
+            overshootScaleX,
+            overshootScaleY,
+          } = imageViewerMotion;
+
+          imageViewerState = 'opening';
+
+          imageViewerOverlayAnimation = imageOverlay.animate(
+            [{ opacity: 0 }, { opacity: 1 }],
+            {
+              duration: 320,
+              easing: 'cubic-bezier(0.2, 0.82, 0.2, 1)',
+              fill: 'both',
+            }
+          );
+
+          imageViewerShellAnimation = imageViewerShell.animate(
+            [
+              {
+                transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
+                opacity: 0.08,
+              },
+              {
+                transform: `translate3d(${(startX * 0.38).toFixed(2)}px, ${(startY * 0.55).toFixed(2)}px, 0) scale(${pinchScaleX.toFixed(3)}, ${pinchScaleY.toFixed(3)})`,
+                opacity: 0.82,
+                offset: 0.46,
+              },
+              {
+                transform: `translate3d(${driftX.toFixed(2)}px, ${driftY.toFixed(2)}px, 0) scale(${overshootScaleX.toFixed(3)}, ${overshootScaleY.toFixed(3)})`,
+                opacity: 1,
+                offset: 0.84,
+              },
+              {
+                transform: 'translate3d(0, 0, 0) scale(1, 1)',
+                opacity: 1,
+              },
+            ],
+            {
+              duration: 540,
+              easing: 'cubic-bezier(0.18, 0.88, 0.22, 1)',
+              fill: 'both',
+            }
+          );
+
+          imageViewerOverlayAnimation.onfinish = () => {
+            imageOverlay.style.opacity = '1';
+            releaseAnimation(imageViewerOverlayAnimation);
+            imageViewerOverlayAnimation = null;
+          };
+
+          imageViewerOverlayAnimation.oncancel = () => {
+            imageViewerOverlayAnimation = null;
+          };
+
+          imageViewerShellAnimation.onfinish = () => {
+            applyImageViewerOpenStyles();
+            releaseAnimation(imageViewerShellAnimation);
+            imageViewerShellAnimation = null;
+            imageViewerState = 'open';
+          };
+
+          imageViewerShellAnimation.oncancel = () => {
+            imageViewerShellAnimation = null;
+          };
+        }
+
+        function finishImageViewerClose(restoreFocusEl) {
+          stopImageViewerAnimations();
+          imageOverlay.classList.remove('is-open');
+          document.body.classList.remove('image-view-open');
+          imageViewerCaption.hidden = true;
+          syncScrollbarOffset();
+          clearImageViewerInlineStyles();
+          restoreSourceImageHidden();
+          resetImageViewerMotion();
+          imageViewerState = 'closed';
+          imageViewerSourceEl = null;
+
+          if (restoreFocusEl instanceof HTMLElement && restoreFocusEl.isConnected && restoreFocusEl.tabIndex >= 0) {
+            restoreFocusEl.focus({ preventScroll: true });
+          }
+        }
+
+        function closeImageViewer() {
+          if (!imageOverlay.classList.contains('is-open') || imageViewerState === 'closing') return;
+
+          const restoreFocusEl = imageViewerSourceEl;
+          stopImageViewerAnimations();
+
+          if (prefersReducedMotion) {
+            finishImageViewerClose(restoreFocusEl);
+            return;
+          }
+
+          const {
+            startX,
+            startY,
+            startScaleX,
+            startScaleY,
+            pinchScaleX,
+            pinchScaleY,
+            driftX,
+            driftY,
+          } = imageViewerMotion;
+
+          imageViewerState = 'closing';
+          applyImageViewerOpenStyles();
+
+          imageViewerOverlayAnimation = imageOverlay.animate(
+            [{ opacity: 1 }, { opacity: 0 }],
+            {
+              duration: 220,
+              easing: 'cubic-bezier(0.36, 0, 0.2, 1)',
+              fill: 'both',
+            }
+          );
+
+          imageViewerShellAnimation = imageViewerShell.animate(
+            [
+              {
+                transform: 'translate3d(0, 0, 0) scale(1, 1)',
+                opacity: 1,
+              },
+              {
+                transform: `translate3d(${(driftX * 0.2).toFixed(2)}px, ${(driftY * 0.2).toFixed(2)}px, 0) scale(0.986, 1.006)`,
+                opacity: 1,
+                offset: 0.18,
+              },
+              {
+                transform: `translate3d(${(startX * 0.38).toFixed(2)}px, ${(startY * 0.56).toFixed(2)}px, 0) scale(${pinchScaleX.toFixed(3)}, ${pinchScaleY.toFixed(3)})`,
+                opacity: 0.82,
+                offset: 0.56,
+              },
+              {
+                transform: `translate3d(${startX.toFixed(2)}px, ${startY.toFixed(2)}px, 0) scale(${startScaleX.toFixed(3)}, ${startScaleY.toFixed(3)})`,
+                opacity: 0,
+              },
+            ],
+            {
+              duration: 460,
+              easing: 'cubic-bezier(0.4, 0, 0.14, 1)',
+              fill: 'both',
+            }
+          );
+
+          imageViewerOverlayAnimation.onfinish = () => {
+            imageOverlay.style.opacity = '0';
+            releaseAnimation(imageViewerOverlayAnimation);
+            imageViewerOverlayAnimation = null;
+          };
+
+          imageViewerOverlayAnimation.oncancel = () => {
+            imageViewerOverlayAnimation = null;
+          };
+
+          imageViewerShellAnimation.onfinish = () => {
+            finishImageViewerClose(restoreFocusEl);
+          };
+
+          imageViewerShellAnimation.oncancel = () => {
+            imageViewerShellAnimation = null;
+          };
         }
 
         function stopPreviewAnimations() {
@@ -1149,6 +1507,27 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           closePreview();
         }, { signal });
 
+        document.addEventListener('click', (event) => {
+          if (event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) return;
+
+          const target = event.target.closest('.prose img');
+          if (!(target instanceof HTMLImageElement)) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          openImageViewer(target);
+        }, { capture: true, signal });
+
+        imageOverlay.addEventListener('click', (event) => {
+          if (event.target === imageOverlay) closeImageViewer();
+        }, { signal });
+
+        imageViewerCloseBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          closeImageViewer();
+        }, { signal });
+
         if (searchReady) {
           document.querySelectorAll('[data-search-trigger]').forEach((trigger) => {
             trigger.addEventListener('click', (event) => {
@@ -1227,12 +1606,19 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             return;
           }
 
+          if (event.key === 'Escape' && imageOverlay.classList.contains('is-open')) {
+            closeImageViewer();
+            return;
+          }
+
           if (event.key === 'Escape' && overlay.classList.contains('is-open')) closePreview();
         }, { signal });
         window[cleanupKey] = () => {
           if (isDisposed) return;
           isDisposed = true;
           controller.abort();
+          stopImageViewerAnimations();
+          restoreSourceImageHidden(imageViewerSourceEl);
           revealObserver?.disconnect();
           revealObserver = null;
           cancelAnimationFrame(ambientFrame);
@@ -1240,8 +1626,9 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           clearSearchCloseTimer();
           stopPreviewAnimations();
           overlay.remove();
+          imageOverlay.remove();
           canvas.remove();
-          document.body.classList.remove('search-lock', 'search-open', 'preview-lock', 'preview-active', 'preview-open');
+          document.body.classList.remove('search-lock', 'search-open', 'preview-lock', 'preview-active', 'preview-open', 'image-view-open');
           document.documentElement.style.setProperty('--scrollbar-offset', '0px');
         };
       }
@@ -1347,7 +1734,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
           document.addEventListener('mouseover', (event) => {
             const target = event.target instanceof Element ? event.target : null;
-            const interactive = target?.closest('a, button, .tag-chip, .nav-link, .btn-primary, .btn-secondary, .stat-card, .timeline-link, [data-post-preview], [data-search-trigger], [data-search-result]');
+            const interactive = target?.closest('a, button, .tag-chip, .nav-link, .btn-primary, .btn-secondary, .stat-card, .timeline-link, .prose img, .image-viewer-close, [data-post-preview], [data-search-trigger], [data-search-result]');
             if (interactive) {
               isHovering = true;
               cachedOffset = 15;
