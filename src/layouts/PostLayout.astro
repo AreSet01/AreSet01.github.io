@@ -79,7 +79,7 @@ const isLocked = locked && Boolean(passwordHash);
   </main>
   <Footer />
   {isLocked && (
-    <script is:inline>
+    <script is:inline data-astro-rerun>
       (() => {
         const article = document.querySelector('[data-locked-post="true"]');
         const panel = document.querySelector('[data-lock-panel]');
@@ -88,10 +88,30 @@ const isLocked = locked && Boolean(passwordHash);
         const message = document.querySelector('[data-lock-message]');
         const expectedHash = article?.getAttribute('data-lock-key') || '';
         const storageKey = `post-unlocked:${location.pathname}:${expectedHash}`;
+        const encoder = new TextEncoder();
+
+        function getStoredUnlock() {
+          try {
+            return sessionStorage.getItem(storageKey) === '1';
+          } catch {
+            return false;
+          }
+        }
+
+        function setStoredUnlock() {
+          try {
+            sessionStorage.setItem(storageKey, '1');
+          } catch {
+            // Some privacy modes block sessionStorage; unlocking still works for the current page.
+          }
+        }
 
         async function sha256(value) {
-          const bytes = new TextEncoder().encode(value);
-          const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+          const bytes = encoder.encode(value);
+          if (!window.crypto?.subtle) {
+            throw new Error('WebCrypto is unavailable');
+          }
+          const hashBuffer = await window.crypto.subtle.digest('SHA-256', bytes);
           return Array.from(new Uint8Array(hashBuffer))
             .map((byte) => byte.toString(16).padStart(2, '0'))
             .join('');
@@ -104,7 +124,10 @@ const isLocked = locked && Boolean(passwordHash);
         }
 
         if (!article || !panel || !content || !form || !expectedHash) return;
-        if (sessionStorage.getItem(storageKey) === '1') {
+        if (form.dataset.lockBound === 'true') return;
+        form.dataset.lockBound = 'true';
+
+        if (getStoredUnlock()) {
           unlock();
           return;
         }
@@ -118,7 +141,7 @@ const isLocked = locked && Boolean(passwordHash);
           try {
             const digest = await sha256(password);
             if (digest === expectedHash) {
-              sessionStorage.setItem(storageKey, '1');
+              setStoredUnlock();
               unlock();
             } else if (message) {
               message.textContent = 'Password is incorrect.';
