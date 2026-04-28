@@ -19,6 +19,9 @@ const { Content } = await render(post);
   description={post.data.description}
   pubDate={post.data.pubDate}
   tags={post.data.tags}
+  locked={post.data.locked}
+  passwordHash={post.data.passwordHash}
+  passwordHint={post.data.passwordHint}
 >
   <Content />
 </PostLayout>

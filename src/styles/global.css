@@ -2117,3 +2117,43 @@ body.preview-open .site-shell {
     scroll-behavior: auto !important;
   }
 }
+
+.lock-mark {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.12rem 0.38rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+.lock-panel {
+  background:
+    linear-gradient(135deg, rgba(var(--accent-rgb), 0.16), transparent 42%),
+    var(--surface);
+}
+
+.lock-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+  padding: 0.85rem 1rem;
+  color: var(--text);
+  outline: none;
+  backdrop-filter: blur(12px);
+}
+
+.lock-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.14);
+}
+
+.lock-message {
+  color: var(--accent-strong);
+}

@@ -208,7 +208,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         </div>
       </div>
     </div>
-    <script define:vars={{ searchIndexPath }}>
+    <script is:inline define:vars={{ searchIndexPath }}>
       (() => {
         const cleanupKey = '__areSetSiteUiCleanup__';
         const initKey = '__areSetSiteUiInit__';
@@ -1383,6 +1383,12 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           const doc = new DOMParser().parseFromString(html, 'text/html');
           const titleNode = doc.querySelector('.section-title');
           const title = titleNode ? titleNode.textContent.trim() : '';
+          if (doc.querySelector('[data-locked-post="true"]')) {
+            return {
+              title,
+              content: '<p>这篇文章上锁啦！密码的话，不知道哇~</p>',
+            };
+          }
           const proseEl = doc.querySelector('.prose');
           const content = proseEl ? proseEl.innerHTML : '<p>无法解析文章内容。</p>';
           return { title, content };
@@ -1648,7 +1654,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         // 已移至独立 script 标签
       })();
     </script>
-    <script>
+    <script is:inline>
       (() => {
         const cleanupKey = '__areSetCursorGlowCleanup__';
         const initKey = '__areSetCursorGlowInit__';

@@ -8,9 +8,10 @@ interface Props {
   tags?: string[];
   slug: string;
   index?: number;
+  locked?: boolean;
 }
 
-const { title, description, pubDate, tags = [], slug, index = 0 } = Astro.props;
+const { title, description, pubDate, tags = [], slug, index = 0, locked = false } = Astro.props;
 ---
 
 <article class="reveal-up h-full" style={`animation-delay: ${Math.min(index * 100, 360)}ms;`}>
@@ -21,9 +22,12 @@ const { title, description, pubDate, tags = [], slug, index = 0 } = Astro.props;
   >
     <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[0.74rem] font-medium text-[var(--muted)]">
       <span class="whitespace-nowrap">Note {String(index + 1).padStart(2, '0')}</span>
-      <time datetime={pubDate.toISOString()} class="whitespace-nowrap">
-        {formatDate(pubDate)}
-      </time>
+      <div class="flex items-center gap-2">
+        {locked && <span class="lock-mark">LOCKED</span>}
+        <time datetime={pubDate.toISOString()} class="whitespace-nowrap">
+          {formatDate(pubDate)}
+        </time>
+      </div>
     </div>
 
     <h2 class="font-display mt-4 text-[1.15rem] leading-snug text-[var(--text-strong)] transition duration-300 group-hover:text-[var(--accent-strong)]">

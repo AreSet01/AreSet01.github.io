@@ -107,6 +107,7 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
               tags={post.data.tags}
               slug={post.id}
               index={index}
+              locked={post.data.locked}
             />
           ))}
         </div>

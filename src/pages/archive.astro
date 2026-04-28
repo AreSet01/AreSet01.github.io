@@ -75,7 +75,7 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
           </div>
           <div class="panel rounded-[16px] px-5 py-5 md:px-6 md:py-6">
             <ul class="space-y-1">
-              {postsByYear[Number(year)].map(post => (
+              {postsByYear[Number(year)].map((post: typeof posts[number]) => (
                 <li>
                   <a href={`/posts/${post.id}`} class="timeline-link group">
                     <time class="mt-0.5 w-24 shrink-0 text-[0.78rem] font-medium text-[var(--muted)]">
@@ -84,6 +84,7 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
                     <div class="min-w-0 flex-1">
                       <h3 class="font-display text-[1rem] leading-snug text-[var(--text-strong)] transition duration-300 group-hover:text-[var(--accent-strong)]">
                         {post.data.title}
+                        {post.data.locked && <span class="lock-mark ml-2 align-middle">LOCKED</span>}
                       </h3>
                       {post.data.description && (
                         <p class="mt-1 text-[0.85rem] leading-relaxed text-[var(--muted)]">{post.data.description}</p>

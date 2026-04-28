@@ -11,20 +11,25 @@ interface Props {
   description?: string;
   pubDate: Date;
   tags?: string[];
+  locked?: boolean;
+  passwordHash?: string;
+  passwordHint?: string;
 }
 
-const { title, description, pubDate, tags = [] } = Astro.props;
+const { title, description, pubDate, tags = [], locked = false, passwordHash, passwordHint } = Astro.props;
+const isLocked = locked && Boolean(passwordHash);
 ---
 
 <BaseLayout title={title} description={description}>
   <Header />
   <main class="container-medium flex-1 pb-12 pt-6 md:pb-16">
-    <article class="space-y-8">
+    <article class="space-y-8" data-locked-post={isLocked ? 'true' : undefined} data-lock-key={isLocked ? passwordHash : undefined}>
       <header class="panel reveal-up overflow-hidden rounded-[20px] px-7 py-9 md:px-11 md:py-11">
         <div class="flex flex-wrap items-center gap-2.5 text-[0.78rem] font-medium text-[var(--muted)]">
           <a href="/archive" class="transition hover:text-[var(--accent-strong)]">Archive</a>
           <span class="h-1 w-1 rounded-full bg-[var(--accent)]"></span>
           <span>Published {formatDate(pubDate)}</span>
+          {isLocked && <span class="lock-mark">LOCKED</span>}
         </div>
         <h1 class="section-title mt-5 max-w-3xl text-2xl md:text-[2rem] lg:text-[2.25rem]">{title}</h1>
         {description && (
@@ -38,7 +43,31 @@ const { title, description, pubDate, tags = [] } = Astro.props;
           {tags.length > 0 && <TagList tags={tags} class="max-w-2xl" />}
         </div>
       </header>
-      <div class="panel reveal-up rounded-[20px] px-7 py-8 md:px-10 md:py-10" style="animation-delay: 120ms;">
+      {isLocked && (
+        <section class="lock-panel panel reveal-up px-7 py-8 md:px-10 md:py-10" data-lock-panel style="animation-delay: 120ms;">
+          <p class="eyebrow">Protected Note</p>
+          <h2 class="font-display mt-3 text-xl text-[var(--text-strong)]">输入密码可查看噢~</h2>
+          {passwordHint && <p class="mt-3 text-[0.92rem] leading-relaxed text-[var(--muted)]">Hint: {passwordHint}</p>}
+          <form class="mt-6 flex flex-col gap-3 sm:flex-row" data-lock-form>
+            <input
+              class="lock-input"
+              type="password"
+              name="password"
+              placeholder="Password"
+              autocomplete="current-password"
+              required
+            />
+            <button class="btn-primary whitespace-nowrap" type="submit">Unlock</button>
+          </form>
+          <p class="lock-message mt-3 text-[0.84rem]" data-lock-message aria-live="polite"></p>
+        </section>
+      )}
+      <div
+        class="panel reveal-up rounded-[20px] px-7 py-8 md:px-10 md:py-10"
+        style="animation-delay: 120ms;"
+        data-locked-content={isLocked ? 'true' : undefined}
+        hidden={isLocked}
+      >
         <div class="prose">
           <slot />
         </div>
@@ -49,4 +78,58 @@ const { title, description, pubDate, tags = [] } = Astro.props;
     </article>
   </main>
   <Footer />
+  {isLocked && (
+    <script is:inline>
+      (() => {
+        const article = document.querySelector('[data-locked-post="true"]');
+        const panel = document.querySelector('[data-lock-panel]');
+        const content = document.querySelector('[data-locked-content="true"]');
+        const form = document.querySelector('[data-lock-form]');
+        const message = document.querySelector('[data-lock-message]');
+        const expectedHash = article?.getAttribute('data-lock-key') || '';
+        const storageKey = `post-unlocked:${location.pathname}:${expectedHash}`;
+
+        async function sha256(value) {
+          const bytes = new TextEncoder().encode(value);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+          return Array.from(new Uint8Array(hashBuffer))
+            .map((byte) => byte.toString(16).padStart(2, '0'))
+            .join('');
+        }
+
+        function unlock() {
+          if (content) content.hidden = false;
+          if (panel) panel.hidden = true;
+          article?.setAttribute('data-locked-post', 'false');
+        }
+
+        if (!article || !panel || !content || !form || !expectedHash) return;
+        if (sessionStorage.getItem(storageKey) === '1') {
+          unlock();
+          return;
+        }
+
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const formData = new FormData(form);
+          const password = String(formData.get('password') ?? '');
+          if (!password) return;
+
+          try {
+            const digest = await sha256(password);
+            if (digest === expectedHash) {
+              sessionStorage.setItem(storageKey, '1');
+              unlock();
+            } else if (message) {
+              message.textContent = 'Password is incorrect.';
+            }
+          } catch {
+            if (message) {
+              message.textContent = 'This browser cannot verify the password here.';
+            }
+          }
+        });
+      })();
+    </script>
+  )}
 </BaseLayout>
