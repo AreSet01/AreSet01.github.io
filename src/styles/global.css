@@ -2536,8 +2536,8 @@ body.preview-open .site-shell {
   display: block;
   pointer-events: none;
   background: rgba(255, 255, 255, 0.015);
-  backdrop-filter: blur(1px) saturate(98%) brightness(0.85) contrast(1.9);
   -webkit-backdrop-filter: blur(1px) saturate(98%) brightness(0.85) contrast(1.9);
+  backdrop-filter: blur(1px) saturate(98%) brightness(0.85) contrast(1.9);
   filter: drop-shadow(0 22px 72px rgba(72, 104, 164, 0.18));
   opacity: 1;
   -webkit-mask-image:
@@ -2561,8 +2561,8 @@ body.preview-open .site-shell {
 
 [data-theme="dark"] .glass-nav-inner::before {
   background: rgba(255, 255, 255, 0.015);
-  backdrop-filter: blur(1px) saturate(96%) brightness(1.1) contrast(0.88);
   -webkit-backdrop-filter: blur(1px) saturate(96%) brightness(1.1) contrast(0.88);
+  backdrop-filter: blur(1px) saturate(96%) brightness(1.1) contrast(0.88);
   filter: drop-shadow(0 24px 80px rgba(0, 0, 0, 0.28));
 }
 
