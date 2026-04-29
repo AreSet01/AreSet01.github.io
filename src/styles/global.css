@@ -4,7 +4,8 @@
   /* ---------- Surface ---------- */
   --bg-base: #eaf0fb;
   --bg-soft: #f2eefb;
-  --font-hand: "STXingkai", "华文行楷", "FZShuTi", "方正舒体", "STKaiti", "KaiTi", "楷体", "YouYuan", "幼圆", "Segoe Print", "Comic Sans MS", cursive, sans-serif;
+  --font-hand: "Segoe Print", "Trebuchet MS", "STXingkai", "华文行楷", "FZShuTi", "方正舒体", "STKaiti", "KaiTi", "楷体", "YouYuan", "幼圆", sans-serif;
+  --font-hand-title: "Segoe Print", "Trebuchet MS", "STXingkai", "华文行楷", "FZShuTi", "方正舒体", "STKaiti", "KaiTi", "楷体", sans-serif;
 
   /* Text */
   --text: #1e2640;
@@ -352,8 +353,8 @@ body {
   color: var(--text);
   background: linear-gradient(135deg, #e0ecfa 0%, #f0e4f2 45%, #dfe9fb 100%);
   background-attachment: fixed;
-  line-height: 1.65;
-  letter-spacing: 0.035em;
+  line-height: 1.72;
+  letter-spacing: 0.018em;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -460,25 +461,25 @@ img {
 /* ================= Typography ================= */
 
 .font-display {
-  font-family: var(--font-hand);
+  font-family: var(--font-hand-title);
   font-weight: 500;
-  letter-spacing: 0.055em;
+  letter-spacing: 0.025em;
 }
 
 .section-title {
-  font-family: var(--font-hand);
+  font-family: var(--font-hand-title);
   font-weight: 500;
   font-size: clamp(1.85rem, 3.6vw, 2.75rem);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.028em;
   line-height: 1.15;
   color: var(--text-strong);
   text-wrap: balance;
 }
 
 .headline {
-  font-family: var(--font-hand);
+  font-family: var(--font-hand-title);
   font-weight: 500;
-  letter-spacing: 0.055em;
+  letter-spacing: 0.025em;
   line-height: 1.25;
   color: var(--text-strong);
   text-wrap: balance;
