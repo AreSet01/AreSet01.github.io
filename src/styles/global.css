@@ -1,11 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700;900&family=Patrick+Hand&display=swap');
 @import "tailwindcss";
 
 :root {
   /* ---------- Surface ---------- */
   --bg-base: #eaf0fb;
   --bg-soft: #f2eefb;
-  --font-hand: 'Patrick Hand', 'Ma Shan Zheng', 'LXGW WenKai', '霞鹜文楷', 'Noto Sans SC', cursive, sans-serif;
+  --font-hand: "STXingkai", "华文行楷", "FZShuTi", "方正舒体", "STKaiti", "KaiTi", "楷体", "YouYuan", "幼圆", "Segoe Print", "Comic Sans MS", cursive, sans-serif;
 
   /* Text */
   --text: #1e2640;
@@ -354,7 +353,7 @@ body {
   background: linear-gradient(135deg, #e0ecfa 0%, #f0e4f2 45%, #dfe9fb 100%);
   background-attachment: fixed;
   line-height: 1.65;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.035em;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -462,15 +461,15 @@ img {
 
 .font-display {
   font-family: var(--font-hand);
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  font-weight: 500;
+  letter-spacing: 0.055em;
 }
 
 .section-title {
   font-family: var(--font-hand);
-  font-weight: 700;
+  font-weight: 500;
   font-size: clamp(1.85rem, 3.6vw, 2.75rem);
-  letter-spacing: 0.01em;
+  letter-spacing: 0.06em;
   line-height: 1.15;
   color: var(--text-strong);
   text-wrap: balance;
@@ -478,8 +477,8 @@ img {
 
 .headline {
   font-family: var(--font-hand);
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-weight: 500;
+  letter-spacing: 0.055em;
   line-height: 1.25;
   color: var(--text-strong);
   text-wrap: balance;
