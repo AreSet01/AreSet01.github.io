@@ -18,7 +18,7 @@ const { title, description, pubDate, tags = [], slug, index = 0, locked = false 
   <a
     href={`/posts/${slug}`}
     data-post-preview={`/posts/${slug}`}
-    class="panel group flex h-full flex-col overflow-hidden rounded-[16px] px-6 py-6 transition duration-500 hover:-translate-y-1.5"
+    class="note-card group"
   >
     <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[0.74rem] font-medium text-[var(--muted)]">
       <span class="whitespace-nowrap">Note {String(index + 1).padStart(2, '0')}</span>
