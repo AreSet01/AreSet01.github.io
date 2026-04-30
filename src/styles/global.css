@@ -4,8 +4,12 @@
   /* ---------- Surface ---------- */
   --bg-base: #eaf0fb;
   --bg-soft: #f2eefb;
-  --font-hand: "Segoe Print", "Trebuchet MS", "STXingkai", "华文行楷", "FZShuTi", "方正舒体", "STKaiti", "KaiTi", "楷体", "YouYuan", "幼圆", sans-serif;
-  --font-hand-title: "Segoe Print", "Trebuchet MS", "STXingkai", "华文行楷", "FZShuTi", "方正舒体", "STKaiti", "KaiTi", "楷体", sans-serif;
+  --font-hand: "Patrick Hand", "Ma Shan Zheng", "LXGW WenKai", "Segoe Print", "Trebuchet MS", "STXingkai", "华文行楷", "FZShuTi", "方正舒体", "STKaiti", "KaiTi", "楷体", "YouYuan", "幼圆", "HanziPen SC", "HanziPen TC", "Kaiti SC", "Kaiti TC", "Yuanti SC", "Bradley Hand", "Chalkboard SE", "Marker Felt", "Comic Sans MS", cursive, sans-serif;
+  --font-hand-title: "Ma Shan Zheng", "Patrick Hand", "LXGW WenKai", "Segoe Print", "Trebuchet MS", "STXingkai", "华文行楷", "FZShuTi", "方正舒体", "STKaiti", "KaiTi", "楷体", "HanziPen SC", "HanziPen TC", "Kaiti SC", "Kaiti TC", "Bradley Hand", "Chalkboard SE", "Marker Felt", "Comic Sans MS", cursive, sans-serif;
+  --font-size-base: clamp(15px, 0.28vw + 14px, 17px);
+  --font-line-base: 1.72;
+  --font-letter-base: 0.018em;
+  --font-letter-title: 0.025em;
 
   /* Text */
   --text: #1e2640;
@@ -339,6 +343,9 @@ html.theme-switching .prose blockquote {
 
 html {
   scroll-behavior: smooth;
+  font-size: var(--font-size-base);
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -348,17 +355,31 @@ body {
   cursor: default;
   caret-color: transparent;
   font-family: var(--font-hand);
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 400;
   color: var(--text);
   background: linear-gradient(135deg, #e0ecfa 0%, #f0e4f2 45%, #dfe9fb 100%);
   background-attachment: fixed;
-  line-height: 1.72;
-  letter-spacing: 0.018em;
+  line-height: var(--font-line-base);
+  letter-spacing: var(--font-letter-base);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   position: relative;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --font-size-base: clamp(15px, 4vw, 16px);
+    --font-line-base: 1.78;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --font-size-base: clamp(16px, 0.22vw + 14.8px, 17px);
+    --font-line-base: 1.72;
+  }
 }
 
 /* Ambient colored blobs behind the glass */
@@ -463,14 +484,14 @@ img {
 .font-display {
   font-family: var(--font-hand-title);
   font-weight: 500;
-  letter-spacing: 0.025em;
+  letter-spacing: var(--font-letter-title);
 }
 
 .section-title {
   font-family: var(--font-hand-title);
   font-weight: 500;
   font-size: clamp(1.85rem, 3.6vw, 2.75rem);
-  letter-spacing: 0.028em;
+  letter-spacing: calc(var(--font-letter-title) + 0.003em);
   line-height: 1.15;
   color: var(--text-strong);
   text-wrap: balance;
@@ -479,7 +500,7 @@ img {
 .headline {
   font-family: var(--font-hand-title);
   font-weight: 500;
-  letter-spacing: 0.025em;
+  letter-spacing: var(--font-letter-title);
   line-height: 1.25;
   color: var(--text-strong);
   text-wrap: balance;
@@ -793,7 +814,7 @@ img {
   font-family: var(--font-hand);
   font-weight: 500;
   font-size: 1.2rem;
-  letter-spacing: 0.04em;
+  letter-spacing: calc(var(--font-letter-title) + 0.015em);
   color: var(--text-strong);
 }
 
@@ -838,7 +859,7 @@ img {
   font-family: var(--font-hand);
   font-size: 0.95rem;
   font-weight: 500;
-  letter-spacing: 0.03em;
+  letter-spacing: var(--font-letter-title);
   color: var(--muted-strong);
   border-radius: 0;
   transition: color 280ms var(--ease), background 280ms var(--ease);
@@ -2223,7 +2244,7 @@ body.preview-open .site-shell {
   font-size: clamp(2.6rem, 6.2vw, 5rem);
   font-weight: 500;
   line-height: 1.08;
-  letter-spacing: 0.035em;
+  letter-spacing: calc(var(--font-letter-title) + 0.01em);
   text-wrap: balance;
 }
 
