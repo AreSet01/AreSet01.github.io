@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx astro:*)"
+      "Bash(npx astro:*)",
+      "Read(//c/Users/win11/.claude/projects/c--Users-win11-Desktop-Web-AreSet01-github-io/memory/**)",
+      "Bash(npm run *)"
     ]
   }
 }
