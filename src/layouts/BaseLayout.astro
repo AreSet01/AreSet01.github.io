@@ -18,7 +18,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#f4efe3" />
+    <meta name="theme-color" content="#f3ebd9" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -54,7 +54,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
         function syncThemeColor(theme) {
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', theme === 'dark' ? '#0f1729' : '#f4efe3');
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#14110d' : '#f3ebd9');
           document.documentElement.style.colorScheme = theme;
         }
 
@@ -77,7 +77,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           window.clearTimeout(themeTransitionTimer);
           themeTransitionTimer = window.setTimeout(function() {
             document.documentElement.classList.remove('theme-switching');
-          }, 860);
+          }, 980);
         }
 
         function applyTheme(explicitTheme) {
@@ -122,14 +122,14 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               document.documentElement.animate(
                 {
                   clipPath: [
-                    'circle(18px at ' + x + 'px ' + y + 'px)',
+                    'circle(14px at ' + x + 'px ' + y + 'px)',
                     'circle(' + endRadius + 'px at ' + x + 'px ' + y + 'px)',
                   ],
-                  opacity: [0.72, 1],
-                  filter: ['brightness(0.96) saturate(0.96)', 'brightness(1) saturate(1)'],
+                  opacity: [0.7, 1],
+                  filter: ['blur(6px) brightness(0.94) saturate(0.92)', 'blur(0) brightness(1) saturate(1)'],
                 },
                 {
-                  duration: 760,
+                  duration: 920,
                   easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
                   pseudoElement: '::view-transition-new(root)',
                 }
@@ -169,6 +169,26 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
   <body>
     <div class="site-shell">
       <slot />
+    </div>
+    <div class="seal-floating" aria-hidden="true">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="sealRough" x="-10%" y="-10%" width="120%" height="120%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="5" />
+            <feDisplacementMap in="SourceGraphic" scale="1.8" />
+          </filter>
+        </defs>
+        <g filter="url(#sealRough)">
+          <rect x="6" y="6" width="88" height="88" rx="3" fill="#a8392b" />
+          <rect x="11" y="11" width="78" height="78" rx="2" fill="none" stroke="#f7f1e1" stroke-width="2.4" opacity="0.94" />
+          <line x1="50" y1="11" x2="50" y2="89" stroke="#f7f1e1" stroke-width="1.4" opacity="0.46" />
+          <line x1="11" y1="50" x2="89" y2="50" stroke="#f7f1e1" stroke-width="1.4" opacity="0.46" />
+          <text x="30" y="46" font-family="'Ma Shan Zheng', serif" font-size="32" fill="#f7f1e1" font-weight="500" text-anchor="middle">梦</text>
+          <text x="70" y="46" font-family="'Ma Shan Zheng', serif" font-size="32" fill="#f7f1e1" font-weight="500" text-anchor="middle">付</text>
+          <text x="30" y="80" font-family="'Ma Shan Zheng', serif" font-size="32" fill="#f7f1e1" font-weight="500" text-anchor="middle">千</text>
+          <text x="70" y="80" font-family="'Ma Shan Zheng', serif" font-size="32" fill="#f7f1e1" font-weight="500" text-anchor="middle">秋</text>
+        </g>
+      </svg>
     </div>
     <div class="search-overlay" id="site-search" aria-hidden="true">
       <div class="search-modal" role="dialog" aria-modal="true" aria-labelledby="search-title">
@@ -239,52 +259,97 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           document.documentElement.style.setProperty('--scrollbar-offset', '0px');
 
         const sparkleColors = [
-          '#7cb3f0', '#5a9ee6', '#a8d0f8',
-          '#f0a8c8', '#e88ab0', '#f8c8dc',
-          '#c8a0e0', '#b8d8f8', '#f0b8d8',
-          '#93c5fd', '#f9a8d4', '#c4b5fd',
+          '#1a1814', '#0d0c09', '#3a352c',
+          '#2a2620', '#1f1c18', '#161310',
+          '#4a4338', '#6b6353', '#564e42',
+          '#a8392b', '#1a1814', '#3a352c',
         ];
 
         function sparkle(x, y, count) {
           const frag = document.createDocumentFragment();
+          const splotchCount = Math.max(3, Math.round(count * 0.35));
+
           for (let i = 0; i < count; i += 1) {
             const el = document.createElement('div');
-            const size = Math.random() * 6 + 3;
-            const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
-            const distance = Math.random() * 100 + 40;
+            const size = Math.random() * 5 + 2;
+            const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.5;
+            const distance = Math.random() * 56 + 14;
             const color = sparkleColors[Math.floor(Math.random() * sparkleColors.length)];
-            const delay = Math.random() * 80;
-            const shape = Math.random() > 0.5 ? '50%' : `${2 + Math.random() * 3}px`;
+            const delay = Math.random() * 60;
+            const elongation = 0.55 + Math.random() * 0.5;
 
             Object.assign(el.style, {
               position: 'fixed',
               left: `${x - size / 2}px`,
               top: `${y - size / 2}px`,
               width: `${size}px`,
-              height: `${size}px`,
-              borderRadius: shape,
+              height: `${size * elongation}px`,
+              borderRadius: '50%',
               background: color,
               pointerEvents: 'none',
               zIndex: '9999',
-              boxShadow: `0 0 ${size + 4}px ${color}`,
-              opacity: '1',
+              boxShadow: `0 0 ${size + 3}px ${color}`,
+              opacity: '0.78',
+              filter: 'blur(0.3px)',
               transition: 'none',
+              transform: `rotate(${(angle * 180 / Math.PI).toFixed(1)}deg)`,
+              transformOrigin: 'center center',
             });
 
             frag.appendChild(el);
 
             window.setTimeout(() => {
               requestAnimationFrame(() => {
-                const gravity = 20 + Math.random() * 30;
+                const drift = 4 + Math.random() * 8;
                 Object.assign(el.style, {
-                  transition: 'transform 1.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 1.2s ease-out',
-                  transform: `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance + gravity}px) scale(0)`,
+                  transition: 'transform 1.05s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.05s cubic-bezier(0.22, 0.8, 0.3, 1), filter 1.05s ease-out',
+                  transform: `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance + drift}px) rotate(${(angle * 180 / Math.PI).toFixed(1)}deg) scale(${(0.4 + Math.random() * 0.3).toFixed(2)})`,
                   opacity: '0',
+                  filter: 'blur(2.5px)',
                 });
               });
             }, delay);
 
-            window.setTimeout(() => el.remove(), 1400);
+            window.setTimeout(() => el.remove(), 1300);
+          }
+
+          for (let i = 0; i < splotchCount; i += 1) {
+            const dot = document.createElement('div');
+            const dSize = Math.random() * 8 + 6;
+            const dx = (Math.random() - 0.5) * 22;
+            const dy = (Math.random() - 0.5) * 22;
+            const dColor = sparkleColors[Math.floor(Math.random() * sparkleColors.length)];
+
+            Object.assign(dot.style, {
+              position: 'fixed',
+              left: `${x - dSize / 2 + dx}px`,
+              top: `${y - dSize / 2 + dy}px`,
+              width: `${dSize}px`,
+              height: `${dSize}px`,
+              borderRadius: '50%',
+              background: `radial-gradient(circle, ${dColor} 0%, ${dColor} 35%, transparent 75%)`,
+              pointerEvents: 'none',
+              zIndex: '9998',
+              opacity: '0.5',
+              filter: 'blur(1.6px)',
+              transform: 'scale(0.6)',
+              transition: 'none',
+            });
+
+            frag.appendChild(dot);
+
+            window.setTimeout(() => {
+              requestAnimationFrame(() => {
+                Object.assign(dot.style, {
+                  transition: 'transform 920ms cubic-bezier(0.16, 1, 0.3, 1), opacity 920ms ease-out, filter 920ms ease-out',
+                  transform: `scale(${1.4 + Math.random() * 0.6})`,
+                  opacity: '0',
+                  filter: 'blur(4px)',
+                });
+              });
+            }, Math.random() * 40);
+
+            window.setTimeout(() => dot.remove(), 1100);
           }
 
           document.body.appendChild(frag);
@@ -410,11 +475,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           const dots = [];
           const dotCount = 32;
           const ambientColors = [
-            'rgba(147,197,253,0.5)',
-            'rgba(196,181,253,0.45)',
-            'rgba(249,168,212,0.45)',
-            'rgba(165,220,252,0.4)',
-            'rgba(253,186,210,0.4)',
+            'rgba(26,24,20,0.28)',
+            'rgba(13,12,9,0.32)',
+            'rgba(58,53,44,0.24)',
+            'rgba(42,38,32,0.26)',
+            'rgba(168,57,43,0.18)',
           ];
 
           for (let i = 0; i < dotCount; i += 1) {
@@ -898,7 +963,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             return;
           }
 
-          searchCloseTimer = window.setTimeout(finishSearchClose, 260);
+          searchCloseTimer = window.setTimeout(finishSearchClose, 460);
         }
 
         function releaseAnimation(animation) {
@@ -968,20 +1033,23 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         function applyImageViewerStartStyles() {
           const { startX, startY, startScaleX, startScaleY } = imageViewerMotion;
           imageOverlay.style.opacity = '0';
-          imageViewerShell.style.transform = `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`;
-          imageViewerShell.style.opacity = '0.08';
+          imageViewerShell.style.transform = `translate3d(${startX * 0.18}px, ${startY * 0.18}px, 0) scale(${(0.94 + (1 - startScaleX) * 0.05).toFixed(3)}, ${(0.94 + (1 - startScaleY) * 0.05).toFixed(3)})`;
+          imageViewerShell.style.opacity = '0';
+          imageViewerShell.style.filter = 'blur(14px)';
         }
 
         function applyImageViewerOpenStyles() {
           imageOverlay.style.opacity = '1';
           imageViewerShell.style.transform = 'translate3d(0, 0, 0) scale(1, 1)';
           imageViewerShell.style.opacity = '1';
+          imageViewerShell.style.filter = 'blur(0)';
         }
 
         function clearImageViewerInlineStyles() {
           imageOverlay.style.removeProperty('opacity');
           imageViewerShell.style.removeProperty('transform');
           imageViewerShell.style.removeProperty('opacity');
+          imageViewerShell.style.removeProperty('filter');
         }
 
         function animateImageViewerOpen() {
@@ -993,26 +1061,17 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             return;
           }
 
-          const {
-            startX,
-            startY,
-            startScaleX,
-            startScaleY,
-            pinchScaleX,
-            pinchScaleY,
-            driftX,
-            driftY,
-            overshootScaleX,
-            overshootScaleY,
-          } = imageViewerMotion;
+          const { startX, startY, startScaleX, startScaleY } = imageViewerMotion;
+          const initScaleX = (0.94 + (1 - startScaleX) * 0.05);
+          const initScaleY = (0.94 + (1 - startScaleY) * 0.05);
 
           imageViewerState = 'opening';
 
           imageViewerOverlayAnimation = imageOverlay.animate(
             [{ opacity: 0 }, { opacity: 1 }],
             {
-              duration: 320,
-              easing: 'cubic-bezier(0.2, 0.82, 0.2, 1)',
+              duration: 540,
+              easing: 'cubic-bezier(0.22, 0.82, 0.18, 1)',
               fill: 'both',
             }
           );
@@ -1020,27 +1079,25 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           imageViewerShellAnimation = imageViewerShell.animate(
             [
               {
-                transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
-                opacity: 0.08,
+                transform: `translate3d(${(startX * 0.18).toFixed(2)}px, ${(startY * 0.18).toFixed(2)}px, 0) scale(${initScaleX.toFixed(3)}, ${initScaleY.toFixed(3)})`,
+                opacity: 0,
+                filter: 'blur(14px)',
               },
               {
-                transform: `translate3d(${(startX * 0.38).toFixed(2)}px, ${(startY * 0.55).toFixed(2)}px, 0) scale(${pinchScaleX.toFixed(3)}, ${pinchScaleY.toFixed(3)})`,
-                opacity: 0.82,
-                offset: 0.46,
-              },
-              {
-                transform: `translate3d(${driftX.toFixed(2)}px, ${driftY.toFixed(2)}px, 0) scale(${overshootScaleX.toFixed(3)}, ${overshootScaleY.toFixed(3)})`,
-                opacity: 1,
-                offset: 0.84,
+                transform: `translate3d(${(startX * 0.06).toFixed(2)}px, ${(startY * 0.06).toFixed(2)}px, 0) scale(0.985, 0.985)`,
+                opacity: 0.7,
+                filter: 'blur(4px)',
+                offset: 0.55,
               },
               {
                 transform: 'translate3d(0, 0, 0) scale(1, 1)',
                 opacity: 1,
+                filter: 'blur(0)',
               },
             ],
             {
-              duration: 540,
-              easing: 'cubic-bezier(0.18, 0.88, 0.22, 1)',
+              duration: 760,
+              easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
               fill: 'both',
             }
           );
@@ -1095,16 +1152,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             return;
           }
 
-          const {
-            startX,
-            startY,
-            startScaleX,
-            startScaleY,
-            pinchScaleX,
-            pinchScaleY,
-            driftX,
-            driftY,
-          } = imageViewerMotion;
+          const { startX, startY } = imageViewerMotion;
 
           imageViewerState = 'closing';
           applyImageViewerOpenStyles();
@@ -1112,8 +1160,8 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           imageViewerOverlayAnimation = imageOverlay.animate(
             [{ opacity: 1 }, { opacity: 0 }],
             {
-              duration: 220,
-              easing: 'cubic-bezier(0.36, 0, 0.2, 1)',
+              duration: 360,
+              easing: 'cubic-bezier(0.36, 0, 0.4, 1)',
               fill: 'both',
             }
           );
@@ -1123,25 +1171,23 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               {
                 transform: 'translate3d(0, 0, 0) scale(1, 1)',
                 opacity: 1,
+                filter: 'blur(0)',
               },
               {
-                transform: `translate3d(${(driftX * 0.2).toFixed(2)}px, ${(driftY * 0.2).toFixed(2)}px, 0) scale(0.986, 1.006)`,
-                opacity: 1,
-                offset: 0.18,
+                transform: `translate3d(${(startX * 0.04).toFixed(2)}px, ${(startY * 0.04).toFixed(2)}px, 0) scale(0.988, 0.988)`,
+                opacity: 0.7,
+                filter: 'blur(4px)',
+                offset: 0.5,
               },
               {
-                transform: `translate3d(${(startX * 0.38).toFixed(2)}px, ${(startY * 0.56).toFixed(2)}px, 0) scale(${pinchScaleX.toFixed(3)}, ${pinchScaleY.toFixed(3)})`,
-                opacity: 0.82,
-                offset: 0.56,
-              },
-              {
-                transform: `translate3d(${startX.toFixed(2)}px, ${startY.toFixed(2)}px, 0) scale(${startScaleX.toFixed(3)}, ${startScaleY.toFixed(3)})`,
+                transform: `translate3d(${(startX * 0.16).toFixed(2)}px, ${(startY * 0.16).toFixed(2)}px, 0) scale(0.95, 0.95)`,
                 opacity: 0,
+                filter: 'blur(12px)',
               },
             ],
             {
               duration: 460,
-              easing: 'cubic-bezier(0.4, 0, 0.14, 1)',
+              easing: 'cubic-bezier(0.4, 0, 0.5, 1)',
               fill: 'both',
             }
           );
@@ -1226,22 +1272,25 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         }
 
         function applyPreviewStartStyles() {
-          const { startX, startY, startScaleX, startScaleY } = previewMotion;
+          const { startX, startY } = previewMotion;
           overlay.style.opacity = '0';
-          modal.style.transform = `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`;
+          modal.style.transform = `translate3d(${(startX * 0.18).toFixed(2)}px, ${(startY * 0.18).toFixed(2)}px, 0) scale(0.96, 0.96)`;
           modal.style.opacity = '0';
+          modal.style.filter = 'blur(16px)';
         }
 
         function applyPreviewOpenStyles() {
           overlay.style.opacity = '1';
           modal.style.transform = 'translate3d(0, 0, 0) scale(1, 1)';
           modal.style.opacity = '1';
+          modal.style.filter = 'blur(0)';
         }
 
         function clearPreviewInlineStyles() {
           overlay.style.removeProperty('opacity');
           modal.style.removeProperty('transform');
           modal.style.removeProperty('opacity');
+          modal.style.removeProperty('filter');
         }
 
         function animatePreviewOpen() {
@@ -1253,25 +1302,14 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             return;
           }
 
-          const {
-            startX,
-            startY,
-            startScaleX,
-            startScaleY,
-            pinchScaleX,
-            pinchScaleY,
-            driftX,
-            driftY,
-            overshootScaleX,
-            overshootScaleY,
-          } = previewMotion;
+          const { startX, startY } = previewMotion;
           previewState = 'opening';
 
           previewOverlayAnimation = overlay.animate(
             [{ opacity: 0 }, { opacity: 1 }],
             {
-              duration: 360,
-              easing: 'cubic-bezier(0.2, 0.82, 0.2, 1)',
+              duration: 540,
+              easing: 'cubic-bezier(0.22, 0.82, 0.18, 1)',
               fill: 'both',
             }
           );
@@ -1279,27 +1317,25 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           previewModalAnimation = modal.animate(
             [
               {
-                transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
-                opacity: 0.04,
+                transform: `translate3d(${(startX * 0.18).toFixed(2)}px, ${(startY * 0.18).toFixed(2)}px, 0) scale(0.96, 0.96)`,
+                opacity: 0,
+                filter: 'blur(16px)',
               },
               {
-                transform: `translate3d(${(startX * 0.4).toFixed(2)}px, ${(startY * 0.58).toFixed(2)}px, 0) scale(${pinchScaleX.toFixed(3)}, ${pinchScaleY.toFixed(3)})`,
-                opacity: 0.78,
-                offset: 0.42,
-              },
-              {
-                transform: `translate3d(${driftX.toFixed(2)}px, ${driftY.toFixed(2)}px, 0) scale(${overshootScaleX.toFixed(3)}, ${overshootScaleY.toFixed(3)})`,
-                opacity: 1,
-                offset: 0.78,
+                transform: `translate3d(${(startX * 0.06).toFixed(2)}px, ${(startY * 0.06).toFixed(2)}px, 0) scale(0.985, 0.985)`,
+                opacity: 0.72,
+                filter: 'blur(4.5px)',
+                offset: 0.55,
               },
               {
                 transform: 'translate3d(0, 0, 0) scale(1, 1)',
                 opacity: 1,
+                filter: 'blur(0)',
               },
             ],
             {
-              duration: 760,
-              easing: 'cubic-bezier(0.18, 0.86, 0.22, 1)',
+              duration: 920,
+              easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
               fill: 'both',
             }
           );
@@ -1442,11 +1478,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           document.body.classList.remove('preview-active');
           applyPreviewOpenStyles();
 
+          const { startX, startY } = previewMotion;
+
           previewOverlayAnimation = overlay.animate(
             [{ opacity: 1 }, { opacity: 0 }],
             {
-              duration: 220,
-              easing: 'cubic-bezier(0.36, 0, 0.2, 1)',
+              duration: 380,
+              easing: 'cubic-bezier(0.36, 0, 0.4, 1)',
               fill: 'both',
             }
           );
@@ -1456,25 +1494,23 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               {
                 transform: 'translate3d(0, 0, 0) scale(1, 1)',
                 opacity: 1,
+                filter: 'blur(0)',
               },
               {
-                transform: `translate3d(${(previewMotion.driftX * 0.22).toFixed(2)}px, ${(previewMotion.driftY * 0.22).toFixed(2)}px, 0) scale(0.982, 1.012)`,
-                opacity: 1,
-                offset: 0.18,
+                transform: `translate3d(${(startX * 0.04).toFixed(2)}px, ${(startY * 0.04).toFixed(2)}px, 0) scale(0.985, 0.985)`,
+                opacity: 0.7,
+                filter: 'blur(4.5px)',
+                offset: 0.45,
               },
               {
-                transform: `translate3d(${(previewMotion.startX * 0.42).toFixed(2)}px, ${(previewMotion.startY * 0.58).toFixed(2)}px, 0) scale(${previewMotion.pinchScaleX.toFixed(3)}, ${previewMotion.pinchScaleY.toFixed(3)})`,
-                opacity: 0.82,
-                offset: 0.56,
-              },
-              {
-                transform: `translate3d(${previewMotion.startX.toFixed(2)}px, ${previewMotion.startY.toFixed(2)}px, 0) scale(${previewMotion.startScaleX.toFixed(3)}, ${previewMotion.startScaleY.toFixed(3)})`,
+                transform: `translate3d(${(startX * 0.16).toFixed(2)}px, ${(startY * 0.16).toFixed(2)}px, 0) scale(0.95, 0.95)`,
                 opacity: 0,
+                filter: 'blur(14px)',
               },
             ],
             {
               duration: 520,
-              easing: 'cubic-bezier(0.4, 0, 0.14, 1)',
+              easing: 'cubic-bezier(0.4, 0, 0.5, 1)',
               fill: 'both',
             }
           );
@@ -1671,8 +1707,9 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
         function initCursorGlow() {
           const state = window[stateKey] || { colorIndex: 0, glowColors: [
-            '124, 179, 240',
-            '240, 168, 200',
+            '26, 24, 20',
+            '58, 53, 44',
+            '168, 57, 43',
           ] };
           window[stateKey] = state;
 

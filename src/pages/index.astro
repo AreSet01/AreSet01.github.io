@@ -15,15 +15,15 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
 
 <BaseLayout title="梦付千秋 - 日常记录与技术分享">
   <Header />
-  <main class="container-wide flex-1 pb-12 pt-10 md:pb-16 md:pt-14">
+  <main class="container-wide flex-1">
     <section class="home-hero reveal-up">
       <div class="home-hero-copy">
-        <p class="eyebrow">Digital Garden</p>
+        <p class="eyebrow">Vol. 01 / Digital Garden</p>
         <h1 class="home-hero-title">
-          发发牢骚，写写无关紧要小教程の小破网站
+          发发牢骚，写些无关紧要的小教程。
         </h1>
         <p class="home-hero-desc">
-          也就随便分享一点小知识呀，一些行业看法呀，或是说些愤青言论等
+          也就随便分享一点小知识，一些行业看法，或是说些愤青言论等。
         </p>
         <div class="home-actions">
           {latestPost && <a href={`/posts/${latestPost.id}`} class="btn-primary">阅读最新文章</a>}
@@ -33,15 +33,15 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
 
       <aside class="home-rail" aria-label="站点概览">
         <div class="home-stat">
-          <span>文章数量</span>
+          <span>Posts</span>
           <strong>{posts.length}</strong>
         </div>
         <div class="home-stat">
-          <span>标签数量</span>
+          <span>Tags</span>
           <strong>{totalTags}</strong>
         </div>
         <div class="home-stat">
-          <span>最近更新</span>
+          <span>Year</span>
           <strong>{latestYear}</strong>
         </div>
       </aside>
@@ -57,18 +57,20 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
         >
           <p class="eyebrow">Fresh Ink</p>
           <div class="home-feature-main">
-            <time datetime={latestPost.data.pubDate.toISOString()}>{formatDate(latestPost.data.pubDate)}</time>
+            <time datetime={latestPost.data.pubDate.toISOString()}>
+              {formatDate(latestPost.data.pubDate)}
+            </time>
             <h2>{latestPost.data.title}</h2>
-            <p>{latestPost.data.description ?? '从这篇文章开始逛逛我的博客'}</p>
+            <p>{latestPost.data.description ?? '从这篇文章开始逛逛我的博客。'}</p>
           </div>
-          <span class="home-feature-link">预览阅读 -></span>
+          <span class="home-feature-link">Preview →</span>
         </a>
       )}
 
       <div class="home-topics reveal-up" style="animation-delay: 220ms;">
         <p class="eyebrow">What Lives Here</p>
         <h2>写作方向</h2>
-        <p>喜欢分享生活呀，喜欢记录一些很酷的技术呀</p>
+        <p>喜欢分享生活，喜欢记录一些很酷的技术。</p>
         <div>
           <span>Astro</span>
           <span>技术</span>
@@ -82,10 +84,10 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
       <div class="notes-heading">
         <div>
           <p class="eyebrow">Latest Notes</p>
-          <h2 class="section-title mt-3 text-2xl md:text-[1.75rem]">最近写了什么</h2>
+          <h2 class="section-title mt-4">最近写了什么。</h2>
         </div>
         <p>
-          慢慢浏览知识库or我の日常~~
+          慢慢浏览知识库或我的日常 — 每篇都是一次安静的整理。
         </p>
       </div>
       {posts.length === 0 ? (

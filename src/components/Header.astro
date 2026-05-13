@@ -1,8 +1,8 @@
 ---
 const navItems = [
-  { label: '首页', href: '/' },
-  { label: '归档', href: '/archive' },
-  { label: '关于', href: '/about' },
+  { label: 'Home', labelZh: '首页', href: '/' },
+  { label: 'Archive', labelZh: '归档', href: '/archive' },
+  { label: 'About', labelZh: '关于', href: '/about' },
 ];
 
 const normalizePath = (path: string) =>
@@ -15,10 +15,10 @@ const isActive = (href: string) => {
 };
 ---
 
-<header class="container-wide glass-nav">
-  <div class="glass-nav-inner">
+<header class="glass-nav">
+  <div class="container-wide glass-nav-inner">
     <a href="/" class="brand-mark">
-      <span class="brand-dot" aria-hidden="true"></span>
+      <span class="brand-seal" aria-hidden="true">梦</span>
       <span>梦付千秋</span>
     </a>
     <div class="nav-cluster">
@@ -28,10 +28,25 @@ const isActive = (href: string) => {
             href={item.href}
             class={`nav-link ${isActive(item.href) ? 'is-active' : ''}`}
           >
-            {item.label}
+            {item.labelZh}
           </a>
         ))}
       </nav>
+      <button
+        class="nav-search-trigger"
+        type="button"
+        data-search-trigger
+        aria-haspopup="dialog"
+        aria-controls="site-search"
+        aria-label="打开搜索"
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"></circle>
+          <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+        </svg>
+        <span>Search</span>
+        <span class="nav-search-kbd">⌘K</span>
+      </button>
       <button
         class="theme-toggle"
         type="button"
@@ -44,21 +59,6 @@ const isActive = (href: string) => {
         <svg class="icon-moon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
         </svg>
-      </button>
-      <button
-        class="nav-search-trigger"
-        type="button"
-        data-search-trigger
-        aria-haspopup="dialog"
-        aria-controls="site-search"
-        aria-label="打开搜索"
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"></circle>
-          <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
-        </svg>
-        <span>搜索</span>
-        <span class="nav-search-kbd">Ctrl K</span>
       </button>
     </div>
   </div>

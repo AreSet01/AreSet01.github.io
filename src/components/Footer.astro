@@ -2,31 +2,35 @@
 const year = new Date().getFullYear();
 ---
 
-<footer class="container-wide pb-8 pt-6">
-  <div class="panel overflow-hidden rounded-[20px] px-7 py-8 md:px-10 md:py-9">
-    <div class="glow-divider mb-6"></div>
-    <div class="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-      <div class="max-w-xl">
-        <p class="eyebrow">Slow Notes, Bright Ideas</p>
-        <h2 class="section-title mt-3 text-xl md:text-2xl">慢慢写，持续更新</h2>
-        <p class="mt-3 text-[0.9rem] leading-relaxed text-[var(--muted)]">
-          这里收集教程、学习记录和一些正在发酵的灵感，让每次更新都更耐读一点
-        </p>
-      </div>
-      <div class="text-[0.85rem] text-[var(--muted)] md:text-right">
-        <p class="font-semibold text-[var(--text-strong)]">&copy; {year} 梦付千秋</p>
-        <p class="mt-1.5">
-          Built with
-          <a
-            href="https://astro.build"
-            class="text-[var(--accent-strong)] underline decoration-[rgba(124,179,240,0.35)] underline-offset-4"
-            target="_blank"
-            rel="noopener"
-          >
-            Astro
-          </a>
-        </p>
-      </div>
+<footer class="container-wide pb-14 pt-10 md:pb-16 md:pt-14">
+  <div class="glow-divider mb-10"></div>
+  <div class="flex flex-col gap-10 md:flex-row md:items-end md:justify-between">
+    <div class="max-w-xl">
+      <p class="eyebrow">Colophon</p>
+      <h2 class="section-title mt-4">
+        慢慢写，持续更新。
+      </h2>
+      <p class="mt-5 max-w-md text-[0.95rem] leading-relaxed text-[var(--muted)]" style="font-family: var(--font-serif); font-style: italic;">
+        这里收集教程、学习记录和一些正在发酵的灵感，让每次更新都更耐读一点。
+      </p>
+    </div>
+    <div class="flex flex-col gap-2 text-[0.78rem] md:items-end md:text-right">
+      <p class="font-semibold tracking-[0.12em] uppercase text-[var(--text-strong)]">
+        &copy; {year} &middot; 梦付千秋
+      </p>
+      <p class="text-[var(--muted)]">
+        Built with
+        <a
+          href="https://astro.build"
+          class="text-[var(--accent)] underline decoration-[var(--accent)] underline-offset-4 hover:text-[var(--accent-deep)]"
+          target="_blank"
+          rel="noopener"
+        >
+          Astro
+        </a>
+        &middot;
+        <span class="font-mono">v1.0</span>
+      </p>
     </div>
   </div>
 </footer>
