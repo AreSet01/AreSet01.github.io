@@ -156,6 +156,43 @@ console.log('Hello');
 1. 将图片放入 `public/images/` 目录
 2. 在文章中引用：`![描述](/images/文件名.jpg)`
 
+### 3.5 文章增强功能
+
+**代码块工具栏**
+
+文章里的代码块会自动显示语言标签和复制按钮。写法保持普通 Markdown 即可：
+
+~~~markdown
+```javascript
+console.log('Hello');
+```
+~~~
+
+**引用预览弹框**
+
+文章内链接到同一篇或其他文章的标题锚点时，会弹出预览窗口，不会跳离当前阅读位置。
+
+```markdown
+[看看这一节](#二级标题生成的锚点)
+[看看另一篇的某节](/posts/renderdoc_use#某个标题锚点)
+```
+
+**彩蛋锚点**
+
+需要隐藏内容时，可以在 Markdown 中写 HTML 片段。读者点击指向该锚点的链接时，只会在弹框里看到它。
+
+```html
+<div id="egg-secret" data-easter-title="隐藏彩蛋">
+这里是隐藏内容。
+</div>
+```
+
+触发链接：
+
+```markdown
+[打开彩蛋](#egg-secret)
+```
+
 ---
 
 ## 四、自定义配置

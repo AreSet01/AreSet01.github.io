@@ -157,7 +157,7 @@ body {
   overflow-x: hidden;
   cursor: default;
   caret-color: transparent;
-  font-family: var(--font-body);
+  font-family: var(--font-hand);
   font-size: 1rem;
   font-weight: 400;
   color: var(--text);
@@ -529,8 +529,19 @@ img {
   color: var(--text-strong);
 }
 
-[data-theme="dark"] .btn-secondary {
+.btn-secondary {
   color: var(--text-strong);
+  background: rgba(255, 255, 255, 0.18);
+  border: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 10px 28px rgba(40, 60, 120, 0.06);
+}
+
+.btn-secondary:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--glass-shadow-lg), var(--glass-inner-top);
 }
 
 /* ================= Tags ================= */
@@ -567,7 +578,11 @@ img {
 .stat-card {
   padding: 1rem 0;
   border-radius: 0;
-  background: transparent;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 0;
   border-top: 1px solid var(--rule);
   transition: border-color 280ms var(--ease);
@@ -775,11 +790,7 @@ img {
 
 .nav-link:hover {
   color: var(--text-strong);
-}
-
-.nav-link:hover::after,
-.nav-link.is-active::after {
-  transform: scaleX(1);
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.12) 100%);
 }
 
 .nav-link.is-active {
@@ -796,7 +807,6 @@ img {
 }
 
 .nav-search-trigger {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -853,10 +863,12 @@ img {
   flex-shrink: 0;
   border: 0;
   border-radius: 0;
-  background: transparent;
+  background: var(--glass-bg-soft);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: var(--muted-strong);
   cursor: pointer;
-  transition: color 280ms var(--ease), transform 280ms var(--ease);
+  transition: background 280ms var(--ease), color 280ms var(--ease), transform 280ms var(--ease), box-shadow 280ms var(--ease);
 }
 
 .theme-toggle:hover {
@@ -1077,7 +1089,7 @@ html.theme-switching .prose blockquote {
 /* ================= Prose (article body) ================= */
 
 .prose {
-  font-family: var(--font-body);
+  font-family: var(--font-hand);
   font-size: 1rem;
   line-height: 1.85;
   color: var(--text);
@@ -1093,10 +1105,10 @@ html.theme-switching .prose blockquote {
 .prose h2,
 .prose h3,
 .prose h4 {
-  font-family: var(--font-hand-title);
+  font-family: var(--font-hand);
   color: var(--text-strong);
-  font-weight: 500;
-  letter-spacing: var(--font-letter-title);
+  font-weight: 700;
+  letter-spacing: -0.018em;
   line-height: 1.3;
 }
 
@@ -1116,6 +1128,13 @@ html.theme-switching .prose blockquote {
   font-size: clamp(1.15rem, 1.7vw, 1.35rem);
   margin: 1.6em 0 0.5em;
   font-weight: 600;
+}
+
+.prose h1[id],
+.prose h2[id],
+.prose h3[id],
+.prose h4[id] {
+  scroll-margin-top: 6rem;
 }
 
 .prose p {
@@ -1158,6 +1177,7 @@ html.theme-switching .prose blockquote {
 }
 
 .prose pre {
+  position: relative;
   margin: 1.8em 0;
   overflow-x: auto;
   padding: 1.2em 1.4em;
@@ -1637,8 +1657,7 @@ html.theme-switching .prose blockquote {
 .search-result-summary {
   color: var(--muted-strong);
   font-size: 0.88rem;
-  line-height: 1.6;
-  font-family: var(--font-body);
+  line-height: 1.55;
 }
 
 .search-chip-group {
@@ -1863,11 +1882,13 @@ html.theme-switching .prose blockquote {
   flex-shrink: 0;
   border: 0;
   border-radius: 0;
-  background: transparent;
+  background: var(--glass-bg-soft);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   color: var(--muted);
   font-size: 1.1rem;
   cursor: pointer;
-  transition: color 280ms var(--ease), transform 280ms var(--ease);
+  transition: background 280ms var(--ease), color 280ms var(--ease), transform 280ms var(--ease);
 }
 
 .preview-close-btn:hover {
