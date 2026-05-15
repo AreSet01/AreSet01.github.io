@@ -236,6 +236,141 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         </div>
       </div>
     </div>
+    <script>
+      import gsap from 'gsap';
+      import { ScrollTrigger } from 'gsap/ScrollTrigger';
+      import CustomEase from 'gsap/CustomEase';
+      import Lenis from 'lenis';
+
+      gsap.registerPlugin(ScrollTrigger, CustomEase);
+
+      // Create a premium "ink-wash" custom ease
+      CustomEase.create("ink", "0.25, 1, 0.5, 1");
+      CustomEase.create("ink-out", "0.34, 1.56, 0.64, 1"); // Slight overshoot like ink spreading
+
+      window.gsap = gsap;
+      window.ScrollTrigger = ScrollTrigger;
+
+      function initSmoothScroll() {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        const lenis = new Lenis({
+          duration: 1.1, // Faster
+          easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // Custom premium easing
+          orientation: 'vertical',
+          gestureOrientation: 'vertical',
+          smoothWheel: true,
+          wheelMultiplier: 0.8, // Make wheel slightly heavier
+        });
+
+        lenis.on('scroll', ScrollTrigger.update);
+
+        gsap.ticker.add((time) => {
+          lenis.raf(time * 1000);
+        });
+
+        gsap.ticker.lagSmoothing(0);
+
+        // Store globally for potential destruction
+        window.lenis = lenis;
+      }
+
+      // Initialize on first load
+      initSmoothScroll();
+
+      // Re-initialize after Astro View Transitions
+      document.addEventListener('astro:after-swap', () => {
+        if (window.lenis) {
+          window.lenis.destroy();
+        }
+        initSmoothScroll();
+      });
+
+      // Page Load / Transition Animation (墨迹扩散展开)
+      document.addEventListener('astro:page-load', () => {
+        const main = document.querySelector('main');
+        if (main) {
+          gsap.fromTo(main, 
+            { opacity: 0, y: 30, filter: 'blur(12px)', scale: 0.98 }, 
+            { opacity: 1, y: 0, filter: 'blur(0px)', scale: 1, duration: 1.0, ease: "ink", clearProps: "all" }
+          );
+        }
+
+        initMagneticButtons();
+      });
+
+      // Magnetic Micro-interactions
+      function initMagneticButtons() {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        
+        const magneticElements = document.querySelectorAll('.btn-primary, .btn-secondary, .nav-link, .tag-chip');
+        
+        magneticElements.forEach(el => {
+          // Store original transform if any
+          el.addEventListener('mousemove', (e) => {
+            const rect = el.getBoundingClientRect();
+            // Calculate pull distance (0.3 is the magnetic strength)
+            const x = (e.clientX - rect.left - rect.width / 2) * 0.25;
+            const y = (e.clientY - rect.top - rect.height / 2) * 0.25;
+            
+            gsap.to(el, { 
+              x, y, 
+              duration: 0.6, 
+              ease: 'power3.out',
+              overwrite: "auto"
+            });
+          });
+          
+          el.addEventListener('mouseleave', () => {
+            gsap.to(el, { 
+              x: 0, y: 0, 
+              duration: 0.9, 
+              ease: 'elastic.out(1, 0.4)', // Squish/jelly effect on release
+              clearProps: "x,y",
+              overwrite: "auto"
+            });
+          });
+        });
+      }
+
+      // Modal Stagger Animations (弹窗时间轴错落展开)
+      document.addEventListener('astro:page-load', () => {
+        const modals = document.querySelectorAll('.search-overlay, .preview-overlay, .image-viewer-overlay');
+        
+        modals.forEach(overlay => {
+          const observer = new MutationObserver((mutations) => {
+            mutations.forEach(mutation => {
+              if (mutation.attributeName === 'class') {
+                const isOpen = overlay.classList.contains('is-open');
+                const modalInner = overlay.querySelector('.search-modal, .preview-modal, .image-viewer-shell');
+                
+                if (isOpen && modalInner && window.gsap) {
+                  // Find elements to stagger
+                  const children = Array.from(modalInner.children);
+                  
+                  // Reset first
+                  gsap.set(children, { y: 20, opacity: 0, filter: 'blur(8px)' });
+                  
+                  // Animate in
+                  gsap.to(children, {
+                    y: 0,
+                    opacity: 1,
+                    filter: 'blur(0px)',
+                    duration: 0.85,
+                    stagger: 0.06,
+                    ease: "ink",
+                    delay: 0.05,
+                    overwrite: "auto"
+                  });
+                }
+              }
+            });
+          });
+          
+          observer.observe(overlay, { attributes: true });
+        });
+      });
+    </script>
     <script is:inline define:vars={{ searchIndexPath }}>
       (() => {
         const cleanupKey = '__areSetSiteUiCleanup__';
@@ -258,11 +393,14 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           document.body.classList.remove('search-lock', 'search-open', 'preview-lock', 'preview-active', 'preview-open', 'image-view-open');
           document.documentElement.style.setProperty('--scrollbar-offset', '0px');
 
-        const sparkleColors = [
+        const isDarkTheme = document.documentElement.getAttribute('data-theme') === 'dark';
+        const sparkleColors = isDarkTheme ? [
+          '#ffffff', '#f2f2f2', '#e6e6e6', '#d9d9d9',
+          '#cccccc', '#bfbfbf', '#b3b3b3', '#a6a6a6'
+        ] : [
           '#1a1814', '#0d0c09', '#3a352c',
           '#2a2620', '#1f1c18', '#161310',
           '#4a4338', '#6b6353', '#564e42',
-          '#a8392b', '#1a1814', '#3a352c',
         ];
 
         function sparkle(x, y, count) {
@@ -356,58 +494,79 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         }
 
         function initRevealUp() {
-          const revealNodes = Array.from(document.querySelectorAll('.reveal-up'));
-          if (!revealNodes.length) return;
-          let revealDirection = 1;
-          let revealLastScrollY = window.scrollY;
-          const revealThreshold = 0.16;
-
-          window.addEventListener('scroll', () => {
-            const nextScrollY = window.scrollY;
-            const delta = nextScrollY - revealLastScrollY;
-            if (Math.abs(delta) > 1) {
-              revealDirection = delta > 0 ? 1 : -1;
-            }
-            revealLastScrollY = nextScrollY;
-          }, { passive: true, signal });
-
-          if (!('IntersectionObserver' in window)) {
-            revealNodes.forEach((node) => {
-              node.classList.add('reveal-from-bottom', 'is-revealed');
-            });
+          if (!window.gsap || !window.ScrollTrigger) {
+            // Fallback if GSAP isn't loaded yet
+            setTimeout(initRevealUp, 50);
             return;
           }
 
-          revealObserver = new IntersectionObserver((entries) => {
-            entries.forEach((entry) => {
-              const target = entry.target;
-              const isVisible = target.dataset.revealVisible === 'true';
+          const { gsap, ScrollTrigger } = window;
+          const revealNodes = gsap.utils.toArray('.reveal-up');
+          
+          if (!revealNodes.length) return;
 
-              if (!entry.isIntersecting) {
-                if (!isVisible) return;
-                target.dataset.revealVisible = 'false';
-                target.classList.remove('is-revealed', 'reveal-from-bottom', 'reveal-from-top');
-                return;
+          // Parallax effect for hero section (水墨扩散展开感)
+          const heroCopy = document.querySelector('.home-hero-copy');
+          const heroRail = document.querySelector('.home-rail');
+          
+          if (heroCopy && heroRail) {
+            gsap.fromTo(heroCopy, 
+              { y: 40, opacity: 0, filter: 'blur(12px)' }, 
+              { y: 0, opacity: 1, filter: 'blur(0px)', duration: 1.2, ease: "ink", delay: 0.1 }
+            );
+            gsap.fromTo(heroRail, 
+              { x: 20, opacity: 0 }, 
+              { x: 0, opacity: 1, duration: 1.0, ease: "ink", delay: 0.2 }
+            );
+
+            // Parallax on scroll
+            gsap.to(heroCopy, {
+              y: -80,
+              opacity: 0,
+              ease: "none",
+              immediateRender: false, // Fix bug where it disappears after scrolling down
+              scrollTrigger: {
+                trigger: ".home-hero",
+                start: "top top",
+                end: "bottom top",
+                scrub: true
               }
-
-              if (isVisible || entry.intersectionRatio < revealThreshold) {
-                return;
-              }
-
-              const directionClass = revealDirection >= 0 ? 'reveal-from-bottom' : 'reveal-from-top';
-              target.classList.remove('is-revealed', 'reveal-from-bottom', 'reveal-from-top');
-              target.classList.add(directionClass);
-              void target.offsetWidth;
-              target.classList.add('is-revealed');
-              target.dataset.revealVisible = 'true';
             });
-          }, {
-            threshold: [0, revealThreshold],
-            rootMargin: '10% 0px 10% 0px',
-          });
+          }
 
+          // Replace old CSS reveal with GSAP staggered reveal
           revealNodes.forEach((node) => {
-            revealObserver.observe(node);
+            // Remove old classes to prevent conflicts
+            node.classList.remove('reveal-up');
+            
+            // Set initial state
+            gsap.set(node, { y: 30, opacity: 0, filter: 'blur(8px)' });
+
+            ScrollTrigger.create({
+              trigger: node,
+              start: "top 85%", // Reveal when top of element hits 85% of viewport
+              onEnter: () => {
+                gsap.to(node, {
+                  y: 0,
+                  opacity: 1,
+                  filter: 'blur(0px)',
+                  duration: 0.85, // Faster reveal
+                  ease: "ink",
+                  overwrite: "auto"
+                });
+              },
+              onLeaveBack: () => {
+                // Optional: hide again when scrolling back up
+                gsap.to(node, {
+                  y: 15,
+                  opacity: 0,
+                  filter: 'blur(4px)',
+                  duration: 0.8,
+                  ease: "power2.inOut",
+                  overwrite: "auto"
+                });
+              }
+            });
           });
         }
 
@@ -1009,12 +1168,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           const scaleRatioX = sourceRect.width / Math.max(shellRect.width, 1);
           const scaleRatioY = sourceRect.height / Math.max(shellRect.height, 1);
           const sourceRadius = parseFloat(sourceStyle.borderTopLeftRadius) || 16;
-          const startScaleX = Math.max(0.18, Math.min(0.86, scaleRatioX));
-          const startScaleY = Math.max(0.14, Math.min(0.82, scaleRatioY));
-          const pinchScaleX = Math.max(0.18, startScaleX * 0.66);
-          const pinchScaleY = Math.min(1.04, Math.max(0.5, startScaleY * 1.18));
-          const driftX = startX * -0.12;
-          const driftY = startY * -0.08 - Math.max(6, sourceRadius * 0.18);
+          // Use precise FLIP scaling without clamps
+          const startScaleX = scaleRatioX;
+          const startScaleY = scaleRatioY;
+          const pinchScaleX = startScaleX * 0.8;
+          const pinchScaleY = startScaleY * 1.05;
+          const driftX = 0;
+          const driftY = 0;
 
           imageViewerMotion = {
             startX,
@@ -1033,7 +1193,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         function applyImageViewerStartStyles() {
           const { startX, startY, startScaleX, startScaleY } = imageViewerMotion;
           imageOverlay.style.opacity = '0';
-          imageViewerShell.style.transform = `translate3d(${startX * 0.18}px, ${startY * 0.18}px, 0) scale(${(0.94 + (1 - startScaleX) * 0.05).toFixed(3)}, ${(0.94 + (1 - startScaleY) * 0.05).toFixed(3)})`;
+          imageViewerShell.style.transform = `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`;
           imageViewerShell.style.opacity = '0';
           imageViewerShell.style.filter = 'blur(14px)';
         }
@@ -1067,10 +1227,23 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
           imageViewerState = 'opening';
 
+          if (window.gsap) {
+             window.gsap.killTweensOf([imageOverlay, imageViewerShell]);
+             window.gsap.fromTo(imageOverlay, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: "power2.out" });
+             window.gsap.fromTo(imageViewerShell, 
+               { x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0, filter: 'blur(14px)' },
+               { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, filter: 'blur(0)', duration: 0.85, ease: "ink", onComplete: () => {
+                 applyImageViewerOpenStyles();
+                 imageViewerState = 'open';
+               }}
+             );
+             return;
+          }
+
           imageViewerOverlayAnimation = imageOverlay.animate(
             [{ opacity: 0 }, { opacity: 1 }],
             {
-              duration: 540,
+              duration: 450,
               easing: 'cubic-bezier(0.22, 0.82, 0.18, 1)',
               fill: 'both',
             }
@@ -1079,15 +1252,15 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           imageViewerShellAnimation = imageViewerShell.animate(
             [
               {
-                transform: `translate3d(${(startX * 0.18).toFixed(2)}px, ${(startY * 0.18).toFixed(2)}px, 0) scale(${initScaleX.toFixed(3)}, ${initScaleY.toFixed(3)})`,
+                transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
                 opacity: 0,
                 filter: 'blur(14px)',
               },
               {
-                transform: `translate3d(${(startX * 0.06).toFixed(2)}px, ${(startY * 0.06).toFixed(2)}px, 0) scale(0.985, 0.985)`,
-                opacity: 0.7,
+                transform: `translate3d(${startX * 0.3}px, ${startY * 0.3}px, 0) scale(${startScaleX + (1 - startScaleX) * 0.5}, ${startScaleY + (1 - startScaleY) * 0.5})`,
+                opacity: 0.8,
                 filter: 'blur(4px)',
-                offset: 0.55,
+                offset: 0.4,
               },
               {
                 transform: 'translate3d(0, 0, 0) scale(1, 1)',
@@ -1096,7 +1269,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               },
             ],
             {
-              duration: 760,
+              duration: 850,
               easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
               fill: 'both',
             }
@@ -1157,10 +1330,22 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           imageViewerState = 'closing';
           applyImageViewerOpenStyles();
 
+          if (window.gsap) {
+             window.gsap.killTweensOf([imageOverlay, imageViewerShell]);
+             window.gsap.to(imageOverlay, { opacity: 0, duration: 0.4, ease: "power2.inOut" });
+             window.gsap.to(imageViewerShell, { 
+               x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0, filter: 'blur(12px)', 
+               duration: 0.55, ease: "power3.inOut", onComplete: () => {
+                 finishImageViewerClose(restoreFocusEl);
+               }
+             });
+             return;
+          }
+
           imageViewerOverlayAnimation = imageOverlay.animate(
             [{ opacity: 1 }, { opacity: 0 }],
             {
-              duration: 360,
+              duration: 400,
               easing: 'cubic-bezier(0.36, 0, 0.4, 1)',
               fill: 'both',
             }
@@ -1174,19 +1359,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
                 filter: 'blur(0)',
               },
               {
-                transform: `translate3d(${(startX * 0.04).toFixed(2)}px, ${(startY * 0.04).toFixed(2)}px, 0) scale(0.988, 0.988)`,
-                opacity: 0.7,
-                filter: 'blur(4px)',
-                offset: 0.5,
-              },
-              {
-                transform: `translate3d(${(startX * 0.16).toFixed(2)}px, ${(startY * 0.16).toFixed(2)}px, 0) scale(0.95, 0.95)`,
+                transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
                 opacity: 0,
                 filter: 'blur(12px)',
               },
             ],
             {
-              duration: 460,
+              duration: 550,
               easing: 'cubic-bezier(0.4, 0, 0.5, 1)',
               fill: 'both',
             }
@@ -1248,12 +1427,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           const scaleRatioX = sourceRect.width / Math.max(modalRect.width, 1);
           const scaleRatioY = sourceRect.height / Math.max(modalRect.height, 1);
           const sourceRadius = parseFloat(sourceStyle.borderTopLeftRadius) || 16;
-          const startScaleX = Math.max(0.24, Math.min(0.84, scaleRatioX));
-          const startScaleY = Math.max(0.16, Math.min(0.78, scaleRatioY));
-          const pinchScaleX = Math.max(0.18, startScaleX * 0.62);
-          const pinchScaleY = Math.min(1.08, Math.max(0.52, startScaleY * 1.25));
-          const driftX = startX * -0.16;
-          const driftY = startY * -0.1 - Math.max(8, sourceRadius * 0.2);
+          // True FLIP without arbitrary clamps
+          const startScaleX = scaleRatioX;
+          const startScaleY = scaleRatioY;
+          const pinchScaleX = startScaleX * 0.8;
+          const pinchScaleY = startScaleY * 1.05;
+          const driftX = 0;
+          const driftY = 0;
           const overshootScaleX = 1.018;
           const overshootScaleY = 0.988;
 
@@ -1272,9 +1452,9 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         }
 
         function applyPreviewStartStyles() {
-          const { startX, startY } = previewMotion;
+          const { startX, startY, startScaleX, startScaleY } = previewMotion;
           overlay.style.opacity = '0';
-          modal.style.transform = `translate3d(${(startX * 0.18).toFixed(2)}px, ${(startY * 0.18).toFixed(2)}px, 0) scale(0.96, 0.96)`;
+          modal.style.transform = `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`;
           modal.style.opacity = '0';
           modal.style.filter = 'blur(16px)';
         }
@@ -1305,10 +1485,23 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           const { startX, startY } = previewMotion;
           previewState = 'opening';
 
+          if (window.gsap) {
+             window.gsap.killTweensOf([overlay, modal]);
+             window.gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: "power2.out" });
+             window.gsap.fromTo(modal, 
+               { x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0, filter: 'blur(16px)' },
+               { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, filter: 'blur(0)', duration: 0.85, ease: "ink", onComplete: () => {
+                 applyPreviewOpenStyles();
+                 previewState = 'open';
+               }}
+             );
+             return;
+          }
+
           previewOverlayAnimation = overlay.animate(
             [{ opacity: 0 }, { opacity: 1 }],
             {
-              duration: 540,
+              duration: 450,
               easing: 'cubic-bezier(0.22, 0.82, 0.18, 1)',
               fill: 'both',
             }
@@ -1317,15 +1510,15 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           previewModalAnimation = modal.animate(
             [
               {
-                transform: `translate3d(${(startX * 0.18).toFixed(2)}px, ${(startY * 0.18).toFixed(2)}px, 0) scale(0.96, 0.96)`,
+                transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
                 opacity: 0,
                 filter: 'blur(16px)',
               },
               {
-                transform: `translate3d(${(startX * 0.06).toFixed(2)}px, ${(startY * 0.06).toFixed(2)}px, 0) scale(0.985, 0.985)`,
-                opacity: 0.72,
+                transform: `translate3d(${startX * 0.3}px, ${startY * 0.3}px, 0) scale(${startScaleX + (1 - startScaleX) * 0.5}, ${startScaleY + (1 - startScaleY) * 0.5})`,
+                opacity: 0.8,
                 filter: 'blur(4.5px)',
-                offset: 0.55,
+                offset: 0.4,
               },
               {
                 transform: 'translate3d(0, 0, 0) scale(1, 1)',
@@ -1334,7 +1527,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               },
             ],
             {
-              duration: 920,
+              duration: 850,
               easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
               fill: 'both',
             }
@@ -1480,10 +1673,22 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
           const { startX, startY } = previewMotion;
 
+          if (window.gsap) {
+             window.gsap.killTweensOf([overlay, modal]);
+             window.gsap.to(overlay, { opacity: 0, duration: 0.4, ease: "power2.inOut" });
+             window.gsap.to(modal, { 
+               x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0, filter: 'blur(12px)', 
+               duration: 0.55, ease: "power3.inOut", onComplete: () => {
+                 finishPreviewClose(restoreFocusEl);
+               }
+             });
+             return;
+          }
+
           previewOverlayAnimation = overlay.animate(
             [{ opacity: 1 }, { opacity: 0 }],
             {
-              duration: 380,
+              duration: 400,
               easing: 'cubic-bezier(0.36, 0, 0.4, 1)',
               fill: 'both',
             }
@@ -1497,19 +1702,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
                 filter: 'blur(0)',
               },
               {
-                transform: `translate3d(${(startX * 0.04).toFixed(2)}px, ${(startY * 0.04).toFixed(2)}px, 0) scale(0.985, 0.985)`,
-                opacity: 0.7,
-                filter: 'blur(4.5px)',
-                offset: 0.45,
-              },
-              {
-                transform: `translate3d(${(startX * 0.16).toFixed(2)}px, ${(startY * 0.16).toFixed(2)}px, 0) scale(0.95, 0.95)`,
+                transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
                 opacity: 0,
                 filter: 'blur(14px)',
               },
             ],
             {
-              duration: 520,
+              duration: 550,
               easing: 'cubic-bezier(0.4, 0, 0.5, 1)',
               fill: 'both',
             }
