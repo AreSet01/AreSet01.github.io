@@ -1706,8 +1706,8 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         const stateKey = '__areSetCursorGlowState__';
 
         function initCursorGlow() {
-          const lightPalette = ['26, 24, 20', '58, 53, 44', '168, 57, 43'];
-          const darkPalette  = ['235, 226, 207', '181, 171, 149', '212, 74, 60'];
+          const lightPalette = ['26, 24, 20', '168, 57, 43'];
+          const darkPalette  = ['235, 226, 207', '212, 74, 60'];
 
           function paletteForTheme() {
             return document.documentElement.getAttribute('data-theme') === 'dark'
@@ -1788,10 +1788,53 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             glow.classList.remove('is-visible', 'is-hovering');
           }, { signal });
 
+          function createFirework(x, y, color) {
+            const particleCount = 16 + Math.floor(Math.random() * 12);
+            for (let i = 0; i < particleCount; i++) {
+              const particle = document.createElement('div');
+              const angle = Math.random() * 2 * Math.PI;
+              const velocity = 40 + Math.random() * 80;
+              const tx = Math.cos(angle) * velocity;
+              const ty = Math.sin(angle) * velocity;
+              const size = 3 + Math.random() * 5;
+              const duration = 500 + Math.random() * 500;
+
+              particle.style.cssText = `
+                position: fixed;
+                left: ${x}px;
+                top: ${y}px;
+                width: ${size}px;
+                height: ${size}px;
+                background: rgb(${color});
+                border-radius: 50%;
+                pointer-events: none;
+                z-index: 9999;
+                transform: translate(-50%, -50%);
+                box-shadow: 0 0 8px rgba(${color}, 0.9), 0 0 16px rgba(${color}, 0.4);
+                will-change: transform, opacity;
+              `;
+              document.body.appendChild(particle);
+
+              particle.animate([
+                { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+                { transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(0)`, opacity: 0 }
+              ], {
+                duration: duration,
+                easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+                fill: 'forwards'
+              });
+
+              setTimeout(() => particle.remove(), duration + 50);
+            }
+          }
+
           document.addEventListener('pointerdown', (event) => {
             if (event.button !== 0) return;
             state.colorIndex = ((state.colorIndex || 0) + 1) % state.glowColors.length;
             applyGlowColor(state.colorIndex);
+
+            const color = state.glowColors[state.colorIndex] || state.glowColors[0];
+            createFirework(event.clientX, event.clientY, color);
           }, { signal });
 
           document.addEventListener('mouseover', (event) => {
