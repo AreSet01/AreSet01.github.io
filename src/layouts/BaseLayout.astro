@@ -192,7 +192,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     </div>
     <div class="search-overlay" id="site-search" aria-hidden="true">
       <div class="search-modal" role="dialog" aria-modal="true" aria-labelledby="search-title">
-        <div class="search-panel">
+        <div class="search-panel" data-lenis-prevent>
           <div class="search-header">
             <div class="search-heading">
               <p class="eyebrow">Command Palette</p>
@@ -252,7 +252,8 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
       window.ScrollTrigger = ScrollTrigger;
 
       function initSmoothScroll() {
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        // Force animations for aesthetic priority (bypass OS reduced motion settings)
+        // if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
         const lenis = new Lenis({
           duration: 1.1, // Faster
@@ -301,7 +302,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
       // Magnetic Micro-interactions
       function initMagneticButtons() {
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        // if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         
         const magneticElements = document.querySelectorAll('.btn-primary, .btn-secondary, .nav-link, .tag-chip');
         
@@ -393,17 +394,19 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           document.body.classList.remove('search-lock', 'search-open', 'preview-lock', 'preview-active', 'preview-open', 'image-view-open');
           document.documentElement.style.setProperty('--scrollbar-offset', '0px');
 
-        const isDarkTheme = document.documentElement.getAttribute('data-theme') === 'dark';
-        const sparkleColors = isDarkTheme ? [
-          '#ffffff', '#f2f2f2', '#e6e6e6', '#d9d9d9',
-          '#cccccc', '#bfbfbf', '#b3b3b3', '#a6a6a6'
-        ] : [
-          '#1a1814', '#0d0c09', '#3a352c',
-          '#2a2620', '#1f1c18', '#161310',
-          '#4a4338', '#6b6353', '#564e42',
-        ];
+
 
         function sparkle(x, y, count) {
+          const isDarkTheme = document.documentElement.getAttribute('data-theme') === 'dark';
+          const sparkleColors = isDarkTheme ? [
+            '#ffffff', '#f2f2f2', '#e6e6e6', '#d9d9d9',
+            '#cccccc', '#bfbfbf', '#b3b3b3', '#a6a6a6'
+          ] : [
+            '#1a1814', '#0d0c09', '#3a352c',
+            '#2a2620', '#1f1c18', '#161310',
+            '#4a4338', '#6b6353', '#564e42',
+          ];
+
           const frag = document.createDocumentFragment();
           const splotchCount = Math.max(3, Math.round(count * 0.35));
 
@@ -691,7 +694,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         overlay.className = 'preview-overlay';
         overlay.dataset.generatedPreview = 'true';
         overlay.innerHTML = `
-          <div class="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+          <div class="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title" data-lenis-prevent>
             <div class="preview-modal-header">
               <h2 class="preview-modal-title" id="preview-title"></h2>
               <button class="preview-close-btn" aria-label="关闭预览" type="button">
@@ -718,7 +721,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         imageOverlay.className = 'image-viewer-overlay';
         imageOverlay.dataset.generatedImageViewer = 'true';
         imageOverlay.innerHTML = `
-          <div class="image-viewer-shell" role="dialog" aria-modal="true" aria-labelledby="image-viewer-caption">
+          <div class="image-viewer-shell" role="dialog" aria-modal="true" aria-labelledby="image-viewer-caption" data-lenis-prevent>
             <button class="image-viewer-close" aria-label="关闭图片预览" type="button">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <line x1="3" y1="3" x2="13" y2="13"></line>
@@ -787,7 +790,8 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           overshootScaleY: 0.988,
         };
 
-        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        // Force animations even if OS reduced motion is active
+        const prefersReducedMotion = false; // window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const syncScrollbarOffset = () => {
           const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
           document.documentElement.style.setProperty('--scrollbar-offset', `${scrollbarWidth}px`);
@@ -836,6 +840,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           imageViewerCaption.hidden = !captionText;
 
           syncScrollbarOffset();
+          if (window.lenis) window.lenis.stop();
           document.body.classList.add('image-view-open');
           imageOverlay.classList.add('is-open');
           rememberSourceImageHidden(sourceEl);
@@ -1080,6 +1085,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           clearSearchCloseTimer();
           searchSourceEl = sourceEl instanceof HTMLElement ? sourceEl : null;
           syncScrollbarOffset();
+          if (window.lenis) window.lenis.stop();
           document.body.classList.add('search-lock');
           searchOverlay.setAttribute('aria-hidden', 'false');
           updateSearchResults();
@@ -1113,7 +1119,8 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               searchSourceEl.focus({ preventScroll: true });
             }
 
-            searchSourceEl = null;
+            if (window.lenis) window.lenis.start();
+          searchSourceEl = null;
             searchCloseTimer = 0;
           };
 
@@ -1231,11 +1238,15 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
              window.gsap.killTweensOf([imageOverlay, imageViewerShell]);
              window.gsap.fromTo(imageOverlay, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: "power2.out" });
              window.gsap.fromTo(imageViewerShell, 
-               { x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0, filter: 'blur(14px)' },
-               { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, filter: 'blur(0)', duration: 0.85, ease: "ink", onComplete: () => {
+               { x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0 },
+               { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, duration: 0.85, ease: "ink", onComplete: () => {
                  applyImageViewerOpenStyles();
                  imageViewerState = 'open';
                }}
+             );
+             window.gsap.fromTo(imageViewerShell,
+               { filter: 'blur(12px)' },
+               { filter: 'blur(0px)', duration: 1.1, ease: "power2.out" }
              );
              return;
           }
@@ -1308,6 +1319,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           resetImageViewerMotion();
           imageViewerState = 'closed';
           imageViewerSourceEl = null;
+          if (window.lenis) window.lenis.start();
 
           if (restoreFocusEl instanceof HTMLElement && restoreFocusEl.isConnected && restoreFocusEl.tabIndex >= 0) {
             restoreFocusEl.focus({ preventScroll: true });
@@ -1325,7 +1337,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             return;
           }
 
-          const { startX, startY } = imageViewerMotion;
+          const { startX, startY, startScaleX, startScaleY } = imageViewerMotion;
 
           imageViewerState = 'closing';
           applyImageViewerOpenStyles();
@@ -1482,18 +1494,22 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             return;
           }
 
-          const { startX, startY } = previewMotion;
+          const { startX, startY, startScaleX, startScaleY } = previewMotion;
           previewState = 'opening';
 
           if (window.gsap) {
              window.gsap.killTweensOf([overlay, modal]);
              window.gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: "power2.out" });
              window.gsap.fromTo(modal, 
-               { x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0, filter: 'blur(16px)' },
-               { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, filter: 'blur(0)', duration: 0.85, ease: "ink", onComplete: () => {
+               { x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0 },
+               { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, duration: 0.85, ease: "ink", onComplete: () => {
                  applyPreviewOpenStyles();
                  previewState = 'open';
                }}
+             );
+             window.gsap.fromTo(modal,
+               { filter: 'blur(12px)' },
+               { filter: 'blur(0px)', duration: 1.1, ease: "power2.out" }
              );
              return;
           }
@@ -1572,6 +1588,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           syncScrollbarOffset();
           document.body.classList.add('preview-lock');
           document.body.classList.add('preview-active');
+          if (window.lenis) window.lenis.stop();
           overlay.classList.add('is-open');
           applyPreviewStartStyles();
 
@@ -1649,6 +1666,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           previewState = 'closed';
           previewSourceEl = null;
 
+          if (window.lenis) window.lenis.start();
           if (restoreFocusEl instanceof HTMLElement && restoreFocusEl.isConnected) {
             restoreFocusEl.focus({ preventScroll: true });
           }
@@ -1671,7 +1689,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           document.body.classList.remove('preview-active');
           applyPreviewOpenStyles();
 
-          const { startX, startY } = previewMotion;
+          const { startX, startY, startScaleX, startScaleY } = previewMotion;
 
           if (window.gsap) {
              window.gsap.killTweensOf([overlay, modal]);
