@@ -1,7 +1,7 @@
 ---
 import BaseLayout from './BaseLayout.astro';
 import Header from '../components/Header.astro';
-import Footer from '../components/Footer.astro';
+
 import TagList from '../components/TagList.astro';
 import Giscus from '../components/Giscus.astro';
 import { formatDate } from '../utils/date';
@@ -63,7 +63,7 @@ const hasToc = tocHeadings.length > 1;
           </p>
         )}
         {tags.length > 0 && (
-          <div class="mt-10 pt-6 border-t border-[var(--rule)]">
+          <div class="mt-10 pt-6 border-t border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;">
             <TagList tags={tags} />
           </div>
         )}
@@ -134,13 +134,13 @@ const hasToc = tocHeadings.length > 1;
           </div>
         </div>
       </div>
-      <div class="reveal-up pt-6 border-t border-[var(--rule)]" style="animation-delay: 220ms;">
+      <div class="reveal-up pt-6 border-t border-[var(--rule)]" style="animation-delay: 220ms; border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;">
         <p class="eyebrow mb-6">Discussion</p>
         <Giscus />
       </div>
     </article>
   </main>
-  <Footer />
+
   {isLocked && (
     <script is:inline data-astro-rerun>
       (() => {

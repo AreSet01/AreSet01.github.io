@@ -13,53 +13,340 @@ const isActive = (href: string) => {
   if (href === '/') return currentPath === '/';
   return currentPath.startsWith(href);
 };
+
+const year = new Date().getFullYear();
 ---
 
 <header class="glass-nav">
-  <div class="container-wide glass-nav-inner">
-    <a href="/" class="brand-mark">
-      <span class="brand-seal" aria-hidden="true">梦</span>
-      <span>梦付千秋</span>
-    </a>
-    <div class="nav-cluster">
-      <nav class="nav-links">
-        {navItems.map(item => (
-          <a
-            href={item.href}
-            class={`nav-link ${isActive(item.href) ? 'is-active' : ''}`}
-          >
-            {item.labelZh}
-          </a>
-        ))}
-      </nav>
-      <button
-        class="nav-search-trigger"
-        type="button"
-        data-search-trigger
-        aria-haspopup="dialog"
-        aria-controls="site-search"
-        aria-label="打开搜索"
-      >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"></circle>
-          <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
-        </svg>
-        <span>Search</span>
-        <span class="nav-search-kbd">⌘K</span>
-      </button>
-      <button
-        class="theme-toggle"
-        type="button"
-        aria-label="切换深色模式"
-        data-theme-toggle
-      >
-        <svg class="icon-sun" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
-        </svg>
-        <svg class="icon-moon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-        </svg>
-      </button>
+  <div class="container-wide glass-nav-inner h-full flex flex-col justify-between">
+    <div class="flex flex-col gap-10 lg:gap-14 w-full">
+      <a href="/" class="brand-mark">
+        <span class="brand-seal" aria-hidden="true">梦</span>
+        <span>梦付千秋</span>
+      </a>
+      <div class="nav-cluster">
+        <button
+          class="nav-search-trigger"
+          type="button"
+          data-search-trigger
+          aria-haspopup="dialog"
+          aria-controls="site-search"
+          aria-label="打开搜索"
+          style="margin-bottom: 2rem; border: 1px solid var(--rule); padding: 0.6rem 0.8rem; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; width: 100%;"
+        >
+          <span style="font-family: var(--font-body); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted-strong);">Search</span>
+          <span class="nav-search-kbd" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted-strong);">⌘K</span>
+        </button>
+        <nav class="nav-links">
+          {navItems.map(item => (
+            <a
+              href={item.href}
+              class={`nav-link ${isActive(item.href) ? 'is-active' : ''}`}
+            >
+              {item.labelZh}
+            </a>
+          ))}
+        </nav>
+        <button
+          class="theme-toggle"
+          type="button"
+          aria-label="切换深色模式"
+          data-theme-toggle
+        >
+          <svg class="icon-sun" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    
+    <div class="hidden lg:flex flex-col gap-4 mt-auto pt-10 text-[0.75rem] leading-relaxed text-[var(--muted)]" style="font-family: var(--font-serif); font-style: italic;">
+      <div class="w-8 h-[1px] bg-[var(--rule)] mb-2"></div>
+      <p>慢慢写，持续更新。<br/>记录教程与灵感，让每次更新都更耐读一点。</p>
+      <p class="font-mono not-italic tracking-[0.05em] uppercase text-[var(--text-strong)] mt-4">
+        &copy; {year} &middot; 梦付千秋
+      </p>
+      <p class="not-italic">
+        Built with
+        <a href="https://astro.build" class="text-[var(--accent)] underline decoration-[var(--accent)] underline-offset-4 hover:text-[var(--accent-deep)]" target="_blank" rel="noopener">Astro</a>
+      </p>
     </div>
   </div>
 </header>
+
+<canvas id="inkCanvas" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 9999;"></canvas>
+
+<script>
+(function () {
+  // ── State (re-initialized on every page load) ────────────────────────────
+  let canvas, ctx;
+  let points   = [];
+  let strokeId = 0;
+  let isDrawing = false;
+  let isMobile  = false;
+  let cleanupFns = [];   // window-level listeners to remove on next init
+
+  const mouse = { x: 0, y: 0 };
+  const brush = {
+    x: 0, y: 0, vx: 0, vy: 0,
+    radius: 6, isPressed: false, isVisible: false,
+  };
+  const springTension = 0.12;
+  const springDamping  = 0.65;
+
+  // ── InkPoint ─────────────────────────────────────────────────────────────
+  class InkPoint {
+    constructor(x, y, radius, color, opacity = 0.85, speed = 0) {
+      this.x = x; this.y = y;
+      this.baseRadius = radius; this.radius = radius;
+      this.color = color; this.opacity = opacity;
+      this.currentOpacity = opacity;
+      this.age = 0; this.maxAge = 45 + Math.random() * 15;
+      this.speed = speed;
+      this.nx = 0; this.ny = 0;
+    }
+    update() {
+      this.age++;
+      const p = this.age / this.maxAge;
+      this.radius = this.baseRadius * (1 + p * 0.2);
+      this.currentOpacity = this.opacity * (1 - p);
+    }
+  }
+
+  // ── Canvas resize ─────────────────────────────────────────────────────────
+  function resize() {
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    canvas.width  = window.innerWidth  * dpr;
+    canvas.height = window.innerHeight * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // absolute set, never accumulates
+  }
+
+  // ── Drawing ───────────────────────────────────────────────────────────────
+  function updateAndDraw() {
+    if (!canvas || !ctx) return;
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+    const theme = document.documentElement.getAttribute('data-theme') || 'light';
+    const color = theme === 'dark' ? '255,255,255' : '26,24,20';
+    const [baseR, baseG, baseB] = color.split(',').map(Number);
+
+    // Spring physics
+    const dx = mouse.x - brush.x;
+    const dy = mouse.y - brush.y;
+    brush.vx = (brush.vx + dx * springTension) * springDamping;
+    brush.vy = (brush.vy + dy * springTension) * springDamping;
+    brush.x += brush.vx;
+    brush.y += brush.vy;
+
+    const speed = Math.hypot(brush.vx, brush.vy);
+
+    if (brush.isVisible && speed > 0.15) {
+      let targetR = Math.max(3, 11 - speed * 0.2);
+      let opacity = 0.85;
+      if (brush.isPressed) { targetR = Math.max(7, 22 - speed * 0.3); opacity = 0.95; }
+      brush.radius = brush.radius * 0.85 + targetR * 0.15;
+      points.push(new InkPoint(brush.x, brush.y, brush.radius, color, opacity, speed));
+    } else if (speed <= 0.15 && points.length > 0) {
+      strokeId += 0.05;
+    }
+
+    points.forEach(p => p.update());
+    points = points.filter(p => p.age < p.maxAge);
+
+    // ── Render ──────────────────────────────────────────────────────────────
+    if (points.length >= 2) {
+      const N = points.length;
+
+      // Compute smooth normals
+      for (let i = 0; i < N; i++) {
+        let ex, ey;
+        if (i === 0)     { ex = points[1].x - points[0].x; ey = points[1].y - points[0].y; }
+        else if (i===N-1){ ex = points[i].x - points[i-1].x; ey = points[i].y - points[i-1].y; }
+        else             { ex = points[i+1].x - points[i-1].x; ey = points[i+1].y - points[i-1].y; }
+        const len = Math.hypot(ex, ey) || 0.001;
+        points[i].nx = -ey / len;
+        points[i].ny =  ex / len;
+      }
+
+      ctx.beginPath();
+      // Right side
+      for (let i = 0; i < N; i++) {
+        const p = points[i];
+        const prog = i / (N - 1);
+        const spindle = Math.sin(prog * Math.PI) * 1.15;
+        const thickness = p.radius * Math.max(0.1, spindle);
+        const px = p.x + p.nx * thickness;
+        const py = p.y + p.ny * thickness;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      // Left side
+      for (let i = N - 1; i >= 0; i--) {
+        const p = points[i];
+        const prog = i / (N - 1);
+        const spindle = Math.sin(prog * Math.PI) * 1.15;
+        const thickness = p.radius * Math.max(0.1, spindle);
+        const px = p.x - p.nx * thickness;
+        const py = p.y - p.ny * thickness;
+        ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      
+      const head = points[N - 1];
+      
+      // Apply slight blur to edges
+      ctx.shadowBlur = 2;
+      ctx.shadowColor = `rgba(${baseR},${baseG},${baseB},${head.currentOpacity})`;
+      
+      // Use higher opacity for a more solid look
+      ctx.fillStyle = `rgba(${baseR},${baseG},${baseB},${head.currentOpacity * 0.9})`;
+      ctx.fill();
+      
+      // Reset shadow for subsequent drawings
+      ctx.shadowBlur = 0;
+    }
+
+    // Hollow pointer circle at exact mouse location
+    if (brush.isVisible) {
+      ctx.beginPath();
+      ctx.arc(mouse.x, mouse.y, 4, 0, Math.PI * 2);
+      ctx.lineWidth   = 1;
+      ctx.strokeStyle = `rgba(${baseR},${baseG},${baseB},0.5)`;
+      ctx.stroke();
+    }
+
+    if (!brush.isVisible && points.length === 0) {
+      isDrawing = false;
+    } else if (isDrawing) {
+      requestAnimationFrame(updateAndDraw);
+    }
+  }
+
+  // ── Init (called on every Astro page-load) ────────────────────────────────
+  function init() {
+    // Remove previous window listeners
+    cleanupFns.forEach(fn => fn());
+    cleanupFns = [];
+    isDrawing = false;
+    points    = [];
+
+    // Re-acquire canvas (Astro swaps the DOM on navigation)
+    canvas = document.getElementById('inkCanvas');
+    if (!canvas) return;
+
+    // ★ Move canvas to <body> to escape any backdrop-filter containing block
+    //   (backdrop-filter on an ancestor breaks position:fixed for children)
+    if (canvas.parentElement !== document.body) {
+      document.body.appendChild(canvas);
+    }
+
+    ctx = canvas.getContext('2d');
+    brush.isVisible = false;
+    brush.isPressed = false;
+    brush.vx = brush.vy = 0;
+
+    resize();
+
+    // ── Event listeners ──────────────────────────────────────────────────
+    function updateMouse(e) {
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+    }
+
+    function onResize() { resize(); }
+
+    function onPointerEnter(e) {
+      brush.isVisible = true;
+      updateMouse(e);
+      brush.x = mouse.x;   brush.y = mouse.y;
+      brush.vx = brush.vy = 0;
+      strokeId++;
+    }
+    function onPointerLeave() { brush.isVisible = false; brush.isPressed = false; }
+
+    function onPointerMove(e) {
+      updateMouse(e);
+      brush.isVisible = true;
+      const t = e.target;
+      if (t && t.matches('input,textarea,[contenteditable="true"],.search-input')) {
+        brush.isVisible = false;
+      }
+      if (!isDrawing) {
+        isDrawing = true;
+        requestAnimationFrame(updateAndDraw);
+      }
+    }
+    function onPointerDown(e) { if (e.button === 0) { brush.isPressed = true;  strokeId++; } }
+    function onPointerUp()    { brush.isPressed = false; strokeId++; }
+
+    window.addEventListener('resize',       onResize);
+    window.addEventListener('pointerenter', onPointerEnter);
+    window.addEventListener('pointerleave', onPointerLeave);
+    window.addEventListener('pointermove',  onPointerMove);
+    window.addEventListener('pointerdown',  onPointerDown);
+    window.addEventListener('pointerup',    onPointerUp);
+
+    // Check mobile
+    isMobile = !window.matchMedia('(pointer: fine)').matches;
+    window.addEventListener('resize', () => {
+      isMobile = !window.matchMedia('(pointer: fine)').matches;
+    });
+
+    cleanupFns.push(
+      () => window.removeEventListener('resize',       onResize),
+      () => window.removeEventListener('pointerenter', onPointerEnter),
+      () => window.removeEventListener('pointerleave', onPointerLeave),
+      () => window.removeEventListener('pointermove',  onPointerMove),
+      () => window.removeEventListener('pointerdown',  onPointerDown),
+      () => window.removeEventListener('pointerup',    onPointerUp),
+    );
+  }
+
+  // ★ Re-run init on every Astro View Transition navigation
+  document.addEventListener('astro:page-load', init);
+  // Also run immediately for the first (non-transition) page load
+  init();
+
+  document.addEventListener('astro:before-swap', () => {
+     if (typeof ctx !== 'undefined' && ctx) {
+       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+     }
+     points = [];
+     isDrawing = false;
+  });
+})();
+</script>
+
+<style is:global>
+
+  @media (min-width: 1024px) {
+    .site-shell {
+      padding-left: 0 !important;
+      gap: clamp(2rem, 5vw, 4rem);
+    }
+    .container-wide, .container-medium {
+      padding-right: clamp(2rem, 4vw, 3rem) !important;
+    }
+    .glass-nav {
+      position: sticky !important;
+      height: 100vh !important;
+      height: 100dvh !important;
+    }
+    .home-topics {
+      padding-right: 0 !important;
+    }
+    .home-topics h2 {
+      position: relative !important;
+      writing-mode: horizontal-tb !important;
+      height: auto !important;
+    }
+  }
+</style>

@@ -15,11 +15,11 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
 
 <BaseLayout title="梦付千秋 - 日常记录与技术分享">
   <Header />
-  <main class="container-wide flex-1">
-    <section class="home-hero reveal-up">
+  <main class="container-wide flex-1" style="padding-top: 2rem;">
+    <section class="home-hero reveal-up" style="padding-block: 4rem 3rem;">
       <div class="home-hero-copy">
         <p class="eyebrow">Vol. 01 / Digital Garden</p>
-        <h1 class="home-hero-title">
+        <h1 class="home-hero-title" style="font-size: clamp(2rem, 5vw, 3.4rem);">
           发发牢骚，写些无关紧要的小教程。
         </h1>
         <p class="home-hero-desc">
@@ -80,7 +80,7 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
       </div>
     </section>
 
-    <section class="notes-section">
+    <section class="notes-section" style="padding-bottom: 6rem;">
       <div class="notes-heading">
         <div>
           <p class="eyebrow">Latest Notes</p>
@@ -109,5 +109,5 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
       )}
     </section>
   </main>
-  <Footer />
+
 </BaseLayout>

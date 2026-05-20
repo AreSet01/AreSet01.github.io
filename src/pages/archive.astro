@@ -22,7 +22,7 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
 <BaseLayout title="归档 - 梦付千秋">
   <Header />
   <main class="container-wide flex-1 pt-14 pb-16 md:pt-20">
-    <section class="panel reveal-up pb-12 border-b border-[var(--rule)]">
+    <section class="panel reveal-up pb-12 border-b border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule-strong) 50%, transparent 95%) 1;">
       <p class="eyebrow">Archive</p>
       <div class="mt-6 flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between">
         <div class="max-w-2xl">
@@ -111,5 +111,5 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
       ))}
     </div>
   </main>
-  <Footer />
+
 </BaseLayout>

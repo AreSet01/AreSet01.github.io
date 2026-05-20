@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
-import Footer from '../components/Footer.astro';
+
 ---
 
 <BaseLayout title="关于我 - 梦付千秋">
@@ -25,20 +25,20 @@ import Footer from '../components/Footer.astro';
             这里是想要把自己的情绪、自己的想法、自己的学习过程记录下来的好地方。
           </p>
         </div>
-        <div class="mt-12 grid gap-0 sm:grid-cols-3 border-t border-[var(--rule)]">
-          <div class="stat-card sm:border-r sm:border-[var(--rule)] sm:pr-6">
+        <div class="mt-12 grid gap-4 sm:grid-cols-3 pt-8 border-t border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;">
+          <div class="stat-card">
             <p class="stat-label">写作主题</p>
             <p class="mt-3 font-display text-[1.05rem] text-[var(--text-strong)]">
               游戏 / 日常 / 笔记
             </p>
           </div>
-          <div class="stat-card sm:border-r sm:border-[var(--rule)] sm:px-6">
+          <div class="stat-card">
             <p class="stat-label">当前栈</p>
             <p class="mt-3 font-display text-[1.05rem] text-[var(--text-strong)]">
               Astro + Tailwind
             </p>
           </div>
-          <div class="stat-card sm:pl-6">
+          <div class="stat-card">
             <p class="stat-label">写作习惯</p>
             <p class="mt-3 font-display text-[1.05rem] text-[var(--text-strong)]">
               边学边记，慢慢打磨
@@ -53,20 +53,20 @@ import Footer from '../components/Footer.astro';
           <h2 class="font-display mt-5 text-[1.65rem] text-[var(--text-strong)]">
             本站用什么搭的？
           </h2>
-          <dl class="mt-6 border-t border-[var(--rule)]">
-            <div class="flex items-baseline justify-between gap-4 border-b border-[var(--rule)] py-3.5">
+          <dl class="mt-6 border-t border-dashed border-[var(--rule)]">
+            <div class="flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5">
               <dt class="font-display text-[1rem] text-[var(--text-strong)]">Astro</dt>
               <dd class="text-[0.86rem] text-[var(--muted)] text-right" style="font-family: var(--font-serif); font-style: italic;">
                 快速、轻量的静态网站
               </dd>
             </div>
-            <div class="flex items-baseline justify-between gap-4 border-b border-[var(--rule)] py-3.5">
+            <div class="flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5">
               <dt class="font-display text-[1rem] text-[var(--text-strong)]">Tailwind</dt>
               <dd class="text-[0.86rem] text-[var(--muted)] text-right" style="font-family: var(--font-serif); font-style: italic;">
                 高效整理样式
               </dd>
             </div>
-            <div class="flex items-baseline justify-between gap-4 border-b border-[var(--rule)] py-3.5">
+            <div class="flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5">
               <dt class="font-display text-[1rem] text-[var(--text-strong)]">Giscus</dt>
               <dd class="text-[0.86rem] text-[var(--muted)] text-right" style="font-family: var(--font-serif); font-style: italic;">
                 GitHub Discussions 评论
@@ -86,7 +86,7 @@ import Footer from '../components/Footer.astro';
           >
             如果你想联系我 —
           </p>
-          <div class="mt-6 border-t border-[var(--rule)]">
+          <div class="mt-6 border-t border-dashed border-[var(--rule)]">
             <a
               href="https://github.com/yourusername"
               class="surface-link flex items-baseline justify-between gap-4"
@@ -96,7 +96,7 @@ import Footer from '../components/Footer.astro';
               <span class="stat-label">GitHub</span>
               <span class="font-display text-[1rem] text-[var(--text-strong)]">AreSet01 →</span>
             </a>
-            <div class="flex items-baseline justify-between gap-4 border-t border-[var(--rule)] py-4">
+            <div class="flex items-baseline justify-between gap-4 border-t border-dashed border-[var(--rule)] py-4">
               <span class="stat-label">Email</span>
               <span class="font-mono text-[0.84rem] text-[var(--text-strong)]">1909616051@qq.com</span>
             </div>
@@ -105,5 +105,5 @@ import Footer from '../components/Footer.astro';
       </aside>
     </section>
   </main>
-  <Footer />
+
 </BaseLayout>

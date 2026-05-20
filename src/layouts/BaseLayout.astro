@@ -18,12 +18,12 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#f3ebd9" />
+    <meta name="theme-color" content="#ffffff" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Patrick+Hand&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&display=swap"
     />
     <link
       rel="stylesheet"
@@ -54,7 +54,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
         function syncThemeColor(theme) {
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', theme === 'dark' ? '#14110d' : '#f3ebd9');
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#0a0a0a' : '#ffffff');
           document.documentElement.style.colorScheme = theme;
         }
 
@@ -171,7 +171,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
       <slot />
     </div>
     <div class="seal-floating" aria-hidden="true">
-      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="image-rendering: pixelated;">
         <defs>
           <filter id="sealRough" x="-10%" y="-10%" width="120%" height="120%">
             <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="5" />
@@ -179,14 +179,14 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           </filter>
         </defs>
         <g filter="url(#sealRough)">
-          <rect x="6" y="6" width="88" height="88" rx="3" fill="#a8392b" />
-          <rect x="11" y="11" width="78" height="78" rx="2" fill="none" stroke="#f7f1e1" stroke-width="2.4" opacity="0.94" />
-          <line x1="50" y1="11" x2="50" y2="89" stroke="#f7f1e1" stroke-width="1.4" opacity="0.46" />
-          <line x1="11" y1="50" x2="89" y2="50" stroke="#f7f1e1" stroke-width="1.4" opacity="0.46" />
-          <text x="30" y="46" font-family="'Ma Shan Zheng', serif" font-size="32" fill="#f7f1e1" font-weight="500" text-anchor="middle">梦</text>
-          <text x="70" y="46" font-family="'Ma Shan Zheng', serif" font-size="32" fill="#f7f1e1" font-weight="500" text-anchor="middle">付</text>
-          <text x="30" y="80" font-family="'Ma Shan Zheng', serif" font-size="32" fill="#f7f1e1" font-weight="500" text-anchor="middle">千</text>
-          <text x="70" y="80" font-family="'Ma Shan Zheng', serif" font-size="32" fill="#f7f1e1" font-weight="500" text-anchor="middle">秋</text>
+          <rect x="6" y="6" width="88" height="88" rx="0" fill="#111111" />
+          <rect x="11" y="11" width="78" height="78" rx="0" fill="none" stroke="#ffffff" stroke-width="2.4" opacity="0.94" />
+          <line x1="50" y1="11" x2="50" y2="89" stroke="#ffffff" stroke-width="1.4" opacity="0.46" />
+          <line x1="11" y1="50" x2="89" y2="50" stroke="#ffffff" stroke-width="1.4" opacity="0.46" />
+          <text x="30" y="46" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">梦</text>
+          <text x="70" y="46" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">付</text>
+          <text x="30" y="80" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">千</text>
+          <text x="70" y="80" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">秋</text>
         </g>
       </svg>
     </div>
@@ -1913,181 +1913,6 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
         /* ========== 5. 鼠标光标追踪光晕 ========== */
         // 已移至独立 script 标签
-      })();
-    </script>
-    <script is:inline>
-      (() => {
-        const cleanupKey = '__areSetCursorGlowCleanup__';
-        const initKey = '__areSetCursorGlowInit__';
-        const listenerKey = '__areSetCursorGlowPageLoadBound__';
-        const stateKey = '__areSetCursorGlowState__';
-
-        function initCursorGlow() {
-          const lightPalette = ['26, 24, 20', '168, 57, 43'];
-          const darkPalette  = ['235, 226, 207', '212, 74, 60'];
-
-          function paletteForTheme() {
-            return document.documentElement.getAttribute('data-theme') === 'dark'
-              ? darkPalette
-              : lightPalette;
-          }
-
-          const state = window[stateKey] || { colorIndex: 0, glowColors: paletteForTheme() };
-          state.glowColors = paletteForTheme();
-          window[stateKey] = state;
-
-          if (state.glow && state.glow.isConnected) {
-            return;
-          }
-
-          const previousCleanup = window[cleanupKey];
-          if (typeof previousCleanup === 'function') previousCleanup();
-
-          document.querySelectorAll('.cursor-glow').forEach((node) => node.remove());
-
-          if (!window.matchMedia('(pointer: fine)').matches) {
-            window[cleanupKey] = null;
-            return;
-          }
-
-          const controller = new AbortController();
-          const { signal } = controller;
-          const glow = document.createElement('div');
-          glow.className = 'cursor-glow';
-          document.body.appendChild(glow);
-
-          let glowFrame = 0;
-          let glowX = 0;
-          let glowY = 0;
-          let targetX = 0;
-          let targetY = 0;
-          let isVisible = false;
-          let isHovering = false;
-          let cachedOffset = 12;
-
-          function applyGlowColor(index) {
-            const palette = state.glowColors;
-            const color = palette[index] || palette[0];
-            glow.style.setProperty('--cursor-rgb', color);
-          }
-
-          applyGlowColor(state.colorIndex || 0);
-
-          window.addEventListener('theme-change', () => {
-            state.glowColors = paletteForTheme();
-            applyGlowColor(state.colorIndex || 0);
-          }, { signal });
-
-          function updateGlow() {
-            const followStrength = isHovering ? 0.48 : 0.62;
-            glowX += (targetX - glowX) * followStrength;
-            glowY += (targetY - glowY) * followStrength;
-            glow.style.transform = `translate3d(${glowX - cachedOffset}px, ${glowY - cachedOffset}px, 0)`;
-            glowFrame = requestAnimationFrame(updateGlow);
-          }
-
-          glowFrame = requestAnimationFrame(updateGlow);
-
-          document.addEventListener('pointermove', (event) => {
-            targetX = event.clientX;
-            targetY = event.clientY;
-            if (!isVisible) {
-              glowX = targetX;
-              glowY = targetY;
-              isVisible = true;
-              glow.classList.add('is-visible');
-            }
-          }, { signal });
-
-          document.addEventListener('pointerleave', () => {
-            isVisible = false;
-            isHovering = false;
-            glow.classList.remove('is-visible', 'is-hovering');
-          }, { signal });
-
-          function createFirework(x, y, color) {
-            const particleCount = 16 + Math.floor(Math.random() * 12);
-            for (let i = 0; i < particleCount; i++) {
-              const particle = document.createElement('div');
-              const angle = Math.random() * 2 * Math.PI;
-              const velocity = 40 + Math.random() * 80;
-              const tx = Math.cos(angle) * velocity;
-              const ty = Math.sin(angle) * velocity;
-              const size = 3 + Math.random() * 5;
-              const duration = 500 + Math.random() * 500;
-
-              particle.style.cssText = `
-                position: fixed;
-                left: ${x}px;
-                top: ${y}px;
-                width: ${size}px;
-                height: ${size}px;
-                background: rgb(${color});
-                border-radius: 50%;
-                pointer-events: none;
-                z-index: 9999;
-                transform: translate(-50%, -50%);
-                box-shadow: 0 0 8px rgba(${color}, 0.9), 0 0 16px rgba(${color}, 0.4);
-                will-change: transform, opacity;
-              `;
-              document.body.appendChild(particle);
-
-              particle.animate([
-                { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
-                { transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(0)`, opacity: 0 }
-              ], {
-                duration: duration,
-                easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-                fill: 'forwards'
-              });
-
-              setTimeout(() => particle.remove(), duration + 50);
-            }
-          }
-
-          document.addEventListener('pointerdown', (event) => {
-            if (event.button !== 0) return;
-            state.colorIndex = ((state.colorIndex || 0) + 1) % state.glowColors.length;
-            applyGlowColor(state.colorIndex);
-
-            const color = state.glowColors[state.colorIndex] || state.glowColors[0];
-            createFirework(event.clientX, event.clientY, color);
-          }, { signal });
-
-          document.addEventListener('mouseover', (event) => {
-            const target = event.target instanceof Element ? event.target : null;
-            const interactive = target?.closest('a, button, .tag-chip, .nav-link, .btn-primary, .btn-secondary, .stat-card, .timeline-link, .prose img, .image-viewer-close, [data-post-preview], [data-search-trigger], [data-search-result]');
-            if (interactive) {
-              isHovering = true;
-              cachedOffset = 15;
-              glow.classList.add('is-hovering');
-            } else {
-              isHovering = false;
-              cachedOffset = 12;
-              glow.classList.remove('is-hovering');
-            }
-          }, { signal });
-
-          window[cleanupKey] = () => {
-            controller.abort();
-            cancelAnimationFrame(glowFrame);
-            state.glow = null;
-            glow.remove();
-          };
-
-          state.glow = glow;
-        }
-
-        window[initKey] = initCursorGlow;
-        initCursorGlow();
-
-        if (!window[listenerKey]) {
-          document.addEventListener('astro:page-load', () => {
-            const init = window[initKey];
-            if (typeof init === 'function') init();
-          });
-          window[listenerKey] = true;
-        }
       })();
     </script>
     <script is:inline>
