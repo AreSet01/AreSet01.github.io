@@ -1,8 +1,8 @@
 ---
 const navItems = [
-  { label: 'Home', labelZh: '首页', href: '/' },
-  { label: 'Archive', labelZh: '归档', href: '/archive' },
-  { label: 'About', labelZh: '关于', href: '/about' },
+  { label: 'Home', labelZh: 'Main*', href: '/' },
+  { label: 'Archive', labelZh: 'All Doc', href: '/archive' },
+  { label: 'About', labelZh: 'About Me', href: '/about' },
 ];
 
 const normalizePath = (path: string) =>
@@ -18,12 +18,26 @@ const year = new Date().getFullYear();
 ---
 
 <header class="glass-nav">
-  <div class="container-wide glass-nav-inner h-full flex flex-col justify-between">
+  <div class="glass-nav-inner h-full flex flex-col justify-between">
     <div class="flex flex-col gap-10 lg:gap-14 w-full">
-      <a href="/" class="brand-mark">
-        <span class="brand-seal" aria-hidden="true">梦</span>
-        <span>梦付千秋</span>
-      </a>
+      <div class="flex items-center justify-between w-full">
+        <a href="/" class="brand-mark">
+          <span class="brand-seal" aria-hidden="true">汐</span>
+          <span>梦付千秋</span>
+        </a>
+        <button
+          class="sidebar-collapse-btn hidden lg:inline-flex"
+          type="button"
+          data-sidebar-collapse
+          aria-label="收起侧边栏"
+          title="收起侧边栏"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="11 17 6 12 11 7"></polyline>
+            <polyline points="18 17 13 12 18 7"></polyline>
+          </svg>
+        </button>
+      </div>
       <div class="nav-cluster">
         <button
           class="nav-search-trigger"
@@ -65,7 +79,7 @@ const year = new Date().getFullYear();
     
     <div class="hidden lg:flex flex-col gap-4 mt-auto pt-10 text-[0.75rem] leading-relaxed text-[var(--muted)]" style="font-family: var(--font-serif); font-style: italic;">
       <div class="w-8 h-[1px] bg-[var(--rule)] mb-2"></div>
-      <p>慢慢写，持续更新。<br/>记录教程与灵感，让每次更新都更耐读一点。</p>
+      <p>不持续且间断更新<br/>诶嘿？你怎么找到这里来的！！！</p>
       <p class="font-mono not-italic tracking-[0.05em] uppercase text-[var(--text-strong)] mt-4">
         &copy; {year} &middot; 梦付千秋
       </p>
@@ -325,21 +339,90 @@ const year = new Date().getFullYear();
 })();
 </script>
 
+<script>
+(function setupSidebarController() {
+  function setupSidebar() {
+    const collapseBtn = document.querySelector('[data-sidebar-collapse]');
+    const expandBtn = document.querySelector('[data-sidebar-expand]');
+
+    function setCollapsed(collapsed) {
+      if (collapsed) {
+        document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
+        try { localStorage.setItem('sidebar-collapsed', 'true'); } catch (e) {}
+      } else {
+        document.documentElement.removeAttribute('data-sidebar-collapsed');
+        try { localStorage.setItem('sidebar-collapsed', 'false'); } catch (e) {}
+      }
+      window.dispatchEvent(new Event('resize'));
+    }
+
+    collapseBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setCollapsed(true);
+    });
+
+    expandBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setCollapsed(false);
+    });
+  }
+
+  document.addEventListener('astro:page-load', setupSidebar);
+  setupSidebar();
+})();
+</script>
+
 <style is:global>
+  .sidebar-expand-btn {
+    display: none;
+  }
 
   @media (min-width: 1024px) {
     .site-shell {
       padding-left: 0 !important;
-      gap: clamp(2rem, 5vw, 4rem);
+      gap: clamp(2.5rem, 5vw, 4.5rem);
+      transition: gap 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .container-wide, .container-medium {
+
+    .site-shell > main,
+    .container-wide,
+    .container-medium {
       padding-right: clamp(2rem, 4vw, 3rem) !important;
+      transition: max-width 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  width 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  margin 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
     }
+
     .glass-nav {
       position: sticky !important;
       height: 100vh !important;
       height: 100dvh !important;
+      width: clamp(14rem, 20vw, 18rem);
+      min-width: clamp(14rem, 20vw, 18rem);
+      flex-shrink: 0;
+      overflow: visible;
+      transition: width 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  min-width 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  margin-left 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 320ms ease,
+                  transform 420ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+      will-change: width, min-width, margin-left, transform, opacity;
     }
+
+    .glass-nav-inner {
+      width: clamp(14rem, 20vw, 18rem) !important;
+      min-width: clamp(14rem, 20vw, 18rem) !important;
+      transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 300ms ease,
+                  filter 300ms ease !important;
+      transform: translate3d(0, 0, 0);
+      opacity: 1;
+      filter: blur(0);
+      will-change: transform, opacity, filter;
+    }
+
     .home-topics {
       padding-right: 0 !important;
     }
@@ -347,6 +430,172 @@ const year = new Date().getFullYear();
       position: relative !important;
       writing-mode: horizontal-tb !important;
       height: auto !important;
+    }
+
+    /* Collapse button in sidebar */
+    .sidebar-collapse-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.85rem;
+      height: 1.85rem;
+      border-radius: 4px;
+      border: 1px solid var(--rule);
+      background: var(--bg-soft);
+      color: var(--muted-strong);
+      cursor: pointer;
+      opacity: 0.75;
+      transition: color 200ms ease,
+                  background 200ms ease,
+                  border-color 200ms ease,
+                  opacity 200ms ease,
+                  transform 220ms var(--ease-bounce);
+    }
+
+    .sidebar-collapse-btn:hover {
+      opacity: 1;
+      color: var(--accent);
+      border-color: var(--accent);
+      background: var(--bg-elev);
+      transform: scale(1.08) translateX(-2px);
+    }
+
+    /* COLLAPSED STATE */
+    html[data-sidebar-collapsed="true"] .glass-nav {
+      width: 0 !important;
+      min-width: 0 !important;
+      max-width: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      overflow: hidden !important;
+    }
+
+    html[data-sidebar-collapsed="true"] .glass-nav-inner {
+      transform: translate3d(-30px, 0, 0) scale(0.96);
+      opacity: 0 !important;
+      filter: blur(6px) !important;
+    }
+
+    html[data-sidebar-collapsed="true"] .site-shell {
+      gap: 0 !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      justify-content: center !important;
+      width: 100% !important;
+    }
+
+    html[data-sidebar-collapsed="true"] main,
+    html[data-sidebar-collapsed="true"] .site-shell > main {
+      flex: 0 1 auto !important;
+      width: 100% !important;
+      margin-inline: auto !important;
+      margin-left: auto !important;
+      margin-right: auto !important;
+    }
+
+    /* CENTERED AND BALANCED READING AREA WHEN COLLAPSED */
+    html[data-sidebar-collapsed="true"] .site-shell > main.container-wide,
+    html[data-sidebar-collapsed="true"] main.container-wide,
+    html[data-sidebar-collapsed="true"] .container-wide {
+      width: min(100% - 6rem, 78rem) !important;
+      max-width: 78rem !important;
+      margin-inline: auto !important;
+      margin-left: auto !important;
+      margin-right: auto !important;
+      padding-left: clamp(1.5rem, 3.5vw, 3rem) !important;
+      padding-right: clamp(1.5rem, 3.5vw, 3rem) !important;
+    }
+
+    html[data-sidebar-collapsed="true"] .site-shell > main.container-medium,
+    html[data-sidebar-collapsed="true"] main.container-medium,
+    html[data-sidebar-collapsed="true"] .container-medium {
+      width: min(100% - 6rem, 56rem) !important;
+      max-width: 56rem !important;
+      margin-inline: auto !important;
+      margin-left: auto !important;
+      margin-right: auto !important;
+      padding-left: clamp(1.5rem, 3.5vw, 3rem) !important;
+      padding-right: clamp(1.5rem, 3.5vw, 3rem) !important;
+    }
+
+    /* Floating retro pixel expand button */
+    html[data-sidebar-collapsed="true"] .sidebar-expand-btn {
+      display: inline-flex;
+      position: fixed;
+      top: 1.5rem;
+      left: 1.5rem;
+      z-index: 99;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 0.95rem 0.45rem 0.75rem;
+      border-radius: 6px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(14px) saturate(120%);
+      -webkit-backdrop-filter: blur(14px) saturate(120%);
+      border: 1px solid var(--rule-strong);
+      box-shadow:
+        0 6px 24px rgba(0, 0, 0, 0.08),
+        0 1px 3px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      color: var(--text-strong);
+      font-family: var(--font-pixel);
+      font-size: 1.1rem;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      animation: springSlideInExpandBtn 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      transition: color 240ms ease,
+                  border-color 240ms ease,
+                  background 240ms ease,
+                  transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                  box-shadow 240ms ease;
+    }
+
+    [data-theme="dark"] html[data-sidebar-collapsed="true"] .sidebar-expand-btn {
+      background: var(--glass-bg-strong);
+      box-shadow:
+        0 6px 24px rgba(0, 0, 0, 0.45),
+        0 1px 3px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    html[data-sidebar-collapsed="true"] .sidebar-expand-btn:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+      transform: scale(1.06) translateX(3px);
+      box-shadow:
+        0 10px 32px rgba(0, 0, 0, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    .expand-btn-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 240ms ease;
+    }
+
+    .sidebar-expand-btn:hover .expand-btn-icon {
+      transform: translateX(2px);
+    }
+
+    .expand-btn-text {
+      line-height: 1;
+    }
+  }
+
+  @keyframes springSlideInExpandBtn {
+    0% {
+      opacity: 0;
+      transform: translate3d(-20px, 0, 0) scale(0.9);
+      filter: blur(4px);
+    }
+    100% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+      filter: blur(0);
     }
   }
 </style>

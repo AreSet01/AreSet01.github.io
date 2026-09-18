@@ -2,7 +2,8 @@
 import '../styles/global.css';
 import { ClientRouter } from 'astro:transitions';
 
-const searchIndexPath = `${import.meta.env.BASE_URL ?? '/'}search-index.json`;
+const buildVersion = Date.now().toString(36);
+const searchIndexPath = `${import.meta.env.BASE_URL ?? '/'}search-index.json?v=${buildVersion}`;
 
 interface Props {
   title: string;
@@ -19,11 +20,15 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
     <meta name="theme-color" content="#ffffff" />
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+    <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+    <meta name="baiduspider" content="noindex, nofollow, noarchive, nosnippet" />
+    <meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Patrick+Hand&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&display=swap"
     />
     <link
       rel="stylesheet"
@@ -33,6 +38,12 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <ClientRouter />
     <script is:inline>
       (function(){
+        try {
+          if (localStorage.getItem('sidebar-collapsed') === 'true') {
+            document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
+          }
+        } catch (e) {}
+
         var runtimeKey = '__areSetThemeRuntimeBound__';
         var themeTransitionTimer = 0;
 
@@ -170,6 +181,24 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <div class="site-shell">
       <slot />
     </div>
+
+    <!-- Floating retro pixel expand button directly under body to ensure true viewport fixed positioning -->
+    <button
+      class="sidebar-expand-btn hidden lg:inline-flex"
+      type="button"
+      data-sidebar-expand
+      aria-label="展开侧边栏"
+      title="展开侧边栏"
+    >
+      <span class="expand-btn-icon" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="13 17 18 12 13 7"></polyline>
+          <polyline points="6 17 11 12 6 7"></polyline>
+        </svg>
+      </span>
+      <span class="expand-btn-text">展开导航</span>
+    </button>
+
     <div class="seal-floating" aria-hidden="true">
       <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="image-rendering: pixelated;">
         <defs>
@@ -183,10 +212,10 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           <rect x="11" y="11" width="78" height="78" rx="0" fill="none" stroke="#ffffff" stroke-width="2.4" opacity="0.94" />
           <line x1="50" y1="11" x2="50" y2="89" stroke="#ffffff" stroke-width="1.4" opacity="0.46" />
           <line x1="11" y1="50" x2="89" y2="50" stroke="#ffffff" stroke-width="1.4" opacity="0.46" />
-          <text x="30" y="46" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">梦</text>
-          <text x="70" y="46" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">付</text>
-          <text x="30" y="80" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">千</text>
-          <text x="70" y="80" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">秋</text>
+          <text x="30" y="46" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">这</text>
+          <text x="70" y="46" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">是</text>
+          <text x="30" y="80" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">印</text>
+          <text x="70" y="80" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">章</text>
         </g>
       </svg>
     </div>
@@ -262,6 +291,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           gestureOrientation: 'vertical',
           smoothWheel: true,
           wheelMultiplier: 0.8, // Make wheel slightly heavier
+          allowNestedScroll: true,
+          anchors: { offset: -70 },
+          virtualScroll: (data) => {
+            // When Shift key is held, completely bypass Lenis to permit horizontal scroll!
+            if (data.event.shiftKey) return false;
+            return true;
+          },
         });
 
         lenis.on('scroll', ScrollTrigger.update);
@@ -287,6 +323,62 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         initSmoothScroll();
       });
 
+      function initScrollableContainers() {
+        // Clean up any stale data-lenis-prevent attributes from TOC and code blocks
+        document.querySelectorAll('.post-toc-nav, .post-toc, .post-toc-inner, [data-scrollable], .prose pre, pre').forEach((el) => {
+          el.removeAttribute('data-lenis-prevent');
+        });
+      }
+
+      // Dedicated horizontal scroll handler: ONLY active when Shift key is pressed!
+      function setupShiftHorizontalScroll() {
+        if (window.__shiftScrollBound) return;
+        window.__shiftScrollBound = true;
+
+        window.addEventListener('wheel', (e) => {
+          // STRICT RULE: If Shift is NOT pressed, do NOTHING! Page scrolls vertically 100% untouched!
+          if (!e.shiftKey) return;
+
+          const target = e.target instanceof Element ? e.target : null;
+          if (!target) return;
+
+          // Find nearest horizontally scrollable element (pre, table, etc.)
+          let el = target;
+          let scrollContainer = null;
+          while (el && el !== document.documentElement && el !== document.body) {
+            if (el.scrollWidth > el.clientWidth + 2) {
+              const ox = window.getComputedStyle(el).overflowX;
+              if (['auto', 'scroll', 'overlay'].includes(ox)) {
+                scrollContainer = el;
+                break;
+              }
+            }
+            el = el.parentElement;
+          }
+
+          if (!scrollContainer) return;
+
+          const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+          if (maxScroll <= 2) return;
+
+          // Normalize delta across all browsers, operating systems, and mouse models
+          // On Windows Chrome, Blink may convert vertical wheel into deltaX when Shift is held.
+          // Other drivers/browsers may keep deltaY. Pick whichever axis holds the wheel magnitude:
+          const rawDelta = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+          const multiplier = e.deltaMode === 1 ? 36 : e.deltaMode === 2 ? window.innerHeight : 1;
+          const delta = rawDelta * multiplier;
+          if (!delta) return;
+
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+
+          scrollContainer.scrollLeft += delta;
+        }, { passive: false, capture: true });
+      }
+
+      setupShiftHorizontalScroll();
+
       // Page Load / Transition Animation (墨迹扩散展开)
       document.addEventListener('astro:page-load', () => {
         const main = document.querySelector('main');
@@ -298,7 +390,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         }
 
         initMagneticButtons();
+        initScrollableContainers();
       });
+
+      // Also initialize scrollables on first load
+      initScrollableContainers();
 
       // Magnetic Micro-interactions
       function initMagneticButtons() {
@@ -372,7 +468,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         });
       });
     </script>
-    <script is:inline define:vars={{ searchIndexPath }}>
+    <script is:inline define:vars={{ searchIndexPath, isDev: import.meta.env.DEV }}>
       (() => {
         const cleanupKey = '__areSetSiteUiCleanup__';
         const initKey = '__areSetSiteUiInit__';
@@ -874,6 +970,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           const titleText = normalizeSearchText(item.title);
           const descriptionText = normalizeSearchText(item.description);
           const excerptText = normalizeSearchText(item.excerpt);
+          const contentText = normalizeSearchText(item.content);
           const tagsText = normalizeSearchText((item.tags ?? []).join(' '));
           const slugText = normalizeSearchText(item.slug);
 
@@ -883,6 +980,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               titleText,
               descriptionText,
               excerptText,
+              contentText,
               tagsText,
               slugText,
             },
@@ -986,12 +1084,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
         function scoreSearchItem(item, fullQuery, tokens) {
           let score = 0;
-          const { titleText, descriptionText, excerptText, tagsText, slugText } = item._search;
+          const { titleText, descriptionText, excerptText, contentText, tagsText, slugText } = item._search;
 
           if (titleText.includes(fullQuery)) score += 120 - Math.min(titleText.indexOf(fullQuery), 40);
           if (tagsText.includes(fullQuery)) score += 72 - Math.min(tagsText.indexOf(fullQuery), 30);
           if (descriptionText.includes(fullQuery)) score += 46 - Math.min(descriptionText.indexOf(fullQuery), 24);
           if (excerptText.includes(fullQuery)) score += 24;
+          if (contentText && contentText.includes(fullQuery)) score += 28;
           if (slugText.includes(fullQuery)) score += 18;
 
           for (const token of tokens) {
@@ -1000,6 +1099,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             if (tagsText.includes(token)) score += 20;
             if (descriptionText.includes(token)) score += 12;
             if (excerptText.includes(token)) score += 8;
+            if (contentText && contentText.includes(token)) score += 8;
             if (slugText.includes(token)) score += 6;
           }
 
@@ -1036,26 +1136,38 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           renderSearchResults();
         }
 
-        function ensureSearchIndex() {
+        function ensureSearchIndex(force = false) {
           if (!searchReady) return Promise.resolve([]);
-          if (searchItems.length) {
+          if (searchItems.length && !force) {
             updateSearchResults();
             return Promise.resolve(searchItems);
           }
 
-          if (searchIndexPromise) return searchIndexPromise;
+          if (searchIndexPromise && !force) return searchIndexPromise;
 
           searchState = 'loading';
           renderSearchResults();
 
-          searchIndexPromise = fetch(searchIndexUrl)
+          const cacheBuster = `_t=${Date.now()}`;
+          const fetchUrl = searchIndexUrl.includes('?')
+            ? `${searchIndexUrl}&${cacheBuster}`
+            : `${searchIndexUrl}?${cacheBuster}`;
+
+          searchIndexPromise = fetch(fetchUrl, {
+            cache: 'no-store',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+            },
+          })
             .then((response) => {
               if (!response.ok) throw new Error(`HTTP ${response.status}`);
               return response.json();
             })
             .then((items) => {
               searchItems = Array.isArray(items) ? items.map(buildSearchIndexEntry) : [];
-              updateSearchResults();
+              searchIndexPromise = null;
+              updateSearchResults(false);
               return searchItems;
             })
             .catch((error) => {
@@ -1095,7 +1207,8 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             document.body.classList.add('search-open');
           });
 
-          ensureSearchIndex().catch(() => {});
+          // In dev mode, always refresh so article edits/deletions reflect immediately
+          ensureSearchIndex(Boolean(isDev)).catch(() => {});
 
           window.setTimeout(() => {
             searchInput.focus({ preventScroll: true });

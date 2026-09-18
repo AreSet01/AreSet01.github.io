@@ -20,10 +20,10 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
       <div class="home-hero-copy">
         <p class="eyebrow">Vol. 01 / Digital Garden</p>
         <h1 class="home-hero-title" style="font-size: clamp(2rem, 5vw, 3.4rem);">
-          发发牢骚，写些无关紧要的小教程。
+          欢迎光临AreSetのBlog
         </h1>
         <p class="home-hero-desc">
-          也就随便分享一点小知识，一些行业看法，或是说些愤青言论等。
+          这里用来随便分享一点小知识，一些行业看法，或是说些愤青（bushi）言论
         </p>
         <div class="home-actions">
           {latestPost && <a href={`/posts/${latestPost.id}`} class="btn-primary">阅读最新文章</a>}
@@ -84,10 +84,10 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
       <div class="notes-heading">
         <div>
           <p class="eyebrow">Latest Notes</p>
-          <h2 class="section-title mt-4">最近写了什么。</h2>
+          <h2 class="section-title mt-4">最近写了什么咧~</h2>
         </div>
         <p>
-          慢慢浏览知识库或我的日常 — 每篇都是一次安静的整理。
+          又产出一堆啦~
         </p>
       </div>
       {posts.length === 0 ? (

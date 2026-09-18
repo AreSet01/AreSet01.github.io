@@ -4,9 +4,25 @@
    Editorial Minimal — Design Tokens
    ========================================================= */
 
+@font-face {
+  font-family: 'Zpix';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/zpix.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'VT323';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('VT323'), url('/fonts/VT323-Regular.ttf') format('truetype');
+}
+
 :root {
   /* ---------- Surface (white paper) ---------- */
-  --bg-base: #ffffff;
+  --bg-base: #FCFAF8;
   --bg-soft: #f4f4f4;
   --bg-elev: #fafafa;
 
@@ -63,14 +79,16 @@
   --border-strong: var(--rule-strong);
 
   /* ---------- Type system ---------- */
-  --font-hand: "Ma Shan Zheng", "LXGW WenKai", "STKaiti", "KaiTi", "楷体", cursive;
+  --font-pixel: "Zpix", "VT323", "Press Start 2P", monospace;
+
+  --font-hand: "Zpix", "VT323", "Ma Shan Zheng", "LXGW WenKai", "STKaiti", "KaiTi", "楷体", cursive;
   --font-hand-title: "Zpix", "VT323", "Ma Shan Zheng", "LXGW WenKai", "STKaiti", "KaiTi", "楷体", cursive;
   --font-body:
-    "LXGW WenKai", "Noto Serif SC", "Source Han Serif SC", "Songti SC",
-    "宋体", -apple-system, "PingFang SC", "Microsoft YaHei", serif;
+    "Zpix", "VT323", "Ma Shan Zheng", "LXGW WenKai", "STKaiti", "KaiTi", "楷体",
+    "Noto Serif SC", "Source Han Serif SC", cursive, serif;
   --font-serif:
-    "LXGW WenKai", "Noto Serif SC", "Source Han Serif SC", "Songti SC",
-    Georgia, "Times New Roman", serif;
+    "Zpix", "VT323", "Ma Shan Zheng", "LXGW WenKai", "STKaiti", "KaiTi", "楷体",
+    "Noto Serif SC", "Source Han Serif SC", cursive, serif;
   --font-mono:
     "Zpix", "VT323", "Press Start 2P", "JetBrains Mono", ui-monospace, "Cascadia Code", "Source Code Pro",
     Menlo, monospace;
@@ -89,12 +107,12 @@
 /* ================= Dark Mode (deep ink night) ================= */
 
 [data-theme="dark"] {
-  --bg-base: #0a0a0a;
-  --bg-soft: #141414;
-  --bg-elev: #1a1a1a;
+  --bg-base: #141414;
+  --bg-soft: #1a1a1a;
+  --bg-elev: #222222;
 
   --ink: #e0e0e0;
-  --ink-strong: #ffffff;
+  --ink-strong: #EAE8E3;
   --ink-mid: #999999;
   --ink-light: #666666;
   --ink-wash: rgba(255, 255, 255, 0.4);
@@ -145,10 +163,24 @@
 }
 
 html {
-  scroll-behavior: smooth;
   font-size: var(--font-size-base);
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--rule-strong);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-light);
 }
 
 body {
@@ -157,7 +189,7 @@ body {
   overflow-x: hidden;
   cursor: default;
   caret-color: transparent;
-  font-family: var(--font-hand);
+  font-family: var(--font-body);
   font-size: 1rem;
   font-weight: 400;
   color: var(--text);
@@ -330,14 +362,13 @@ img {
     filter 420ms cubic-bezier(0.22, 0.82, 0.2, 1),
     transform 420ms cubic-bezier(0.22, 0.82, 0.2, 1),
     opacity 420ms cubic-bezier(0.22, 0.82, 0.2, 1);
-  will-change: filter, transform, opacity;
 }
 
 @media (min-width: 1024px) {
   .site-shell {
     flex-direction: row;
     align-items: flex-start;
-    padding-left: clamp(18rem, 25vw, 24rem); /* Space for fixed sidebar */
+    padding-left: 0;
   }
 }
 
@@ -354,6 +385,10 @@ img {
 }
 
 /* ================= Typography ================= */
+
+h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
+  font-family: var(--font-hand);
+}
 
 .font-display {
   font-family: var(--font-hand-title);
@@ -1302,6 +1337,24 @@ html.theme-switching .prose blockquote {
   box-shadow: none;
 }
 
+.prose pre::-webkit-scrollbar {
+  height: 6px;
+}
+
+.prose pre::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.prose pre::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 3px;
+}
+
+.prose pre::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
 [data-theme="dark"] .prose pre {
   background: #0d0e12;
   border-color: rgba(232, 227, 213, 0.06);
@@ -1313,6 +1366,9 @@ html.theme-switching .prose blockquote {
   padding: 0;
   color: inherit;
   font-size: inherit;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
 }
 
 .prose blockquote {
@@ -1409,6 +1465,7 @@ html.theme-switching .prose blockquote {
 .prose table {
   display: block;
   width: 100%;
+  min-width: 100%;
   overflow-x: auto;
   margin: 2em 0;
   border-collapse: collapse;
@@ -1418,16 +1475,18 @@ html.theme-switching .prose blockquote {
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
   border-radius: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .prose th,
 .prose td {
-  padding: 0.75em 1em;
+  padding: 0.85em 1.2em;
   text-align: left;
   border-bottom: 1px solid var(--rule);
 }
 
 .prose th {
+  white-space: nowrap;
   font-family: var(--font-body);
   font-size: 0.72rem;
   font-weight: 700;
@@ -1436,6 +1495,51 @@ html.theme-switching .prose blockquote {
   color: var(--muted-strong);
   background: transparent;
   border-bottom: 1px solid var(--rule-strong);
+}
+
+.prose table td code,
+.prose table th code {
+  white-space: nowrap;
+}
+
+.prose table td:first-child {
+  white-space: nowrap;
+}
+
+.prose table td:nth-child(2) {
+  white-space: nowrap;
+}
+
+.prose table td:nth-child(3) {
+  min-width: 300px;
+  line-height: 1.6;
+}
+
+.prose table td:last-child {
+  white-space: nowrap;
+  text-align: center;
+}
+
+.prose table::-webkit-scrollbar {
+  height: 6px;
+}
+
+.prose table::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+}
+
+[data-theme="dark"] .prose table::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.prose table::-webkit-scrollbar-thumb {
+  background: var(--rule-strong);
+  border-radius: 3px;
+}
+
+.prose table::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-light);
 }
 
 @media (max-width: 768px) {
@@ -2313,6 +2417,12 @@ body.preview-open .site-shell {
   border-top: none;
 }
 
+@media (min-width: 768px) {
+  .home-rail {
+    justify-content: flex-end;
+  }
+}
+
 .home-stat {
   display: flex;
   flex-direction: column;
@@ -2846,4 +2956,38 @@ body.preview-open .site-shell {
   opacity: 1;
 }
 
+/* ================= View Transitions ================= */
+::view-transition-image-pair(root) {
+  isolation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  animation: dissolve-out 0.8s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+::view-transition-new(root) {
+  animation: dissolve-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes dissolve-out {
+  0% { opacity: 1; filter: blur(0); }
+  100% { opacity: 0; filter: blur(12px); }
+}
+
+@keyframes dissolve-in {
+  0% { opacity: 0; filter: blur(12px); }
+  100% { opacity: 1; filter: blur(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
 

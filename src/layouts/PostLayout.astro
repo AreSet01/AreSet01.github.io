@@ -104,16 +104,22 @@ const hasToc = tocHeadings.length > 1;
         </section>
       )}
       <div
-        class="panel reveal-up"
+        class="space-y-6 reveal-up"
         style="animation-delay: 120ms;"
         data-locked-content={isLocked ? 'true' : undefined}
         hidden={isLocked}
       >
         {hasToc && (
-          <aside class="post-toc panel" aria-labelledby="post-toc-title">
+          <details class="post-toc panel" open aria-labelledby="post-toc-title">
+            <summary class="post-toc-summary">
+              <div class="flex items-center gap-2">
+                <span class="post-toc-kicker">Navigation</span>
+                <span class="opacity-30">/</span>
+                <span id="post-toc-title" class="post-toc-title">文章目录</span>
+              </div>
+              <span class="post-toc-badge">{tocHeadings.length} 节</span>
+            </summary>
             <div class="post-toc-inner">
-              <p class="post-toc-kicker">On this page</p>
-              <h2 id="post-toc-title" class="post-toc-title">目录</h2>
               <nav class="post-toc-nav" aria-label="文章目录">
                 {tocHeadings.map((heading) => (
                   <a
@@ -121,12 +127,13 @@ const hasToc = tocHeadings.length > 1;
                     class={`post-toc-link depth-${heading.depth}`}
                     data-toc-link={heading.slug}
                   >
-                    {heading.text}
+                    <span class="toc-bullet" />
+                    <span class="toc-text">{heading.text}</span>
                   </a>
                 ))}
               </nav>
             </div>
-          </aside>
+          </details>
         )}
         <div class="panel rounded-[20px] px-7 py-8 md:px-10 md:py-10">
           <div class="prose" data-post-prose>
@@ -387,236 +394,33 @@ const hasToc = tocHeadings.length > 1;
           });
         }
 
-        function setupEasterAnchors() {
-          const easterNodes = prose.querySelectorAll('[data-easter-anchor], [data-easter], [id^="egg-"], [id^="easter-"]');
-          easterNodes.forEach((node, index) => {
-            if (!(node instanceof HTMLElement)) return;
-            const explicitId = node.getAttribute('data-easter-anchor') || node.id;
-            const id = explicitId || `egg-${index + 1}`;
-            node.id = id;
-            node.dataset.easterAnchor = id;
-            node.classList.add('easter-anchor-content');
-          });
-        }
-
-        function ensurePreviewOverlay() {
-          if (previewOverlay?.isConnected) return previewOverlay;
-
-          previewOverlay = document.createElement('div');
-          previewOverlay.className = 'reference-preview-overlay';
-          previewOverlay.setAttribute('aria-hidden', 'true');
-          previewOverlay.innerHTML = `
-            <div class="reference-preview-modal" role="dialog" aria-modal="true" aria-labelledby="reference-preview-title">
-              <div class="reference-preview-header">
-                <div>
-                  <p class="reference-preview-kicker">Reference Preview</p>
-                  <h2 class="reference-preview-title" id="reference-preview-title"></h2>
-                  <p class="reference-preview-source"></p>
-                </div>
-                <button class="reference-preview-close" type="button" aria-label="关闭引用预览">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                    <line x1="3" y1="3" x2="13" y2="13"></line>
-                    <line x1="13" y1="3" x2="3" y2="13"></line>
-                  </svg>
-                </button>
-              </div>
-              <div class="reference-preview-body"></div>
-            </div>
-          `;
-          document.body.appendChild(previewOverlay);
-
-          previewOverlay.addEventListener('click', (event) => {
-            if (event.target === previewOverlay) closePreview();
-          }, { signal });
-
-          previewOverlay.querySelector('.reference-preview-close')?.addEventListener('click', closePreview, { signal });
-
-          return previewOverlay;
-        }
-
-        function closePreview() {
-          if (!previewOverlay) return;
-          previewOverlay.classList.remove('is-open');
-          previewOverlay.setAttribute('aria-hidden', 'true');
-          document.body.classList.remove('reference-preview-open');
-          if (lastFocus instanceof HTMLElement && lastFocus.isConnected) {
-            lastFocus.focus({ preventScroll: true });
-          }
-          lastFocus = null;
-        }
-
-        function getHeadingRank(node) {
-          const match = node?.tagName?.match(/^H([1-6])$/);
-          return match ? Number(match[1]) : 7;
-        }
-
-        function sanitizeFragment(root) {
-          root.querySelectorAll('script, style, iframe').forEach((node) => node.remove());
-          root.querySelectorAll('[id]').forEach((node) => {
-            node.removeAttribute('id');
-          });
-          return root;
-        }
-
-        function extractReferenceSection(target, ownerDocument) {
-          const fragment = ownerDocument.createDocumentFragment();
-          const rank = getHeadingRank(target);
-          fragment.appendChild(target.cloneNode(true));
-
-          let next = target.nextElementSibling;
-          let count = 0;
-          while (next && count < 18) {
-            if (getHeadingRank(next) <= rank) break;
-            fragment.appendChild(next.cloneNode(true));
-            next = next.nextElementSibling;
-            count += 1;
-          }
-
-          const wrapper = ownerDocument.createElement('div');
-          wrapper.appendChild(fragment);
-          return sanitizeFragment(wrapper);
-        }
-
-        function renderPreview({ title, source, content, isEaster = false }) {
-          const overlay = ensurePreviewOverlay();
-          const modal = overlay.querySelector('.reference-preview-modal');
-          const titleEl = overlay.querySelector('.reference-preview-title');
-          const sourceEl = overlay.querySelector('.reference-preview-source');
-          const bodyEl = overlay.querySelector('.reference-preview-body');
-          if (!modal || !titleEl || !sourceEl || !bodyEl) return;
-
-          titleEl.textContent = title || (isEaster ? '隐藏片段' : '引用片段');
-          sourceEl.textContent = source || '';
-          bodyEl.replaceChildren(content);
-          overlay.classList.add('is-open');
-          overlay.setAttribute('aria-hidden', 'false');
-          document.body.classList.add('reference-preview-open');
-          overlay.querySelector('.reference-preview-close')?.focus({ preventScroll: true });
-        }
-
-        function renderLoading(source) {
-          const wrapper = document.createElement('div');
-          wrapper.className = 'reference-preview-state';
-          wrapper.textContent = '正在加载引用片段...';
-          renderPreview({ title: '引用片段', source, content: wrapper });
-        }
-
-        function renderError(source) {
-          const wrapper = document.createElement('div');
-          wrapper.className = 'reference-preview-state';
-          wrapper.textContent = '无法读取这个引用片段。';
-          renderPreview({ title: '引用片段', source, content: wrapper });
-        }
-
-        function getSourceLabel(url) {
-          if (url.pathname === window.location.pathname) return `当前文章 · ${url.hash}`;
-          return `${url.pathname}${url.hash}`;
-        }
-
-        async function getTargetFromUrl(url) {
-          const id = decodeURIComponent(url.hash.slice(1));
-          if (!id) return null;
-
-          if (url.origin === window.location.origin && url.pathname === window.location.pathname) {
-            const target = prose.querySelector(`#${CSS.escape(id)}`) || document.getElementById(id);
-            return target ? { target, doc: document, title: document.title } : null;
-          }
-
-          const cacheKey = `${url.pathname}${url.search}`;
-          let doc = previewCache.get(cacheKey);
-          if (!doc) {
-            const response = await fetch(url.pathname + url.search);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const html = await response.text();
-            doc = new DOMParser().parseFromString(html, 'text/html');
-            previewCache.set(cacheKey, doc);
-          }
-
-          const remoteProse = doc.querySelector('.prose');
-          const target = remoteProse?.querySelector(`#${CSS.escape(id)}`) || doc.getElementById(id);
-          return target ? { target, doc, title: doc.title } : null;
-        }
-
-        async function openReferencePreview(url, sourceEl) {
-          lastFocus = sourceEl instanceof HTMLElement ? sourceEl : document.activeElement;
-          renderLoading(getSourceLabel(url));
-
-          try {
-            const result = await getTargetFromUrl(url);
-            if (!result) {
-              renderError(getSourceLabel(url));
-              return;
-            }
-
-            const { target, doc, title } = result;
-            const isEaster = target instanceof HTMLElement && Boolean(target.dataset.easterAnchor);
-            const content = extractReferenceSection(target, doc);
-            renderPreview({
-              title: target.getAttribute('data-easter-title') || target.textContent?.trim()?.slice(0, 80) || title,
-              source: isEaster ? `彩蛋锚点 · #${target.id}` : getSourceLabel(url),
-              content,
-              isEaster,
-            });
-          } catch {
-            renderError(getSourceLabel(url));
-          }
-        }
-
-        function shouldPreviewLink(anchor) {
-          if (!(anchor instanceof HTMLAnchorElement)) return false;
-          if (anchor.closest('.reference-preview-modal')) return false;
-          const href = anchor.getAttribute('href') || '';
-          if (!href || href.startsWith('mailto:') || href.startsWith('tel:')) return false;
-
-          let url;
-          try {
-            url = new URL(anchor.href, window.location.href);
-          } catch {
-            return false;
-          }
-
-          if (!url.hash || url.origin !== window.location.origin) return false;
-          if (url.pathname !== window.location.pathname && !url.pathname.includes('/posts/')) return false;
-          return url;
-        }
-
-        function bindReferenceLinks() {
+        function bindAnchorScroll() {
           prose.addEventListener('click', (event) => {
             if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-            const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
-            const url = shouldPreviewLink(anchor);
-            if (!url) return;
-            event.preventDefault();
-            openReferencePreview(url, anchor);
+            const anchor = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null;
+            if (!anchor) return;
+            const href = anchor.getAttribute('href') || '';
+            if (href.length <= 1) return;
+
+            const targetId = decodeURIComponent(href.slice(1));
+            const targetEl = document.getElementById(targetId) || prose.querySelector(`#${CSS.escape(targetId)}`);
+            if (targetEl) {
+              event.preventDefault();
+              if (window.lenis) {
+                window.lenis.scrollTo(targetEl, { offset: -70 });
+              } else {
+                targetEl.scrollIntoView({ behavior: 'smooth' });
+              }
+              history.pushState(null, '', href);
+            }
           }, { signal });
         }
 
-        function openInitialEasterAnchor() {
-          if (!window.location.hash) return;
-          const id = decodeURIComponent(window.location.hash.slice(1));
-          const target = id ? prose.querySelector(`#${CSS.escape(id)}[data-easter-anchor]`) : null;
-          if (!(target instanceof HTMLElement)) return;
-          window.setTimeout(() => {
-            openReferencePreview(new URL(window.location.href), null);
-          }, 120);
-        }
-
-        document.addEventListener('keydown', (event) => {
-          if (event.key === 'Escape' && previewOverlay?.classList.contains('is-open')) {
-            closePreview();
-          }
-        }, { signal });
-
         enhanceCodeBlocks();
-        setupEasterAnchors();
-        bindReferenceLinks();
-        openInitialEasterAnchor();
+        bindAnchorScroll();
 
         window[cleanupKey] = () => {
           controller.abort();
-          closePreview();
-          previewOverlay?.remove();
-          previewOverlay = null;
         };
       }
 
@@ -637,4 +441,128 @@ const hasToc = tocHeadings.length > 1;
       }
     })();
   </script>
+
+  <style is:global>
+    .post-toc {
+      border-radius: 18px !important;
+      padding: 1.1rem 1.4rem !important;
+      background: var(--bg-soft);
+      border: 1px solid var(--rule);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .post-toc:hover {
+      border-color: var(--rule-strong);
+    }
+    .post-toc-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      outline: none;
+    }
+    .post-toc-summary::-webkit-details-marker {
+      display: none;
+    }
+    .post-toc-kicker {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .post-toc-title {
+      font-family: var(--font-hand);
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-strong);
+    }
+    .post-toc-badge {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--muted-strong);
+      background: rgba(0, 0, 0, 0.04);
+      padding: 0.15rem 0.55rem;
+      border-radius: 9999px;
+      border: 1px solid var(--rule-soft);
+    }
+    .post-toc-inner {
+      margin-top: 0.85rem;
+      padding-top: 0.85rem;
+      border-top: 1px dashed var(--rule);
+    }
+    .post-toc-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      max-height: 22rem;
+      overflow-y: auto;
+      padding-right: 0.4rem;
+    }
+    .post-toc-nav::-webkit-scrollbar {
+      width: 4px;
+    }
+    .post-toc-nav::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .post-toc-nav::-webkit-scrollbar-thumb {
+      background: var(--rule);
+      border-radius: 4px;
+    }
+    .post-toc-link {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.28rem 0.55rem;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      color: var(--muted-strong);
+      text-decoration: none !important;
+      transition: all 0.15s ease;
+    }
+    .post-toc-link .toc-bullet {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--rule-strong);
+      flex-shrink: 0;
+      opacity: 0.45;
+      transition: all 0.15s ease;
+    }
+    .post-toc-link.depth-2 {
+      font-weight: 600;
+      color: var(--text-strong);
+      margin-top: 0.35rem;
+    }
+    .post-toc-link.depth-3 {
+      padding-left: 1.4rem;
+      font-size: 0.82rem;
+      color: var(--muted-strong);
+    }
+    .post-toc-link.depth-3 .toc-bullet {
+      width: 3.5px;
+      height: 3.5px;
+    }
+    .post-toc-link:hover {
+      color: var(--text-strong);
+      background: rgba(0, 0, 0, 0.04);
+      transform: translateX(3px);
+    }
+    .post-toc-link:hover .toc-bullet {
+      opacity: 1;
+      background: var(--accent);
+    }
+    .post-toc-link.is-active {
+      color: var(--accent-strong);
+      font-weight: 700;
+      background: rgba(0, 0, 0, 0.05);
+    }
+    .post-toc-link.is-active .toc-bullet {
+      opacity: 1;
+      background: var(--accent);
+      transform: scale(1.35);
+    }
+  </style>
 </BaseLayout>
