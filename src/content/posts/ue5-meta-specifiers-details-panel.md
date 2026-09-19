@@ -2,7 +2,10 @@
 title: "UE5 C++ Meta 元数据深度解析（二）：细节面板与数值交互定制"
 description: "深入剖析虚幻引擎 5 (UE5) 中 Details 面板与数值调节相关的核心 Meta 标签（EditCondition、ClampMin/Max、UIMin/Max、ShowInnerProperties 等），打造专业、美观、防呆的属性编辑体验。"
 pubDate: 2026-09-19
-tags: ["UE5", "Unreal Engine", "C++", "反射系统", "Meta元数据", "DetailsCustomization"]
+tags: ["Unreal Engine", "C++", "反射系统", "Meta元数据"]
+category: "引擎开发"
+series: "UE5 C++ Meta 元数据深度解析"
+seriesOrder: 2
 draft: false
 ---
 

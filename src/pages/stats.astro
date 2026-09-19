@@ -1,0 +1,420 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import { getCollection } from 'astro:content';
+import { formatDate } from '../utils/date';
+import { byNewest, postMetrics, tagStats, categoryStats, tagSlug } from '../utils/posts';
+
+const allPosts = await getCollection('posts', ({ data }) => !data.draft);
+const posts = byNewest(allPosts);
+
+const rows = posts.map((post) => {
+  const metrics = postMetrics(post);
+  const date = new Date(post.data.pubDate);
+  return {
+    id: post.id,
+    title: post.data.title,
+    category: post.data.category,
+    date,
+    dateLabel: formatDate(post.data.pubDate),
+    monthKey: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+    ...metrics,
+  };
+});
+
+const totalChars = rows.reduce((sum, row) => sum + row.chars, 0);
+const totalCode = rows.reduce((sum, row) => sum + row.codeLines, 0);
+const totalMinutes = rows.reduce((sum, row) => sum + row.minutes, 0);
+const tags = tagStats(posts);
+const categories = categoryStats(posts);
+
+// ---- Monthly cadence: every month from the first post to the last, gaps included ----
+const oldest = rows[rows.length - 1]?.date ?? new Date();
+const newest = rows[0]?.date ?? new Date();
+const months: Array<{ key: string; label: string; year: number; month: number; count: number }> = [];
+const cursor = new Date(oldest.getFullYear(), oldest.getMonth(), 1);
+const lastMonth = new Date(newest.getFullYear(), newest.getMonth(), 1);
+while (cursor <= lastMonth && months.length < 24) {
+  const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+  months.push({
+    key,
+    label: String(cursor.getMonth() + 1),
+    year: cursor.getFullYear(),
+    month: cursor.getMonth() + 1,
+    count: rows.filter((row) => row.monthKey === key).length,
+  });
+  cursor.setMonth(cursor.getMonth() + 1);
+}
+const maxMonth = Math.max(1, ...months.map((month) => month.count));
+const busiestMonth = months.reduce((best, month) => (month.count > best.count ? month : best), months[0]);
+
+// ---- Per-post volume, longest first ----
+const byVolume = [...rows].sort((a, b) => b.chars - a.chars);
+const maxChars = Math.max(1, ...byVolume.map((row) => row.chars));
+
+// ---- Cumulative words over time, oldest → newest ----
+const chronological = [...rows].reverse();
+let running = 0;
+const cumulative = chronological.map((row) => {
+  running += row.chars;
+  return { ...row, total: running };
+});
+const spanStart = chronological[0]?.date.getTime() ?? 0;
+const spanEnd = chronological[chronological.length - 1]?.date.getTime() ?? 1;
+const spanRange = Math.max(1, spanEnd - spanStart);
+const VIEW_W = 1000;
+const VIEW_H = 280;
+const points = cumulative.map((row) => ({
+  ...row,
+  px: ((row.date.getTime() - spanStart) / spanRange) * VIEW_W,
+  py: VIEW_H - (row.total / Math.max(1, running)) * (VIEW_H - 18) - 6,
+}));
+const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.px.toFixed(1)},${point.py.toFixed(1)}`).join(' ');
+const areaPath = points.length
+  ? `${linePath} L${VIEW_W},${VIEW_H} L0,${VIEW_H} Z`
+  : '';
+
+// ---- Tag distribution: top 8, tail folded ----
+const TOP_TAGS = 8;
+const topTags = tags.slice(0, TOP_TAGS);
+const tailTags = tags.slice(TOP_TAGS);
+const tailTotal = tailTags.reduce((sum, tag) => sum + tag.count, 0);
+const maxTag = Math.max(1, ...tags.map((tag) => tag.count));
+
+const nf = new Intl.NumberFormat('en-US');
+const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, max)}…` : text);
+---
+
+<BaseLayout title="写作统计 - 梦付千秋" description="这个博客到今天为止写了多少字、多少行代码">
+  <Header />
+  <main class="container-wide flex-1 pt-14 pb-20 md:pt-20">
+    <section class="stats-head">
+      <p class="eyebrow" data-enter="top">Stats / 写作统计</p>
+      <h1 class="section-title mt-4" data-enter="left">写了多少</h1>
+      <p class="stats-hint" data-enter="left">
+        字数不含代码块，代码单独算行数。全部由构建时读取原文统计，不是手填的。
+      </p>
+    </section>
+
+    <!-- Hero: the one number this page leads with -->
+    <section class="stats-hero" data-enter="bottom">
+      <p class="stats-hero-label">累计字数</p>
+      <p class="stats-hero-value" data-stat-value={totalChars}>{nf.format(totalChars)}</p>
+      <p class="stats-hero-note">
+        分布在 {posts.length} 篇文章里，另有 {nf.format(totalCode)} 行代码。
+      </p>
+    </section>
+
+    <section class="stats-kpis" data-enter="bottom">
+      <div class="stats-kpi">
+        <p class="stats-kpi-label">文章</p>
+        <p class="stats-kpi-value" data-stat-value={posts.length}>{posts.length}</p>
+      </div>
+      <div class="stats-kpi">
+        <p class="stats-kpi-label">代码行</p>
+        <p class="stats-kpi-value" data-stat-value={totalCode}>{nf.format(totalCode)}</p>
+      </div>
+      <div class="stats-kpi">
+        <p class="stats-kpi-label">标签</p>
+        <p class="stats-kpi-value" data-stat-value={tags.length}>{tags.length}</p>
+      </div>
+      <div class="stats-kpi">
+        <p class="stats-kpi-label">总阅读时长</p>
+        <p class="stats-kpi-value" data-stat-value={totalMinutes}>{totalMinutes}</p>
+        <p class="stats-kpi-unit">分钟</p>
+      </div>
+      <div class="stats-kpi">
+        <p class="stats-kpi-label">平均每篇</p>
+        <p class="stats-kpi-value" data-stat-value={Math.round(totalChars / Math.max(1, posts.length))}>
+          {nf.format(Math.round(totalChars / Math.max(1, posts.length)))}
+        </p>
+        <p class="stats-kpi-unit">字</p>
+      </div>
+    </section>
+
+    <!-- 1. Cadence ------------------------------------------------------- -->
+    <section class="chart-card" data-enter="bottom">
+      <div class="chart-head">
+        <h2>发文节奏</h2>
+        <p>{months[0]?.year}年{months[0]?.month}月 起，每月发了几篇。空的月份就是真的空着。</p>
+      </div>
+      <div class="chart-columns" data-chart-columns>
+        {months.map((month) => (
+          <div
+            class:list={['chart-column', { 'is-empty': month.count === 0, 'is-peak': month.count === maxMonth && month.count > 0 }]}
+            style={`--value: ${(month.count / maxMonth).toFixed(3)}; --i: ${months.indexOf(month)}`}
+            data-tip={`${month.year} 年 ${month.month} 月 · ${month.count} 篇`}
+            tabindex="0"
+          >
+            <span class="chart-column-track" aria-hidden="true">
+              <span class="chart-column-fill"></span>
+            </span>
+            {month.count === maxMonth && month.count > 0 && (
+              <span class="chart-column-cap">{month.count}</span>
+            )}
+            <span class="chart-column-label">{month.label}</span>
+          </div>
+        ))}
+      </div>
+      <p class="chart-foot">
+        最忙的是 {busiestMonth?.year} 年 {busiestMonth?.month} 月，{busiestMonth?.count} 篇。
+      </p>
+    </section>
+
+    <!-- 2. Volume per post ----------------------------------------------- -->
+    <section class="chart-card" data-enter="bottom">
+      <div class="chart-head">
+        <h2>每篇的体量</h2>
+        <p>按正文字数排序，不含代码。</p>
+      </div>
+      <ul class="chart-bars" data-chart-bars>
+        {byVolume.map((row, index) => (
+          <li
+            class:list={['chart-bar-row', { 'is-peak': index === 0 }]}
+            style={`--value: ${(row.chars / maxChars).toFixed(3)}; --i: ${index}`}
+            data-tip={`${row.title} · ${nf.format(row.chars)} 字 · ${nf.format(row.codeLines)} 行代码`}
+          >
+            <a class="chart-bar-name" href={`/posts/${row.id}`} title={row.title}>{clip(row.title, 18)}</a>
+            <span class="chart-bar-track" aria-hidden="true"><span class="chart-bar-fill"></span></span>
+            <span class="chart-bar-value">{nf.format(row.chars)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <!-- 3. Cumulative ---------------------------------------------------- -->
+    <section class="chart-card" data-enter="bottom">
+      <div class="chart-head">
+        <h2>累计字数</h2>
+        <p>从第一篇到最新一篇，字数是怎么堆起来的。</p>
+      </div>
+      <div class="chart-line" data-chart-line>
+        <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} preserveAspectRatio="none" aria-hidden="true">
+          <path class="chart-line-area" d={areaPath} />
+          <path class="chart-line-stroke" d={linePath} pathLength="1" vector-effect="non-scaling-stroke" />
+        </svg>
+        <div class="chart-line-overlay">
+          {points.map((point, index) => (
+            <span
+              class:list={['chart-line-hit', { 'is-last': index === points.length - 1 }]}
+              style={`--x: ${(point.px / VIEW_W * 100).toFixed(2)}%; --y: ${(point.py / VIEW_H * 100).toFixed(2)}%`}
+              data-tip={`${point.dateLabel} · 累计 ${nf.format(point.total)} 字`}
+              tabindex="0"
+            >
+              <i class="chart-line-dot" aria-hidden="true"></i>
+            </span>
+          ))}
+        </div>
+        <span class="chart-line-endlabel">{nf.format(running)} 字</span>
+      </div>
+      <div class="chart-axis">
+        <span>{chronological[0]?.dateLabel}</span>
+        <span>{chronological[chronological.length - 1]?.dateLabel}</span>
+      </div>
+    </section>
+
+    <!-- 4. Tags ---------------------------------------------------------- -->
+    <section class="chart-card" data-enter="bottom">
+      <div class="chart-head">
+        <h2>标签分布</h2>
+        <p>前 {topTags.length} 个标签，其余 {tailTags.length} 个合并在最后一行。<a href="/tags">去星图看全部 →</a></p>
+      </div>
+      <ul class="chart-bars" data-chart-bars>
+        {topTags.map((tag, index) => (
+          <li
+            class:list={['chart-bar-row', { 'is-peak': index === 0 }]}
+            style={`--value: ${(tag.count / maxTag).toFixed(3)}; --i: ${index}`}
+            data-tip={`${tag.name} · ${tag.count} 篇`}
+          >
+            <a class="chart-bar-name" href={`/tags/${tagSlug(tag.name)}`}>{clip(tag.name, 14)}</a>
+            <span class="chart-bar-track" aria-hidden="true"><span class="chart-bar-fill"></span></span>
+            <span class="chart-bar-value">{tag.count}</span>
+          </li>
+        ))}
+        {tailTags.length > 0 && (
+          <li
+            class="chart-bar-row is-other"
+            style={`--value: ${(tailTotal / Math.max(maxTag, tailTotal)).toFixed(3)}; --i: ${topTags.length}`}
+            data-tip={`其余 ${tailTags.length} 个标签共出现 ${tailTotal} 次`}
+          >
+            <span class="chart-bar-name">其他 {tailTags.length} 个</span>
+            <span class="chart-bar-track" aria-hidden="true"><span class="chart-bar-fill"></span></span>
+            <span class="chart-bar-value">{tailTotal}</span>
+          </li>
+        )}
+      </ul>
+    </section>
+
+    <!-- Table view: every number above, reachable without hovering -------- -->
+    <details class="stats-table" data-enter="bottom">
+      <summary>数据表</summary>
+      <div class="stats-table-scroll">
+        <table>
+          <caption>每篇文章的字数与代码量</caption>
+          <thead>
+            <tr><th scope="col">文章</th><th scope="col">日期</th><th scope="col">分类</th><th scope="col">字数</th><th scope="col">代码行</th><th scope="col">阅读</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr>
+                <td><a href={`/posts/${row.id}`}>{row.title}</a></td>
+                <td>{row.dateLabel}</td>
+                <td>{row.category}</td>
+                <td class="is-num">{nf.format(row.chars)}</td>
+                <td class="is-num">{nf.format(row.codeLines)}</td>
+                <td class="is-num">{row.minutes} min</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3">合计</td>
+              <td class="is-num">{nf.format(totalChars)}</td>
+              <td class="is-num">{nf.format(totalCode)}</td>
+              <td class="is-num">{totalMinutes} min</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <table>
+          <caption>每月发文数</caption>
+          <thead><tr><th scope="col">月份</th><th scope="col">篇数</th></tr></thead>
+          <tbody>
+            {months.map((month) => (
+              <tr><td>{month.year}-{String(month.month).padStart(2, '0')}</td><td class="is-num">{month.count}</td></tr>
+            ))}
+          </tbody>
+        </table>
+
+        <table>
+          <caption>标签与分类</caption>
+          <thead><tr><th scope="col">名称</th><th scope="col">类型</th><th scope="col">篇数</th></tr></thead>
+          <tbody>
+            {categories.map((category) => (
+              <tr><td>{category.name}</td><td>分类</td><td class="is-num">{category.count}</td></tr>
+            ))}
+            {tags.map((tag) => (
+              <tr><td>{tag.name}</td><td>标签</td><td class="is-num">{tag.count}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <div class="stats-tip" data-stats-tip hidden></div>
+  </main>
+</BaseLayout>
+
+<script>
+  import gsap from 'gsap';
+
+  // Charts grow when scrolled into view; one shared tooltip serves every mark.
+  const CLEANUP_KEY = '__areSetStatsCleanup__';
+  const LISTENER_KEY = '__areSetStatsBound__';
+
+  function initStats() {
+    const previousCleanup = (window as any)[CLEANUP_KEY];
+    if (typeof previousCleanup === 'function') previousCleanup();
+
+    const tip = document.querySelector<HTMLElement>('[data-stats-tip]');
+    if (!tip) return; // not the stats page
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ---------- Count-up ----------
+    document.querySelectorAll<HTMLElement>('[data-stat-value]').forEach((el) => {
+      const target = Number(el.dataset.statValue || 0);
+      if (!Number.isFinite(target)) return;
+      if (reduceMotion) return;
+      const counter = { value: 0 };
+      const format = (value: number) => new Intl.NumberFormat('en-US').format(Math.round(value));
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          io.disconnect();
+          gsap.to(counter, {
+            value: target,
+            duration: 1.6,
+            ease: 'expo.out',
+            onUpdate: () => { el.textContent = format(counter.value); },
+            onComplete: () => { el.textContent = format(target); },
+          });
+        });
+      }, { threshold: 0.4 });
+      io.observe(el);
+      signal.addEventListener('abort', () => io.disconnect());
+    });
+
+    // ---------- Grow the marks on entry ----------
+    const charts = Array.from(document.querySelectorAll<HTMLElement>('[data-chart-columns], [data-chart-bars], [data-chart-line]'));
+    if (reduceMotion) {
+      charts.forEach((chart) => chart.classList.add('is-drawn'));
+    } else {
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-drawn');
+          io.unobserve(entry.target);
+        });
+      }, { threshold: 0.25 });
+      charts.forEach((chart) => io.observe(chart));
+      signal.addEventListener('abort', () => io.disconnect());
+    }
+
+    // ---------- Shared tooltip ----------
+    let hideTimer = 0;
+    function show(target: HTMLElement) {
+      const text = target.dataset.tip;
+      if (!text) return;
+      window.clearTimeout(hideTimer);
+      tip!.textContent = text;
+      tip!.hidden = false;
+      const rect = target.getBoundingClientRect();
+      const tipRect = tip!.getBoundingClientRect();
+      const x = Math.min(
+        window.innerWidth - tipRect.width - 12,
+        Math.max(12, rect.left + rect.width / 2 - tipRect.width / 2)
+      );
+      const above = rect.top > tipRect.height + 20;
+      const y = above ? rect.top - tipRect.height - 10 : rect.bottom + 10;
+      tip!.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
+      tip!.classList.add('is-visible');
+    }
+    function hide() {
+      tip!.classList.remove('is-visible');
+      hideTimer = window.setTimeout(() => { tip!.hidden = true; }, 200);
+    }
+
+    document.addEventListener('pointerover', (event) => {
+      const target = (event.target as Element)?.closest?.<HTMLElement>('[data-tip]');
+      if (target) show(target);
+    }, { signal });
+    document.addEventListener('pointerout', (event) => {
+      const target = (event.target as Element)?.closest?.('[data-tip]');
+      if (target) hide();
+    }, { signal });
+    document.addEventListener('focusin', (event) => {
+      const target = (event.target as Element)?.closest?.<HTMLElement>('[data-tip]');
+      if (target) show(target);
+    }, { signal });
+    document.addEventListener('focusout', (event) => {
+      const target = (event.target as Element)?.closest?.('[data-tip]');
+      if (target) hide();
+    }, { signal });
+
+    (window as any)[CLEANUP_KEY] = () => {
+      controller.abort();
+      window.clearTimeout(hideTimer);
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+  }
+
+  initStats();
+
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', initStats);
+    (window as any)[LISTENER_KEY] = true;
+  }
+</script>

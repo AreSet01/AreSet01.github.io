@@ -1,8 +1,11 @@
 ---
 title: "UE5 C++ Meta 元数据深度解析（三）：类型选择器与资产路径过滤"
 description: "深入解析虚幻引擎 5 (UE5) 中类型选择（TypePicker）、资产拾取（Asset）与路径过滤相关的核心 Meta 标签（AllowedClasses、MustImplement、MetaClass、FilePathFilter 等），打造严谨可靠的资产引用规范。"
-pubDate: 2026-09-20
-tags: ["UE5", "Unreal Engine", "C++", "反射系统", "Meta元数据", "AssetManagement"]
+pubDate: 2026-09-19
+tags: ["Unreal Engine", "C++", "反射系统", "Meta元数据"]
+category: "引擎开发"
+series: "UE5 C++ Meta 元数据深度解析"
+seriesOrder: 3
 draft: false
 ---
 

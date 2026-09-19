@@ -3,6 +3,9 @@ title: "renderdoc 在 Mumu12 模拟器上的抓帧"
 description: "分享一下如何在 Mumu12 模拟器上配置抓帧。"
 pubDate: 2026-04-12
 tags: ["renderdoc", "Mumu12", "抓帧"]
+category: "图形逆向"
+series: "RenderDoc 抓帧实战"
+seriesOrder: 1
 draft: false
 ---
 

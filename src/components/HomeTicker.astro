@@ -1,0 +1,253 @@
+---
+interface TickerPost {
+  title: string;
+  href: string;
+}
+
+interface Props {
+  posts: number;
+  tags: number;
+  year: number;
+  latest: TickerPost[];
+  topTags: string[];
+}
+
+const { posts, tags, year, latest, topTags } = Astro.props;
+
+type TickerItem =
+  | { kind: 'text'; label: string; strong?: boolean }
+  | { kind: 'link'; label: string; href: string; prefix?: string }
+  | { kind: 'tags'; labels: string[] };
+
+const items: TickerItem[] = [
+  { kind: 'text', label: 'Vol. 01 / Digital Garden', strong: true },
+  ...latest.map((post, index) => ({
+    kind: 'link' as const,
+    label: post.title,
+    href: post.href,
+    prefix: index === 0 ? '最新' : undefined,
+  })),
+  { kind: 'tags', labels: topTags },
+  { kind: 'text', label: `${posts} 篇文章 · ${tags} 个标签 · ${year}` },
+  { kind: 'text', label: '不持续且间断更新', strong: true },
+  { kind: 'text', label: 'Fresh Ink ↓' },
+];
+---
+
+<div class="home-ticker" data-ticker data-enter="right">
+  <div class="home-ticker-viewport">
+    <div class="home-ticker-track" data-ticker-track>
+      <div class="home-ticker-group" data-ticker-group>
+        {items.map((item) => (
+          <>
+            {item.kind === 'text' && (
+              <span class:list={['home-ticker-item', { 'is-strong': item.strong }]}>{item.label}</span>
+            )}
+            {item.kind === 'link' && (
+              <a class="home-ticker-item home-ticker-link" href={item.href}>
+                {item.prefix && <span class="home-ticker-prefix">{item.prefix} →</span>}
+                {item.label}
+              </a>
+            )}
+            {item.kind === 'tags' && (
+              <span class="home-ticker-item home-ticker-tags">
+                {item.labels.map((tag) => <span class="home-ticker-tag">{tag}</span>)}
+              </span>
+            )}
+            <span class="home-ticker-sep"></span>
+          </>
+        ))}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  const CLEANUP_KEY = '__areSetTickerCleanup__';
+  const LISTENER_KEY = '__areSetTickerPageLoadBound__';
+  const BASE_SPEED = 42; // px / s at rest
+  const HOVER_FACTOR = 0.22;
+  const MAX_BOOST = 7;
+  const MAX_SKEW = 14;
+
+  function initTicker() {
+    const previousCleanup = (window as any)[CLEANUP_KEY];
+    if (typeof previousCleanup === 'function') previousCleanup();
+
+    const root = document.querySelector<HTMLElement>('[data-ticker]');
+    const track = root?.querySelector<HTMLElement>('[data-ticker-track]');
+    const group = root?.querySelector<HTMLElement>('[data-ticker-group]');
+    if (!root || !track || !group) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    // Runtime state — lerped every frame so direction flips and speed bursts feel weighty
+    const state = {
+      x: 0,
+      skew: 0,
+      dir: -1,        // -1: flows left (scrolling down), 1: flows right (scrolling up)
+      dirTarget: -1,
+      boost: 1,
+      boostTarget: 1,
+      hover: 1,
+      hoverTarget: 1,
+    };
+
+    let groupWidth = 0;
+    let idleTimer = 0;
+    let resizeTimer = 0;
+    let ticking = false;
+    const clones: HTMLElement[] = [];
+
+    // Clone the group until it covers the viewport twice, so the wrap seam is never visible
+    function build() {
+      clones.forEach((clone) => clone.remove());
+      clones.length = 0;
+
+      const previousWidth = groupWidth;
+      groupWidth = group!.getBoundingClientRect().width;
+      if (!groupWidth) return;
+
+      const needed = Math.ceil((root!.clientWidth * 2) / groupWidth) + 1;
+      for (let i = 0; i < needed; i += 1) {
+        const clone = group!.cloneNode(true) as HTMLElement;
+        clone.removeAttribute('data-ticker-group');
+        clone.setAttribute('aria-hidden', 'true');
+        clone.querySelectorAll('a').forEach((link) => link.setAttribute('tabindex', '-1'));
+        track!.appendChild(clone);
+        clones.push(clone);
+      }
+
+      // Keep the strip where it was (re-wrapped to the new loop length) instead of snapping to 0
+      // when a resize — including the sidebar fold — triggers a rebuild
+      state.x = previousWidth ? gsap.utils.wrap(-groupWidth, 0, state.x) : 0;
+    }
+
+    function tick(_time: number, deltaTime: number) {
+      if (!groupWidth) return;
+      const dt = Math.min(deltaTime, 64) / 1000;
+
+      state.dir += (state.dirTarget - state.dir) * Math.min(1, dt * 6);
+      state.boost += (state.boostTarget - state.boost) * Math.min(1, dt * 5);
+      state.hover += (state.hoverTarget - state.hover) * Math.min(1, dt * 6);
+
+      const velocity = BASE_SPEED * state.boost * state.hover * state.dir;
+      state.x = gsap.utils.wrap(-groupWidth, 0, state.x + velocity * dt);
+
+      gsap.set(track, { x: state.x, skewX: state.skew });
+    }
+
+    function startTicking() {
+      if (ticking) return;
+      ticking = true;
+      gsap.ticker.add(tick);
+    }
+
+    function stopTicking() {
+      if (!ticking) return;
+      ticking = false;
+      gsap.ticker.remove(tick);
+    }
+
+    // Snap the skew back with a jelly overshoot once scrolling settles
+    function settle() {
+      state.boostTarget = 1;
+      gsap.to(state, {
+        skew: 0,
+        duration: 1.1,
+        ease: 'elastic.out(1, 0.45)',
+        overwrite: true,
+      });
+    }
+
+    function scheduleSettle(delay: number) {
+      window.clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(settle, delay);
+    }
+
+    const scrollWatcher = ScrollTrigger.create({
+      onUpdate(self) {
+        const velocity = self.getVelocity();
+        const magnitude = Math.abs(velocity);
+        if (magnitude < 40) return;
+
+        state.dirTarget = velocity > 0 ? -1 : 1;
+        state.boostTarget = gsap.utils.clamp(1, MAX_BOOST, 1 + magnitude / 350);
+
+        gsap.to(state, {
+          skew: gsap.utils.clamp(-MAX_SKEW, MAX_SKEW, -velocity / 160),
+          duration: 0.35,
+          ease: 'power3.out',
+          overwrite: true,
+        });
+
+        scheduleSettle(140);
+      },
+    });
+
+    // Only spend frames while the strip is actually on screen
+    const visibility = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) startTicking();
+        else stopTicking();
+      });
+    }, { rootMargin: '80px 0px' });
+    visibility.observe(root);
+
+    root.addEventListener('mouseenter', () => { state.hoverTarget = HOVER_FACTOR; }, { signal });
+    root.addEventListener('mouseleave', () => { state.hoverTarget = 1; }, { signal });
+
+    // Clicking empty strip gives it a shove; clicking a title just follows the link
+    function shove() {
+      state.boost = MAX_BOOST * 0.8;
+      state.boostTarget = 1;
+      gsap.to(state, {
+        skew: state.dir * 10,
+        duration: 0.14,
+        ease: 'power2.out',
+        overwrite: true,
+      });
+      scheduleSettle(200);
+    }
+    root.addEventListener('click', (event) => {
+      if ((event.target as Element).closest('a')) return;
+      shove();
+    }, { signal });
+    // Let the home page's easter eggs knock the strip too
+    (window as any).__tickerShove = shove;
+
+    window.addEventListener('resize', () => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(build, 120);
+    }, { signal });
+
+    build();
+    // Zpix is font-display: swap — re-measure once it lands so the loop seam stays clean
+    document.fonts?.ready.then(() => { if (!signal.aborted) build(); });
+
+    (window as any)[CLEANUP_KEY] = () => {
+      controller.abort();
+      stopTicking();
+      (window as any).__tickerShove = undefined;
+      scrollWatcher.kill();
+      visibility.disconnect();
+      gsap.killTweensOf(state);
+      window.clearTimeout(idleTimer);
+      window.clearTimeout(resizeTimer);
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+  }
+
+  initTicker();
+
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', initTicker);
+    (window as any)[LISTENER_KEY] = true;
+  }
+</script>

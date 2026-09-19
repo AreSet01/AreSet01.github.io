@@ -6,11 +6,26 @@ import TagList from '../components/TagList.astro';
 import Giscus from '../components/Giscus.astro';
 import { formatDate } from '../utils/date';
 
+interface SeriesLink {
+  title: string;
+  href: string;
+}
+
 interface Props {
   title: string;
   description?: string;
   pubDate: Date;
   tags?: string[];
+  category?: string;
+  readingMinutes?: number;
+  series?: {
+    name: string;
+    current: number;
+    total: number;
+    parts: Array<SeriesLink & { index: number }>;
+    prev?: SeriesLink;
+    next?: SeriesLink;
+  };
   locked?: boolean;
   passwordHash?: string;
   passwordHint?: string;
@@ -26,6 +41,9 @@ const {
   description,
   pubDate,
   tags = [],
+  category,
+  readingMinutes,
+  series,
   locked = false,
   passwordHash,
   passwordHint,
@@ -44,35 +62,73 @@ const hasToc = tocHeadings.length > 1;
       data-locked-post={isLocked ? 'true' : undefined}
       data-lock-key={isLocked ? passwordHash : undefined}
     >
-      <header class="panel reveal-up">
-        <div class="flex flex-wrap items-center gap-3 font-mono text-[0.72rem] tracking-[0.1em] uppercase text-[var(--muted)]">
+      <header class="panel">
+        <div class="flex flex-wrap items-center gap-3 font-mono text-[0.72rem] tracking-[0.1em] uppercase text-[var(--muted)]" data-enter="left">
           <a href="/archive" class="transition hover:text-[var(--accent)]">Archive</a>
           <span class="opacity-40">/</span>
-          <span>{formatDate(pubDate)}</span>
+          <span data-post-typed>{formatDate(pubDate)}</span>
+          {category && (
+            <>
+              <span class="opacity-40">/</span>
+              <a href={`/archive?category=${encodeURIComponent(category)}`} class="transition hover:text-[var(--accent)]">
+                {category}
+              </a>
+            </>
+          )}
+          {readingMinutes && (
+            <>
+              <span class="opacity-40">/</span>
+              <span>{readingMinutes} min read</span>
+            </>
+          )}
           {isLocked && <span class="lock-mark">Locked</span>}
         </div>
-        <h1 class="section-title mt-7 max-w-3xl" style="font-size: clamp(2.2rem, 4.5vw, 3.2rem);">
+        <h1 class="section-title post-title mt-7 max-w-3xl" style="font-size: clamp(2.2rem, 4.5vw, 3.2rem);" data-post-title>
           {title}
         </h1>
         {description && (
           <p
             class="mt-6 max-w-2xl text-[1.05rem] leading-[1.78] text-[var(--muted-strong)]"
             style="font-family: var(--font-serif); font-style: italic;"
+            data-enter="left"
           >
             {description}
           </p>
         )}
         {tags.length > 0 && (
-          <div class="mt-10 pt-6 border-t border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;">
+          <div class="mt-10 pt-6 border-t border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;" data-enter="bottom">
             <TagList tags={tags} />
           </div>
         )}
       </header>
+      {series && (
+        <nav class="series-strip" data-enter="bottom" aria-label={`系列：${series.name}`}>
+          <div class="series-strip-head">
+            <span class="series-strip-kicker">Series</span>
+            <span class="series-strip-name">{series.name}</span>
+            <span class="series-strip-count">{series.current} / {series.total}</span>
+          </div>
+          <ol class="series-dots">
+            {series.parts.map((part) => (
+              <li>
+                <a
+                  href={part.href}
+                  class:list={['series-dot', { 'is-current': part.index === series.current, 'is-done': part.index < series.current }]}
+                  aria-current={part.index === series.current ? 'step' : undefined}
+                >
+                  <span class="series-dot-mark" aria-hidden="true"></span>
+                  <span class="series-dot-tip">{part.title}</span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )}
       {isLocked && (
         <section
-          class="lock-panel panel reveal-up py-10"
+          class="lock-panel panel py-10"
           data-lock-panel
-          style="animation-delay: 120ms;"
+          data-enter="scale"
         >
           <p class="eyebrow">Protected Note</p>
           <h2 class="font-display mt-5 text-[1.55rem] text-[var(--text-strong)]">
@@ -104,13 +160,12 @@ const hasToc = tocHeadings.length > 1;
         </section>
       )}
       <div
-        class="space-y-6 reveal-up"
-        style="animation-delay: 120ms;"
+        class="space-y-6"
         data-locked-content={isLocked ? 'true' : undefined}
         hidden={isLocked}
       >
         {hasToc && (
-          <details class="post-toc panel" open aria-labelledby="post-toc-title">
+          <details class="post-toc panel" open aria-labelledby="post-toc-title" data-enter="bottom">
             <summary class="post-toc-summary">
               <div class="flex items-center gap-2">
                 <span class="post-toc-kicker">Navigation</span>
@@ -135,13 +190,38 @@ const hasToc = tocHeadings.length > 1;
             </div>
           </details>
         )}
-        <div class="panel rounded-[20px] px-7 py-8 md:px-10 md:py-10">
+        <div class="panel post-body rounded-[20px] px-7 py-8 md:px-10 md:py-10" data-post-body>
+          <div class="post-spine" aria-hidden="true" data-post-spine>
+            <svg preserveAspectRatio="none" viewBox="0 0 2 100">
+              <line x1="1" y1="0" x2="1" y2="100" pathLength="1" data-post-spine-line />
+            </svg>
+          </div>
           <div class="prose" data-post-prose>
             <slot />
           </div>
         </div>
       </div>
-      <div class="reveal-up pt-6 border-t border-[var(--rule)]" style="animation-delay: 220ms; border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;">
+      {series && (series.prev || series.next) && (
+        <nav class="series-ends" data-enter="bottom" aria-label="系列上下篇">
+          {series.prev ? (
+            <a class="series-end is-prev" href={series.prev.href}>
+              <span>← 上一篇</span>
+              <strong>{series.prev.title}</strong>
+            </a>
+          ) : (
+            <span class="series-end is-empty">已是系列第一篇</span>
+          )}
+          {series.next ? (
+            <a class="series-end is-next" href={series.next.href}>
+              <span>下一篇 →</span>
+              <strong>{series.next.title}</strong>
+            </a>
+          ) : (
+            <span class="series-end is-empty">已是系列最后一篇</span>
+          )}
+        </nav>
+      )}
+      <div class="pt-6 border-t border-[var(--rule)]" data-enter="bottom" style="border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;">
         <p class="eyebrow mb-6">Discussion</p>
         <Giscus />
       </div>
@@ -226,6 +306,205 @@ const hasToc = tocHeadings.length > 1;
       })();
     </script>
   )}
+  <script>
+    import gsap from 'gsap';
+    import { ScrollTrigger } from 'gsap/ScrollTrigger';
+    import CustomEase from 'gsap/CustomEase';
+
+    gsap.registerPlugin(ScrollTrigger, CustomEase);
+    CustomEase.create('post-enter', 'M0,0 C0.06,0.62 0.16,0.9 0.42,0.975 0.62,1.005 0.8,1 1,1');
+
+    const CLEANUP_KEY = '__areSetPostRevealCleanup__';
+    const LISTENER_KEY = '__areSetPostRevealBound__';
+    const TRIGGER_PREFIX = 'post:';
+
+    // Which reveal each direct child of the article gets — everything else is a plain block
+    function revealKind(el: Element): string {
+      const tag = el.tagName;
+      if (tag === 'H2') return 'heading';
+      if (tag === 'H3' || tag === 'H4') return 'subheading';
+      if (tag === 'PRE') return 'code';
+      if (tag === 'TABLE') return 'table';
+      if (tag === 'BLOCKQUOTE') return 'quote';
+      if (tag === 'UL' || tag === 'OL') return 'list';
+      if (tag === 'IMG') return 'image';
+      if (tag === 'P' && el.children.length === 1 && el.firstElementChild?.tagName === 'IMG' && !el.textContent?.trim()) return 'image';
+      return 'block';
+    }
+
+    function initPostReveal() {
+      const previousCleanup = (window as any)[CLEANUP_KEY];
+      if (typeof previousCleanup === 'function') previousCleanup();
+
+      const prose = document.querySelector<HTMLElement>('[data-post-prose]');
+      if (!prose) return;
+
+      const controller = new AbortController();
+      const { signal } = controller;
+      const timers: number[] = [];
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      ScrollTrigger.getAll().forEach((trigger) => {
+        if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
+      });
+
+      // ---------- Title: characters drop in one by one ----------
+      const title = document.querySelector<HTMLElement>('[data-post-title]');
+      if (title && !title.dataset.split) {
+        const text = title.textContent?.trim() || '';
+        title.textContent = '';
+        title.dataset.split = 'true';
+        for (const ch of text) {
+          const span = document.createElement('span');
+          span.className = 'post-title-char';
+          span.textContent = ch === ' ' ? ' ' : ch;
+          title.appendChild(span);
+        }
+      }
+      if (title) {
+        title.classList.add('is-split-ready');
+        const chars = title.querySelectorAll('.post-title-char');
+        if (chars.length && !reduceMotion) {
+          gsap.fromTo(chars,
+            { y: 46, opacity: 0, rotation: () => gsap.utils.random(-7, 7) },
+            {
+              y: 0, opacity: 1, rotation: 0,
+              duration: 1.3, ease: 'post-enter', stagger: 0.035, delay: 0.18, overwrite: 'auto',
+              onComplete: () => gsap.set(chars, { clearProps: 'transform,opacity' }),
+            }
+          );
+        }
+      }
+
+      // ---------- Date: typewriter ----------
+      const typed = document.querySelector<HTMLElement>('[data-post-typed]');
+      if (typed && !reduceMotion) {
+        const full = typed.dataset.full || typed.textContent || '';
+        typed.dataset.full = full;
+        typed.textContent = '';
+        typed.classList.add('is-typing');
+        let i = 0;
+        const tick = () => {
+          if (signal.aborted) return;
+          i += 1;
+          typed.textContent = full.slice(0, i);
+          if (i < full.length) timers.push(window.setTimeout(tick, 42));
+          else timers.push(window.setTimeout(() => typed.classList.remove('is-typing'), 900));
+        };
+        timers.push(window.setTimeout(tick, 420));
+      }
+
+      // ---------- Blocks: tag each direct child, reveal via IntersectionObserver ----------
+      // Code blocks and images animate clip-path, and Chrome's IntersectionObserver treats a
+      // target's own clip-path as clipping — so those get a wrapper that is observed instead.
+      const blocks = (Array.from(prose.children) as HTMLElement[]).map((el) => {
+        if (el.classList.contains('pr-wrap')) return el;
+        const kind = revealKind(el);
+        if (kind !== 'code' && kind !== 'image') return el;
+        const wrap = document.createElement('div');
+        wrap.className = 'pr-wrap';
+        wrap.dataset.pr = kind;
+        el.replaceWith(wrap);
+        wrap.appendChild(el);
+        return wrap;
+      });
+      blocks.forEach((el) => {
+        const kind = el.dataset.pr || revealKind(el);
+        el.dataset.pr = kind;
+        el.classList.add('pr');
+        if (kind === 'table') el.querySelectorAll('tr').forEach((row, i) => row.style.setProperty('--i', String(Math.min(i, 12))));
+        if (kind === 'list') Array.from(el.children).forEach((li, i) => (li as HTMLElement).style.setProperty('--i', String(Math.min(i, 8))));
+      });
+
+      if (reduceMotion) {
+        blocks.forEach((el) => el.classList.add('is-in'));
+      } else {
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            // Replays every time a block comes back into view
+            entry.target.classList.toggle('is-in', entry.isIntersecting);
+          });
+        }, { rootMargin: '0px 0px -6% 0px', threshold: 0 });
+        blocks.forEach((el) => io.observe(el));
+        signal.addEventListener('abort', () => io.disconnect());
+      }
+
+      // ---------- Reading spine: draws with scroll, ink dots per h2 ----------
+      const body = document.querySelector<HTMLElement>('[data-post-body]');
+      const spine = document.querySelector<HTMLElement>('[data-post-spine]');
+      const spineLine = document.querySelector<SVGLineElement>('[data-post-spine-line]');
+      const dots: HTMLElement[] = [];
+
+      function placeDots() {
+        if (!body || !spine) return;
+        dots.forEach((d) => d.remove());
+        dots.length = 0;
+        const bodyTop = body.getBoundingClientRect().top;
+        prose.querySelectorAll<HTMLElement>('h2').forEach((h2) => {
+          const dot = document.createElement('i');
+          dot.className = 'post-spine-dot';
+          const y = h2.getBoundingClientRect().top - bodyTop + parseFloat(getComputedStyle(h2).paddingTop) + 14;
+          dot.style.top = `${Math.round(y)}px`;
+          spine.appendChild(dot);
+          dots.push(dot);
+        });
+      }
+
+      if (body && spine && spineLine && !reduceMotion) {
+        placeDots();
+        // Written straight from scroll progress (pathLength="1", so offset 1 → 0 is empty → full)
+        const spineState = { p: 0 };
+        const paint = () => { spineLine.style.strokeDashoffset = String(1 - spineState.p); };
+        paint();
+        ScrollTrigger.create({
+          id: `${TRIGGER_PREFIX}spine`,
+          trigger: body,
+          start: 'top 65%',
+          end: 'bottom 55%',
+          onUpdate: (self) => {
+            gsap.to(spineState, { p: self.progress, duration: 0.4, ease: 'power2.out', overwrite: true, onUpdate: paint });
+          },
+        });
+
+        const headings = Array.from(prose.querySelectorAll<HTMLElement>('h2'));
+        const litIo = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            const index = headings.indexOf(entry.target as HTMLElement);
+            const dot = dots[index];
+            if (!dot) return;
+            const passed = entry.isIntersecting || entry.boundingClientRect.top < 0;
+            dot.classList.toggle('is-lit', passed);
+          });
+        }, { rootMargin: '-35% 0px -35% 0px' });
+        headings.forEach((h) => litIo.observe(h));
+        signal.addEventListener('abort', () => litIo.disconnect());
+
+        // Images and fonts shift layout after first paint — keep the dots pinned to their headings
+        const ro = new ResizeObserver(() => { placeDots(); ScrollTrigger.refresh(); });
+        ro.observe(prose);
+        signal.addEventListener('abort', () => ro.disconnect());
+      }
+
+      (window as any)[CLEANUP_KEY] = () => {
+        controller.abort();
+        timers.forEach((id) => window.clearTimeout(id));
+        dots.forEach((d) => d.remove());
+        ScrollTrigger.getAll().forEach((trigger) => {
+          if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
+        });
+        (window as any)[CLEANUP_KEY] = undefined;
+      };
+    }
+
+    initPostReveal();
+
+    if (!(window as any)[LISTENER_KEY]) {
+      document.addEventListener('astro:page-load', initPostReveal);
+      // Locked posts reveal their body only after the password check
+      window.addEventListener('post-unlocked', initPostReveal);
+      (window as any)[LISTENER_KEY] = true;
+    }
+  </script>
   <script is:inline>
     (() => {
       const cleanupKey = '__areSetPostTocCleanup__';
@@ -362,6 +641,16 @@ const hasToc = tocHeadings.length > 1;
 
             const toolbar = document.createElement('div');
             toolbar.className = 'code-block-toolbar';
+
+            // `title="MyActor.h"` on the fence becomes the primary label (see astro.config.mjs)
+            const fileName = pre.getAttribute('data-title');
+            if (fileName) {
+              toolbar.dataset.titled = 'true';
+              const titleEl = document.createElement('span');
+              titleEl.className = 'code-block-title';
+              titleEl.textContent = fileName;
+              toolbar.appendChild(titleEl);
+            }
 
             const label = document.createElement('span');
             label.className = 'code-block-language';

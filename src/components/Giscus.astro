@@ -39,7 +39,7 @@
       (function() {
         var giscusScript = document.currentScript && document.currentScript.previousElementSibling;
         if (!giscusScript) return;
-        var theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark_dimmed' : 'light';
+        var theme = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark_dimmed';
         giscusScript.setAttribute('data-theme', theme);
       })();
     </script>

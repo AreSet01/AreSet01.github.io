@@ -38,9 +38,14 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <ClientRouter />
     <script is:inline>
       (function(){
+        // Hide [data-enter] elements before first paint so the enter choreography can reveal them
+        document.documentElement.classList.add('js-enter');
         try {
           if (localStorage.getItem('sidebar-collapsed') === 'true') {
             document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
+          }
+          if (localStorage.getItem('pixel-mode') === 'true') {
+            document.documentElement.setAttribute('data-pixel', 'true');
           }
         } catch (e) {}
 
@@ -50,14 +55,14 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         function getStoredTheme() {
           try {
             var stored = localStorage.getItem('theme');
-            return stored === 'dark' || stored === 'light' ? stored : null;
+            return stored === 'dark' || stored === 'light' || stored === 'moss' ? stored : null;
           } catch (error) {
             return null;
           }
         }
 
         function resolveTheme(explicitTheme) {
-          if (explicitTheme === 'dark' || explicitTheme === 'light') return explicitTheme;
+          if (explicitTheme === 'dark' || explicitTheme === 'light' || explicitTheme === 'moss') return explicitTheme;
           var storedTheme = getStoredTheme();
           if (storedTheme) return storedTheme;
           return window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
@@ -65,12 +70,12 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
         function syncThemeColor(theme) {
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', theme === 'dark' ? '#0a0a0a' : '#ffffff');
-          document.documentElement.style.colorScheme = theme;
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#0a0a0a' : theme === 'moss' ? '#62A06F' : '#ffffff');
+          document.documentElement.style.colorScheme = theme === 'light' ? 'light' : 'dark';
         }
 
         function syncGiscusTheme(theme) {
-          var giscusTheme = theme === 'dark' ? 'dark_dimmed' : 'light';
+          var giscusTheme = theme === 'light' ? 'light' : 'dark_dimmed';
           var script = document.querySelector('script[src="https://giscus.app/client.js"]');
           if (script) script.setAttribute('data-theme', giscusTheme);
 
@@ -379,16 +384,317 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
       setupShiftHorizontalScroll();
 
-      // Page Load / Transition Animation (墨迹扩散展开)
-      document.addEventListener('astro:page-load', () => {
-        const main = document.querySelector('main');
-        if (main) {
-          gsap.fromTo(main, 
-            { opacity: 0, y: 30, filter: 'blur(12px)', scale: 0.98 }, 
-            { opacity: 1, y: 0, filter: 'blur(0px)', scale: 1, duration: 1.0, ease: "ink", clearProps: "all" }
-          );
+      // ================= Page-enter choreography =================
+      // Every [data-enter] element flies in with a fast-in / long-settle ease, and plays again each
+      // time it scrolls back into view. Kinds:
+      //   left | right | top | bottom | scale — transform + opacity only
+      //   stamp — seal slams down (scale + rotate), ink splash on landing, number counts up
+      //   ink   — a drop of ink at the row's left edge spreads into the whole row (clip-path)
+      // On first paint the authored direction plays; on scroll re-entries the vertical component
+      // follows the scroll (rising in from below when scrolling down, dropping in from above when
+      // scrolling up) so the motion always agrees with where the element actually came from.
+      // Opt-outs: data-enter-once (sidebar: only on hard loads), data-no-replay (inside pins).
+      // Nothing here touches filter/blur, so the whole sequence stays on the compositor.
+      const ENTER_OFFSET = { left: -140, right: 140, top: -110, bottom: 110 };
+      const ENTER_SCROLL_BIAS = 44; // vertical nudge on horizontal kinds during scroll re-entries
+      const ENTER_TRIGGER_PREFIX = 'enter:';
+      // Sides converge first, then verticals, then scale/stamps, ink rows last
+      const ENTER_ORDER = { left: 0, right: 0, top: 1, bottom: 1, scale: 2, stamp: 2, ink: 3 };
+      const ENTER_STAGGER = { default: 0.09, stamp: 0.13, ink: 0.07 };
+      let hasNavigated = false;
+
+      // Fast in, very long settle: 70% of the distance in the first fifth of the time
+      CustomEase.create('enter', 'M0,0 C0.06,0.62 0.16,0.9 0.42,0.975 0.62,1.005 0.8,1 1,1');
+
+      // Which way the page is moving — CSS reveals (post body) read it off <html>
+      ScrollTrigger.create({
+        id: 'scroll-direction',
+        onUpdate: (self) => {
+          document.documentElement.dataset.scrollDir = self.direction === -1 ? 'up' : 'down';
+        },
+      });
+
+      function enterKind(el) {
+        return el.dataset.enter || 'bottom';
+      }
+
+      function isVisibleInFlow(el) {
+        return el.offsetParent !== null || getComputedStyle(el).position === 'fixed';
+      }
+
+      // Rotation the stylesheet gives this element (e.g. .home-stat's rotate(-1.5deg)), in degrees
+      function restingRotation(el) {
+        const wasEntering = el.classList.contains('is-entering');
+        el.classList.remove('is-entering'); // .is-entering forces transform:none — read the real value
+        const matrix = getComputedStyle(el).transform;
+        if (wasEntering) el.classList.add('is-entering');
+        const match = /matrix\(([^,]+),([^,]+)/.exec(matrix);
+        if (!match) return 0;
+        return Math.atan2(parseFloat(match[2]), parseFloat(match[1])) * 180 / Math.PI;
+      }
+
+      function inkOrigin(el) {
+        // Spread from where the date sits; falls back to the row's leading edge
+        const seed = el.querySelector('time') || el;
+        const rowRect = el.getBoundingClientRect();
+        const seedRect = seed.getBoundingClientRect();
+        const x = seedRect.left - rowRect.left + Math.min(seedRect.width, 40) / 2;
+        const y = seedRect.top - rowRect.top + seedRect.height / 2;
+        return `${Math.round(x)}px ${Math.round(y)}px`;
+      }
+
+      function finishEnter(el) {
+        el.classList.remove('is-entering');
+        el.classList.add('is-entered');
+        gsap.set(el, { clearProps: 'transform,opacity,clipPath' });
+      }
+
+      function countUp(el, delay) {
+        const target = Number(el.dataset.count);
+        if (!Number.isFinite(target)) return;
+        gsap.killTweensOf(el);
+        const counter = { value: 0 };
+        gsap.to(counter, {
+          value: target,
+          duration: 1.3,
+          delay,
+          ease: 'expo.out',
+          onUpdate: () => { el.textContent = String(Math.round(counter.value)); },
+          onComplete: () => { el.textContent = String(target); },
+        });
+      }
+
+      function splashAt(el) {
+        if (typeof window.__inkSplash !== 'function') return;
+        const rect = el.getBoundingClientRect();
+        window.__inkSplash(rect.left + rect.width / 2, rect.top + rect.height / 2, 14);
+      }
+
+      // Adds this element's entrance to `tl` at `at` seconds; returns how long to wait before the
+      // next one. `scrollDir` is null for the first-paint choreography, 'down' | 'up' on re-entries.
+      function scheduleEnter(tl, el, at, scrollDir = null) {
+        const kind = enterKind(el);
+        el.dataset.enterState = 'in';
+        el.classList.remove('is-entered');
+        el.classList.add('is-entering');
+
+        if (kind === 'stamp') {
+          // Land on the card's own CSS tilt so clearProps hands back to the stylesheet without a snap
+          const restRotation = restingRotation(el);
+          gsap.set(el, { opacity: 0, scale: 1.7, rotation: restRotation - 14, transformOrigin: '50% 50%' });
+          tl.to(el, {
+            opacity: 1, scale: 1, rotation: restRotation,
+            duration: 0.62,
+            ease: 'back.out(2.2)',
+            onStart: () => { gsap.delayedCall(0.2, () => splashAt(el)); },
+            onComplete: () => finishEnter(el),
+          }, at);
+          el.querySelectorAll('[data-count]').forEach((numEl) => countUp(numEl, at + 0.25));
+          return ENTER_STAGGER.stamp;
         }
 
+        if (kind === 'ink') {
+          const origin = inkOrigin(el);
+          gsap.set(el, { opacity: 1, clipPath: `circle(0px at ${origin})` });
+          tl.to(el, {
+            clipPath: `circle(${Math.ceil(Math.hypot(el.offsetWidth, el.offsetHeight))}px at ${origin})`,
+            duration: 1.1,
+            ease: 'enter',
+            onComplete: () => finishEnter(el),
+          }, at);
+          return ENTER_STAGGER.ink;
+        }
+
+        const from = { opacity: 0, x: 0, y: 0, scale: 1 };
+        const scrollY = scrollDir ? (scrollDir === 'down' ? 1 : -1) : 0;
+        if (kind === 'left' || kind === 'right') {
+          from.x = ENTER_OFFSET[kind];
+          from.y = scrollY * ENTER_SCROLL_BIAS;
+        } else if (kind === 'top' || kind === 'bottom') {
+          // Authored direction on first paint; whichever edge it's entering from afterwards
+          from.y = scrollDir ? scrollY * ENTER_OFFSET.bottom : ENTER_OFFSET[kind];
+        } else if (kind === 'scale') {
+          from.scale = 0.78;
+          from.y = scrollY * ENTER_SCROLL_BIAS * 0.5;
+        }
+
+        gsap.set(el, from);
+        tl.to(el, {
+          opacity: 1, x: 0, y: 0, scale: 1,
+          duration: 1.6,
+          ease: 'enter',
+          onComplete: () => finishEnter(el),
+        }, at);
+        return ENTER_STAGGER.default;
+      }
+
+      // Scroll re-entry: play again, from the edge the element is crossing
+      function replayEnter(el, scrollDir) {
+        if (el.dataset.enterState === 'in') return;
+        if (!isVisibleInFlow(el)) return;
+        gsap.killTweensOf(el);
+        scheduleEnter(gsap.timeline(), el, 0, scrollDir);
+      }
+
+      // Scrolled fully out of the viewport: reset silently and arm for the next crossing
+      function leaveEnter(el) {
+        if (el.dataset.enterState !== 'in') return;
+        el.dataset.enterState = 'out';
+        gsap.killTweensOf(el);
+        el.classList.remove('is-entered', 'is-entering');
+        if (isVisibleInFlow(el)) gsap.set(el, { opacity: 0 });
+      }
+
+      function initPageEnter() {
+        ScrollTrigger.getAll().forEach((trigger) => {
+          if (String(trigger.vars.id || '').startsWith(ENTER_TRIGGER_PREFIX)) trigger.kill();
+        });
+
+        const nodes = gsap.utils.toArray('[data-enter]');
+        const viewportH = window.innerHeight;
+        const immediate = [];
+        const deferred = [];
+        const replayable = [];
+
+        nodes.forEach((el) => {
+          el.classList.remove('is-entered', 'is-entering');
+          delete el.dataset.enterState;
+          // The sidebar only makes its entrance once; on client navigations it stays put
+          if (el.hasAttribute('data-enter-once')) {
+            if (hasNavigated) { el.classList.add('is-entered'); el.dataset.enterState = 'in'; return; }
+            immediate.push(el);
+            return;
+          }
+          if (!el.hasAttribute('data-no-replay')) replayable.push(el);
+          const rect = el.getBoundingClientRect();
+          const onScreen = rect.top < viewportH * 0.92 && rect.bottom > 0;
+          (onScreen ? immediate : deferred).push(el);
+        });
+
+        // Stable sort: by direction group, document order within a group
+        immediate.sort((a, b) => (ENTER_ORDER[enterKind(a)] ?? 1) - (ENTER_ORDER[enterKind(b)] ?? 1));
+
+        if (immediate.length) {
+          // Leave a beat after the page swap so the "page turn" reads before parts fly in
+          const tl = gsap.timeline({ delay: hasNavigated ? 0.14 : 0.06 });
+          let at = 0;
+          let lastGroup = -1;
+          immediate.forEach((el) => {
+            const group = ENTER_ORDER[enterKind(el)] ?? 1;
+            if (lastGroup !== -1 && group !== lastGroup) at += 0.08; // small breath between groups
+            lastGroup = group;
+            at += scheduleEnter(tl, el, at);
+          });
+        }
+
+        deferred.forEach((el) => {
+          el.dataset.enterState = 'out';
+          gsap.set(el, { opacity: 0 }); // pre-hide so nothing pops before its trigger fires
+          if (el.hasAttribute('data-no-replay')) {
+            // One-shot: the old behaviour for elements that live inside a pinned stage
+            ScrollTrigger.create({
+              id: `${ENTER_TRIGGER_PREFIX}once-${deferred.indexOf(el)}`,
+              trigger: el,
+              start: 'top 90%',
+              once: true,
+              onEnter: () => replayEnter(el, 'down'),
+            });
+          }
+        });
+
+        // Two triggers per element, because the thresholds are asymmetric: it should *play* once
+        // it is a little way in, but only *reset* once it is entirely off-screen — otherwise
+        // anything sitting near the top edge at scroll 0 (the hero eyebrow) would be "gone" after
+        // a few px of layout shift and never come back.
+        //
+        // "A little way in" is 12% of the viewport, or most of the element's own height for small
+        // things — but never more than the element's distance from the top of the document.
+        // Without that last clamp, the range for anything sitting at the very top of the page
+        // lands at negative scroll positions (the hero eyebrow measured -1064..-15, which no
+        // scroll can cross, so it played once on load and never again).
+        const reach = (el) => {
+          const docBottom = el.getBoundingClientRect().bottom + window.scrollY;
+          return Math.round(Math.max(4, Math.min(window.innerHeight * 0.12, el.offsetHeight * 0.6 + 24, docBottom - 4)));
+        };
+        replayable.forEach((el, index) => {
+          ScrollTrigger.create({
+            id: `${ENTER_TRIGGER_PREFIX}in-${index}`,
+            trigger: el,
+            start: () => `top bottom-=${reach(el)}`,
+            end: () => `bottom top+=${reach(el)}`,
+            onEnter: () => replayEnter(el, 'down'),
+            onEnterBack: () => replayEnter(el, 'up'),
+          });
+          ScrollTrigger.create({
+            id: `${ENTER_TRIGGER_PREFIX}out-${index}`,
+            trigger: el,
+            start: 'top bottom',
+            end: 'bottom top',
+            onLeave: () => leaveEnter(el),
+            onLeaveBack: () => leaveEnter(el),
+          });
+        });
+
+        // Home hero: copy drifts up and fades as the reader scrolls past it.
+        // The enter animation lives on the hero's children, so this scrub owns the wrapper alone.
+        const heroCopy = document.querySelector('.home-hero-copy');
+        if (heroCopy) {
+          gsap.to(heroCopy, {
+            y: -80,
+            opacity: 0,
+            ease: 'none',
+            immediateRender: false,
+            scrollTrigger: {
+              id: `${ENTER_TRIGGER_PREFIX}hero-parallax`,
+              trigger: '.home-hero',
+              start: 'top top',
+              end: 'bottom top',
+              scrub: true,
+            },
+          });
+        }
+      }
+
+      // astro:page-load waits for window.load (fonts, the Giscus iframe…) — far too late to start
+      // the entrance. This module script runs once the DOM is parsed, so kick off right away and
+      // let page-load only cover client-side navigations.
+      //
+      // A page may put data-enter-hold on an element to postpone its entrance behind an intro of
+      // its own (About's pixel-gather). It then calls window.__releasePageEnter() when ready.
+      let enteredThisDocument = false;
+      let holdRelease = null;
+      let releasedEarly = false;
+      window.__releasePageEnter = () => {
+        if (holdRelease) {
+          const release = holdRelease;
+          holdRelease = null;
+          release();
+        } else {
+          releasedEarly = true;
+        }
+      };
+      function runPageEnter() {
+        enteredThisDocument = true;
+        if (document.querySelector('[data-enter-hold]') && !releasedEarly) {
+          holdRelease = () => initPageEnter();
+          return;
+        }
+        releasedEarly = false;
+        initPageEnter();
+      }
+      runPageEnter();
+
+      document.addEventListener('astro:after-swap', () => {
+        hasNavigated = true;
+        enteredThisDocument = false;
+        holdRelease = null;
+        releasedEarly = false;
+        // Astro resets <html> attributes on swap — re-arm the pre-paint hide
+        document.documentElement.classList.add('js-enter');
+      });
+
+      document.addEventListener('astro:page-load', () => {
+        if (!enteredThisDocument) runPageEnter();
         initMagneticButtons();
         initScrollableContainers();
       });
@@ -400,7 +706,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
       function initMagneticButtons() {
         // if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         
-        const magneticElements = document.querySelectorAll('.btn-primary, .btn-secondary, .nav-link, .tag-chip');
+        const magneticElements = document.querySelectorAll('.btn-primary, .btn-secondary, .nav-link, .tag-chip, .nav-search-trigger');
         
         magneticElements.forEach(el => {
           // Store original transform if any
@@ -439,25 +745,25 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             mutations.forEach(mutation => {
               if (mutation.attributeName === 'class') {
                 const isOpen = overlay.classList.contains('is-open');
-                const modalInner = overlay.querySelector('.search-modal, .preview-modal, .image-viewer-shell');
+                const modalInner = overlay.querySelector('.search-panel, .preview-modal, .image-viewer-shell');
                 
                 if (isOpen && modalInner && window.gsap) {
                   // Find elements to stagger
                   const children = Array.from(modalInner.children);
                   
                   // Reset first
-                  gsap.set(children, { y: 20, opacity: 0, filter: 'blur(8px)' });
-                  
+                  gsap.set(children, { y: 18, opacity: 0 });
+
                   // Animate in
                   gsap.to(children, {
                     y: 0,
                     opacity: 1,
-                    filter: 'blur(0px)',
-                    duration: 0.85,
-                    stagger: 0.06,
+                    duration: 0.9,
+                    stagger: 0.07,
                     ease: "ink",
-                    delay: 0.05,
-                    overwrite: "auto"
+                    delay: 0.16,
+                    overwrite: "auto",
+                    clearProps: "transform,opacity"
                   });
                 }
               }
@@ -493,8 +799,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
 
         function sparkle(x, y, count) {
-          const isDarkTheme = document.documentElement.getAttribute('data-theme') === 'dark';
-          const sparkleColors = isDarkTheme ? [
+          const currentTheme = document.documentElement.getAttribute('data-theme');
+          const sparkleColors = currentTheme === 'moss' ? [
+            '#FFF1F4', '#FFC2D1', '#FBE3E9', '#FFD3DE',
+            '#F0C4CF', '#FFE4EA', '#FFB6C8', '#FFF7F9'
+          ] : currentTheme === 'dark' ? [
             '#ffffff', '#f2f2f2', '#e6e6e6', '#d9d9d9',
             '#cccccc', '#bfbfbf', '#b3b3b3', '#a6a6a6'
           ] : [
@@ -592,84 +901,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           document.body.appendChild(frag);
         }
 
-        function initRevealUp() {
-          if (!window.gsap || !window.ScrollTrigger) {
-            // Fallback if GSAP isn't loaded yet
-            setTimeout(initRevealUp, 50);
-            return;
-          }
-
-          const { gsap, ScrollTrigger } = window;
-          const revealNodes = gsap.utils.toArray('.reveal-up');
-          
-          if (!revealNodes.length) return;
-
-          // Parallax effect for hero section (水墨扩散展开感)
-          const heroCopy = document.querySelector('.home-hero-copy');
-          const heroRail = document.querySelector('.home-rail');
-          
-          if (heroCopy && heroRail) {
-            gsap.fromTo(heroCopy, 
-              { y: 40, opacity: 0, filter: 'blur(12px)' }, 
-              { y: 0, opacity: 1, filter: 'blur(0px)', duration: 1.2, ease: "ink", delay: 0.1 }
-            );
-            gsap.fromTo(heroRail, 
-              { x: 20, opacity: 0 }, 
-              { x: 0, opacity: 1, duration: 1.0, ease: "ink", delay: 0.2 }
-            );
-
-            // Parallax on scroll
-            gsap.to(heroCopy, {
-              y: -80,
-              opacity: 0,
-              ease: "none",
-              immediateRender: false, // Fix bug where it disappears after scrolling down
-              scrollTrigger: {
-                trigger: ".home-hero",
-                start: "top top",
-                end: "bottom top",
-                scrub: true
-              }
-            });
-          }
-
-          // Replace old CSS reveal with GSAP staggered reveal
-          revealNodes.forEach((node) => {
-            // Remove old classes to prevent conflicts
-            node.classList.remove('reveal-up');
-            
-            // Set initial state
-            gsap.set(node, { y: 30, opacity: 0, filter: 'blur(8px)' });
-
-            ScrollTrigger.create({
-              trigger: node,
-              start: "top 85%", // Reveal when top of element hits 85% of viewport
-              onEnter: () => {
-                gsap.to(node, {
-                  y: 0,
-                  opacity: 1,
-                  filter: 'blur(0px)',
-                  duration: 0.85, // Faster reveal
-                  ease: "ink",
-                  overwrite: "auto"
-                });
-              },
-              onLeaveBack: () => {
-                // Optional: hide again when scrolling back up
-                gsap.to(node, {
-                  y: 15,
-                  opacity: 0,
-                  filter: 'blur(4px)',
-                  duration: 0.8,
-                  ease: "power2.inOut",
-                  overwrite: "auto"
-                });
-              }
-            });
-          });
-        }
-
-        initRevealUp();
+        window.__inkSplash = sparkle;
 
         document.addEventListener('click', (event) => {
           const isPreviewOpen =
@@ -1066,6 +1298,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
                 class="search-result${index === searchActiveIndex ? ' is-active' : ''}"
                 data-search-result
                 data-index="${index}"
+                style="--i: ${index}"
                 aria-selected="${index === searchActiveIndex ? 'true' : 'false'}"
               >
                 <div class="search-result-top">
@@ -1205,6 +1438,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           requestAnimationFrame(() => {
             searchOverlay.classList.add('is-open');
             document.body.classList.add('search-open');
+            animateSearchModal(true);
           });
 
           // In dev mode, always refresh so article edits/deletions reflect immediately
@@ -1242,7 +1476,44 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             return;
           }
 
-          searchCloseTimer = window.setTimeout(finishSearchClose, 460);
+          animateSearchModal(false);
+          searchCloseTimer = window.setTimeout(finishSearchClose, 380);
+        }
+
+        // The palette unfolds from wherever it was summoned (the sidebar field, or top-centre
+        // for the keyboard shortcut) and folds back there on close. Transform + opacity only.
+        function animateSearchModal(opening) {
+          const modalEl = searchOverlay?.querySelector('.search-modal');
+          if (!modalEl || !window.gsap || prefersReducedMotion) return;
+
+          const modalRect = modalEl.getBoundingClientRect();
+          let x = 0;
+          let y = -36;
+          let scaleX = 0.92;
+          let scaleY = 0.86;
+          if (searchSourceEl instanceof Element && searchSourceEl.isConnected) {
+            const src = searchSourceEl.getBoundingClientRect();
+            if (src.width > 0 && src.height > 0) {
+              x = src.left + src.width / 2 - (modalRect.left + modalRect.width / 2);
+              y = src.top + src.height / 2 - (modalRect.top + modalRect.height / 2);
+              scaleX = Math.max(0.18, src.width / Math.max(modalRect.width, 1));
+              scaleY = Math.max(0.06, src.height / Math.max(modalRect.height, 1));
+            }
+          }
+
+          window.gsap.killTweensOf(modalEl);
+          if (opening) {
+            window.gsap.fromTo(modalEl,
+              { x, y, scaleX, scaleY, opacity: 0 },
+              { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, duration: 0.82, ease: 'ink', overwrite: true,
+                clearProps: 'transform,opacity' }
+            );
+          } else {
+            window.gsap.to(modalEl, {
+              x, y, scaleX, scaleY, opacity: 0, duration: 0.34, ease: 'power3.in', overwrite: true,
+              onComplete: () => window.gsap.set(modalEl, { clearProps: 'transform,opacity' }),
+            });
+          }
         }
 
         function releaseAnimation(animation) {
@@ -2038,8 +2309,9 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           var btn = e.target.closest('[data-theme-toggle]');
           if (!btn) return;
 
+          // light → dark → moss → light
           var current = document.documentElement.getAttribute('data-theme') || 'light';
-          var next = current === 'dark' ? 'light' : 'dark';
+          var next = current === 'light' ? 'dark' : current === 'dark' ? 'moss' : 'light';
 
           try {
             localStorage.setItem('theme', next);

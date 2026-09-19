@@ -2,6 +2,9 @@
 const navItems = [
   { label: 'Home', labelZh: 'Main*', href: '/' },
   { label: 'Archive', labelZh: 'All Doc', href: '/archive' },
+  { label: 'Timeline', labelZh: 'Timeline', href: '/timeline' },
+  { label: 'Tags', labelZh: 'Tags', href: '/tags' },
+  { label: 'Stats', labelZh: 'Stats', href: '/stats' },
   { label: 'About', labelZh: 'About Me', href: '/about' },
 ];
 
@@ -17,7 +20,7 @@ const isActive = (href: string) => {
 const year = new Date().getFullYear();
 ---
 
-<header class="glass-nav">
+<header class="glass-nav" data-enter="left" data-enter-once>
   <div class="glass-nav-inner h-full flex flex-col justify-between">
     <div class="flex flex-col gap-10 lg:gap-14 w-full">
       <div class="flex items-center justify-between w-full">
@@ -46,10 +49,9 @@ const year = new Date().getFullYear();
           aria-haspopup="dialog"
           aria-controls="site-search"
           aria-label="打开搜索"
-          style="margin-bottom: 2rem; border: 1px solid var(--rule); padding: 0.6rem 0.8rem; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; width: 100%;"
         >
-          <span style="font-family: var(--font-body); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted-strong);">Search</span>
-          <span class="nav-search-kbd" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted-strong);">⌘K</span>
+          <span class="nav-search-label">Search<i class="nav-search-caret" aria-hidden="true"></i></span>
+          <span class="nav-search-kbd">⌘K</span>
         </button>
         <nav class="nav-links">
           {navItems.map(item => (
@@ -64,7 +66,7 @@ const year = new Date().getFullYear();
         <button
           class="theme-toggle"
           type="button"
-          aria-label="切换深色模式"
+          aria-label="切换主题"
           data-theme-toggle
         >
           <svg class="icon-sun" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -72,6 +74,9 @@ const year = new Date().getFullYear();
           </svg>
           <svg class="icon-moon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+          </svg>
+          <svg class="icon-leaf" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M17 3c-6.5 0-11 2.6-12.6 7.4-.9 2.7-.4 5.2.1 6.4l1.3-2.3c1.1-2 3.1-4.4 6.4-6.2-2.6 2.4-4.4 5-5.4 7.7 1.3.3 3.6.3 5.6-.7C16.2 13.4 17.3 8.3 17 3z" />
           </svg>
         </button>
       </div>
@@ -147,7 +152,7 @@ const year = new Date().getFullYear();
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
     const theme = document.documentElement.getAttribute('data-theme') || 'light';
-    const color = theme === 'dark' ? '255,255,255' : '26,24,20';
+    const color = theme === 'dark' ? '255,255,255' : theme === 'moss' ? '255,241,244' : '26,24,20';
     const [baseR, baseG, baseB] = color.split(',').map(Number);
 
     // Spring physics
@@ -340,30 +345,97 @@ const year = new Date().getFullYear();
 </script>
 
 <script>
+import gsap from 'gsap';
+
+// Sidebar folds away like a paper door: items file out to the left, the panel swings on its
+// left hinge (rotateY), then the column width collapses. Expanding runs it in reverse.
 (function setupSidebarController() {
+  let folding = null;
+
+  function persist(collapsed) {
+    try { localStorage.setItem('sidebar-collapsed', collapsed ? 'true' : 'false'); } catch (e) {}
+  }
+
+  function parts(inner) {
+    // Direct visual groups of the sidebar, top to bottom: the brand row, the nav cluster, the footer
+    return Array.from(inner.querySelectorAll(':scope > div:first-child > *, :scope > div:last-child'));
+  }
+
+  function collapse(nav, inner) {
+    if (folding) folding.kill();
+    const items = parts(inner);
+    document.documentElement.setAttribute('data-sidebar-folding', 'true');
+    folding = gsap.timeline({
+      defaults: { overwrite: 'auto' },
+      onComplete: () => {
+        document.documentElement.removeAttribute('data-sidebar-folding');
+        folding = null;
+        window.dispatchEvent(new Event('resize'));
+      },
+    });
+    folding
+      .to(items, { x: -28, opacity: 0, duration: 0.34, ease: 'power3.in', stagger: 0.04 }, 0)
+      .to(inner, { rotationY: -78, opacity: 0, duration: 0.58, ease: 'power3.in', transformOrigin: 'left center' }, 0.12)
+      .add(() => {
+        document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
+        persist(true);
+      }, 0.3)
+      .to({}, { duration: 0.85 }); // let the CSS column transition finish before onComplete
+  }
+
+  function expand(nav, inner) {
+    if (folding) folding.kill();
+    const items = parts(inner);
+    document.documentElement.setAttribute('data-sidebar-folding', 'true');
+    gsap.set(inner, { rotationY: -78, opacity: 0, transformOrigin: 'left center' });
+    gsap.set(items, { x: -28, opacity: 0 });
+    document.documentElement.removeAttribute('data-sidebar-collapsed');
+    persist(false);
+    folding = gsap.timeline({
+      defaults: { overwrite: 'auto' },
+      onComplete: () => {
+        gsap.set([inner, ...items], { clearProps: 'transform,opacity' });
+        document.documentElement.removeAttribute('data-sidebar-folding');
+        folding = null;
+        window.dispatchEvent(new Event('resize'));
+      },
+    });
+    folding
+      .to(inner, { rotationY: 0, opacity: 1, duration: 0.9, ease: 'expo.out' }, 0.26)
+      .to(items, { x: 0, opacity: 1, duration: 0.8, ease: 'expo.out', stagger: 0.05 }, 0.42);
+  }
+
   function setupSidebar() {
+    const nav = document.querySelector('.glass-nav');
+    const inner = nav?.querySelector('.glass-nav-inner');
     const collapseBtn = document.querySelector('[data-sidebar-collapse]');
     const expandBtn = document.querySelector('[data-sidebar-expand]');
+    if (!nav || !inner) return;
+    if (nav.dataset.sidebarBound === 'true') return;
+    nav.dataset.sidebarBound = 'true';
 
-    function setCollapsed(collapsed) {
-      if (collapsed) {
-        document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
-        try { localStorage.setItem('sidebar-collapsed', 'true'); } catch (e) {}
-      } else {
-        document.documentElement.removeAttribute('data-sidebar-collapsed');
-        try { localStorage.setItem('sidebar-collapsed', 'false'); } catch (e) {}
-      }
-      window.dispatchEvent(new Event('resize'));
-    }
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     collapseBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
-      setCollapsed(true);
+      if (reduceMotion) {
+        document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
+        persist(true);
+        window.dispatchEvent(new Event('resize'));
+        return;
+      }
+      collapse(nav, inner);
     });
 
     expandBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
-      setCollapsed(false);
+      if (reduceMotion) {
+        document.documentElement.removeAttribute('data-sidebar-collapsed');
+        persist(false);
+        window.dispatchEvent(new Event('resize'));
+        return;
+      }
+      expand(nav, inner);
     });
   }
 
@@ -381,18 +453,24 @@ const year = new Date().getFullYear();
     .site-shell {
       padding-left: 0 !important;
       gap: clamp(2.5rem, 5vw, 4.5rem);
-      transition: gap 420ms cubic-bezier(0.16, 1, 0.3, 1),
-                  padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
+      transition: gap 820ms cubic-bezier(0.22, 1, 0.36, 1),
+                  padding 820ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
+    /* The reading column keeps the same flex basis in both states; only max-width, margins and
+       padding change — all explicit lengths, so they interpolate. (margin:auto never animates,
+       which is what made the old version snap.) */
     .site-shell > main,
     .container-wide,
     .container-medium {
+      flex: 1 1 0% !important;
+      max-width: 100%;
+      margin-left: 0;
+      margin-right: 0;
       padding-right: clamp(2rem, 4vw, 3rem) !important;
-      transition: max-width 420ms cubic-bezier(0.16, 1, 0.3, 1),
-                  width 420ms cubic-bezier(0.16, 1, 0.3, 1),
-                  margin 420ms cubic-bezier(0.16, 1, 0.3, 1),
-                  padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
+      transition: max-width 820ms cubic-bezier(0.22, 1, 0.36, 1),
+                  margin 820ms cubic-bezier(0.22, 1, 0.36, 1),
+                  padding 820ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .glass-nav {
@@ -403,24 +481,29 @@ const year = new Date().getFullYear();
       min-width: clamp(14rem, 20vw, 18rem);
       flex-shrink: 0;
       overflow: visible;
-      transition: width 420ms cubic-bezier(0.16, 1, 0.3, 1),
-                  min-width 420ms cubic-bezier(0.16, 1, 0.3, 1),
-                  margin-left 420ms cubic-bezier(0.16, 1, 0.3, 1),
-                  opacity 320ms ease,
-                  transform 420ms cubic-bezier(0.16, 1, 0.3, 1) !important;
-      will-change: width, min-width, margin-left, transform, opacity;
+      perspective: 1400px;
+      transition: width 820ms cubic-bezier(0.22, 1, 0.36, 1),
+                  min-width 820ms cubic-bezier(0.22, 1, 0.36, 1),
+                  margin-left 820ms cubic-bezier(0.22, 1, 0.36, 1),
+                  opacity 320ms ease !important;
     }
 
+    /* GSAP owns transform/opacity here (the hinge fold) — no CSS transition to fight it */
     .glass-nav-inner {
       width: clamp(14rem, 20vw, 18rem) !important;
       min-width: clamp(14rem, 20vw, 18rem) !important;
-      transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1),
-                  opacity 300ms ease,
-                  filter 300ms ease !important;
-      transform: translate3d(0, 0, 0);
-      opacity: 1;
-      filter: blur(0);
-      will-change: transform, opacity, filter;
+      transform-origin: left center;
+      transform-style: preserve-3d;
+      backface-visibility: hidden;
+      transition: none !important;
+    }
+
+    html[data-sidebar-folding="true"] .glass-nav-inner {
+      will-change: transform, opacity;
+    }
+
+    html[data-sidebar-folding="true"] .glass-nav {
+      pointer-events: none;
     }
 
     .home-topics {
@@ -461,50 +544,40 @@ const year = new Date().getFullYear();
     }
 
     /* COLLAPSED STATE */
+    /* Only width / min-width / opacity change here — all three are in the transition list.
+       (max-width:0 and padding:0 used to snap on the same frame the fold started.) */
     html[data-sidebar-collapsed="true"] .glass-nav {
       width: 0 !important;
       min-width: 0 !important;
-      max-width: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      border: none !important;
+      border-right-color: transparent !important;
       opacity: 0 !important;
       pointer-events: none !important;
       overflow: hidden !important;
     }
 
+    /* While the column is animating in either direction the panel must not spill over the page */
+    html[data-sidebar-folding="true"] .glass-nav {
+      overflow: hidden !important;
+    }
+
     html[data-sidebar-collapsed="true"] .glass-nav-inner {
-      transform: translate3d(-30px, 0, 0) scale(0.96);
-      opacity: 0 !important;
-      filter: blur(6px) !important;
+      opacity: 0;
     }
 
     html[data-sidebar-collapsed="true"] .site-shell {
       gap: 0 !important;
       padding-left: 0 !important;
       padding-right: 0 !important;
-      justify-content: center !important;
       width: 100% !important;
     }
 
-    html[data-sidebar-collapsed="true"] main,
-    html[data-sidebar-collapsed="true"] .site-shell > main {
-      flex: 0 1 auto !important;
-      width: 100% !important;
-      margin-inline: auto !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
-    }
-
-    /* CENTERED AND BALANCED READING AREA WHEN COLLAPSED */
+    /* Centered reading column: explicit symmetric margins do the centering, so the move animates */
     html[data-sidebar-collapsed="true"] .site-shell > main.container-wide,
     html[data-sidebar-collapsed="true"] main.container-wide,
     html[data-sidebar-collapsed="true"] .container-wide {
-      width: min(100% - 6rem, 78rem) !important;
       max-width: 78rem !important;
-      margin-inline: auto !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
+      margin-left: max(3rem, calc((100% - 78rem) / 2)) !important;
+      margin-right: max(3rem, calc((100% - 78rem) / 2)) !important;
       padding-left: clamp(1.5rem, 3.5vw, 3rem) !important;
       padding-right: clamp(1.5rem, 3.5vw, 3rem) !important;
     }
@@ -512,11 +585,9 @@ const year = new Date().getFullYear();
     html[data-sidebar-collapsed="true"] .site-shell > main.container-medium,
     html[data-sidebar-collapsed="true"] main.container-medium,
     html[data-sidebar-collapsed="true"] .container-medium {
-      width: min(100% - 6rem, 56rem) !important;
       max-width: 56rem !important;
-      margin-inline: auto !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
+      margin-left: max(3rem, calc((100% - 56rem) / 2)) !important;
+      margin-right: max(3rem, calc((100% - 56rem) / 2)) !important;
       padding-left: clamp(1.5rem, 3.5vw, 3rem) !important;
       padding-right: clamp(1.5rem, 3.5vw, 3rem) !important;
     }
@@ -545,7 +616,7 @@ const year = new Date().getFullYear();
       font-size: 1.1rem;
       letter-spacing: 0.04em;
       cursor: pointer;
-      animation: springSlideInExpandBtn 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation: stampInExpandBtn 520ms cubic-bezier(0.34, 1.56, 0.64, 1) 360ms both;
       transition: color 240ms ease,
                   border-color 240ms ease,
                   background 240ms ease,
@@ -586,16 +657,15 @@ const year = new Date().getFullYear();
     }
   }
 
-  @keyframes springSlideInExpandBtn {
+  /* The expand button lands like a small seal once the panel has folded away */
+  @keyframes stampInExpandBtn {
     0% {
       opacity: 0;
-      transform: translate3d(-20px, 0, 0) scale(0.9);
-      filter: blur(4px);
+      transform: rotate(-10deg) scale(1.45);
     }
     100% {
       opacity: 1;
-      transform: translate3d(0, 0, 0) scale(1);
-      filter: blur(0);
+      transform: rotate(0deg) scale(1);
     }
   }
 </style>

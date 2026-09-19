@@ -2,7 +2,10 @@
 title: "虚幻引擎 5 (UE5) C++ Meta 元数据完全技术指南：全景总览与导读"
 description: "《UE5 C++ Meta 元数据深度解析》系列全景总览与索引导航。系统梳理 29 个模块、300 余项 Meta 标签的设计哲学、UHT 编译机制与全套专题速查导航。"
 pubDate: 2026-09-17
-tags: ["UE5", "Unreal Engine", "C++", "反射系统", "Meta元数据", "Roadmap", "Index"]
+tags: ["Unreal Engine", "C++", "反射系统", "Meta元数据"]
+category: "引擎开发"
+series: "UE5 C++ Meta 元数据深度解析"
+seriesOrder: 0
 draft: false
 ---
 

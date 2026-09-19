@@ -1,4 +1,6 @@
 ---
+import { tagSlug } from '../utils/posts';
+
 interface Props {
   tags: string[];
   class?: string;
@@ -9,6 +11,6 @@ const { tags, class: className = '' } = Astro.props;
 
 <div class={`flex flex-wrap items-center gap-x-5 gap-y-1 ${className}`}>
   {tags.map(tag => (
-    <span class="tag-chip">{tag}</span>
+    <a class="tag-chip" href={`/tags/${tagSlug(tag)}`}>{tag}</a>
   ))}
 </div>

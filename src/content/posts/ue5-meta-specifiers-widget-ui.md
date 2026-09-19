@@ -1,8 +1,11 @@
 ---
 title: "UE5 C++ Meta 元数据深度解析（四）：UMG 与界面控件深度绑定"
 description: "全面拆解虚幻引擎 5 (UE5) 中 UMG 控件绑定（BindWidget 系列）、引脚交互（Pin）以及字符串动态选项（GetOptions 等）的核心 Meta 元数据，打造健壮高效的 UI 架构。"
-pubDate: 2026-09-21
-tags: ["UE5", "Unreal Engine", "C++", "反射系统", "Meta元数据", "UMG", "UI"]
+pubDate: 2026-09-19
+tags: ["Unreal Engine", "C++", "反射系统", "Meta元数据"]
+category: "引擎开发"
+series: "UE5 C++ Meta 元数据深度解析"
+seriesOrder: 4
 draft: false
 ---
 

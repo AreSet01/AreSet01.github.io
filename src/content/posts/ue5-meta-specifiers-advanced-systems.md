@@ -1,8 +1,11 @@
 ---
 title: "UE5 C++ Meta 元数据深度解析（六）：动画、GAS、RigVM 与系统扩展高级进阶"
 description: "深入剖析虚幻引擎 5 (UE5) 中动画系统（AnimationGraph）、技能框架（GAS）、程序化骨骼（RigVM）以及代码版本演进维护（Deprecated）等高级专业领域的 Meta 元数据实战。"
-pubDate: 2026-09-23
-tags: ["UE5", "Unreal Engine", "C++", "反射系统", "Meta元数据", "Animation", "GAS", "RigVM"]
+pubDate: 2026-09-19
+tags: ["Unreal Engine", "C++", "反射系统", "Meta元数据"]
+category: "引擎开发"
+series: "UE5 C++ Meta 元数据深度解析"
+seriesOrder: 6
 draft: false
 ---
 

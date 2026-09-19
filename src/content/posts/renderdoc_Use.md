@@ -3,6 +3,9 @@ title: "renderdoc 抓取鸣潮帧并还原模型教程"
 description: "如何使用renderdoc抓帧鸣潮并在blender中把模型还原出来。"
 pubDate: 2026-04-12
 tags: ["renderdoc", "鸣潮", "抓帧"]
+category: "图形逆向"
+series: "RenderDoc 抓帧实战"
+seriesOrder: 2
 draft: false
 ---
 

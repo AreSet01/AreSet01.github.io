@@ -2,7 +2,10 @@
 title: "UE5 C++ Meta 元数据深度解析（一）：蓝图交互与反射黑魔法"
 description: "深入剖析虚幻引擎 5 (UE5) C++ 中最核心的蓝图交互 Meta 标签。从底层 UHT 判定逻辑到实际工程范式，避开新手高频踩坑点，兼顾严谨专业与通俗易懂。"
 pubDate: 2026-09-18
-tags: ["UE5", "Unreal Engine", "C++", "反射系统", "Meta元数据"]
+tags: ["Unreal Engine", "C++", "反射系统", "Meta元数据"]
+category: "引擎开发"
+series: "UE5 C++ Meta 元数据深度解析"
+seriesOrder: 1
 draft: false
 ---
 

@@ -1,0 +1,74 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/Header.astro';
+import { getCollection } from 'astro:content';
+import { formatDate } from '../../utils/date';
+import { byNewest, tagStats, tagSlug, relatedTagsOf } from '../../utils/posts';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('posts', ({ data }) => !data.draft);
+  return tagStats(posts).map(({ name, count }) => ({
+    params: { tag: tagSlug(name) },
+    props: { tagName: name, count },
+  }));
+}
+
+const { tagName, count } = Astro.props;
+const allPosts = await getCollection('posts', ({ data }) => !data.draft);
+const posts = byNewest(allPosts.filter((post) => (post.data.tags ?? []).includes(tagName)));
+const siblings = relatedTagsOf(allPosts, tagName, 8);
+---
+
+<BaseLayout title={`${tagName} - 标签 - 梦付千秋`} description={`标签「${tagName}」下的 ${count} 篇文章`}>
+  <Header />
+  <main class="container-wide flex-1 pt-14 pb-20 md:pt-20">
+    <section class="tag-page-head">
+      <p class="eyebrow" data-enter="top">
+        <a href="/tags" class="tag-back">← 标签星图</a>
+      </p>
+      <h1 class="section-title mt-4" data-enter="left">
+        <span class="tag-page-hash">#</span>{tagName}
+      </h1>
+      <p class="tag-hint" data-enter="left">
+        共 {count} 篇。
+        {siblings.length > 0 && <span>常与这些标签同时出现：</span>}
+      </p>
+      {siblings.length > 0 && (
+        <div class="tag-siblings" data-enter="bottom">
+          {siblings.map((sibling) => (
+            <a href={`/tags/${tagSlug(sibling.name)}`} class="tag-sibling">
+              <span>{sibling.name}</span>
+              <i>×{sibling.weight}</i>
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+
+    <ul class="tag-post-list">
+      {posts.map((post) => (
+        <li data-enter="ink">
+          <a href={`/posts/${post.id}`} class="timeline-link group" data-post-preview={`/posts/${post.id}`}>
+            <time class="mt-0.5 w-24 shrink-0 font-mono text-[0.72rem] tracking-[0.06em] text-[var(--muted)]">
+              {formatDate(post.data.pubDate)}
+            </time>
+            <div class="min-w-0 flex-1">
+              <h2 class="font-display text-[1.15rem] leading-snug text-[var(--text-strong)] transition duration-300 group-hover:text-[var(--accent)]">
+                {post.data.title}
+                {post.data.locked && <span class="lock-mark ml-3 align-middle">Locked</span>}
+              </h2>
+              {post.data.description && (
+                <p
+                  class="mt-2 text-[0.88rem] leading-relaxed text-[var(--muted)] line-clamp-2"
+                  style="font-family: var(--font-serif); font-style: italic;"
+                >
+                  {post.data.description}
+                </p>
+              )}
+            </div>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </main>
+</BaseLayout>

@@ -1,49 +1,147 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
+import { getCollection } from 'astro:content';
+import { sortPostsByDate } from '../utils/date';
 
+const allPosts = await getCollection('posts', ({ data }) => !data.draft);
+const posts = sortPostsByDate(allPosts);
+const postCount = posts.length;
+const tagCount = new Set(posts.flatMap((post) => post.data.tags ?? [])).size;
+const firstYear = posts.length ? new Date(posts[posts.length - 1].data.pubDate).getFullYear() : new Date().getFullYear();
+
+// Rotating "who am I" lines for the typewriter — edit freely
+const typedLines = [
+  'UE5 C++ 的游戏学习者',
+  '没事找事的折腾党~',
+  '爱拍照的小伙子~',
+  '愤青（bushi）言论生产者',
+];
+
+// Words that drift down the right margin as you scroll
+const marqueeWords = ['游戏', 'UE5', 'C++', '渲染', '随笔', 'RenderDoc', '笔记', '生活', 'Astro', '折腾'];
+
+const timeline = [
+  {
+    date: '2026 · 09',
+    title: 'UE5 Meta 元数据深度解析系列',
+    body: '学习Meta时，让Gemini分析文章后记录的笔记',
+  },
+  {
+    date: '2026 · 04',
+    title: 'RenderDoc 抓帧还原模型教程',
+    body: '用 RenderDoc 配合 MuMu 模拟器抓鸣潮的一帧，再在 Blender 里把模型和贴图还原出来',
+  },
+  {
+    date: `${firstYear}`,
+    title: '博客上线',
+    body: '在Claude & Gemini老师的帮助下，俺的博客诞生啦~',
+  },
+];
 ---
 
 <BaseLayout title="关于我 - 梦付千秋">
   <Header />
-  <main class="container-wide flex-1 pt-14 pb-16 md:pt-20">
-    <section class="grid gap-16 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] lg:gap-20">
-      <div class="panel reveal-up">
-        <p class="eyebrow">About the Author</p>
-        <h1 class="section-title mt-6 max-w-2xl">
+  <!-- Intro: pixels gather from every edge into 梦付千秋, a drop falls, the glyphs scatter,
+       and only then does the page's own entrance play (data-enter-hold below). -->
+  <div class="about-intro" data-about-intro aria-hidden="true">
+    <canvas data-about-intro-canvas></canvas>
+    <button type="button" class="about-intro-skip" data-about-intro-skip>跳过 →</button>
+  </div>
+  <main class="container-wide flex-1 pt-14 pb-16 md:pt-20" style="position: relative;" data-enter-hold>
+    <div class="about-marquee" data-about-marquee aria-hidden="true">
+      <div class="about-marquee-track" data-about-marquee-track>
+        {[...marqueeWords, ...marqueeWords].map((word) => (
+          <span class="about-marquee-word">{word}</span>
+        ))}
+      </div>
+    </div>
+
+    <section class="grid gap-16 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] lg:gap-20 lg:pr-16">
+      <div class="panel">
+        <p class="eyebrow" data-enter="top">About the Author</p>
+        <h1 class="section-title mt-6 max-w-2xl" data-enter="left">
           我就是我！
         </h1>
+        <p class="about-typed mt-5" data-enter="left" aria-live="polite">
+          <span class="about-typed-prefix">&gt;</span>
+          <span data-about-typed data-lines={JSON.stringify(typedLines)}>{typedLines[0]}</span>
+          <span class="about-typed-caret" aria-hidden="true"></span>
+        </p>
         <div
           class="mt-8 space-y-5 text-[1rem] leading-[1.85] text-[var(--muted-strong)] max-w-2xl"
           style="font-family: var(--font-serif);"
+          data-enter="bottom"
         >
           <p>你好，欢迎来到我的个人空间呀~这里相当于一个闲聊+笔记博客噢~</p>
           <p>因为太懒所以会有一部分是AI写的，但是如果有知识可以帮到你，那真的是太好啦~</p>
         </div>
-        <div class="mt-12 grid gap-4 sm:grid-cols-3 pt-8 border-t border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;">
-          <div class="stat-card">
-            <p class="stat-label">写作主题</p>
-            <p class="mt-3 font-display text-[1.05rem] text-[var(--text-strong)]">
-              游戏 / 日常 / 笔记
-            </p>
+
+        <div
+          class="about-tilt-stage mt-12 grid gap-4 sm:grid-cols-3 pt-8 border-t border-[var(--rule)]"
+          style="border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;"
+        >
+          <div class="about-tilt" data-tilt data-enter="left">
+            <div class="stat-card">
+              <span class="about-tilt-glare"></span>
+              <p class="stat-label">写作主题</p>
+              <p class="mt-3 font-display text-[1.05rem] text-[var(--text-strong)]">游戏 / 日常 / 笔记</p>
+            </div>
           </div>
-          <div class="stat-card">
-            <p class="stat-label">当前栈</p>
-            <p class="mt-3 font-display text-[1.05rem] text-[var(--text-strong)]">
-              Astro + Tailwind
-            </p>
+          <div class="about-tilt" data-tilt data-enter="bottom">
+            <div class="stat-card">
+              <span class="about-tilt-glare"></span>
+              <p class="stat-label">当前栈</p>
+              <p class="mt-3 font-display text-[1.05rem] text-[var(--text-strong)]">Astro + Tailwind</p>
+            </div>
           </div>
-          <div class="stat-card">
-            <p class="stat-label">写作习惯</p>
-            <p class="mt-3 font-display text-[1.05rem] text-[var(--text-strong)]">
-              边学边记，慢慢打磨
-            </p>
+          <div class="about-tilt" data-tilt data-enter="right">
+            <div class="stat-card">
+              <span class="about-tilt-glare"></span>
+              <p class="stat-label">写作习惯</p>
+              <p class="mt-3 font-display text-[1.05rem] text-[var(--text-strong)]">边学边记，慢慢打磨</p>
+            </div>
           </div>
         </div>
+
+        <section class="mt-16" data-enter="bottom">
+          <p class="eyebrow">Footprints</p>
+          <h2 class="font-display mt-5 text-[1.65rem] text-[var(--text-strong)]">最近在折腾什么</h2>
+          <div class="about-timeline mt-8" data-about-timeline>
+            <svg class="about-timeline-spine" aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 2 100">
+              <line x1="1" y1="0" x2="1" y2="100" pathLength="1" data-about-spine />
+            </svg>
+            {timeline.map((item) => (
+              <div class="about-timeline-item" data-about-timeline-item>
+                <time>{item.date}</time>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
 
       <aside class="space-y-12">
-        <section class="reveal-up" style="animation-delay: 120ms;">
+        <section data-enter="right">
+          <p class="eyebrow">By the Numbers</p>
+          <div class="mt-6 grid grid-cols-3 gap-3">
+            <div class="stat-card" data-count-to={postCount}>
+              <p class="stat-label">Posts</p>
+              <p class="mt-2 font-display text-[1.7rem] leading-none text-[var(--text-strong)]" data-count-value>0</p>
+            </div>
+            <div class="stat-card" data-count-to={tagCount}>
+              <p class="stat-label">Tags</p>
+              <p class="mt-2 font-display text-[1.7rem] leading-none text-[var(--text-strong)]" data-count-value>0</p>
+            </div>
+            <div class="stat-card" data-count-to={new Date().getFullYear() - firstYear + 1}>
+              <p class="stat-label">Years</p>
+              <p class="mt-2 font-display text-[1.7rem] leading-none text-[var(--text-strong)]" data-count-value>0</p>
+            </div>
+          </div>
+        </section>
+
+        <section data-enter="right">
           <p class="eyebrow">About the Site</p>
           <h2 class="font-display mt-5 text-[1.65rem] text-[var(--text-strong)]">
             本站用什么搭的？
@@ -62,6 +160,12 @@ import Header from '../components/Header.astro';
               </dd>
             </div>
             <div class="flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5">
+              <dt class="font-display text-[1rem] text-[var(--text-strong)]">GSAP + Lenis</dt>
+              <dd class="text-[0.86rem] text-[var(--muted)] text-right" style="font-family: var(--font-serif); font-style: italic;">
+                滚动与动效
+              </dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5">
               <dt class="font-display text-[1rem] text-[var(--text-strong)]">Giscus</dt>
               <dd class="text-[0.86rem] text-[var(--muted)] text-right" style="font-family: var(--font-serif); font-style: italic;">
                 GitHub Discussions 评论
@@ -70,7 +174,7 @@ import Header from '../components/Header.astro';
           </dl>
         </section>
 
-        <section class="reveal-up" style="animation-delay: 220ms;">
+        <section data-enter="right">
           <p class="eyebrow">Contact</p>
           <h2 class="font-display mt-5 text-[1.65rem] text-[var(--text-strong)]">
             Call Me！
@@ -96,9 +200,414 @@ import Header from '../components/Header.astro';
               <span class="font-mono text-[0.84rem] text-[var(--text-strong)]">1909616051@qq.com</span>
             </div>
           </div>
+          <div class="mt-10 flex justify-end">
+            <span class="about-stamp" data-about-stamp aria-hidden="true">谢谢来访</span>
+          </div>
         </section>
       </aside>
     </section>
   </main>
-
 </BaseLayout>
+
+<script>
+  import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  const CLEANUP_KEY = '__areSetAboutCleanup__';
+  const LISTENER_KEY = '__areSetAboutPageLoadBound__';
+  const TRIGGER_PREFIX = 'about:';
+
+  // ================= Intro: pixel gather → drop → scatter =================
+  // Canvas 2D, one fillRect per particle per frame (~1–2k squares). Phases are driven by a single
+  // clock so a skip can jump straight to the release.
+  const INTRO_TEXT = '梦付千秋';
+
+  function cssVar(name: string, fallback: string) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  }
+
+  async function sampleGlyphs(fontSize: number, cell: number, width: number, height: number) {
+    const font = `500 ${fontSize}px "Zpix", "VT323", "Press Start 2P", monospace`;
+    try { await Promise.race([document.fonts.load(font, INTRO_TEXT), new Promise((r) => setTimeout(r, 900))]); } catch {}
+    const off = document.createElement('canvas');
+    off.width = width;
+    off.height = height;
+    const ctx = off.getContext('2d')!;
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#000';
+    ctx.fillText(INTRO_TEXT, width / 2, height / 2);
+    const { data } = ctx.getImageData(0, 0, width, height);
+    const targets: Array<[number, number]> = [];
+    for (let y = cell / 2; y < height; y += cell) {
+      for (let x = cell / 2; x < width; x += cell) {
+        const i = ((y | 0) * width + (x | 0)) * 4 + 3;
+        if (data[i] > 128) targets.push([x - cell / 2, y - cell / 2]);
+      }
+    }
+    return targets;
+  }
+
+  let introController: AbortController | null = null;
+
+  function startIntroOnce(reduceMotion: boolean) {
+    const intro = document.querySelector<HTMLElement>('[data-about-intro]');
+    if (!intro) return;
+    if (intro.dataset.started === 'true') return;
+    intro.dataset.started = 'true';
+    introController?.abort();
+    introController = new AbortController();
+    runIntro(introController.signal, reduceMotion);
+  }
+
+  function runIntro(signal: AbortSignal, reduceMotion: boolean) {
+    const intro = document.querySelector<HTMLElement>('[data-about-intro]');
+    const canvas = intro?.querySelector<HTMLCanvasElement>('[data-about-intro-canvas]');
+    const skipBtn = intro?.querySelector<HTMLElement>('[data-about-intro-skip]');
+    const release = () => { (window as any).__releasePageEnter?.(); };
+
+    if (!intro || !canvas) { release(); return; }
+    const ctx = canvas.getContext('2d');
+    if (!ctx || reduceMotion) { intro.remove(); release(); return; }
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const ink = cssVar('--ink-strong', '#000');
+    const drop = cssVar('--vermilion', '#000');
+    const fontSize = Math.min(width * 0.17, 190, height * 0.3);
+    const cell = Math.max(3, Math.round(fontSize / 30));
+
+    type P = { x: number; y: number; sx: number; sy: number; tx: number; ty: number; delay: number; vx: number; vy: number; spin: number; life: number };
+    let particles: P[] = [];
+    let frame = 0;
+    let finished = false;
+    let started = 0;
+    let skipped = false;
+
+    // Timeline (seconds)
+    const GATHER = 1.55;      // per-particle travel time
+    const GATHER_SPREAD = 0.6; // last particle leaves this late
+    const HOLD_END = GATHER_SPREAD + GATHER + 0.4;
+    const DROP_START = HOLD_END - 0.35;
+    const DROP_DUR = 0.55;
+    const IMPACT = DROP_START + DROP_DUR;
+    const FADE_START = IMPACT + 0.7;
+    const FADE_DUR = 0.55;
+    const END = FADE_START + FADE_DUR;
+
+    let impactX = width / 2;
+    let impactY = height / 2;
+    let releasedEnter = false;
+    let splashed = false;
+
+    const easeOutExpo = (p: number) => (p >= 1 ? 1 : 1 - Math.pow(2, -10 * p));
+    const easeInQuad = (p: number) => p * p;
+
+    function finish() {
+      if (finished) return;
+      finished = true;
+      cancelAnimationFrame(frame);
+      if (!releasedEnter) { releasedEnter = true; release(); }
+      intro!.remove();
+    }
+
+    function draw(now: number) {
+      if (signal.aborted) { finish(); return; }
+      const t = (now - started) / 1000;
+      ctx!.clearRect(0, 0, width, height);
+
+      // Overlay fade
+      if (t >= FADE_START) {
+        intro!.style.opacity = String(Math.max(0, 1 - (t - FADE_START) / FADE_DUR));
+        if (!releasedEnter) { releasedEnter = true; release(); }
+      }
+      if (t >= END) { finish(); return; }
+
+      ctx!.fillStyle = ink;
+      if (t < IMPACT) {
+        // Gather + hold
+        for (const p of particles) {
+          const q = easeOutExpo(Math.max(0, Math.min(1, (t - p.delay) / GATHER)));
+          p.x = p.sx + (p.tx - p.sx) * q;
+          p.y = p.sy + (p.ty - p.sy) * q;
+          ctx!.fillRect(p.x, p.y, cell, cell);
+        }
+        // The drop
+        if (t >= DROP_START) {
+          const q = easeInQuad(Math.min(1, (t - DROP_START) / DROP_DUR));
+          const y = -cell * 4 + (impactY - (-cell * 4)) * q;
+          ctx!.fillStyle = drop;
+          ctx!.beginPath();
+          ctx!.ellipse(impactX, y, cell * 1.1, cell * 1.9, 0, 0, Math.PI * 2);
+          ctx!.fill();
+          // tail
+          ctx!.globalAlpha = 0.35;
+          ctx!.fillRect(impactX - cell * 0.35, y - cell * 6 * q, cell * 0.7, cell * 4.5 * q);
+          ctx!.globalAlpha = 1;
+        }
+      } else {
+        // Scatter
+        const dt = 1 / 165;
+        const since = t - IMPACT;
+        if (!splashed) {
+          splashed = true;
+          (window as any).__inkSplash?.(impactX, impactY, 22);
+          for (const p of particles) {
+            const dx = p.x - impactX;
+            const dy = p.y - impactY;
+            const dist = Math.max(1, Math.hypot(dx, dy));
+            const push = 260 + 1400 / (1 + dist / 30);
+            p.vx = (dx / dist) * push + (Math.random() - 0.5) * 140;
+            p.vy = (dy / dist) * push - 180 + (Math.random() - 0.5) * 140;
+            p.spin = (Math.random() - 0.5) * 6;
+            p.life = 0.9 + Math.random() * 0.6;
+          }
+        }
+        // Ripple ring
+        const ringQ = Math.min(1, since / 0.9);
+        ctx!.strokeStyle = drop;
+        ctx!.globalAlpha = (1 - ringQ) * 0.7;
+        ctx!.lineWidth = Math.max(1, cell * 0.5 * (1 - ringQ));
+        ctx!.beginPath();
+        ctx!.arc(impactX, impactY, easeOutExpo(ringQ) * Math.min(width, height) * 0.42, 0, Math.PI * 2);
+        ctx!.stroke();
+        ctx!.globalAlpha = 1;
+
+        ctx!.fillStyle = ink;
+        for (const p of particles) {
+          // Sub-step so the motion is frame-rate independent enough
+          p.vy += 1500 * dt;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          const alpha = Math.max(0, 1 - since / p.life);
+          if (alpha <= 0) continue;
+          ctx!.globalAlpha = alpha;
+          ctx!.fillRect(p.x, p.y, cell, cell);
+        }
+        ctx!.globalAlpha = 1;
+      }
+
+      frame = requestAnimationFrame(draw);
+    }
+
+    function skip() {
+      if (skipped || finished) return;
+      skipped = true;
+      cancelAnimationFrame(frame);
+      intro!.style.transition = 'opacity 320ms ease';
+      intro!.style.opacity = '0';
+      if (!releasedEnter) { releasedEnter = true; release(); }
+      window.setTimeout(finish, 330);
+    }
+
+    skipBtn?.addEventListener('click', skip, { signal });
+    intro.addEventListener('click', (e) => { if (e.target === intro || e.target === canvas) skip(); }, { signal });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') skip(); }, { signal, once: true });
+    signal.addEventListener('abort', finish);
+
+    sampleGlyphs(fontSize, cell, width, height).then((targets) => {
+      if (signal.aborted || skipped) return;
+      if (!targets.length) { finish(); return; }
+      // Impact point: a little above the glyph block's centre so the ring reads as "on" the text
+      const ys = targets.map((t) => t[1]);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      impactY = minY + (maxY - minY) * 0.45;
+      impactX = width / 2;
+
+      particles = targets.map(([tx, ty]) => {
+        const side = Math.floor(Math.random() * 4);
+        const sx = side === 0 ? -cell * 4 : side === 1 ? width + cell * 4 : Math.random() * width;
+        const sy = side === 2 ? -cell * 4 : side === 3 ? height + cell * 4 : Math.random() * height;
+        return { x: sx, y: sy, sx, sy, tx, ty, delay: Math.random() * GATHER_SPREAD, vx: 0, vy: 0, spin: 0, life: 1 };
+      });
+      started = performance.now();
+      frame = requestAnimationFrame(draw);
+    });
+  }
+
+  function initAbout() {
+    const previousCleanup = (window as any)[CLEANUP_KEY];
+    if (typeof previousCleanup === 'function') previousCleanup();
+
+    const typed = document.querySelector<HTMLElement>('[data-about-typed]');
+    if (!typed) return; // not on the about page
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    const timers: number[] = [];
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // The intro is not tied to this controller: initAbout runs twice on a hard load (module
+    // execution + astro:page-load) and re-running must not abort a playing intro.
+    startIntroOnce(reduceMotion);
+
+    ScrollTrigger.getAll().forEach((trigger) => {
+      if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
+    });
+
+    // ---------- Typewriter ----------
+    const lines: string[] = JSON.parse(typed.dataset.lines || '[]');
+    if (lines.length && !reduceMotion) {
+      let lineIndex = 0;
+      let charIndex = lines[0].length;
+      let deleting = true;
+
+      const step = () => {
+        if (signal.aborted) return;
+        const line = lines[lineIndex];
+        if (deleting) {
+          charIndex -= 1;
+          typed.textContent = line.slice(0, charIndex);
+          if (charIndex <= 0) {
+            deleting = false;
+            lineIndex = (lineIndex + 1) % lines.length;
+            timers.push(window.setTimeout(step, 260));
+            return;
+          }
+          timers.push(window.setTimeout(step, 28));
+        } else {
+          charIndex += 1;
+          typed.textContent = lines[lineIndex].slice(0, charIndex);
+          if (charIndex >= lines[lineIndex].length) {
+            deleting = true;
+            timers.push(window.setTimeout(step, 2400));
+            return;
+          }
+          timers.push(window.setTimeout(step, 60 + Math.random() * 50));
+        }
+      };
+      timers.push(window.setTimeout(step, 2200));
+    }
+
+    // ---------- Count-up numbers ----------
+    document.querySelectorAll<HTMLElement>('[data-count-to]').forEach((card, index) => {
+      const target = Number(card.dataset.countTo || 0);
+      const valueEl = card.querySelector<HTMLElement>('[data-count-value]');
+      if (!valueEl) return;
+      if (reduceMotion) { valueEl.textContent = String(target); return; }
+      const counter = { value: 0 };
+      ScrollTrigger.create({
+        id: `${TRIGGER_PREFIX}count-${index}`,
+        trigger: card,
+        start: 'top 90%',
+        once: true,
+        onEnter: () => gsap.to(counter, {
+          value: target,
+          duration: 1.4,
+          ease: 'expo.out',
+          delay: index * 0.08,
+          onUpdate: () => { valueEl.textContent = String(Math.round(counter.value)); },
+        }),
+      });
+    });
+
+    // ---------- 3D tilt cards (pointer only, transform only) ----------
+    if (window.matchMedia('(pointer: fine)').matches && !reduceMotion) {
+      document.querySelectorAll<HTMLElement>('[data-tilt]').forEach((card) => {
+        const setRX = gsap.quickTo(card, 'rotationX', { duration: 0.5, ease: 'power3.out' });
+        const setRY = gsap.quickTo(card, 'rotationY', { duration: 0.5, ease: 'power3.out' });
+        const glare = card.querySelector<HTMLElement>('.about-tilt-glare');
+
+        card.addEventListener('pointermove', (event) => {
+          const rect = card.getBoundingClientRect();
+          const px = (event.clientX - rect.left) / rect.width;
+          const py = (event.clientY - rect.top) / rect.height;
+          setRY((px - 0.5) * 16);
+          setRX((0.5 - py) * 12);
+          if (glare) {
+            glare.style.setProperty('--glare-x', `${px * 100}%`);
+            glare.style.setProperty('--glare-y', `${py * 100}%`);
+          }
+        }, { signal });
+
+        card.addEventListener('pointerleave', () => {
+          gsap.to(card, { rotationX: 0, rotationY: 0, duration: 0.9, ease: 'elastic.out(1, 0.5)', overwrite: 'auto' });
+        }, { signal });
+      });
+    }
+
+    // ---------- Timeline: spine draws with scroll, nodes light up ----------
+    const spine = document.querySelector<SVGLineElement>('[data-about-spine]');
+    const timelineRoot = document.querySelector<HTMLElement>('[data-about-timeline]');
+    if (spine && timelineRoot && !reduceMotion) {
+      const spineState = { p: 0 };
+      const paint = () => { spine.style.strokeDashoffset = String(1 - spineState.p); };
+      paint();
+      ScrollTrigger.create({
+        id: `${TRIGGER_PREFIX}spine`,
+        trigger: timelineRoot,
+        start: 'top 80%',
+        end: 'bottom 55%',
+        onUpdate: (self) => {
+          gsap.to(spineState, { p: self.progress, duration: 0.5, ease: 'power2.out', overwrite: true, onUpdate: paint });
+        },
+      });
+      document.querySelectorAll<HTMLElement>('[data-about-timeline-item]').forEach((item, index) => {
+        ScrollTrigger.create({
+          id: `${TRIGGER_PREFIX}node-${index}`,
+          trigger: item,
+          start: 'top 72%',
+          onEnter: () => item.classList.add('is-lit'),
+          onLeaveBack: () => item.classList.remove('is-lit'),
+        });
+      });
+    }
+
+    // ---------- Vertical marquee tied to scroll position ----------
+    const marqueeTrack = document.querySelector<HTMLElement>('[data-about-marquee-track]');
+    if (marqueeTrack && !reduceMotion) {
+      let half = 0;
+      const measure = () => { half = marqueeTrack.scrollHeight / 2; };
+      measure();
+      const setY = gsap.quickTo(marqueeTrack, 'y', { duration: 0.6, ease: 'power2.out' });
+      const onScroll = () => {
+        if (!half) return;
+        setY(-gsap.utils.wrap(0, half, window.scrollY * 0.35));
+      };
+      window.addEventListener('scroll', onScroll, { passive: true, signal });
+      window.addEventListener('resize', measure, { signal });
+      onScroll();
+    }
+
+    // ---------- Stamp lands once the aside has entered ----------
+    const stamp = document.querySelector<HTMLElement>('[data-about-stamp]');
+    if (stamp) {
+      if (reduceMotion) stamp.classList.add('is-stamped');
+      else ScrollTrigger.create({
+        id: `${TRIGGER_PREFIX}stamp`,
+        trigger: stamp,
+        start: 'top 92%',
+        once: true,
+        onEnter: () => timers.push(window.setTimeout(() => stamp.classList.add('is-stamped'), 420)),
+      });
+    }
+
+    (window as any)[CLEANUP_KEY] = () => {
+      controller.abort();
+      timers.forEach((id) => window.clearTimeout(id));
+      ScrollTrigger.getAll().forEach((trigger) => {
+        if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
+      });
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+  }
+
+  initAbout();
+
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', initAbout);
+    // Leaving the page mid-intro: stop the frame loop so it cannot touch the next document
+    document.addEventListener('astro:before-swap', () => { introController?.abort(); introController = null; });
+    (window as any)[LISTENER_KEY] = true;
+  }
+</script>

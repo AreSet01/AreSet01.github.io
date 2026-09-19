@@ -1,8 +1,11 @@
 ---
 title: "UE5 C++ Meta 元数据深度解析（五）：类、容器与数据架构基石"
 description: "深入剖析虚幻引擎 5 (UE5) 中类生命周期控制（ChildCanTick）、容器数组标题（TitleProperty）、结构体构造以及枚举位掩码（Bitflags）等核心数据架构 Meta 元数据。"
-pubDate: 2026-09-22
-tags: ["UE5", "Unreal Engine", "C++", "反射系统", "Meta元数据", "Architecture", "Optimization"]
+pubDate: 2026-09-19
+tags: ["Unreal Engine", "C++", "反射系统", "Meta元数据"]
+category: "引擎开发"
+series: "UE5 C++ Meta 元数据深度解析"
+seriesOrder: 5
 draft: false
 ---
 

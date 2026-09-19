@@ -1,6 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
 import PostLayout from '../../layouts/PostLayout.astro';
+import { seriesInfoFor, postMetrics } from '../../utils/posts';
 
 export async function getStaticPaths() {
   const posts = await getCollection('posts', ({ data }) => !data.draft);
@@ -12,6 +13,22 @@ export async function getStaticPaths() {
 
 const { post } = Astro.props;
 const { Content, headings } = await render(post);
+
+const allPosts = await getCollection('posts', ({ data }) => !data.draft);
+const info = seriesInfoFor(allPosts, post);
+const metrics = postMetrics(post);
+
+const toCard = (entry: typeof post) => ({ title: entry.data.title, href: `/posts/${entry.id}` });
+const series = info
+  ? {
+      name: info.name,
+      current: info.current,
+      total: info.parts.length,
+      parts: info.parts.map(part => ({ ...toCard(part.post), index: part.index })),
+      prev: info.prev ? toCard(info.prev) : undefined,
+      next: info.next ? toCard(info.next) : undefined,
+    }
+  : undefined;
 ---
 
 <PostLayout
@@ -19,6 +36,9 @@ const { Content, headings } = await render(post);
   description={post.data.description}
   pubDate={post.data.pubDate}
   tags={post.data.tags}
+  category={post.data.category}
+  readingMinutes={metrics.minutes}
+  series={series}
   locked={post.data.locked}
   passwordHash={post.data.passwordHash}
   passwordHint={post.data.passwordHint}

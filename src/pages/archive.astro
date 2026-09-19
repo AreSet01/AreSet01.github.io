@@ -4,9 +4,11 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { getCollection } from 'astro:content';
 import { formatDate, sortPostsByDate } from '../utils/date';
+import { categoryStats } from '../utils/posts';
 
 const allPosts = await getCollection('posts', ({ data }) => !data.draft);
 const posts = sortPostsByDate(allPosts);
+const categories = categoryStats(posts);
 
 const postsByYear = posts.reduce((acc, post) => {
   const year = new Date(post.data.pubDate).getFullYear();
@@ -22,36 +24,37 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
 <BaseLayout title="归档 - 梦付千秋">
   <Header />
   <main class="container-wide flex-1 pt-14 pb-16 md:pt-20">
-    <section class="panel reveal-up pb-12 border-b border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule-strong) 50%, transparent 95%) 1;">
-      <p class="eyebrow">Archive</p>
+    <section class="panel pb-12 border-b border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule-strong) 50%, transparent 95%) 1;">
+      <p class="eyebrow" data-enter="top">Archive</p>
       <div class="mt-6 flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between">
         <div class="max-w-2xl">
-          <h1 class="section-title">让我看看这里有啥？</h1>
+          <h1 class="section-title" data-enter="left">让我看看这里有啥？</h1>
           <p
             class="mt-5 text-[1rem] leading-[1.78] text-[var(--muted-strong)]"
             style="font-family: var(--font-serif); font-style: italic;"
+            data-enter="left"
           >
             这里可以按时间看到所~有~的文章噢~
           </p>
         </div>
         <div class="archive-metrics-grid">
-          <div class="stat-card archive-metric-card">
+          <div class="stat-card archive-metric-card" data-enter="stamp">
             <div class="archive-metric-top">
               <p class="archive-metric-label">Total</p>
               <span class="archive-metric-dot" aria-hidden="true"></span>
             </div>
-            <p class="archive-metric-value">{posts.length}</p>
+            <p class="archive-metric-value" data-count={posts.length}>{posts.length}</p>
             <p class="archive-metric-note">篇公开文章</p>
           </div>
-          <div class="stat-card archive-metric-card">
+          <div class="stat-card archive-metric-card" data-enter="stamp">
             <div class="archive-metric-top">
               <p class="archive-metric-label">Years</p>
               <span class="archive-metric-dot" aria-hidden="true"></span>
             </div>
-            <p class="archive-metric-value">{years.length}</p>
+            <p class="archive-metric-value" data-count={years.length}>{years.length}</p>
             <p class="archive-metric-note">年</p>
           </div>
-          <div class="stat-card archive-metric-card">
+          <div class="stat-card archive-metric-card" data-enter="stamp">
             <div class="archive-metric-top">
               <p class="archive-metric-label">Latest</p>
               <span class="archive-metric-dot" aria-hidden="true"></span>
@@ -63,27 +66,43 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
       </div>
     </section>
 
-    <div class="mt-16 space-y-16">
+    {categories.length > 1 && (
+      <div class="archive-filter-bar" data-archive-filters data-enter="bottom">
+        <span class="archive-filter-label">分类</span>
+        <div class="archive-filter-chips">
+          <button type="button" class="archive-filter is-active" data-filter="all">
+            <span>全部</span><i>{posts.length}</i>
+          </button>
+          {categories.map((category) => (
+            <button type="button" class="archive-filter" data-filter={category.name}>
+              <span>{category.name}</span><i>{category.count}</i>
+            </button>
+          ))}
+        </div>
+      </div>
+    )}
+
+    <div class="mt-16 space-y-16" data-archive-list>
       {years.map((year, yearIndex) => (
         <section
-          class="reveal-up grid gap-8 lg:grid-cols-[140px_minmax(0,1fr)] lg:gap-14"
-          style={`animation-delay: ${120 + yearIndex * 90}ms;`}
+          class="grid gap-8 lg:grid-cols-[140px_minmax(0,1fr)] lg:gap-14"
+          data-archive-year
         >
-          <div class="panel lg:sticky lg:top-24 lg:self-start">
+          <div class="panel lg:sticky lg:top-24 lg:self-start" data-enter="left">
             <p class="font-mono text-[0.7rem] tracking-[0.16em] uppercase text-[var(--muted)]">
               Year
             </p>
             <p class="font-display mt-3 text-[3rem] leading-none text-[var(--text-strong)]">
               {year}
             </p>
-            <p class="mt-3 font-mono text-[0.72rem] tracking-[0.08em] text-[var(--muted)]">
+            <p class="mt-3 font-mono text-[0.72rem] tracking-[0.08em] text-[var(--muted)]" data-year-count>
               {postsByYear[Number(year)].length} {postsByYear[Number(year)].length > 1 ? 'entries' : 'entry'}
             </p>
           </div>
           <div class="panel">
             <ul class="space-y-0">
               {postsByYear[Number(year)].map((post: typeof posts[number]) => (
-                <li>
+                <li data-enter="ink" data-category={post.data.category}>
                   <a href={`/posts/${post.id}`} class="timeline-link group">
                     <time class="mt-0.5 w-24 shrink-0 font-mono text-[0.72rem] tracking-[0.06em] text-[var(--muted)]">
                       {formatDate(post.data.pubDate)}
@@ -113,3 +132,108 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
   </main>
 
 </BaseLayout>
+
+<script>
+  import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Category filter. Rows are removed from flow immediately and the survivors are FLIPped into
+  // their new places, so the list reads as closing up rather than snapping.
+  const CLEANUP_KEY = '__areSetArchiveFilterCleanup__';
+  const LISTENER_KEY = '__areSetArchiveFilterBound__';
+
+  function initArchiveFilter() {
+    const previousCleanup = (window as any)[CLEANUP_KEY];
+    if (typeof previousCleanup === 'function') previousCleanup();
+
+    const bar = document.querySelector<HTMLElement>('[data-archive-filters]');
+    const list = document.querySelector<HTMLElement>('[data-archive-list]');
+    if (!bar || !list) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const buttons = Array.from(bar.querySelectorAll<HTMLElement>('[data-filter]'));
+    const items = Array.from(list.querySelectorAll<HTMLElement>('[data-category]'));
+    const sections = Array.from(list.querySelectorAll<HTMLElement>('[data-archive-year]'));
+    let active = 'all';
+
+    function apply(next: string, animate = true) {
+      if (!items.length) return;
+      active = next;
+      buttons.forEach((button) => button.classList.toggle('is-active', button.dataset.filter === next));
+
+      const before = new Map(items.map((el) => [el, el.getBoundingClientRect().top]));
+      const wasHidden = new Map(items.map((el) => [el, el.classList.contains('is-filtered-out')]));
+
+      items.forEach((el) => {
+        const hide = next !== 'all' && el.dataset.category !== next;
+        el.classList.toggle('is-filtered-out', hide);
+        // A row revealed by the filter must not stay stuck at the scroll-reveal's hidden state.
+        // enterState is the choreography's own flag (BaseLayout) — 'in' means "leave me alone".
+        if (!hide && el.dataset.enterState !== 'in') {
+          gsap.killTweensOf(el);
+          el.classList.remove('is-entering');
+          el.classList.add('is-entered');
+          el.dataset.enterState = 'in';
+          gsap.set(el, { clearProps: 'transform,opacity,clipPath' });
+        }
+      });
+
+      sections.forEach((section) => {
+        const visible = section.querySelectorAll('[data-category]:not(.is-filtered-out)').length;
+        section.classList.toggle('is-empty', visible === 0);
+        const countEl = section.querySelector('[data-year-count]');
+        if (countEl) countEl.textContent = `${visible} ${visible > 1 ? 'entries' : 'entry'}`;
+      });
+
+      // Layout is final here and nothing is transformed yet — the right moment to re-measure
+      // the scroll triggers, before the FLIP tweens below put temporary transforms on the rows
+      ScrollTrigger.refresh();
+
+      if (animate && !reduceMotion) {
+        items.forEach((el) => {
+          if (el.classList.contains('is-filtered-out')) return;
+          if (wasHidden.get(el)) {
+            gsap.fromTo(el, { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.7, ease: 'expo.out', overwrite: true, clearProps: 'transform,opacity' });
+            return;
+          }
+          const delta = (before.get(el) ?? 0) - el.getBoundingClientRect().top;
+          if (Math.abs(delta) < 1) return;
+          gsap.fromTo(el, { y: delta }, { y: 0, duration: 0.75, ease: 'expo.out', overwrite: true, clearProps: 'transform' });
+        });
+      }
+
+      const url = new URL(window.location.href);
+      if (next === 'all') url.searchParams.delete('category');
+      else url.searchParams.set('category', next);
+      history.replaceState(null, '', url);
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const next = button.dataset.filter || 'all';
+        if (next === active) return;
+        apply(next);
+      }, { signal });
+    });
+
+    // Deep link from a post's category label
+    const wanted = new URL(window.location.href).searchParams.get('category');
+    if (wanted && buttons.some((button) => button.dataset.filter === wanted)) apply(wanted, false);
+
+    (window as any)[CLEANUP_KEY] = () => {
+      controller.abort();
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+  }
+
+  initArchiveFilter();
+
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', initArchiveFilter);
+    (window as any)[LISTENER_KEY] = true;
+  }
+</script>

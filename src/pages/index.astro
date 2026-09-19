@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import PostCard from '../components/PostCard.astro';
+import HomeTicker from '../components/HomeTicker.astro';
 import { getCollection } from 'astro:content';
 import { formatDate, sortPostsByDate } from '../utils/date';
 
@@ -11,82 +12,97 @@ const posts = sortPostsByDate(allPosts);
 const latestPost = posts[0];
 const totalTags = new Set(posts.flatMap(post => post.data.tags ?? [])).size;
 const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() : new Date().getFullYear();
+const tickerLatest = posts.slice(0, 3).map(post => ({ title: post.data.title, href: `/posts/${post.id}` }));
+const tagCounts = new Map<string, number>();
+for (const post of posts) for (const tag of post.data.tags ?? []) tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([tag]) => tag);
 ---
 
 <BaseLayout title="梦付千秋 - 日常记录与技术分享">
   <Header />
   <main class="container-wide flex-1" style="padding-top: 2rem;">
-    <section class="home-hero reveal-up" style="padding-block: 4rem 3rem;">
+    <section class="home-hero" style="padding-block: 4rem 3rem;">
       <div class="home-hero-copy">
-        <p class="eyebrow">Vol. 01 / Digital Garden</p>
-        <h1 class="home-hero-title" style="font-size: clamp(2rem, 5vw, 3.4rem);">
+        <p class="eyebrow" data-enter="top">Vol. 01 / Digital Garden</p>
+        <h1 class="home-hero-title" style="font-size: clamp(2rem, 5vw, 3.4rem);" data-enter="left">
           欢迎光临AreSetのBlog
         </h1>
-        <p class="home-hero-desc">
+        <p class="home-hero-desc" data-enter="left">
           这里用来随便分享一点小知识，一些行业看法，或是说些愤青（bushi）言论
         </p>
         <div class="home-actions">
-          {latestPost && <a href={`/posts/${latestPost.id}`} class="btn-primary">阅读最新文章</a>}
-          <a href="/archive" class="btn-secondary">浏览全部文章</a>
+          {latestPost && <a href={`/posts/${latestPost.id}`} class="btn-primary" data-enter="bottom">阅读最新文章</a>}
+          <a href="/archive" class="btn-secondary" data-enter="bottom">浏览全部文章</a>
         </div>
       </div>
 
       <aside class="home-rail" aria-label="站点概览">
-        <div class="home-stat">
+        <div class="home-stat" data-enter="stamp">
           <span>Posts</span>
-          <strong>{posts.length}</strong>
+          <strong data-count={posts.length}>{posts.length}</strong>
         </div>
-        <div class="home-stat">
+        <div class="home-stat" data-enter="stamp">
           <span>Tags</span>
-          <strong>{totalTags}</strong>
+          <strong data-count={totalTags}>{totalTags}</strong>
         </div>
-        <div class="home-stat">
+        <div class="home-stat" data-enter="stamp">
           <span>Year</span>
           <strong>{latestYear}</strong>
         </div>
       </aside>
     </section>
 
+    <HomeTicker posts={posts.length} tags={totalTags} year={latestYear} latest={tickerLatest} topTags={tickerTopTags} />
+
     <section class="home-digest">
       {latestPost && (
         <a
           href={`/posts/${latestPost.id}`}
           data-post-preview={`/posts/${latestPost.id}`}
-          class="home-feature reveal-up"
-          style="animation-delay: 120ms;"
+          class="home-feature"
         >
-          <p class="eyebrow">Fresh Ink</p>
+          <p class="eyebrow" data-enter="left">Fresh Ink</p>
           <div class="home-feature-main">
-            <time datetime={latestPost.data.pubDate.toISOString()}>
+            <time datetime={latestPost.data.pubDate.toISOString()} data-enter="left">
               {formatDate(latestPost.data.pubDate)}
             </time>
-            <h2>{latestPost.data.title}</h2>
-            <p>{latestPost.data.description ?? '从这篇文章开始逛逛我的博客。'}</p>
+            <h2 data-enter="left">{latestPost.data.title}</h2>
+            <p data-enter="bottom">{latestPost.data.description ?? '从这篇文章开始逛逛我的博客。'}</p>
           </div>
-          <span class="home-feature-link">Preview →</span>
+          <span class="home-feature-link" data-enter="bottom">Preview →</span>
         </a>
       )}
 
-      <div class="home-topics reveal-up" style="animation-delay: 220ms;">
-        <p class="eyebrow">What Lives Here</p>
-        <h2>写作方向</h2>
-        <p>喜欢分享生活，喜欢记录一些很酷的技术。</p>
+      <div class="home-topics">
+        <p class="eyebrow" data-enter="right">What Lives Here</p>
+        <h2 data-enter="right">写作方向</h2>
+        <p data-enter="right">喜欢分享生活，喜欢记录一些很酷的技术。</p>
         <div>
-          <span>Astro</span>
-          <span>技术</span>
-          <span>随笔</span>
-          <span>学习笔记</span>
+          <span data-enter="bottom">Astro</span>
+          <span data-enter="bottom">技术</span>
+          <span data-enter="bottom">随笔</span>
+          <span data-enter="bottom">学习笔记</span>
         </div>
       </div>
+    </section>
+
+    <!-- Hidden until the floating seal is tapped three times -->
+    <section class="home-rant" data-home-rant hidden>
+      <p class="eyebrow">Off the Record</p>
+      <h2>愤青（bushi）言论</h2>
+      <ul>
+        <li>如果觉得这个社会不好，那就努力去斗争</li>
+        <li>毛泽东思想万岁！社会主义终将会实现！</li>
+      </ul>
     </section>
 
     <section class="notes-section" style="padding-bottom: 6rem;">
       <div class="notes-heading">
         <div>
-          <p class="eyebrow">Latest Notes</p>
-          <h2 class="section-title mt-4">最近写了什么咧~</h2>
+          <p class="eyebrow" data-enter="top">Latest Notes</p>
+          <h2 class="section-title mt-4" data-enter="left">最近写了什么咧~</h2>
         </div>
-        <p>
+        <p data-enter="right">
           又产出一堆啦~
         </p>
       </div>
@@ -111,3 +127,189 @@ const latestYear = latestPost ? new Date(latestPost.data.pubDate).getFullYear() 
   </main>
 
 </BaseLayout>
+
+<script>
+  import gsap from 'gsap';
+
+  // ================= Home easter eggs =================
+  // 1. Press and hold the title: its glyphs melt off and drop onto the ticker, then climb back.
+  // 2. Tap the floating seal three times: the off-the-record section seeps in.
+  // 3. ↑↑↓↓←→←→BA: pixel / CRT mode (persists across pages until toggled again).
+  const CLEANUP_KEY = '__areSetHomeEggsCleanup__';
+  const LISTENER_KEY = '__areSetHomeEggsBound__';
+  const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+  // Module-level so a re-init (astro:page-load firing mid-sequence on a hard load) can't reset it
+  let sealTaps = 0;
+  let sealTapTimer = 0;
+
+  function splitTitle(title: HTMLElement): HTMLElement[] {
+    if (title.dataset.split === 'true') return Array.from(title.querySelectorAll<HTMLElement>('.egg-char'));
+    const text = title.textContent?.trim() || '';
+    title.textContent = '';
+    title.dataset.split = 'true';
+    const chars: HTMLElement[] = [];
+    // Latin runs stay one unbreakable word so the line still wraps like real text
+    for (const word of text.split(/(?<=[^\x00-\x7F])|(?=[^\x00-\x7F])/)) {
+      const wordEl = document.createElement('span');
+      wordEl.className = 'egg-word';
+      for (const ch of word) {
+        const span = document.createElement('span');
+        span.className = 'egg-char';
+        span.textContent = ch;
+        wordEl.appendChild(span);
+        chars.push(span);
+      }
+      title.appendChild(wordEl);
+    }
+    return chars;
+  }
+
+  function showToast(text: string) {
+    document.querySelector('.egg-toast')?.remove();
+    const toast = document.createElement('div');
+    toast.className = 'egg-toast';
+    toast.textContent = text;
+    document.body.appendChild(toast);
+    gsap.fromTo(toast, { y: -16, opacity: 0, scale: 1.3, rotation: -4 }, {
+      y: 0, opacity: 1, scale: 1, rotation: 0, duration: 0.5, ease: 'back.out(2)',
+      onComplete: () => gsap.to(toast, { opacity: 0, y: -10, duration: 0.4, delay: 1.5, onComplete: () => toast.remove() }),
+    });
+  }
+
+  function initHomeEggs() {
+    const previousCleanup = (window as any)[CLEANUP_KEY];
+    if (typeof previousCleanup === 'function') previousCleanup();
+
+    const title = document.querySelector<HTMLElement>('.home-hero-title');
+    if (!title) return; // not on the home page
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ---------- 1. Melting title ----------
+    const chars = splitTitle(title);
+    const ticker = document.querySelector<HTMLElement>('[data-ticker]');
+    let pressTimer = 0;
+    let melting = false;
+
+    function melt() {
+      if (melting || reduceMotion) return;
+      melting = true;
+      title.classList.add('is-melting');
+      const floor = ticker ? ticker.getBoundingClientRect() : null;
+      chars.forEach((ch) => {
+        const rect = ch.getBoundingClientRect();
+        const floorY = floor ? floor.top + floor.height / 2 : window.innerHeight * 0.8;
+        const drop = floorY - (rect.top + rect.height / 2);
+        gsap.to(ch, {
+          y: drop,
+          rotation: gsap.utils.random(-28, 28),
+          duration: 1.1 + Math.random() * 0.5,
+          delay: Math.random() * 0.4,
+          ease: 'bounce.out',
+          overwrite: true,
+          onComplete: () => {
+            const r = ch.getBoundingClientRect();
+            (window as any).__inkSplash?.(r.left + r.width / 2, r.top + r.height / 2, 9);
+            (window as any).__tickerShove?.();
+          },
+        });
+      });
+      gsap.delayedCall(2.8, () => {
+        gsap.to(chars, {
+          y: 0, rotation: 0, duration: 1.5, ease: 'expo.out', stagger: { each: 0.03, from: 'random' }, overwrite: true,
+          onComplete: () => { gsap.set(chars, { clearProps: 'transform' }); title.classList.remove('is-melting'); melting = false; },
+        });
+      });
+    }
+
+    title.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      window.clearTimeout(pressTimer);
+      pressTimer = window.setTimeout(melt, 600);
+    }, { signal });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach((type) => {
+      title.addEventListener(type, () => window.clearTimeout(pressTimer), { signal });
+    });
+
+    // ---------- 2. Triple-tap seal ----------
+    const seal = document.querySelector<HTMLElement>('.seal-floating');
+    const rant = document.querySelector<HTMLElement>('[data-home-rant]');
+    if (seal && rant) {
+      seal.classList.add('is-tappable');
+      seal.addEventListener('click', () => {
+        sealTaps += 1;
+        window.clearTimeout(sealTapTimer);
+        sealTapTimer = window.setTimeout(() => { sealTaps = 0; }, 650);
+        gsap.fromTo(seal, { scale: 0.86 }, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.4)', overwrite: true });
+        if (sealTaps < 3) return;
+        sealTaps = 0;
+        const r = seal.getBoundingClientRect();
+        (window as any).__inkSplash?.(r.left + r.width / 2, r.top + r.height / 2, 24);
+        const opening = rant.hidden;
+        gsap.killTweensOf(rant);
+        if (opening) {
+          // Grow the slot first (height/padding from 0) so the sections below slide down instead
+          // of jumping, then let the ink circle reveal the content inside it
+          rant.hidden = false;
+          const style = getComputedStyle(rant);
+          const padTop = style.paddingTop;
+          const padBottom = style.paddingBottom;
+          // Measure the settled box (border-box, padding included) before collapsing it
+          const fullHeight = rant.offsetHeight;
+          gsap.set(rant, { height: 0, paddingTop: 0, paddingBottom: 0, overflow: 'hidden' });
+          requestAnimationFrame(() => {
+            rant.classList.add('is-open');
+            gsap.to(rant, {
+              height: fullHeight, paddingTop: padTop, paddingBottom: padBottom,
+              duration: 1.2, ease: 'expo.out',
+              onUpdate: () => (window as any).ScrollTrigger?.update(),
+              onComplete: () => { gsap.set(rant, { clearProps: 'height,paddingTop,paddingBottom,overflow' }); (window as any).ScrollTrigger?.refresh(); },
+            });
+            if (window.lenis) window.lenis.scrollTo(rant, { offset: -80, duration: 1.4 });
+            else rant.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        } else {
+          rant.classList.remove('is-open');
+          gsap.set(rant, { overflow: 'hidden' });
+          gsap.to(rant, {
+            height: 0, paddingTop: 0, paddingBottom: 0,
+            duration: 0.9, ease: 'expo.inOut', delay: 0.15,
+            onUpdate: () => (window as any).ScrollTrigger?.update(),
+            onComplete: () => { rant.hidden = true; gsap.set(rant, { clearProps: 'height,paddingTop,paddingBottom,overflow' }); (window as any).ScrollTrigger?.refresh(); },
+          });
+        }
+      }, { signal });
+    }
+
+    // ---------- 3. Konami → pixel mode ----------
+    let progress = 0;
+    document.addEventListener('keydown', (event) => {
+      if ((event.target as Element)?.closest?.('input, textarea, [contenteditable="true"]')) return;
+      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      progress = key === KONAMI[progress] ? progress + 1 : key === KONAMI[0] ? 1 : 0;
+      if (progress < KONAMI.length) return;
+      progress = 0;
+      const on = document.documentElement.getAttribute('data-pixel') !== 'true';
+      document.documentElement.toggleAttribute('data-pixel', on);
+      if (on) document.documentElement.setAttribute('data-pixel', 'true');
+      try { localStorage.setItem('pixel-mode', on ? 'true' : 'false'); } catch {}
+      showToast(on ? '▶ PIXEL MODE ON' : '■ PIXEL MODE OFF');
+      (window as any).__inkSplash?.(window.innerWidth / 2, 80, 18);
+    }, { signal });
+
+    (window as any)[CLEANUP_KEY] = () => {
+      controller.abort();
+      window.clearTimeout(pressTimer);
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+  }
+
+  initHomeEggs();
+
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', initHomeEggs);
+    (window as any)[LISTENER_KEY] = true;
+  }
+</script>

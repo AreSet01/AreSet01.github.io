@@ -1,0 +1,254 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import { getCollection } from 'astro:content';
+import { formatDate, sortPostsByDate } from '../utils/date';
+
+const allPosts = await getCollection('posts', ({ data }) => !data.draft);
+// Oldest on the left, newest on the right — the scroll unrolls forward in time
+const posts = sortPostsByDate(allPosts).reverse();
+
+const entries = posts.map((post, index) => {
+  const date = new Date(post.data.pubDate);
+  const prev = index > 0 ? new Date(posts[index - 1].data.pubDate) : null;
+  return {
+    id: post.id,
+    title: post.data.title,
+    description: post.data.description,
+    tags: post.data.tags ?? [],
+    locked: post.data.locked,
+    dateLabel: formatDate(post.data.pubDate),
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+    newMonth: !prev || prev.getMonth() !== date.getMonth() || prev.getFullYear() !== date.getFullYear(),
+  };
+});
+const firstYear = entries[0]?.year ?? new Date().getFullYear();
+---
+
+<BaseLayout title="年轮 - 梦付千秋" description="按时间展开的一卷手稿">
+  <Header />
+  <main class="container-wide flex-1 timeline-main" style="padding-top: 2rem;">
+    <section class="timeline-head">
+      <p class="eyebrow" data-enter="top">Timeline / 手卷</p>
+      <h1 class="section-title mt-4" data-enter="left">年轮</h1>
+      <p class="timeline-hint" data-enter="left">
+        这里是时间线！好叭就是做来看的压根用不上~
+      </p>
+    </section>
+
+    <!-- The stage itself is what ScrollTrigger pins, so it must never carry an entrance transform;
+         the fly-in lives on its children instead — and those can't replay either, because their
+         positions inside the pin spacer would be measured wrong. The year wrapper keeps a faint
+         CSS opacity, so the entrance goes on the inner span (an entrance that tweens the wrapper
+         to opacity 1 would snap back to 0.07 when it hands control back to the stylesheet). -->
+    <section class="timeline-stage" data-timeline>
+      <div class="timeline-year" aria-hidden="true">
+        <span data-timeline-year data-enter="left" data-no-replay>{firstYear}</span>
+      </div>
+
+      <div class="timeline-viewport" data-timeline-viewport data-enter="bottom" data-no-replay>
+        <div class="timeline-track" data-timeline-track>
+          <div class="timeline-baseline" aria-hidden="true"></div>
+          {entries.map((entry, index) => (
+            <article
+              class:list={['timeline-entry', index % 2 === 0 ? 'is-above' : 'is-below']}
+              data-timeline-entry
+              data-year={entry.year}
+            >
+              {entry.newMonth && (
+                <span class="timeline-month">{entry.year}.{String(entry.month).padStart(2, '0')}</span>
+              )}
+              <span class="timeline-dot" aria-hidden="true"></span>
+              <span class="timeline-stem" aria-hidden="true"></span>
+              <a class="timeline-card" href={`/posts/${entry.id}`} data-post-preview={`/posts/${entry.id}`}>
+                <time>{entry.dateLabel}</time>
+                <h2>
+                  {entry.title}
+                  {entry.locked && <span class="lock-mark ml-2 align-middle">Locked</span>}
+                </h2>
+                {entry.description && <p>{entry.description}</p>}
+                {entry.tags.length > 0 && (
+                  <div class="timeline-card-tags">
+                    {entry.tags.slice(0, 3).map((tag) => <span>{tag}</span>)}
+                  </div>
+                )}
+              </a>
+            </article>
+          ))}
+          <div class="timeline-end" aria-hidden="true">
+            <span class="timeline-end-seal">卷尾</span>
+            <span class="timeline-end-count">{entries.length} 篇 · 未完待续</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="timeline-progress" aria-hidden="true"><i data-timeline-progress></i></div>
+    </section>
+  </main>
+</BaseLayout>
+
+<script>
+  import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  const CLEANUP_KEY = '__areSetTimelineCleanup__';
+  const LISTENER_KEY = '__areSetTimelineBound__';
+  const TRIGGER_PREFIX = 'timeline:';
+
+  function initTimeline() {
+    const previousCleanup = (window as any)[CLEANUP_KEY];
+    if (typeof previousCleanup === 'function') previousCleanup();
+
+    const stage = document.querySelector<HTMLElement>('[data-timeline]');
+    const viewport = stage?.querySelector<HTMLElement>('[data-timeline-viewport]');
+    const track = stage?.querySelector<HTMLElement>('[data-timeline-track]');
+    if (!stage || !viewport || !track) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const entries = Array.from(track.querySelectorAll<HTMLElement>('[data-timeline-entry]'));
+    const yearEl = stage.querySelector<HTMLElement>('[data-timeline-year]');
+    const progressEl = stage.querySelector<HTMLElement>('[data-timeline-progress]');
+
+    ScrollTrigger.getAll().forEach((trigger) => {
+      if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
+    });
+
+    // Narrow screens read the scroll as a plain vertical list (CSS) — nothing to pin
+    const horizontal = window.matchMedia('(min-width: 1024px)').matches && !reduceMotion;
+    if (!horizontal) {
+      entries.forEach((entry) => entry.classList.add('is-near'));
+      (window as any)[CLEANUP_KEY] = () => controller.abort();
+      return;
+    }
+
+    const distance = () => Math.max(0, track.scrollWidth - viewport.clientWidth);
+
+    // Vertical scroll → horizontal unroll, pinned while it plays
+    const unroll = gsap.to(track, {
+      x: () => -distance(),
+      ease: 'none',
+      scrollTrigger: {
+        id: `${TRIGGER_PREFIX}unroll`,
+        trigger: stage,
+        start: 'top top+=24',
+        end: () => `+=${distance()}`,
+        pin: true,
+        anticipatePin: 1,
+        scrub: 0.55,
+        invalidateOnRefresh: true,
+        onUpdate: (self) => {
+          if (progressEl) progressEl.style.transform = `scaleX(${self.progress.toFixed(4)})`;
+          updateYear();
+        },
+      },
+    });
+
+    // Each entry blooms as it crosses the middle of the viewport, and folds back when it leaves
+    entries.forEach((entry, index) => {
+      ScrollTrigger.create({
+        id: `${TRIGGER_PREFIX}entry-${index}`,
+        trigger: entry,
+        containerAnimation: unroll,
+        start: 'left 82%',
+        end: 'right 12%',
+        toggleClass: { targets: entry, className: 'is-near' },
+      });
+    });
+
+    // Big year in the corner follows whichever entry sits nearest the viewport centre.
+    // Throttled to every few frames — it forces layout reads, which is the last thing a scrubbed
+    // pin wants on every tick.
+    let currentYear = yearEl?.textContent?.trim() || '';
+    let yearTick = 0;
+    function updateYear() {
+      if (!yearEl || !entries.length) return;
+      if ((yearTick = (yearTick + 1) % 4) !== 0) return;
+      const centre = viewport.getBoundingClientRect().left + viewport.clientWidth / 2;
+      let best = entries[0];
+      let bestDist = Infinity;
+      for (const entry of entries) {
+        const rect = entry.getBoundingClientRect();
+        const d = Math.abs(rect.left - centre);
+        if (d < bestDist) { bestDist = d; best = entry; }
+      }
+      const year = best.dataset.year || '';
+      if (year === currentYear) return;
+      currentYear = year;
+      gsap.fromTo(yearEl, { y: 24, opacity: 0 }, {
+        y: 0, opacity: 1, duration: 0.7, ease: 'expo.out', overwrite: true,
+        onStart: () => { yearEl.textContent = year; },
+      });
+    }
+
+    // Drag to unroll — pointer delta maps 1:1 onto the pinned scroll range, with a flick on release
+    let dragging = false;
+    let lastX = 0;
+    let lastT = 0;
+    let velocity = 0;
+    viewport.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      if ((event.target as Element).closest('a')) return;
+      dragging = true;
+      lastX = event.clientX;
+      lastT = performance.now();
+      velocity = 0;
+      stage.classList.add('is-dragging');
+      viewport.setPointerCapture(event.pointerId);
+    }, { signal });
+    viewport.addEventListener('pointermove', (event) => {
+      if (!dragging) return;
+      const dx = event.clientX - lastX;
+      const now = performance.now();
+      velocity = dx / Math.max(1, now - lastT);
+      lastX = event.clientX;
+      lastT = now;
+      const target = window.scrollY - dx;
+      if (window.lenis) window.lenis.scrollTo(target, { immediate: true });
+      else window.scrollTo(0, target);
+    }, { signal });
+    const endDrag = () => {
+      if (!dragging) return;
+      dragging = false;
+      stage.classList.remove('is-dragging');
+      const flick = -velocity * 260;
+      if (Math.abs(flick) > 20 && window.lenis) window.lenis.scrollTo(window.scrollY + flick, { duration: 1.1 });
+    };
+    viewport.addEventListener('pointerup', endDrag, { signal });
+    viewport.addEventListener('pointercancel', endDrag, { signal });
+
+    // Fonts / images can change the track width after first layout. A refresh mid-scroll
+    // re-measures the pin and reads as a hitch, so only refresh when the width really changed,
+    // debounced, and never while a drag is in flight.
+    let lastTrackWidth = track.scrollWidth;
+    let refreshTimer = 0;
+    const ro = new ResizeObserver(() => {
+      if (Math.abs(track.scrollWidth - lastTrackWidth) < 2) return;
+      lastTrackWidth = track.scrollWidth;
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => { if (!dragging) ScrollTrigger.refresh(); }, 160);
+    });
+    ro.observe(track);
+    signal.addEventListener('abort', () => { ro.disconnect(); window.clearTimeout(refreshTimer); });
+
+    (window as any)[CLEANUP_KEY] = () => {
+      controller.abort();
+      ScrollTrigger.getAll().forEach((trigger) => {
+        if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
+      });
+      gsap.set(track, { clearProps: 'transform' });
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+  }
+
+  initTimeline();
+
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', initTimeline);
+    (window as any)[LISTENER_KEY] = true;
+  }
+</script>

@@ -1,5 +1,6 @@
 ---
 import { formatDate } from '../utils/date';
+import { tagSlug } from '../utils/posts';
 
 interface Props {
   title: string;
@@ -13,14 +14,20 @@ interface Props {
 
 const { title, description, pubDate, tags = [], slug, index = 0, locked = false } = Astro.props;
 const noteNumber = String(index + 1).padStart(2, '0');
+const enterFrom = (['left', 'bottom', 'right'] as const)[index % 3];
 ---
 
-<article class="reveal-up h-full" style={`animation-delay: ${Math.min(index * 100, 360)}ms;`}>
-  <a
-    href={`/posts/${slug}`}
-    data-post-preview={`/posts/${slug}`}
-    class="note-card group"
-  >
+<article class="h-full" data-enter={enterFrom}>
+  <!-- The card body is a plain element so the tag links inside can be real links; the post link
+       is stretched over the whole card via ::after, keeping the preview-modal behaviour. -->
+  <div class="note-card group">
+    <a
+      href={`/posts/${slug}`}
+      data-post-preview={`/posts/${slug}`}
+      class="note-card-link"
+      aria-label={title}
+    ></a>
+
     <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[0.72rem] tracking-[0.08em] text-[var(--muted)]">
       <span class="whitespace-nowrap">№ {noteNumber}</span>
       <div class="flex items-center gap-3">
@@ -45,9 +52,9 @@ const noteNumber = String(index + 1).padStart(2, '0');
     )}
 
     {tags.length > 0 && (
-      <div class="mt-5 flex flex-wrap gap-x-4 gap-y-1">
+      <div class="note-card-tags mt-5 flex flex-wrap gap-x-4 gap-y-1">
         {tags.slice(0, 3).map(tag => (
-          <span class="tag-chip">{tag}</span>
+          <a class="tag-chip" href={`/tags/${tagSlug(tag)}`}>{tag}</a>
         ))}
       </div>
     )}
@@ -60,5 +67,5 @@ const noteNumber = String(index + 1).padStart(2, '0');
         {String(tags.length).padStart(2, '0')} / TAGS
       </span>
     </div>
-  </a>
+  </div>
 </article>
