@@ -107,6 +107,7 @@ const year = new Date().getFullYear();
   let isDrawing = false;
   let isMobile  = false;
   let cleanupFns = [];   // window-level listeners to remove on next init
+  let hasPointerPosition = false;
 
   const mouse = { x: 0, y: 0 };
   const brush = {
@@ -148,7 +149,7 @@ const year = new Date().getFullYear();
 
   // ── Drawing ───────────────────────────────────────────────────────────────
   function updateAndDraw() {
-    if (!canvas || !ctx) return;
+    if (!canvas || !ctx || !hasPointerPosition) return;
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
     const theme = document.documentElement.getAttribute('data-theme') || 'light';
@@ -269,6 +270,7 @@ const year = new Date().getFullYear();
     brush.isVisible = false;
     brush.isPressed = false;
     brush.vx = brush.vy = 0;
+    hasPointerPosition = false;
 
     resize();
 
@@ -278,6 +280,13 @@ const year = new Date().getFullYear();
       const rect = canvas.getBoundingClientRect();
       mouse.x = e.clientX - rect.left;
       mouse.y = e.clientY - rect.top;
+      if (!hasPointerPosition) {
+        brush.x = mouse.x;
+        brush.y = mouse.y;
+        brush.vx = 0;
+        brush.vy = 0;
+        hasPointerPosition = true;
+      }
     }
 
     function onResize() { resize(); }
@@ -287,9 +296,14 @@ const year = new Date().getFullYear();
       updateMouse(e);
       brush.x = mouse.x;   brush.y = mouse.y;
       brush.vx = brush.vy = 0;
+      hasPointerPosition = true;
       strokeId++;
     }
-    function onPointerLeave() { brush.isVisible = false; brush.isPressed = false; }
+    function onPointerLeave() {
+      brush.isVisible = false;
+      brush.isPressed = false;
+      hasPointerPosition = false;
+    }
 
     function onPointerMove(e) {
       updateMouse(e);
@@ -303,7 +317,13 @@ const year = new Date().getFullYear();
         requestAnimationFrame(updateAndDraw);
       }
     }
-    function onPointerDown(e) { if (e.button === 0) { brush.isPressed = true;  strokeId++; } }
+    function onPointerDown(e) {
+      if (e.button === 0) {
+        updateMouse(e);
+        brush.isPressed = true;
+        strokeId++;
+      }
+    }
     function onPointerUp()    { brush.isPressed = false; strokeId++; }
 
     window.addEventListener('resize',       onResize);

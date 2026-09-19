@@ -246,7 +246,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     </section>
 
     <!-- Table view: every number above, reachable without hovering -------- -->
-    <details class="stats-table" data-enter="bottom">
+    <details class="stats-table" data-enter="bottom" data-no-replay>
       <summary>数据表</summary>
       <div class="stats-table-scroll">
         <table>
@@ -361,10 +361,34 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
             const full = tableBody.getBoundingClientRect().height;
             gsap.set(tableBody, { height: 0, overflow: 'hidden' });
             requestAnimationFrame(() => table.classList.add('is-shown'));
+
+            // Auto-scroll to center: position summary comfortably in the upper-middle / center of the viewport
+            const startScrollY = window.scrollY;
+            const summaryDocTop = summary.getBoundingClientRect().top + startScrollY;
+            const targetCenterScrollY = Math.max(
+              0,
+              Math.round(summaryDocTop - (window.innerHeight - summary.offsetHeight) * 0.36)
+            );
+            const scrollDelta = targetCenterScrollY - startScrollY;
+            const shouldScroll = scrollDelta > 10;
+
             tableTween = gsap.to(tableBody, {
               height: full,
               duration: 0.85,
-              ease: 'enter',
+              ease: 'power2.inOut',
+              onUpdate: function () {
+                const p = this.progress();
+                if (shouldScroll) {
+                  const currentY = startScrollY + scrollDelta * p;
+                  if ((window as any).lenis) {
+                    (window as any).lenis.scrollTo(currentY, { immediate: true });
+                  } else {
+                    window.scrollTo({ top: currentY, behavior: 'instant' });
+                  }
+                }
+                ScrollTrigger.update();
+                try { (window as any).lenis?.resize(); } catch {}
+              },
               onComplete: () => {
                 gsap.set(tableBody, { clearProps: 'height,overflow' });
                 tableTween = null;
@@ -373,11 +397,32 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
             });
           } else {
             table.classList.remove('is-shown');
-            gsap.set(tableBody, { height: tableBody.getBoundingClientRect().height, overflow: 'hidden' });
+            const currentHeight = tableBody.getBoundingClientRect().height;
+            gsap.set(tableBody, { height: currentHeight, overflow: 'hidden' });
+
+            const startScrollY = window.scrollY;
+            const currentDocHeight = document.documentElement.scrollHeight;
+            const targetDocHeight = currentDocHeight - currentHeight;
+            const maxTargetScroll = Math.max(0, targetDocHeight - window.innerHeight);
+            const needsScrollAdjust = startScrollY > maxTargetScroll;
+            const scrollDistance = needsScrollAdjust ? startScrollY - maxTargetScroll : 0;
+
             tableTween = gsap.to(tableBody, {
               height: 0,
-              duration: 0.6,
-              ease: 'enter',
+              duration: 0.55,
+              ease: 'power2.inOut',
+              onUpdate: function () {
+                if (needsScrollAdjust) {
+                  const targetY = startScrollY - scrollDistance * this.progress();
+                  if ((window as any).lenis) {
+                    (window as any).lenis.scrollTo(targetY, { immediate: true });
+                  } else {
+                    window.scrollTo({ top: targetY, behavior: 'instant' });
+                  }
+                }
+                ScrollTrigger.update();
+                try { (window as any).lenis?.resize(); } catch {}
+              },
               onComplete: () => {
                 table.open = false;
                 gsap.set(tableBody, { clearProps: 'height,overflow' });

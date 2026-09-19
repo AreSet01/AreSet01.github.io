@@ -984,7 +984,24 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           );
 
           if (isPreviewOpen || isSearchInteraction || isImageInteraction) return;
-          sparkle(event.clientX, event.clientY, 18);
+
+          let clickX = event.clientX;
+          let clickY = event.clientY;
+          if (clickX === 0 && clickY === 0) {
+            const targetEl = event.target as HTMLElement | null;
+            if (targetEl && typeof targetEl.getBoundingClientRect === 'function') {
+              const rect = targetEl.getBoundingClientRect();
+              if (rect.width > 0 || rect.height > 0) {
+                clickX = Math.round(rect.left + rect.width / 2);
+                clickY = Math.round(rect.top + rect.height / 2);
+              } else {
+                return;
+              }
+            } else {
+              return;
+            }
+          }
+          sparkle(clickX, clickY, 18);
         }, { signal });
 
         let previewClickActive = false;
