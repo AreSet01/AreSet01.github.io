@@ -1,0 +1,932 @@
+---
+// Site-entry curtain: 「墨化为像素」. Stray pixels gather into a drop of ink; it falls and bursts
+// into thousands of pixel squares; a vortex sweeps them up, then lets them go glyph by glyph to
+// form 「梦付千秋」; a scanline turns the pixel mass into real type; and at the end the type
+// breaks back into pixels that fly to their homes on the page — the sidebar's brand mark and
+// every element about to enter — so the curtain becomes the page rather than lifting off it.
+// Ten seconds, skippable at any moment (click, Esc / Enter / Space, or the button).
+//
+// Whether it plays at all is decided before first paint by the inline script in BaseLayout
+// (html.site-intro-active + window.__siteIntroPending); this component renders the markup and
+// drives it. Everything that moves is on one canvas; the DOM holds only the seal, the tagline
+// and the footer, and those animate with transform / opacity alone.
+const tagline = '日常记录 · 技术分享';
+---
+
+<div class="site-intro" data-site-intro aria-hidden="true">
+  <canvas class="site-intro-canvas" data-intro-canvas></canvas>
+  <div class="site-intro-stage" data-intro-stage>
+    <span class="site-intro-seal" data-intro-seal>
+      <span class="site-intro-ring" data-intro-ring></span>
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="introSealRough" x="-12%" y="-12%" width="124%" height="124%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="11" />
+            <feDisplacementMap in="SourceGraphic" scale="2" />
+          </filter>
+        </defs>
+        <g filter="url(#introSealRough)">
+          <rect class="seal-plate" x="5" y="5" width="90" height="90" />
+          <rect class="seal-frame" x="11" y="11" width="78" height="78" />
+          <text class="seal-glyph" x="50" y="58">汐</text>
+        </g>
+      </svg>
+    </span>
+    <p class="site-intro-tagline" data-intro-tagline data-text={tagline}>
+      <span data-intro-typed></span><i class="site-intro-caret" aria-hidden="true"></i>
+    </p>
+  </div>
+  <div class="site-intro-foot" data-intro-foot>
+    <span class="site-intro-status" data-intro-status>ENTERING · 00% · 凝</span>
+    <span class="site-intro-progress"><i data-intro-progress></i></span>
+    <button type="button" class="site-intro-skip" data-intro-skip>跳过 <span aria-hidden="true">→</span></button>
+  </div>
+</div>
+
+<script>
+  import gsap from 'gsap';
+
+  const TITLE = '梦付千秋';
+
+  // Beats, in seconds. 凝 → 落 → 散 → 旋 → 聚 → 成 → 归
+  const T = {
+    dropForm: 0.85,   // the gathered blob starts to stretch
+    detach: 1.2,      // …and lets go
+    impact: 1.75,     // burst
+    vortex: 3.2,      // the spray is swept into a spiral
+    form: 4.6,        // first pixels leave the vortex for their glyph cells
+    formEnd: 5.75,    // 秋 completes
+    seal: 5.85,
+    sealImpact: 6.2,
+    scan1: 6.4,       // pixels → type
+    scan1End: 6.95,
+    tagline: 7.0,
+    scan2: 7.9,       // type → pixels
+    scan2End: 8.35,
+    lift: 7.95,       // the paper goes transparent; the page is live underneath
+    release: 8.5,     // the page's own entrance starts; pixels arrive as each element enters
+    end: 10.0,
+  };
+  const PHASES: Array<[number, string]> = [
+    [T.detach, '凝'], [T.impact, '落'], [T.vortex, '散'], [T.form, '旋'], [T.seal, '聚'], [T.scan2, '成'], [Infinity, '归'],
+  ];
+  const STEP = 1 / 120; // fixed physics step: 165Hz and 60Hz run the same
+  const SKIP_KEYS = new Set(['Escape', 'Enter', ' ', 'Spacebar']);
+  const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End']);
+
+  // Particle kinds / modes / destinations (Uint8)
+  const K_GLYPH = 0; // owns a cell of the title
+  const K_FREE = 1;  // spray with no cell — settles as specks, flies home at the end
+  const K_STAIN = 2; // lands as a stain on the paper and dries away
+  const M_IDLE = 0, M_FLY = 1, M_SEEK = 2, M_LOCK = 3, M_HOME = 4, M_LAND = 5, M_ASH = 6, M_DEAD = 7;
+  const H_NONE = 0, H_HOME = 1, H_ASH = 2;
+
+  let finished = false;
+  let teardown: (() => void) | null = null;
+
+  const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+  const smooth = (a: number, b: number, v: number) => { const q = clamp01((v - a) / (b - a)); return q * q * (3 - 2 * q); };
+  const easeOutExpo = (p: number) => (p >= 1 ? 1 : 1 - Math.pow(2, -10 * p));
+  const easeOutQuad = (p: number) => 1 - (1 - p) * (1 - p);
+  const easeInOutQuad = (p: number) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+  const rnd = Math.random;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  function cssVar(name: string, fallback: string) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  }
+
+  /** rgba() from a #rgb / #rrggbb token, for the few places that need a translucent ink */
+  function withAlpha(hex: string, alpha: number) {
+    const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex);
+    if (!m) return `rgba(0, 0, 0, ${alpha})`;
+    const h = m[1].length === 3 ? m[1].split('').map((c) => c + c).join('') : m[1];
+    const n = parseInt(h, 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  }
+
+  /** Lit cells of whatever `draw` paints inside `box` (screen px), as a flat [x, y, x, y…] of cell corners */
+  function rasterCells(box: { x: number; y: number; w: number; h: number }, cell: number, draw: (c: CanvasRenderingContext2D) => void) {
+    const off = document.createElement('canvas');
+    off.width = Math.max(1, Math.ceil(box.w));
+    off.height = Math.max(1, Math.ceil(box.h));
+    const c = off.getContext('2d', { willReadFrequently: true })!;
+    c.translate(-box.x, -box.y);
+    c.fillStyle = '#000';
+    draw(c);
+    const { data } = c.getImageData(0, 0, off.width, off.height);
+    const out: number[] = [];
+    const half = cell >> 1;
+    for (let gy = 0; gy + cell <= off.height; gy += cell) {
+      const row = (gy + half) * off.width;
+      for (let gx = 0; gx + cell <= off.width; gx += cell) {
+        if (data[(row + gx + half) * 4 + 3] > 128) out.push(box.x + gx, box.y + gy);
+      }
+    }
+    return out;
+  }
+
+  function shuffle(list: number[]) {
+    for (let i = list.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(rnd() * (i + 1));
+      const t = list[i]; list[i] = list[j]; list[j] = t;
+    }
+    return list;
+  }
+
+  function runSiteIntro() {
+    const intro = document.querySelector<HTMLElement>('[data-site-intro]');
+    if (!intro) return;
+    // The markup ships on every page; only the load the head script armed should play it
+    if (!document.documentElement.classList.contains('site-intro-active')) return;
+    if (intro.dataset.started === 'true') return;
+    intro.dataset.started = 'true';
+
+    const canvas = intro.querySelector<HTMLCanvasElement>('[data-intro-canvas]')!;
+    const stage = intro.querySelector<HTMLElement>('[data-intro-stage]')!;
+    const seal = intro.querySelector<HTMLElement>('[data-intro-seal]')!;
+    const ring = intro.querySelector<HTMLElement>('[data-intro-ring]')!;
+    const taglineEl = intro.querySelector<HTMLElement>('[data-intro-tagline]')!;
+    const typed = intro.querySelector<HTMLElement>('[data-intro-typed]')!;
+    const foot = intro.querySelector<HTMLElement>('[data-intro-foot]')!;
+    const status = intro.querySelector<HTMLElement>('[data-intro-status]')!;
+    const progress = intro.querySelector<HTMLElement>('[data-intro-progress]')!;
+    const skipBtn = intro.querySelector<HTMLElement>('[data-intro-skip]')!;
+    const ctx = canvas.getContext('2d');
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    const tagline = taglineEl.dataset.text || '';
+
+    // Called from the timeline, the skip path and finish(); the page must only be released once
+    let released = false;
+    const releasePage = (options?: { timeScale?: number }) => {
+      if (released) return;
+      released = true;
+      (window as any).__releasePageEnter?.(options);
+    };
+    const splash = (x: number, y: number, n: number) => { (window as any).__inkSplash?.(x, y, n); };
+
+    if (!ctx) {
+      document.documentElement.classList.remove('site-intro-active');
+      (window as any).__siteIntroPending = false;
+      releasePage();
+      intro.remove();
+      return;
+    }
+
+    // Lenis is stopped rather than locking <html>: hiding the scrollbar would shift the page
+    // sideways underneath the curtain and shift it back the moment the curtain lifts. Module
+    // scripts run in document order, so Lenis may not exist yet — the frame loop keeps it
+    // stopped for as long as the curtain is up.
+    const holdScroll = () => {
+      try {
+        const lenis = (window as any).lenis;
+        if (lenis && !lenis.isStopped) lenis.stop();
+      } catch {}
+    };
+    holdScroll();
+
+    // ---------- Stage ----------
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const finePointer = window.matchMedia('(pointer: fine)').matches;
+    const dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2);
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+
+    const ink = cssVar('--ink-strong', '#000');
+    const theme = document.documentElement.getAttribute('data-theme');
+    const grainAlpha = theme === null || theme === 'light' ? 0.06 : 0.085;
+    const cx = W / 2;
+    const cy = Math.round(H * 0.46);
+    const dropX = cx;
+    const dropY = Math.round(H * 0.12);
+    const fontSize = Math.round(Math.max(40, Math.min(W * 0.16, H * 0.26, 300)));
+    const font = `400 ${fontSize}px "Zpix", "VT323", "Press Start 2P", monospace`;
+    const MAX = coarse ? 2200 : 7000;
+    const MIN = coarse ? 1400 : 3000;
+    const vortexR = Math.min(W, H) * 0.24;
+    const minWH = Math.min(W, H);
+
+    // Paper grain: three tiles of sparse ink specks, re-offset a few times a second
+    const grainTiles = [0, 1, 2].map(() => {
+      const tile = document.createElement('canvas');
+      tile.width = tile.height = 128;
+      const c = tile.getContext('2d')!;
+      c.fillStyle = ink;
+      for (let i = 0; i < 640; i += 1) {
+        c.globalAlpha = 0.25 + rnd() * 0.6;
+        c.fillRect(Math.floor(rnd() * 128), Math.floor(rnd() * 128), 1, 1);
+      }
+      return ctx.createPattern(tile, 'repeat')!;
+    });
+    let grainTile = 0, grainX = 0, grainY = 0, grainAt = -1;
+
+    // ---------- Particles (allocated once the title has been rasterised) ----------
+    let ready = false;
+    let spawned = false;
+    let N = 0, G = 0, cell = 3;
+    let px: Float32Array, py: Float32Array, vx: Float32Array, vy: Float32Array;
+    let tx: Float32Array, ty: Float32Array, hx: Float32Array, hy: Float32Array;
+    let tA: Float32Array, tH: Float32Array, life: Float32Array, pref: Float32Array, splitAt: Float32Array;
+    let kind: Uint8Array, mode: Uint8Array, homeKind: Uint8Array;
+    let leader: Int32Array;
+    let alive = 0;
+    let bx0 = 0, by0 = 0, bx1 = 0, by1 = 0; // ink bounds of the title, screen px
+    let charX: number[] = [];
+
+    function drawTitle(c: CanvasRenderingContext2D, dx = 0, dy = 0) {
+      c.font = font;
+      c.textBaseline = 'middle';
+      c.textAlign = 'left';
+      for (let i = 0; i < charX.length; i += 1) c.fillText(TITLE[i], charX[i] + dx, cy + dy);
+    }
+
+    async function prepare() {
+      try { await Promise.race([document.fonts.load(font, TITLE), sleep(1500)]); } catch {}
+      if (signal.aborted) return;
+      const meas = document.createElement('canvas').getContext('2d')!;
+      meas.font = font;
+      const gap = fontSize * 0.08;
+      const advances = [...TITLE].map((ch) => meas.measureText(ch).width);
+      const total = advances.reduce((a, b) => a + b, 0) + gap * (TITLE.length - 1);
+      let x = cx - total / 2;
+      charX = advances.map((w) => { const here = x; x += w + gap; return here; });
+
+      // Coarser cells until the title fits the particle budget
+      cell = Math.max(3, Math.min(5, Math.round(fontSize / 64)));
+      let cells: number[] = [];
+      for (;;) {
+        const pad = cell * 2;
+        const box = { x: Math.floor(cx - total / 2 - pad), y: Math.floor(cy - fontSize * 0.75), w: Math.ceil(total + pad * 2), h: Math.ceil(fontSize * 1.5) };
+        cells = rasterCells(box, cell, (c) => drawTitle(c));
+        if (cells.length / 2 <= MAX * 0.92 || cell >= 8) break;
+        cell += 1;
+      }
+      G = cells.length / 2;
+      N = Math.max(G + 320, MIN);
+
+      px = new Float32Array(N); py = new Float32Array(N); vx = new Float32Array(N); vy = new Float32Array(N);
+      tx = new Float32Array(N); ty = new Float32Array(N); hx = new Float32Array(N); hy = new Float32Array(N);
+      tA = new Float32Array(N); tH = new Float32Array(N); life = new Float32Array(N); pref = new Float32Array(N); splitAt = new Float32Array(N);
+      kind = new Uint8Array(N); mode = new Uint8Array(N); homeKind = new Uint8Array(N);
+      leader = new Int32Array(N).fill(-1);
+
+      bx0 = Infinity; by0 = Infinity; bx1 = -Infinity; by1 = -Infinity;
+      for (let i = 0; i < G; i += 1) {
+        tx[i] = cells[i * 2];
+        ty[i] = cells[i * 2 + 1];
+        if (tx[i] < bx0) bx0 = tx[i];
+        if (ty[i] < by0) by0 = ty[i];
+        if (tx[i] + cell > bx1) bx1 = tx[i] + cell;
+        if (ty[i] + cell > by1) by1 = ty[i] + cell;
+      }
+      const stains = Math.min(N - G, Math.round(N * 0.03));
+      for (let i = G; i < N; i += 1) kind[i] = i < G + stains ? K_STAIN : K_FREE;
+      for (let i = 0; i < N; i += 1) pref[i] = vortexR * (0.6 + rnd() * 0.9);
+
+      // Glyph cells fill left to right (with a slight top-first lean), so 梦 → 付 → 千 → 秋
+      const order = Array.from({ length: G }, (_, i) => i).sort((a, b) => (tx[a] + ty[a] * 0.12) - (tx[b] + ty[b] * 0.12));
+      order.forEach((i, rank) => { tA[i] = T.form + (rank / G) * (T.formEnd - T.form) + (rnd() - 0.5) * 0.1; });
+
+      // Every 16th pixel is a chunk that carries the next three hidden inside it and splits mid-flight
+      for (let i = 0; i < G; i += 1) {
+        const m = i % 16;
+        if (m === 0) splitAt[i] = T.impact + 0.15 + rnd() * 0.4;
+        else if (m <= 3) leader[i] = i - m;
+      }
+
+      placeStage();
+      ready = true;
+    }
+
+    // Seal to the right of the title, bottom-aligned; above it when there is no room. Tagline below.
+    function placeStage() {
+      const sealSize = Math.round(Math.max(34, Math.min(92, fontSize * 0.3)));
+      seal.style.width = `${sealSize}px`;
+      if (bx1 + fontSize * 0.12 + sealSize < W - 16) {
+        seal.style.left = `${Math.round(bx1 + fontSize * 0.12)}px`;
+        seal.style.top = `${Math.round(by1 - sealSize)}px`;
+      } else {
+        seal.style.left = `${Math.round((bx0 + bx1) / 2 - sealSize / 2)}px`;
+        seal.style.top = `${Math.round(by0 - sealSize - fontSize * 0.14)}px`;
+      }
+      taglineEl.style.top = `${Math.round(by1 + fontSize * 0.24)}px`;
+    }
+
+    // ---------- 凝 / 落: the drop, before there are any particles ----------
+    const SEEDS = 64;
+    const seedSX = new Float32Array(SEEDS), seedSY = new Float32Array(SEEDS);
+    const seedTX = new Float32Array(SEEDS), seedTY = new Float32Array(SEEDS), seedDelay = new Float32Array(SEEDS);
+    for (let i = 0; i < SEEDS; i += 1) {
+      const a = rnd() * Math.PI * 2;
+      const r = 120 + rnd() * 160;
+      seedSX[i] = dropX + Math.cos(a) * r;
+      seedSY[i] = dropY + Math.sin(a) * r * 0.7;
+      const b = rnd() * Math.PI * 2;
+      const rr = rnd() * 5;
+      seedTX[i] = dropX + Math.cos(b) * rr;
+      seedTY[i] = dropY + Math.sin(b) * rr;
+      seedDelay[i] = rnd() * 0.5;
+    }
+
+    function dropPos(t: number) {
+      if (t < T.detach) return { x: dropX, y: dropY + 8 * smooth(T.dropForm, T.detach, t) };
+      const q = clamp01((t - T.detach) / (T.impact - T.detach));
+      return { x: dropX, y: dropY + (cy - dropY) * q * q };
+    }
+
+    function drawDrop(c: CanvasRenderingContext2D, t: number) {
+      c.fillStyle = ink;
+      if (t < T.detach) {
+        for (let i = 0; i < SEEDS; i += 1) {
+          const q = easeOutExpo(clamp01((t - seedDelay[i]) / 0.55));
+          if (q > 0.985) continue; // absorbed
+          c.fillRect(seedSX[i] + (seedTX[i] - seedSX[i]) * q, seedSY[i] + (seedTY[i] - seedSY[i]) * q, 3, 3);
+        }
+      }
+      if (t < 0.3) return;
+      const rb = 2 + 7 * smooth(0.3, 1.0, t);
+      const stretch = smooth(T.dropForm, T.detach, t);
+      const { x, y } = dropPos(t);
+      let rx = rb * (1 - 0.3 * stretch);
+      let ry = rb * (1 + 1.2 * stretch);
+      if (t >= T.detach) {
+        const q = clamp01((t - T.detach) / (T.impact - T.detach));
+        rx = rb * 0.75;
+        ry = rb * (1.4 + 2.2 * q);
+        // Tail, stretching with speed
+        c.globalAlpha = 0.35;
+        c.beginPath();
+        c.moveTo(x - rb * 0.5, y - ry * 0.6);
+        c.lineTo(x, y - ry - 90 * q);
+        c.lineTo(x + rb * 0.5, y - ry * 0.6);
+        c.closePath();
+        c.fill();
+        c.globalAlpha = 1;
+      } else if (stretch > 0) {
+        // Neck, thinning as the drop lets go
+        const neckW = rb * 0.5 * (1 - stretch) + 0.6;
+        c.fillRect(x - neckW / 2, dropY - rb * 1.6, neckW, y - dropY + rb * 1.6);
+      }
+      c.beginPath();
+      c.ellipse(x, y, rx * (1 + 0.05 * Math.sin(t * 40)), ry, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    function spawnAll(x0: number, y0: number, spread: number) {
+      for (let i = 0; i < N; i += 1) {
+        const a = rnd() * Math.PI * 2;
+        const r = Math.sqrt(rnd()) * spread;
+        px[i] = x0 + Math.cos(a) * r - cell / 2;
+        py[i] = y0 + Math.sin(a) * r - cell / 2;
+        // Most of the spray stays near the point of impact; a few fly far
+        const speed = kind[i] === K_STAIN ? 260 + 700 * rnd() : 240 + 1700 * Math.pow(rnd(), 1.7);
+        const dir = rnd() * Math.PI * 2;
+        vx[i] = Math.cos(dir) * speed;
+        vy[i] = Math.sin(dir) * speed;
+        mode[i] = M_FLY;
+        life[i] = 1;
+      }
+      alive = N;
+      spawned = true;
+    }
+
+    // ---------- Physics ----------
+    let homesAssigned = false;
+    let homeTimeScale = 1;
+    let skipping = false;
+    let skipAt = 0;
+    let lifted = false;
+
+    // What the type covers this frame: 0 nothing · 1 above the scanline · 2 all · 3 below it
+    let textMode = 0;
+    let scanY = 0;
+    function covered(y: number) {
+      return textMode === 2 || (textMode === 1 && y < scanY) || (textMode === 3 && y > scanY);
+    }
+
+    function startAsh(i: number) {
+      mode[i] = M_ASH;
+      vx[i] = (rnd() - 0.5) * 40;
+      vy[i] = -(60 + rnd() * 100);
+      life[i] = 1;
+    }
+
+    function step(dt: number, t: number) {
+      const vortexMix = smooth(T.vortex, T.vortex + 0.5, t);
+      const settle = smooth(T.form, T.formEnd, t);
+      const dragFly = Math.exp(-2.6 * dt);
+      const dragStain = Math.exp(-7 * dt);
+      const dragSettle = Math.exp(-3 * dt * settle);
+      const steer = 1 - Math.exp(-4 * dt);
+      const stainsDry = t > T.form + 0.4;
+
+      for (let i = 0; i < N; i += 1) {
+        const m = mode[i];
+        if (m === M_IDLE || m === M_DEAD) continue;
+
+        if (m === M_LOCK) {
+          if (kind[i] === K_STAIN) {
+            if (stainsDry) { mode[i] = M_DEAD; alive -= 1; }
+            continue;
+          }
+          // Locked into the title: leave for home once the type has let go of this row
+          if (homeKind[i] !== H_NONE && t >= tH[i] - (homeKind[i] === H_HOME ? 0.45 : 0) && (skipping || !covered(ty[i] + cell / 2))) {
+            px[i] = tx[i];
+            py[i] = ty[i];
+            if (homeKind[i] === H_HOME) mode[i] = M_HOME;
+            else startAsh(i);
+          }
+          continue;
+        }
+
+        if (m === M_LAND) {
+          life[i] -= dt / 0.3;
+          if (life[i] <= 0) { mode[i] = M_DEAD; alive -= 1; }
+          continue;
+        }
+
+        if (m === M_ASH) {
+          vy[i] -= 30 * dt;
+          px[i] += vx[i] * dt + Math.sin(t * 6 + i) * 20 * dt;
+          py[i] += vy[i] * dt;
+          life[i] -= dt / 0.75;
+          if (life[i] <= 0) { mode[i] = M_DEAD; alive -= 1; }
+          continue;
+        }
+
+        // Riding inside a chunk until it splits
+        const L = leader[i];
+        if (L >= 0) {
+          if (t < splitAt[L]) { px[i] = px[L]; py[i] = py[L]; vx[i] = vx[L]; vy[i] = vy[L]; continue; }
+          leader[i] = -1;
+          vx[i] += (rnd() - 0.5) * 260;
+          vy[i] += (rnd() - 0.5) * 260;
+        }
+
+        if (m === M_HOME) {
+          const dx = hx[i] - px[i], dy = hy[i] - py[i];
+          vx[i] += (dx * 60 - vx[i] * 15.5) * dt;
+          vy[i] += (dy * 60 - vy[i] * 15.5) * dt;
+          const sp = Math.hypot(vx[i], vy[i]);
+          if (sp > 3000) { vx[i] *= 3000 / sp; vy[i] *= 3000 / sp; }
+          px[i] += vx[i] * dt;
+          py[i] += vy[i] * dt;
+          if (dx * dx + dy * dy < 4 || t > tH[i] + 0.6) { px[i] = hx[i]; py[i] = hy[i]; mode[i] = M_LAND; life[i] = 1; }
+          continue;
+        }
+
+        // Time to go home (or to blow away) straight out of free flight
+        if (homeKind[i] !== H_NONE && t >= tH[i] - (homeKind[i] === H_HOME ? 0.45 : 0)) {
+          if (homeKind[i] === H_HOME) mode[i] = M_HOME;
+          else startAsh(i);
+          continue;
+        }
+
+        if (m === M_SEEK) {
+          const dx = tx[i] - px[i], dy = ty[i] - py[i];
+          vx[i] += (dx * 110 - vx[i] * 21) * dt;
+          vy[i] += (dy * 110 - vy[i] * 21) * dt;
+          const sp = Math.hypot(vx[i], vy[i]);
+          if (sp > 1700) { vx[i] *= 1700 / sp; vy[i] *= 1700 / sp; }
+          px[i] += vx[i] * dt;
+          py[i] += vy[i] * dt;
+          // Snap onto the grid once it is close and slow — the "lock-in"
+          if ((dx * dx + dy * dy < 1 && sp < 90) || t > tA[i] + 0.9) {
+            px[i] = tx[i]; py[i] = ty[i]; vx[i] = 0; vy[i] = 0; mode[i] = M_LOCK;
+          }
+          continue;
+        }
+
+        // M_FLY
+        if (kind[i] === K_STAIN) {
+          if (stainsDry) { mode[i] = M_DEAD; alive -= 1; continue; }
+          vx[i] *= dragStain;
+          vy[i] *= dragStain;
+          px[i] += vx[i] * dt;
+          py[i] += vy[i] * dt;
+          if (vx[i] * vx[i] + vy[i] * vy[i] < 64) mode[i] = M_LOCK;
+          continue;
+        }
+        if (kind[i] === K_GLYPH && t >= tA[i] - 0.42) { mode[i] = M_SEEK; continue; }
+        if (vortexMix > 0) {
+          // Differential rotation around the title's centre, each pixel drawn to its own radius
+          const dx = px[i] - cx, dy = py[i] - cy;
+          const r = Math.max(1, Math.hypot(dx, dy));
+          const nx = dx / r, ny = dy / r;
+          const tang = Math.min(460, 140 + 90000 / (r + 120));
+          const inward = Math.max(-160, Math.min(320, (r - pref[i]) * 0.9));
+          const wantX = -ny * tang - nx * inward;
+          const wantY = nx * tang - ny * inward;
+          const g = steer * vortexMix * (kind[i] === K_FREE ? 1 - settle * 0.85 : 1);
+          vx[i] += (wantX - vx[i]) * g;
+          vy[i] += (wantY - vy[i]) * g;
+        }
+        if (vortexMix < 1) {
+          const d = 1 - (1 - dragFly) * (1 - vortexMix);
+          vx[i] *= d;
+          vy[i] *= d;
+        }
+        if (kind[i] === K_FREE && settle > 0) { vx[i] *= dragSettle; vy[i] *= dragSettle; }
+        px[i] += vx[i] * dt;
+        py[i] += vy[i] * dt;
+      }
+    }
+
+    // ---------- 归: where every pixel goes when the curtain becomes the page ----------
+    function computeHomes() {
+      const plan: Array<{ el: HTMLElement; at: number }> = (window as any).__peekPageEnter?.() ?? [];
+      const span = plan.reduce((m, p) => Math.max(m, p.at), 0);
+      const timeScale = span > 1.1 ? Math.min(2.2, span / 1.1) : 1;
+      const base = T.release + 0.06; // the choreography's own delay on a hard load
+      const visible = (el: HTMLElement | null) => !!el && el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+
+      // The word goes home: pixels land on the brand mark's own glyphs
+      let brandPts: number[] = [];
+      let brandHost: HTMLElement | null = null;
+      const brandText = document.querySelector<HTMLElement>('.brand-mark > span:last-child');
+      if (visible(brandText)) {
+        const r = brandText!.getBoundingClientRect();
+        const cs = getComputedStyle(brandText!);
+        const f = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        const box = { x: Math.floor(r.left), y: Math.floor(r.top), w: Math.ceil(r.width) + 2, h: Math.ceil(r.height) + 2 };
+        const text = brandText!.textContent || '';
+        brandPts = rasterCells(box, 2, (c) => { c.font = f; c.textBaseline = 'middle'; c.textAlign = 'left'; c.fillText(text, box.x, box.y + box.h / 2); });
+        brandHost = brandText!.closest<HTMLElement>('[data-enter]');
+      } else {
+        // Sidebar collapsed: the expand button stands in for it
+        const btn = document.querySelector<HTMLElement>('.sidebar-expand-btn');
+        if (visible(btn)) {
+          const r = btn!.getBoundingClientRect();
+          for (let j = 0; j < 40; j += 1) brandPts.push(r.left + rnd() * r.width, r.top + rnd() * r.height);
+        }
+      }
+      const hostEntry = brandHost ? plan.find((p) => p.el === brandHost) : undefined;
+      const brandAt = base + (hostEntry ? hostEntry.at / timeScale : 0);
+
+      const others = plan
+        .filter((p) => p.el !== brandHost)
+        .map((p) => ({ r: p.el.getBoundingClientRect(), at: base + p.at / timeScale }))
+        .filter((o) => o.r.width > 4 && o.r.height > 4 && o.r.bottom > 0 && o.r.top < H)
+        .map((o) => ({ ...o, w: Math.sqrt(o.r.width * o.r.height) }));
+      return { timeScale, brandPts, brandAt, others };
+    }
+
+    function assignHomes(now: number, fast: boolean) {
+      if (homesAssigned || !ready) return;
+      homesAssigned = true;
+      const homes = computeHomes();
+      homeTimeScale = homes.timeScale;
+      const pool: number[] = [];
+      for (let i = 0; i < N; i += 1) if (mode[i] !== M_DEAD && mode[i] !== M_IDLE && kind[i] !== K_STAIN) pool.push(i);
+      shuffle(pool);
+      const when = (planned: number) => (fast ? now + 0.1 + rnd() * 0.35 : planned + rnd() * 0.22);
+      let k = 0;
+
+      // The word goes home — a dusting over the brand mark's glyphs, not a clump on top of them
+      const cnt = homes.brandPts.length / 2;
+      if (cnt > 0) {
+        const n = Math.min(Math.round(pool.length * 0.12), cnt * 8);
+        for (let j = 0; j < n && k < pool.length; j += 1, k += 1) {
+          const i = pool[k];
+          const p = (j % cnt) * 2;
+          hx[i] = homes.brandPts[p] + (rnd() - 0.5) * 5;
+          hy[i] = homes.brandPts[p + 1] + (rnd() - 0.5) * 5;
+          tH[i] = when(homes.brandAt);
+          homeKind[i] = H_HOME;
+        }
+      }
+
+      // The rest spread over the first-screen elements by size, arriving as each one enters
+      const rest = pool.length - k;
+      const totalW = homes.others.reduce((s, o) => s + o.w, 0) || 1;
+      for (const o of homes.others) {
+        const n = Math.min(Math.round((rest * o.w) / totalW), 900, Math.max(30, Math.round((o.r.width * o.r.height) / 40)));
+        for (let j = 0; j < n && k < pool.length; j += 1, k += 1) {
+          const i = pool[k];
+          hx[i] = o.r.left + o.r.width * (0.06 + rnd() * 0.88);
+          hy[i] = o.r.top + o.r.height * (0.06 + rnd() * 0.88);
+          tH[i] = when(o.at);
+          homeKind[i] = H_HOME;
+        }
+      }
+
+      // Whatever is left over blows away like ash
+      for (; k < pool.length; k += 1) {
+        const i = pool[k];
+        homeKind[i] = H_ASH;
+        tH[i] = fast ? now + rnd() * 0.3 : T.scan2End + rnd() * 0.6;
+      }
+    }
+
+    // ---------- Drawing ----------
+    let parX = 0, parY = 0, mouseX = 0, mouseY = 0;
+    let impactAt = -1;
+    let fi = 0;
+    const zoomAt = (t: number) => 1 + 0.06 * (1 - easeOutQuad(clamp01(t / T.scan2)));
+    const parallaxGain = (t: number) => (skipping ? 0 : 1 - clamp01((t - T.scan2) / (T.scan2End - T.scan2)));
+    function scanLine(a: number, b: number, t: number) {
+      const q = easeInOutQuad(clamp01((t - a) / (b - a)));
+      const top = by0 - fontSize * 0.15;
+      return top + (by1 + fontSize * 0.15 - top) * q;
+    }
+
+    function draw(t: number) {
+      const s = zoomAt(t);
+      const gain = parallaxGain(t);
+      parX += (mouseX - parX) * 0.08;
+      parY += (mouseY - parY) * 0.08;
+      const ox = parX * 14 * gain, oy = parY * 10 * gain;
+
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx!.clearRect(0, 0, W, H);
+
+      if (!lifted) {
+        if (t - grainAt > 0.07) {
+          grainAt = t;
+          grainTile = (grainTile + 1) % 3;
+          grainX = Math.floor(rnd() * 128);
+          grainY = Math.floor(rnd() * 128);
+        }
+        const gx = grainX + ox * 0.3, gy = grainY + oy * 0.3;
+        ctx!.globalAlpha = grainAlpha;
+        ctx!.fillStyle = grainTiles[grainTile];
+        ctx!.save();
+        ctx!.translate(gx, gy);
+        ctx!.fillRect(-gx - 128, -gy - 128, W + 256, H + 256);
+        ctx!.restore();
+        ctx!.globalAlpha = 1;
+      }
+
+      // World space: zoomed about the viewport centre, nudged by the pointer; identity by 归
+      ctx!.translate(W / 2 + ox, H / 2 + oy);
+      ctx!.scale(s, s);
+      ctx!.translate(-W / 2, -H / 2);
+      stage.style.transform = `translate3d(${(parX * 18 * gain).toFixed(2)}px, ${(parY * 12 * gain).toFixed(2)}px, 0) scale(${s.toFixed(4)})`;
+
+      if (!spawned) { if (!skipping) drawDrop(ctx!, t); return; }
+
+      // Shock rings from the burst
+      if (impactAt >= 0) {
+        ctx!.strokeStyle = ink;
+        for (let k = 0; k < 2; k += 1) {
+          const q = clamp01((t - impactAt - k * 0.12) / 1.1);
+          if (q <= 0 || q >= 1) continue;
+          ctx!.globalAlpha = (1 - q) * (k ? 0.35 : 0.55);
+          ctx!.lineWidth = 1.5 * (1 - q) + 0.4;
+          ctx!.beginPath();
+          ctx!.arc(cx, cy, easeOutExpo(q) * minWH * (k ? 0.36 : 0.55), 0, Math.PI * 2);
+          ctx!.stroke();
+        }
+        ctx!.globalAlpha = 1;
+      }
+
+      textMode = 0;
+      if (!skipping) {
+        if (t >= T.scan1 && t < T.scan1End) { textMode = 1; scanY = scanLine(T.scan1, T.scan1End, t); }
+        else if (t >= T.scan1End && t < T.scan2) textMode = 2;
+        else if (t >= T.scan2 && t < T.scan2End) { textMode = 3; scanY = scanLine(T.scan2, T.scan2End, t); }
+      }
+
+      const breathing = t >= T.formEnd && t < T.scan2;
+      const stainAlpha = 0.34 * (1 - smooth(T.vortex, T.form + 0.4, t));
+      const freeAlpha = 1 - 0.45 * smooth(T.form, T.formEnd, t);
+      // Pixels sit one screen px short of their cell, so the formed face reads as a dot matrix
+      // and the scanline visibly fills it in when the type takes over
+      const dot = Math.max(2, cell - 1);
+      ctx!.fillStyle = ink;
+      let curA = 1;
+      const setA = (a: number) => { if (a !== curA) { curA = a; ctx!.globalAlpha = a; } };
+      for (let i = 0; i < N; i += 1) {
+        const m = mode[i];
+        if (m === M_IDLE || m === M_DEAD) continue;
+        const L = leader[i];
+        if (L >= 0 && t < splitAt[L]) continue; // still inside its chunk
+        if (kind[i] === K_STAIN) {
+          if (stainAlpha <= 0.005) continue;
+          setA(stainAlpha);
+          ctx!.fillRect(px[i] - cell * 0.35, py[i] - cell * 0.35, cell * 1.7, cell * 1.7);
+          setA(stainAlpha * 0.4);
+          ctx!.fillRect(px[i] - cell * 0.8, py[i] - cell * 0.8, cell * 2.6, cell * 2.6);
+          continue;
+        }
+        if (m === M_LOCK) {
+          if (covered(ty[i] + cell / 2)) continue;
+          setA(1);
+          // The formed face breathes: the odd cell shivers by half a pixel now and then
+          const j = breathing && (i * 7 + (fi >> 3)) % 17 === 0 ? 0.5 : 0;
+          ctx!.fillRect(tx[i] + j, ty[i], dot, dot);
+          continue;
+        }
+        if (m === M_LAND || m === M_ASH) setA(Math.max(0, life[i]));
+        else setA(kind[i] === K_FREE ? freeAlpha : 1);
+        if (splitAt[i] > 0 && t < splitAt[i]) ctx!.fillRect(px[i] - cell * 0.5, py[i] - cell * 0.5, cell * 2 - 1, cell * 2 - 1);
+        else ctx!.fillRect(px[i], py[i], dot, dot);
+      }
+      setA(1);
+
+      // The type itself, wherever the scanline has made it real
+      if (textMode !== 0) {
+        ctx!.save();
+        ctx!.beginPath();
+        if (textMode === 1) ctx!.rect(-W, -H, W * 3, H + scanY);
+        else if (textMode === 3) ctx!.rect(-W, scanY, W * 3, H * 2);
+        else ctx!.rect(-W, -H, W * 3, H * 3);
+        ctx!.clip();
+        // Misregistered impressions right after the pass — a print that has not quite settled
+        const g = textMode === 3 ? 0 : 2.6 * (1 - smooth(T.scan1, T.scan1End + 0.3, t));
+        if (g > 0.05) {
+          ctx!.globalAlpha = 0.32;
+          drawTitle(ctx!, g, g * 0.35);
+          drawTitle(ctx!, -g, -g * 0.35);
+          ctx!.globalAlpha = 1;
+        }
+        drawTitle(ctx!);
+        ctx!.restore();
+      }
+      if (textMode === 1 || textMode === 3) {
+        const band = ctx!.createLinearGradient(0, scanY - 22, 0, scanY);
+        band.addColorStop(0, withAlpha(ink, 0));
+        band.addColorStop(1, withAlpha(ink, 0.22));
+        ctx!.fillStyle = band;
+        ctx!.fillRect(0, scanY - 22, W, 22);
+        ctx!.fillStyle = ink;
+        ctx!.globalAlpha = 0.85;
+        ctx!.fillRect(0, scanY, W, 1);
+        ctx!.globalAlpha = 1;
+      }
+    }
+
+    // ---------- Clock ----------
+    let started = 0, last = 0, acc = 0, simT = 0, frameId = 0;
+    let statusPhase = '凝';
+    const now = () => (started ? (performance.now() - started) / 1000 : 0);
+
+    function loop(stamp: number) {
+      if (finished) return;
+      if (!started) { started = stamp; last = stamp; }
+      holdScroll();
+      const t = (stamp - started) / 1000;
+      const dtFrame = Math.min(0.1, (stamp - last) / 1000);
+      last = stamp;
+      fi += 1;
+
+      if (ready) {
+        if (!spawned && !skipping && t >= T.impact) {
+          spawnAll(cx, cy, 6);
+          simT = t;
+          impactAt = t;
+          splash(cx, cy, 26);
+        }
+        if (spawned) {
+          acc += dtFrame;
+          let n = 0;
+          while (acc >= STEP && n < 12) { step(STEP, simT); simT += STEP; acc -= STEP; n += 1; }
+          if (n >= 12) { acc = 0; simT = t; } // back from a hidden tab: don't try to catch up
+        }
+        if (!skipping && !homesAssigned && t >= T.scan2) assignHomes(t, false);
+      }
+      draw(t);
+
+      const phase = PHASES.find(([until]) => t < until)?.[1] ?? '归';
+      if (phase !== statusPhase || !intro.dataset.phase) { statusPhase = phase; intro.dataset.phase = phase; }
+      if (fi % 10 === 0) intro.dataset.alive = String(spawned ? alive : 0);
+
+      if (skipping && (t > skipAt + 1.6 || (spawned && alive === 0))) { finish(); return; }
+      frameId = requestAnimationFrame(loop);
+    }
+
+    // ---------- DOM timeline ----------
+    gsap.set(seal, { opacity: 0, scale: 2.05, rotation: -17, transformOrigin: '50% 50%' });
+    gsap.set(ring, { opacity: 0, scale: 0 });
+    gsap.set(taglineEl, { opacity: 0 });
+    gsap.set(foot, { opacity: 0, y: 10 });
+    typed.textContent = '';
+
+    const meter = { value: 0 };
+    const tl = gsap.timeline();
+    tl.to(meter, {
+      value: 1,
+      duration: T.release,
+      ease: 'none',
+      onUpdate: () => {
+        progress.style.transform = `scaleX(${meter.value})`;
+        status.textContent = `ENTERING · ${String(Math.round(meter.value * 100)).padStart(2, '0')}% · ${statusPhase}`;
+      },
+    }, 0);
+    tl.to(foot, { opacity: 1, y: 0, duration: 0.7, ease: 'power2.out' }, 0.5);
+    // The burst kicks the whole sheet
+    tl.to(intro, { keyframes: { x: [0, 3, -3, 2, -1, 0], y: [0, -2, 2, -1, 1, 0], easeEach: 'none' }, duration: 0.32, ease: 'none' }, T.impact);
+    tl.to(seal, { opacity: 1, scale: 1, rotation: -4, duration: 0.5, ease: 'back.out(2.4)' }, T.seal);
+    tl.call(() => { const r = seal.getBoundingClientRect(); splash(r.left + r.width / 2, r.top + r.height / 2, 26); }, undefined, T.sealImpact);
+    tl.fromTo(ring, { opacity: 0.7, scale: 0 }, { opacity: 0, scale: 1, duration: 1.15, ease: 'expo.out' }, T.sealImpact);
+    tl.to(seal, { scale: 1.06, duration: 0.14, ease: 'power2.out' }, T.sealImpact + 0.3);
+    tl.to(seal, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.45)' }, T.sealImpact + 0.44);
+    const cursor = { index: 0 };
+    tl.to(taglineEl, { opacity: 1, duration: 0.3, ease: 'none' }, T.tagline - 0.1);
+    tl.to(cursor, {
+      index: tagline.length,
+      duration: 0.85,
+      ease: 'none',
+      onUpdate: () => { typed.textContent = tagline.slice(0, Math.round(cursor.index)); },
+      onComplete: () => { typed.textContent = tagline; },
+    }, T.tagline);
+    tl.call(() => { lifted = true; intro.classList.add('is-lifting'); }, undefined, T.lift);
+    tl.to([seal, taglineEl], { opacity: 0, duration: 0.35, ease: 'power2.in' }, T.lift);
+    tl.to(foot, { opacity: 0, duration: 0.3, ease: 'power2.in' }, T.lift);
+    tl.call(() => { assignHomes(now(), false); releasePage({ timeScale: homeTimeScale }); }, undefined, T.release);
+    tl.call(finish, undefined, T.end);
+    let timeline: gsap.core.Timeline | null = tl;
+
+    // ---------- Skip: everything flies home right now ----------
+    function skip() {
+      if (finished || skipping) return;
+      skipping = true;
+      const t = now();
+      skipAt = t;
+      timeline?.kill();
+      timeline = null;
+      gsap.killTweensOf(intro);
+      gsap.set(intro, { clearProps: 'transform' });
+      lifted = true;
+      intro.classList.add('is-lifting');
+      gsap.to([seal, taglineEl, foot], { opacity: 0, duration: 0.25, ease: 'power2.in', overwrite: 'auto' });
+      textMode = 0;
+      if (!ready) {
+        // Font still loading (well under a second in): nothing to fly yet, just let the page in
+        releasePage();
+        window.setTimeout(finish, 420);
+        return;
+      }
+      if (!spawned) { const p = dropPos(t); spawnAll(p.x, p.y, 4); simT = t; impactAt = -1; }
+      if (homesAssigned) {
+        // Already on the way home: hurry the stragglers along
+        for (let i = 0; i < N; i += 1) if (mode[i] !== M_DEAD) tH[i] = Math.min(tH[i], t + 0.1 + rnd() * 0.35);
+      } else {
+        assignHomes(t, true);
+      }
+      releasePage({ timeScale: homeTimeScale });
+    }
+
+    function finish() {
+      if (finished) return;
+      finished = true;
+      cancelAnimationFrame(frameId);
+      controller.abort();
+      timeline?.kill();
+      timeline = null;
+      gsap.killTweensOf([intro, seal, taglineEl, foot, ring]);
+      document.documentElement.classList.remove('site-intro-active');
+      (window as any).__siteIntroPending = false;
+      releasePage({ timeScale: homeTimeScale });
+      intro.remove();
+      try {
+        (window as any).lenis?.start();
+        (window as any).lenis?.resize();
+      } catch {}
+      teardown = null;
+    }
+    teardown = () => { cancelAnimationFrame(frameId); timeline?.kill(); timeline = null; controller.abort(); };
+
+    skipBtn.addEventListener('click', skip, { signal });
+    intro.addEventListener('click', skip, { signal });
+    // Lenis refuses wheel/touch while stopped; the keyboard scrolls natively, so it is refused here
+    intro.addEventListener('wheel', (event) => event.preventDefault(), { passive: false, signal });
+    document.addEventListener('keydown', (event) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (SKIP_KEYS.has(event.key)) {
+        event.preventDefault();
+        skip();
+      } else if (SCROLL_KEYS.has(event.key)) {
+        event.preventDefault();
+      }
+    }, { signal });
+    if (finePointer) {
+      window.addEventListener('pointermove', (event) => {
+        mouseX = (event.clientX / W - 0.5) * 2;
+        mouseY = (event.clientY / H - 0.5) * 2;
+      }, { passive: true, signal });
+    }
+    // A resize mid-curtain would leave every home and glyph cell aiming at stale coordinates
+    window.addEventListener('resize', () => { if (!finished) skip(); }, { signal, once: true });
+
+    prepare().catch(() => {});
+    frameId = requestAnimationFrame(loop);
+  }
+
+  runSiteIntro();
+
+  // Leaving mid-curtain must not strand a dead overlay or a stopped Lenis in the next document
+  document.addEventListener('astro:before-swap', () => {
+    if (finished) return;
+    finished = true;
+    teardown?.();
+    document.documentElement.classList.remove('site-intro-active');
+    (window as any).__siteIntroPending = false;
+    try { (window as any).lenis?.start(); } catch {}
+  });
+</script>

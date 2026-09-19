@@ -3609,17 +3609,54 @@ html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
   }
 }
 
-/* ================= About intro (pixel gather → drop → scatter) ================= */
+/* ================= Site-entry curtain (墨化为像素: drop → burst → vortex → glyphs → page) =================
+   Markup ships on every page (BaseLayout) but only paints on the load the inline head script
+   armed with html.site-intro-active — so a session that has already seen it never flashes.
+   Everything that moves lives on the canvas; the DOM here is the seal, the tagline, the footer. */
 
-.about-intro {
+.site-intro {
   position: fixed;
   inset: 0;
-  z-index: 105;
-  background: var(--bg-base);
+  z-index: 9990;
+  display: none;
+  overflow: hidden; /* the seal waits at 2× / -17° before it lands, and the ink ring is 46vmax */
+  background-color: var(--bg-base);
   cursor: pointer;
+  touch-action: none;
+  overscroll-behavior: contain;
+  transition: background-color 520ms var(--ease);
 }
 
-.about-intro canvas {
+html.site-intro-active .site-intro {
+  display: block;
+}
+
+/* Paper falls off very slightly at the edges so the wordmark sits in a pool of light */
+.site-intro::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 46%,
+    transparent 0%,
+    transparent 42%,
+    color-mix(in srgb, var(--ink) 7%, transparent) 100%
+  );
+  pointer-events: none;
+  transition: opacity 520ms var(--ease);
+}
+
+/* The paper lifts while the pixels are still flying home; the page underneath is live from here */
+.site-intro.is-lifting {
+  background-color: transparent;
+  pointer-events: none;
+}
+
+.site-intro.is-lifting::before {
+  opacity: 0;
+}
+
+.site-intro-canvas {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -3627,10 +3664,126 @@ html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
   display: block;
 }
 
-.about-intro-skip {
+.site-intro-stage {
   position: absolute;
-  right: clamp(1.2rem, 3vw, 2.4rem);
-  bottom: clamp(1.2rem, 3vw, 2.4rem);
+  inset: 0;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.site-intro-seal {
+  position: absolute;
+  width: 3rem;
+  aspect-ratio: 1;
+  will-change: transform, opacity;
+}
+
+.site-intro-seal svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/* CSS, not presentation attributes — var() is not valid in fill="" / stroke="" */
+.site-intro-seal .seal-plate {
+  fill: var(--ink-strong);
+}
+
+.site-intro-seal .seal-frame {
+  fill: none;
+  stroke: var(--bg-base);
+  stroke-width: 2.6;
+  opacity: 0.92;
+}
+
+.site-intro-seal .seal-glyph {
+  fill: var(--bg-base);
+  font-family: var(--font-pixel);
+  font-size: 46px;
+  text-anchor: middle;
+}
+
+/* Ink ring that spreads out of the seal on impact */
+.site-intro-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46vmax;
+  height: 46vmax;
+  margin: -23vmax;
+  border: 1px solid var(--ink-wash);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.site-intro-tagline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0;
+  min-height: 1.5em;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: clamp(0.84rem, 2.4vw, 1rem);
+  letter-spacing: 0.18em;
+  color: var(--muted-strong);
+}
+
+.site-intro-caret {
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 0.2em;
+  background: var(--accent);
+  vertical-align: -0.14em;
+  animation: siteIntroCaret 900ms steps(1) infinite;
+}
+
+@keyframes siteIntroCaret {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+
+.site-intro-foot {
+  position: absolute;
+  left: clamp(1.2rem, 4vw, 3rem);
+  right: clamp(1.2rem, 4vw, 3rem);
+  bottom: clamp(1.2rem, 4vw, 2.4rem);
+  display: flex;
+  align-items: center;
+  gap: clamp(0.8rem, 2.4vw, 1.6rem);
+}
+
+.site-intro-status {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.site-intro-progress {
+  flex: 1;
+  height: 1px;
+  background: var(--rule-soft);
+  overflow: hidden;
+}
+
+.site-intro-progress i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--ink-strong);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.site-intro-skip {
+  flex: none;
   padding: 0.4rem 0.8rem;
   border: 1px solid var(--rule-strong);
   border-radius: 3px;
@@ -3639,19 +3792,28 @@ html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
   font-family: var(--font-mono);
   font-size: 0.72rem;
   letter-spacing: 0.14em;
-  text-transform: uppercase;
-  opacity: 0;
-  animation: aboutSkipIn 600ms ease 1.2s both;
-  transition: color 200ms ease, border-color 200ms ease;
+  cursor: pointer;
+  transition: color 200ms var(--ease), border-color 200ms var(--ease);
 }
 
-.about-intro-skip:hover {
+.site-intro-skip:hover {
   color: var(--text-strong);
   border-color: var(--accent);
 }
 
-@keyframes aboutSkipIn {
-  to { opacity: 1; }
+.site-intro-skip span {
+  display: inline-block;
+  transition: transform 200ms var(--ease);
+}
+
+.site-intro-skip:hover span {
+  transform: translateX(3px);
+}
+
+@media (max-width: 560px) {
+  .site-intro-status {
+    display: none;
+  }
 }
 
 /* ================= Timeline page (手卷) ================= */
@@ -4392,6 +4554,9 @@ html[data-pixel="true"] body::after {
 }
 
 .archive-filter {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   gap: 0.7rem;
@@ -4406,10 +4571,25 @@ html[data-pixel="true"] body::after {
   line-height: 1;
   cursor: pointer;
   transition:
-    color 240ms var(--ease),
-    border-color 240ms var(--ease),
-    background 240ms var(--ease),
+    color 420ms var(--ease),
+    border-color 320ms var(--ease),
     transform 320ms var(--ease-bounce);
+}
+
+/* Ink floods the chip from its leading edge rather than the fill snapping on */
+.archive-filter::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ink-strong);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 520ms var(--ease);
+}
+
+.archive-filter.is-active::before {
+  transform: scaleX(1);
 }
 
 /* Post count sits in its own small badge so it never reads as part of the name */
@@ -4442,7 +4622,7 @@ html[data-pixel="true"] body::after {
 }
 
 .archive-filter.is-active {
-  background: var(--ink-strong);
+  background: transparent;
   border-color: var(--ink-strong);
   color: var(--bg-base);
 }
@@ -5044,6 +5224,10 @@ a.chart-bar-name:hover {
 }
 
 .stats-table summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  list-style: none;
   font-family: var(--font-body);
   font-size: 0.74rem;
   font-weight: 700;
@@ -5053,6 +5237,26 @@ a.chart-bar-name:hover {
   cursor: pointer;
 }
 
+.stats-table summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Our own marker, so it can turn instead of swapping glyphs */
+.stats-table summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-top: 0.32em solid transparent;
+  border-bottom: 0.32em solid transparent;
+  border-left: 0.5em solid currentColor;
+  transform-origin: 40% 50%;
+  transition: transform 360ms var(--ease);
+}
+
+.stats-table[open] summary::before {
+  transform: rotate(90deg);
+}
+
 .stats-table summary:hover {
   color: var(--text-strong);
 }
@@ -5060,6 +5264,31 @@ a.chart-bar-name:hover {
 .stats-table-scroll {
   margin-top: 1.4rem;
   overflow-x: auto;
+}
+
+/* Rows seep in from the left as the box opens — the post-body table idiom. Only when the
+   script has taken over (.is-animated), so a no-JS open still shows everything. */
+.stats-table.is-animated tbody tr,
+.stats-table.is-animated tfoot tr {
+  opacity: 0;
+  transform: translate3d(-12px, 0, 0);
+  transition:
+    opacity 900ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 1100ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(min(var(--i, 0), 18) * 40ms);
+}
+
+.stats-table.is-animated.is-shown tbody tr,
+.stats-table.is-animated.is-shown tfoot tr {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+/* Closing: everything fades together, no cascade in reverse */
+.stats-table.is-animated:not(.is-shown) tbody tr,
+.stats-table.is-animated:not(.is-shown) tfoot tr {
+  transition-duration: 320ms, 320ms;
+  transition-delay: 0ms;
 }
 
 .stats-table table {

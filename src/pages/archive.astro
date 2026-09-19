@@ -136,13 +136,73 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
 <script>
   import gsap from 'gsap';
   import { ScrollTrigger } from 'gsap/ScrollTrigger';
+  import CustomEase from 'gsap/CustomEase';
 
-  gsap.registerPlugin(ScrollTrigger);
+  gsap.registerPlugin(ScrollTrigger, CustomEase);
+  // The same curve BaseLayout's entrance rides — fast in, long settle. Re-declared here because
+  // this script can be evaluated before the layout's, and CustomEase names are global.
+  CustomEase.create('enter', 'M0,0 C0.06,0.62 0.16,0.9 0.42,0.975 0.62,1.005 0.8,1 1,1');
 
-  // Category filter. Rows are removed from flow immediately and the survivors are FLIPped into
-  // their new places, so the list reads as closing up rather than snapping.
+  // Category filter. Departing rows dry up in place — the ink contracts back into the date it
+  // spread from — while their height collapses, so the survivors close over them continuously
+  // and nothing has to be FLIPped. Arrivals expand back open with the same ink spread
+  // [data-enter="ink"] uses. A whole year that empties out collapses as one block instead of
+  // having its rows animate inside a box that then vanishes.
   const CLEANUP_KEY = '__areSetArchiveFilterCleanup__';
   const LISTENER_KEY = '__areSetArchiveFilterBound__';
+
+  const EXIT_CLIP = 0.44;       // ink contracting to nothing
+  const EXIT_COLLAPSE = 0.52;   // the gap closing behind it
+  const EXIT_STAGGER = 0.028;
+  const ARRIVE_AT = 0.3;        // arrivals overlap the tail of the departures
+  const ARRIVE_EXPAND = 0.56;
+  const ARRIVE_CLIP = 0.95;
+  const ARRIVE_STAGGER = 0.055;
+  const SECTION_MOVE = 0.66;
+
+  /** Where the row's ink spreads from: the date on its leading edge. Mirrors BaseLayout. */
+  function inkOrigin(el: HTMLElement) {
+    const seed = el.querySelector('time') || el;
+    const rowRect = el.getBoundingClientRect();
+    const seedRect = seed.getBoundingClientRect();
+    const x = seedRect.left - rowRect.left + Math.min(seedRect.width, 40) / 2;
+    const y = seedRect.top - rowRect.top + seedRect.height / 2;
+    return `${Math.round(x)}px ${Math.round(y)}px`;
+  }
+
+  function inkRadius(el: HTMLElement) {
+    return Math.ceil(Math.hypot(el.offsetWidth, el.offsetHeight));
+  }
+
+  /** Sub-pixel height. offsetHeight rounds, and rounding 9 rows up visibly grows the list. */
+  function exactHeight(el: HTMLElement) {
+    return el.getBoundingClientRect().height;
+  }
+
+  /** A year block's footprint. Tailwind's space-y puts the gap on margin-bottom, so take both. */
+  function sectionBox(section: HTMLElement) {
+    const style = getComputedStyle(section);
+    return {
+      section,
+      height: exactHeight(section),
+      marginTop: Number.parseFloat(style.marginTop) || 0,
+      marginBottom: Number.parseFloat(style.marginBottom) || 0,
+    };
+  }
+  const SECTION_PROPS = 'height,marginTop,marginBottom,overflow,opacity';
+
+  /** Hand the row back to the stylesheet, and tell BaseLayout's scroll replay to leave it be. */
+  function settle(el: HTMLElement) {
+    gsap.killTweensOf(el);
+    el.classList.remove('is-entering');
+    el.classList.add('is-entered');
+    el.dataset.enterState = 'in';
+    gsap.set(el, { clearProps: 'height,overflow,clipPath,opacity,transform' });
+  }
+
+  function entryLabel(count: number) {
+    return `${count} ${count > 1 ? 'entries' : 'entry'}`;
+  }
 
   function initArchiveFilter() {
     const previousCleanup = (window as any)[CLEANUP_KEY];
@@ -158,58 +218,222 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
     const buttons = Array.from(bar.querySelectorAll<HTMLElement>('[data-filter]'));
     const items = Array.from(list.querySelectorAll<HTMLElement>('[data-category]'));
     const sections = Array.from(list.querySelectorAll<HTMLElement>('[data-archive-year]'));
+    const sectionRows = new Map(
+      sections.map((section) => [section, Array.from(section.querySelectorAll<HTMLElement>('[data-category]'))]),
+    );
     let active = 'all';
+    let timeline: gsap.core.Timeline | null = null;
+
+    function writeUrl(next: string) {
+      const url = new URL(window.location.href);
+      if (next === 'all') url.searchParams.delete('category');
+      else url.searchParams.set('category', next);
+      history.replaceState(null, '', url);
+    }
+
+    function countUp(section: HTMLElement, to: number, at: number, tl: gsap.core.Timeline) {
+      const el = section.querySelector<HTMLElement>('[data-year-count]');
+      if (!el) return;
+      const from = Number.parseInt(el.textContent ?? '', 10);
+      if (!Number.isFinite(from) || from === to) { el.textContent = entryLabel(to); return; }
+      const counter = { value: from };
+      tl.to(counter, {
+        value: to,
+        duration: 0.55,
+        ease: 'power2.out',
+        onUpdate: () => { el.textContent = entryLabel(Math.max(0, Math.round(counter.value))); },
+        onComplete: () => { el.textContent = entryLabel(to); },
+      }, at);
+    }
 
     function apply(next: string, animate = true) {
       if (!items.length) return;
       active = next;
       buttons.forEach((button) => button.classList.toggle('is-active', button.dataset.filter === next));
+      writeUrl(next);
 
-      const before = new Map(items.map((el) => [el, el.getBoundingClientRect().top]));
-      const wasHidden = new Map(items.map((el) => [el, el.classList.contains('is-filtered-out')]));
-
-      items.forEach((el) => {
-        const hide = next !== 'all' && el.dataset.category !== next;
-        el.classList.toggle('is-filtered-out', hide);
-        // A row revealed by the filter must not stay stuck at the scroll-reveal's hidden state.
-        // enterState is the choreography's own flag (BaseLayout) — 'in' means "leave me alone".
-        if (!hide && el.dataset.enterState !== 'in') {
-          gsap.killTweensOf(el);
-          el.classList.remove('is-entering');
-          el.classList.add('is-entered');
-          el.dataset.enterState = 'in';
-          gsap.set(el, { clearProps: 'transform,opacity,clipPath' });
-        }
-      });
-
-      sections.forEach((section) => {
-        const visible = section.querySelectorAll('[data-category]:not(.is-filtered-out)').length;
-        section.classList.toggle('is-empty', visible === 0);
-        const countEl = section.querySelector('[data-year-count]');
-        if (countEl) countEl.textContent = `${visible} ${visible > 1 ? 'entries' : 'entry'}`;
-      });
-
-      // Layout is final here and nothing is transformed yet — the right moment to re-measure
-      // the scroll triggers, before the FLIP tweens below put temporary transforms on the rows
-      ScrollTrigger.refresh();
-
-      if (animate && !reduceMotion) {
+      // A click mid-transition: stop the previous choreography and put the list back into a
+      // plain state before planning. Rows half-way through leaving are still on show, rows
+      // half-way through arriving already are — the plan below reads the classes, and the
+      // inline heights, clips and margins the dead timeline left behind must not survive it.
+      if (timeline) {
+        timeline.kill();
+        timeline = null;
         items.forEach((el) => {
-          if (el.classList.contains('is-filtered-out')) return;
-          if (wasHidden.get(el)) {
-            gsap.fromTo(el, { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.7, ease: 'expo.out', overwrite: true, clearProps: 'transform,opacity' });
-            return;
-          }
-          const delta = (before.get(el) ?? 0) - el.getBoundingClientRect().top;
-          if (Math.abs(delta) < 1) return;
-          gsap.fromTo(el, { y: delta }, { y: 0, duration: 0.75, ease: 'expo.out', overwrite: true, clearProps: 'transform' });
+          gsap.set(el, { clearProps: 'height,overflow,clipPath,opacity,transform' });
+          if (!el.classList.contains('is-filtered-out')) settle(el);
         });
+        sections.forEach((section) => gsap.set(section, { clearProps: SECTION_PROPS }));
       }
 
-      const url = new URL(window.location.href);
-      if (next === 'all') url.searchParams.delete('category');
-      else url.searchParams.set('category', next);
-      history.replaceState(null, '', url);
+      const keep = (el: HTMLElement) => next === 'all' || el.dataset.category === next;
+
+      if (!animate || reduceMotion) {
+        items.forEach((el) => {
+          const hide = !keep(el);
+          const wasHidden = el.classList.contains('is-filtered-out');
+          el.classList.toggle('is-filtered-out', hide);
+          if (hide) gsap.set(el, { clearProps: 'height,overflow,clipPath,opacity,transform' });
+          // Only a row the filter just revealed needs rescuing from the scroll-reveal's hidden
+          // state; rows that were already on show belong to BaseLayout's choreography
+          else if (wasHidden) settle(el);
+        });
+        sections.forEach((section) => {
+          const visible = (sectionRows.get(section) ?? []).filter(keep).length;
+          section.classList.toggle('is-empty', visible === 0);
+          gsap.set(section, { clearProps: SECTION_PROPS });
+          const countEl = section.querySelector('[data-year-count]');
+          if (countEl) countEl.textContent = entryLabel(visible);
+        });
+        ScrollTrigger.refresh();
+        return;
+      }
+
+      // ---------- Read the world as it stands, before anything moves ----------
+      const hiddenNow = new Map(items.map((el) => [el, el.classList.contains('is-filtered-out')]));
+      const leaving = items.filter((el) => !hiddenNow.get(el) && !keep(el));
+      const arriving = items.filter((el) => hiddenNow.get(el) && keep(el));
+
+      const plan = sections.map((section) => {
+        const rows = sectionRows.get(section) ?? [];
+        return {
+          section,
+          visibleNext: rows.filter(keep).length,
+          wasEmpty: rows.every((el) => hiddenNow.get(el)),
+          willBeEmpty: !rows.some(keep),
+        };
+      });
+      const closing = plan.filter((p) => !p.wasEmpty && p.willBeEmpty);
+      const opening = plan.filter((p) => p.wasEmpty && !p.willBeEmpty);
+      const closingSections = new Set(closing.map((p) => p.section));
+      const openingSections = new Set(opening.map((p) => p.section));
+      const inClosingSection = (el: HTMLElement) => !!el.closest('[data-archive-year]') && closingSections.has(el.closest('[data-archive-year]')!);
+      const inOpeningSection = (el: HTMLElement) => !!el.closest('[data-archive-year]') && openingSections.has(el.closest('[data-archive-year]')!);
+
+      const exits = leaving.map((el) => ({
+        el,
+        height: exactHeight(el),
+        origin: inkOrigin(el),
+        collapse: !inClosingSection(el),
+      }));
+      const closingMetrics = closing.map((p) => sectionBox(p.section));
+
+      // ---------- Open the arrivals just long enough to measure them, then fold them shut ----------
+      // All of this happens inside one task, so the browser never paints the expanded state.
+      opening.forEach((p) => p.section.classList.remove('is-empty'));
+      arriving.forEach((el) => {
+        el.classList.remove('is-filtered-out');
+        gsap.set(el, { clearProps: 'height,overflow,clipPath,opacity,transform' });
+      });
+      const entrances = arriving.map((el) => ({
+        el,
+        height: exactHeight(el),
+        origin: inkOrigin(el),
+        radius: inkRadius(el),
+        expand: !inOpeningSection(el),
+      }));
+      const openingMetrics = opening.map((p) => sectionBox(p.section));
+
+      entrances.forEach(({ el, origin, expand }) => {
+        el.dataset.enterState = 'in';
+        el.classList.remove('is-entering');
+        el.classList.add('is-entered');
+        gsap.set(el, { opacity: 1, clipPath: `circle(0px at ${origin})`, ...(expand ? { height: 0, overflow: 'hidden' } : {}) });
+      });
+      openingMetrics.forEach(({ section }) => {
+        gsap.set(section, { height: 0, marginTop: 0, marginBottom: 0, overflow: 'hidden', opacity: 0 });
+      });
+
+      // Rows that merely shift position are left alone: their neighbours' heights are animated,
+      // so the reflow carries them along for free. Survivors still parked off-screen keep
+      // BaseLayout's hidden state and play their own entrance when the refresh below reaches them.
+
+      // ---------- Choreograph ----------
+      const tl = gsap.timeline({
+        onComplete: () => {
+          items.forEach((el) => {
+            if (el.classList.contains('is-filtered-out')) gsap.set(el, { clearProps: 'height,overflow,clipPath,opacity,transform' });
+          });
+          sections.forEach((section) => gsap.set(section, { clearProps: SECTION_PROPS }));
+          // Layout is final at last — re-measure the scroll triggers and the smooth-scroll bounds
+          ScrollTrigger.refresh();
+          try { (window as any).lenis?.resize(); } catch {}
+          timeline = null;
+        },
+      });
+      timeline = tl;
+
+      // Departures: ink dries inward, then the gap closes
+      exits.forEach(({ el, height, origin, collapse }, index) => {
+        const at = index * EXIT_STAGGER;
+        tl.to(el, {
+          clipPath: `circle(0px at ${origin})`,
+          duration: EXIT_CLIP,
+          ease: 'power2.in',
+        }, at);
+        if (!collapse) return;
+        tl.set(el, { height, overflow: 'hidden' }, at);
+        tl.to(el, {
+          height: 0,
+          duration: EXIT_COLLAPSE,
+          ease: 'enter',
+          onComplete: () => { el.classList.add('is-filtered-out'); },
+        }, at + 0.14);
+      });
+
+      // Whole years that empty out collapse as one block
+      closingMetrics.forEach(({ section, height, marginTop, marginBottom }, index) => {
+        const at = index * 0.05;
+        tl.set(section, { height, marginTop, marginBottom, overflow: 'hidden' }, at);
+        tl.to(section, {
+          height: 0,
+          marginTop: 0,
+          marginBottom: 0,
+          opacity: 0,
+          duration: SECTION_MOVE,
+          ease: 'enter',
+          onComplete: () => { section.classList.add('is-empty'); },
+        }, at + 0.16);
+      });
+
+      // Rows inside a collapsing year only need the ink to leave; the block takes the space
+      exits.filter((exit) => !exit.collapse).forEach(({ el }) => {
+        tl.call(() => { el.classList.add('is-filtered-out'); }, undefined, EXIT_CLIP + 0.3);
+      });
+
+      // Years coming back open first, so their rows have a box to seep into
+      openingMetrics.forEach(({ section, height, marginTop, marginBottom }, index) => {
+        const at = ARRIVE_AT + index * 0.06;
+        tl.to(section, {
+          height,
+          marginTop,
+          marginBottom,
+          opacity: 1,
+          duration: SECTION_MOVE,
+          ease: 'enter',
+        }, at);
+      });
+
+      // Arrivals: the box opens, the ink spreads out of the date
+      entrances.forEach(({ el, height, origin, radius, expand }, index) => {
+        const at = ARRIVE_AT + index * ARRIVE_STAGGER;
+        if (expand) {
+          tl.to(el, { height, duration: ARRIVE_EXPAND, ease: 'enter' }, at);
+        }
+        tl.to(el, {
+          clipPath: `circle(${radius}px at ${origin})`,
+          duration: ARRIVE_CLIP,
+          ease: 'enter',
+          onComplete: () => settle(el),
+        }, at);
+      });
+
+      plan.forEach((p) => countUp(p.section, p.visibleNext, p.willBeEmpty ? 0 : ARRIVE_AT, tl));
+
+      // Nothing to animate (every row already where it belongs) — still settle the bookkeeping
+      if (!exits.length && !entrances.length && !closingMetrics.length && !openingMetrics.length) {
+        tl.to({}, { duration: 0.01 });
+      }
     }
 
     buttons.forEach((button) => {
@@ -226,6 +450,8 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
 
     (window as any)[CLEANUP_KEY] = () => {
       controller.abort();
+      timeline?.kill();
+      timeline = null;
       (window as any)[CLEANUP_KEY] = undefined;
     };
   }

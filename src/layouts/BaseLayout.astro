@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { ClientRouter } from 'astro:transitions';
+import SiteIntro from '../components/SiteIntro.astro';
 
 const buildVersion = Date.now().toString(36);
 const searchIndexPath = `${import.meta.env.BASE_URL ?? '/'}search-index.json?v=${buildVersion}`;
@@ -180,9 +181,33 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         window[runtimeKey] = true;
       })();
     </script>
+    <script is:inline>
+      (function(){
+        // Decide the site-entry curtain before first paint, so a session that has already seen it
+        // never flashes the overlay. The markup ships on every page but stays display:none until
+        // html.site-intro-active is set here; SiteIntro.astro refuses to play without it.
+        //
+        // Once per browser session. Force a replay with ?intro=1 or #intro; the decision is
+        // latched on window so client navigations (which re-run this script) can't re-arm it.
+        if (window.__siteIntroDecided) return;
+        window.__siteIntroDecided = true;
+
+        var forced = /[?&]intro=1(&|$)/.test(location.search) || location.hash === '#intro';
+        var seen = false;
+        try { seen = sessionStorage.getItem('site-intro-seen') === '1'; } catch (e) {}
+        var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (!forced && (seen || reduced)) return;
+
+        document.documentElement.classList.add('site-intro-active');
+        window.__siteIntroPending = true;
+        // Latched up front: refreshing mid-curtain should land on the page, not replay the curtain
+        try { sessionStorage.setItem('site-intro-seen', '1'); } catch (e) {}
+      })();
+    </script>
     <title>{title}</title>
   </head>
   <body>
+    <SiteIntro />
     <div class="site-shell">
       <slot />
     </div>
@@ -539,33 +564,38 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
       // Scrolled fully out of the viewport: reset silently and arm for the next crossing
       function leaveEnter(el) {
         if (el.dataset.enterState !== 'in') return;
+        // Triggers are measured once. An element that has grown since (an opened <details>)
+        // can be "past its end" while still very much on screen — never hide that; re-measure.
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom > 0 && rect.top < window.innerHeight) {
+          gsap.delayedCall(0, () => ScrollTrigger.refresh());
+          return;
+        }
         el.dataset.enterState = 'out';
         gsap.killTweensOf(el);
         el.classList.remove('is-entered', 'is-entering');
         if (isVisibleInFlow(el)) gsap.set(el, { opacity: 0 });
       }
 
-      function initPageEnter() {
-        ScrollTrigger.getAll().forEach((trigger) => {
-          if (String(trigger.vars.id || '').startsWith(ENTER_TRIGGER_PREFIX)) trigger.kill();
-        });
+      // Anything that changes the page's height behind the triggers' back invalidates them
+      document.addEventListener('toggle', () => {
+        requestAnimationFrame(() => ScrollTrigger.refresh());
+      }, true);
 
-        const nodes = gsap.utils.toArray('[data-enter]');
+      // Which elements enter right away, in what order and when — without touching them. The
+      // site-entry curtain reads this (window.__peekPageEnter) so its pixels can land on each
+      // element at the moment that element starts to enter.
+      function planPageEnter() {
         const viewportH = window.innerHeight;
         const immediate = [];
         const deferred = [];
-        const replayable = [];
-
-        nodes.forEach((el) => {
-          el.classList.remove('is-entered', 'is-entering');
-          delete el.dataset.enterState;
+        const settled = []; // enter-once elements on a client navigation: shown, never animated
+        gsap.utils.toArray('[data-enter]').forEach((el) => {
           // The sidebar only makes its entrance once; on client navigations it stays put
           if (el.hasAttribute('data-enter-once')) {
-            if (hasNavigated) { el.classList.add('is-entered'); el.dataset.enterState = 'in'; return; }
-            immediate.push(el);
+            (hasNavigated ? settled : immediate).push(el);
             return;
           }
-          if (!el.hasAttribute('data-no-replay')) replayable.push(el);
           const rect = el.getBoundingClientRect();
           const onScreen = rect.top < viewportH * 0.92 && rect.bottom > 0;
           (onScreen ? immediate : deferred).push(el);
@@ -574,17 +604,47 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         // Stable sort: by direction group, document order within a group
         immediate.sort((a, b) => (ENTER_ORDER[enterKind(a)] ?? 1) - (ENTER_ORDER[enterKind(b)] ?? 1));
 
+        let at = 0;
+        let lastGroup = -1;
+        const timed = immediate.map((el) => {
+          const kind = enterKind(el);
+          const group = ENTER_ORDER[kind] ?? 1;
+          if (lastGroup !== -1 && group !== lastGroup) at += 0.08; // small breath between groups
+          lastGroup = group;
+          const entry = { el, at, kind };
+          at += ENTER_STAGGER[kind] ?? ENTER_STAGGER.default;
+          return entry;
+        });
+        return { immediate: timed, deferred, settled };
+      }
+      window.__peekPageEnter = () => planPageEnter().immediate.map(({ el, at, kind }) => ({ el, at, kind }));
+
+      // `timeScale` compresses the first-paint stagger; the curtain asks for it when a page has
+      // more first-screen elements than its own closing beat can accompany one by one
+      function initPageEnter({ timeScale = 1 } = {}) {
+        ScrollTrigger.getAll().forEach((trigger) => {
+          if (String(trigger.vars.id || '').startsWith(ENTER_TRIGGER_PREFIX)) trigger.kill();
+        });
+
+        const { immediate, deferred, settled } = planPageEnter();
+        const replayable = [];
+
+        [...immediate.map((entry) => entry.el), ...deferred].forEach((el) => {
+          el.classList.remove('is-entered', 'is-entering');
+          delete el.dataset.enterState;
+          if (!el.hasAttribute('data-enter-once') && !el.hasAttribute('data-no-replay')) replayable.push(el);
+        });
+        settled.forEach((el) => {
+          el.classList.remove('is-entering');
+          el.classList.add('is-entered');
+          el.dataset.enterState = 'in';
+        });
+
         if (immediate.length) {
           // Leave a beat after the page swap so the "page turn" reads before parts fly in
           const tl = gsap.timeline({ delay: hasNavigated ? 0.14 : 0.06 });
-          let at = 0;
-          let lastGroup = -1;
-          immediate.forEach((el) => {
-            const group = ENTER_ORDER[enterKind(el)] ?? 1;
-            if (lastGroup !== -1 && group !== lastGroup) at += 0.08; // small breath between groups
-            lastGroup = group;
-            at += scheduleEnter(tl, el, at);
-          });
+          tl.timeScale(timeScale);
+          immediate.forEach(({ el, at }) => scheduleEnter(tl, el, at));
         }
 
         deferred.forEach((el) => {
@@ -660,23 +720,31 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
       // let page-load only cover client-side navigations.
       //
       // A page may put data-enter-hold on an element to postpone its entrance behind an intro of
-      // its own (About's pixel-gather). It then calls window.__releasePageEnter() when ready.
+      // its own, then call window.__releasePageEnter() when ready. The site-entry curtain
+      // (SiteIntro) holds the same way, via window.__siteIntroPending.
       let enteredThisDocument = false;
       let holdRelease = null;
+      let holdTimer = 0;
       let releasedEarly = false;
-      window.__releasePageEnter = () => {
+      window.__releasePageEnter = (options) => {
+        window.clearTimeout(holdTimer);
         if (holdRelease) {
           const release = holdRelease;
           holdRelease = null;
-          release();
+          release(options);
         } else {
           releasedEarly = true;
         }
       };
       function runPageEnter() {
         enteredThisDocument = true;
-        if (document.querySelector('[data-enter-hold]') && !releasedEarly) {
-          holdRelease = () => initPageEnter();
+        const held = document.querySelector('[data-enter-hold]') || window.__siteIntroPending;
+        if (held && !releasedEarly) {
+          holdRelease = (options) => initPageEnter(options);
+          // Dead-man switch: a broken intro must not leave the page permanently blank. The
+          // curtain itself releases at 8.5s, so this has to sit well past that.
+          window.clearTimeout(holdTimer);
+          holdTimer = window.setTimeout(() => { if (holdRelease) window.__releasePageEnter(); }, 14000);
           return;
         }
         releasedEarly = false;
@@ -688,6 +756,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         hasNavigated = true;
         enteredThisDocument = false;
         holdRelease = null;
+        window.clearTimeout(holdTimer);
         releasedEarly = false;
         // Astro resets <html> attributes on swap — re-arm the pre-paint hide
         document.documentElement.classList.add('js-enter');

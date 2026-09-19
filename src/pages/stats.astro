@@ -92,7 +92,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
       <p class="eyebrow" data-enter="top">Stats / 写作统计</p>
       <h1 class="section-title mt-4" data-enter="left">写了多少</h1>
       <p class="stats-hint" data-enter="left">
-        字数不含代码块，代码单独算行数。全部由构建时读取原文统计，不是手填的。
+        反正大部分都AI写的（
       </p>
     </section>
 
@@ -101,7 +101,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
       <p class="stats-hero-label">累计字数</p>
       <p class="stats-hero-value" data-stat-value={totalChars}>{nf.format(totalChars)}</p>
       <p class="stats-hero-note">
-        分布在 {posts.length} 篇文章里，另有 {nf.format(totalCode)} 行代码。
+        分布在 {posts.length} 篇文章里，另有 {nf.format(totalCode)} 行代码
       </p>
     </section>
 
@@ -136,7 +136,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     <section class="chart-card" data-enter="bottom">
       <div class="chart-head">
         <h2>发文节奏</h2>
-        <p>{months[0]?.year}年{months[0]?.month}月 起，每月发了几篇。空的月份就是真的空着。</p>
+        <p>{months[0]?.year}年{months[0]?.month}月开始发文~</p>
       </div>
       <div class="chart-columns" data-chart-columns>
         {months.map((month) => (
@@ -165,7 +165,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     <section class="chart-card" data-enter="bottom">
       <div class="chart-head">
         <h2>每篇的体量</h2>
-        <p>按正文字数排序，不含代码。</p>
+        <p>按正文字数排序（不含代码）</p>
       </div>
       <ul class="chart-bars" data-chart-bars>
         {byVolume.map((row, index) => (
@@ -186,7 +186,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     <section class="chart-card" data-enter="bottom">
       <div class="chart-head">
         <h2>累计字数</h2>
-        <p>从第一篇到最新一篇，字数是怎么堆起来的。</p>
+        <p>从第一篇到最新一篇，字数是怎么堆起来的</p>
       </div>
       <div class="chart-line" data-chart-line>
         <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} preserveAspectRatio="none" aria-hidden="true">
@@ -217,7 +217,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     <section class="chart-card" data-enter="bottom">
       <div class="chart-head">
         <h2>标签分布</h2>
-        <p>前 {topTags.length} 个标签，其余 {tailTags.length} 个合并在最后一行。<a href="/tags">去星图看全部 →</a></p>
+        <p>前 {topTags.length} 个标签，其余 {tailTags.length} 个合并在最后一行~<a href="/tags">去星图看全部 →</a></p>
       </div>
       <ul class="chart-bars" data-chart-bars>
         {topTags.map((tag, index) => (
@@ -307,6 +307,12 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
 
 <script>
   import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+  import CustomEase from 'gsap/CustomEase';
+
+  gsap.registerPlugin(ScrollTrigger, CustomEase);
+  // The same curve BaseLayout's entrance rides; re-declared because this script can run first
+  CustomEase.create('enter', 'M0,0 C0.06,0.62 0.16,0.9 0.42,0.975 0.62,1.005 0.8,1 1,1');
 
   // Charts grow when scrolled into view; one shared tooltip serves every mark.
   const CLEANUP_KEY = '__areSetStatsCleanup__';
@@ -322,6 +328,67 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     const controller = new AbortController();
     const { signal } = controller;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let tableTween: gsap.core.Tween | null = null;
+
+    // ---------- Data table: a <details> that opens the way the rest of the site moves ----------
+    // Native <details> snaps, and it grows the page behind the scroll triggers' back — the
+    // "scrolled out → hide" trigger on this very element was measured while it was closed, so
+    // reading down the open table used to blank it out. Open/close is eased here and the
+    // triggers are re-measured once the height has settled.
+    const table = document.querySelector<HTMLDetailsElement>('details.stats-table');
+    const tableBody = table?.querySelector<HTMLElement>('.stats-table-scroll');
+    if (table && tableBody) {
+      const summary = table.querySelector<HTMLElement>('summary')!;
+      table.querySelectorAll<HTMLElement>('tbody tr, tfoot tr').forEach((row, index) => {
+        row.style.setProperty('--i', String(index));
+      });
+      const settle = () => {
+        ScrollTrigger.refresh();
+        try { (window as any).lenis?.resize(); } catch {}
+      };
+      if (reduceMotion) {
+        table.addEventListener('toggle', settle, { signal });
+      } else {
+        table.classList.add('is-animated');
+        if (table.open) table.classList.add('is-shown');
+        summary.addEventListener('click', (event) => {
+          event.preventDefault();
+          tableTween?.kill();
+          if (!table.open) {
+            // Open the box shut, measure what it wants, then let it grow while the rows seep in
+            table.open = true;
+            gsap.set(tableBody, { clearProps: 'height,overflow' });
+            const full = tableBody.getBoundingClientRect().height;
+            gsap.set(tableBody, { height: 0, overflow: 'hidden' });
+            requestAnimationFrame(() => table.classList.add('is-shown'));
+            tableTween = gsap.to(tableBody, {
+              height: full,
+              duration: 0.85,
+              ease: 'enter',
+              onComplete: () => {
+                gsap.set(tableBody, { clearProps: 'height,overflow' });
+                tableTween = null;
+                settle();
+              },
+            });
+          } else {
+            table.classList.remove('is-shown');
+            gsap.set(tableBody, { height: tableBody.getBoundingClientRect().height, overflow: 'hidden' });
+            tableTween = gsap.to(tableBody, {
+              height: 0,
+              duration: 0.6,
+              ease: 'enter',
+              onComplete: () => {
+                table.open = false;
+                gsap.set(tableBody, { clearProps: 'height,overflow' });
+                tableTween = null;
+                settle();
+              },
+            });
+          }
+        }, { signal });
+      }
+    }
 
     // ---------- Count-up ----------
     document.querySelectorAll<HTMLElement>('[data-stat-value]').forEach((el) => {
@@ -407,6 +474,8 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     (window as any)[CLEANUP_KEY] = () => {
       controller.abort();
       window.clearTimeout(hideTimer);
+      tableTween?.kill();
+      tableTween = null;
       (window as any)[CLEANUP_KEY] = undefined;
     };
   }
