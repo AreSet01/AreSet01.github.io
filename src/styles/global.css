@@ -4431,47 +4431,124 @@ html[data-pixel="true"] body::after {
   display: block;
   width: 2.1rem;
   height: 0.5rem;
-  background: var(--rule);
-  transition: background 300ms var(--ease), transform 320ms var(--ease-bounce);
 }
 
-.series-dot.is-done {
+.series-dot-mark {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--rule);
+  border-radius: 1px;
+  transition: background 300ms var(--ease), transform 320ms var(--ease-bounce);
+  transform-origin: center bottom;
+}
+
+.series-dot.is-done .series-dot-mark {
   background: var(--ink-mid);
 }
 
-.series-dot.is-current {
+.series-dot.is-current .series-dot-mark {
   background: var(--vermilion);
   transform: scaleY(1.7);
 }
 
-.series-dot:hover {
+.series-dot:hover .series-dot-mark {
   background: var(--accent);
   transform: scaleY(1.7);
 }
 
 .series-dot-tip {
   position: absolute;
-  bottom: calc(100% + 0.6rem);
-  left: 50%;
-  translate: -50% 0;
-  z-index: 5;
-  width: 15rem;
-  padding: 0.45rem 0.6rem;
-  background: var(--ink-strong);
-  color: var(--bg-base);
+  bottom: calc(100% + 0.75rem);
+  left: var(--tip-left, 50%);
+  translate: var(--tip-translate, -50% 6px);
+  scale: 0.96;
+  z-index: 50;
+  width: max-content;
+  min-width: 12.5rem;
+  max-width: min(18.5rem, 82vw);
+  padding: 0.65rem 0.85rem;
+  background: var(--bg-soft);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  border: 1px solid var(--rule-strong);
+  border-radius: 8px;
+  box-shadow:
+    0 10px 25px -4px rgba(0, 0, 0, 0.12),
+    0 3px 8px -2px rgba(0, 0, 0, 0.06);
+  color: var(--text-strong);
   font-family: var(--font-body);
-  font-size: 0.72rem;
-  line-height: 1.5;
-  text-align: center;
+  text-align: left;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 200ms var(--ease), translate 260ms var(--ease);
+  transition:
+    opacity 200ms var(--ease),
+    translate 260ms var(--ease),
+    scale 260ms var(--ease);
+  transform-origin: var(--arrow-left, 50%) bottom;
 }
 
+/* Tooltip downward indicator triangle */
+.series-dot-tip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: var(--arrow-left, 50%);
+  translate: -50% 0;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid var(--rule-strong);
+}
+
+/* Hover & Focus appearance */
 .series-dot:hover .series-dot-tip,
 .series-dot:focus-visible .series-dot-tip {
   opacity: 1;
-  translate: -50% -3px;
+  translate: var(--tip-translate-active, -50% -2px);
+  scale: 1;
+}
+
+.series-dot-tip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.series-dot-tip-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.42rem;
+  border-radius: 9999px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  font-size: 0.62rem;
+  color: var(--muted-strong);
+  line-height: 1.2;
+}
+
+.series-dot-tip-badge.is-current {
+  background: rgba(184, 51, 42, 0.12);
+  border-color: rgba(184, 51, 42, 0.32);
+  color: var(--vermilion);
+  font-weight: 600;
+}
+
+.series-dot-tip-title {
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-strong);
+  word-break: break-word;
+  font-weight: 500;
 }
 
 .series-ends {

@@ -109,18 +109,29 @@ const hasToc = tocHeadings.length > 1;
             <span class="series-strip-count">{series.current} / {series.total}</span>
           </div>
           <ol class="series-dots">
-            {series.parts.map((part) => (
-              <li>
-                <a
-                  href={part.href}
-                  class:list={['series-dot', { 'is-current': part.index === series.current, 'is-done': part.index < series.current }]}
-                  aria-current={part.index === series.current ? 'step' : undefined}
-                >
-                  <span class="series-dot-mark" aria-hidden="true"></span>
-                  <span class="series-dot-tip">{part.title}</span>
-                </a>
-              </li>
-            ))}
+            {series.parts.map((part) => {
+              const isCurrent = part.index === series.current;
+              const isDone = part.index < series.current;
+              const badgeText = isCurrent ? '当前阅读' : isDone ? '已阅' : `待读`;
+              return (
+                <li>
+                  <a
+                    href={part.href}
+                    class:list={['series-dot', { 'is-current': isCurrent, 'is-done': isDone }]}
+                    aria-current={isCurrent ? 'step' : undefined}
+                  >
+                    <span class="series-dot-mark" aria-hidden="true"></span>
+                    <span class="series-dot-tip">
+                      <span class="series-dot-tip-head">
+                        <span class="series-dot-tip-num">PART {String(part.index).padStart(2, '0')}</span>
+                        <span class:list={['series-dot-tip-badge', { 'is-current': isCurrent }]}>{badgeText}</span>
+                      </span>
+                      <span class="series-dot-tip-title">{part.title}</span>
+                    </span>
+                  </a>
+                </li>
+              );
+            })}
           </ol>
         </nav>
       )}
@@ -361,37 +372,58 @@ const hasToc = tocHeadings.length > 1;
           title.appendChild(span);
         }
       }
-      if (title) {
-        title.classList.add('is-split-ready');
-        const chars = title.querySelectorAll('.post-title-char');
-        if (chars.length && !reduceMotion) {
-          gsap.fromTo(chars,
-            { y: 46, opacity: 0, rotation: () => gsap.utils.random(-7, 7) },
-            {
-              y: 0, opacity: 1, rotation: 0,
-              duration: 1.3, ease: 'post-enter', stagger: 0.035, delay: 0.18, overwrite: 'auto',
-              onComplete: () => gsap.set(chars, { clearProps: 'transform,opacity' }),
-            }
-          );
+
+      function startTitleAndDate() {
+        if (title) {
+          title.classList.add('is-split-ready');
+          const chars = title.querySelectorAll('.post-title-char');
+          if (chars.length && !reduceMotion) {
+            gsap.fromTo(chars,
+              { y: 46, opacity: 0, rotation: () => gsap.utils.random(-7, 7) },
+              {
+                y: 0, opacity: 1, rotation: 0,
+                duration: 1.3, ease: 'post-enter', stagger: 0.035, delay: 0.08, overwrite: 'auto',
+                onComplete: () => gsap.set(chars, { clearProps: 'transform,opacity' }),
+              }
+            );
+          }
+        }
+
+        // ---------- Date: typewriter ----------
+        const typed = document.querySelector<HTMLElement>('[data-post-typed]');
+        if (typed && !reduceMotion) {
+          const full = typed.dataset.full || typed.textContent || '';
+          typed.dataset.full = full;
+          typed.textContent = '';
+          typed.classList.add('is-typing');
+          let i = 0;
+          const tick = () => {
+            if (signal.aborted) return;
+            i += 1;
+            typed.textContent = full.slice(0, i);
+            if (i < full.length) timers.push(window.setTimeout(tick, 42));
+            else timers.push(window.setTimeout(() => typed.classList.remove('is-typing'), 900));
+          };
+          timers.push(window.setTimeout(tick, 180));
         }
       }
 
-      // ---------- Date: typewriter ----------
-      const typed = document.querySelector<HTMLElement>('[data-post-typed]');
-      if (typed && !reduceMotion) {
-        const full = typed.dataset.full || typed.textContent || '';
-        typed.dataset.full = full;
-        typed.textContent = '';
-        typed.classList.add('is-typing');
-        let i = 0;
-        const tick = () => {
-          if (signal.aborted) return;
-          i += 1;
-          typed.textContent = full.slice(0, i);
-          if (i < full.length) timers.push(window.setTimeout(tick, 42));
-          else timers.push(window.setTimeout(() => typed.classList.remove('is-typing'), 900));
+      const isPendingTransition = Boolean((window as any).__postTransitionPending);
+      if (isPendingTransition && !reduceMotion) {
+        if (title) {
+          const chars = title.querySelectorAll('.post-title-char');
+          gsap.set(chars, { opacity: 0, y: 46 });
+        }
+        let fired = false;
+        const trigger = () => {
+          if (fired) return;
+          fired = true;
+          startTitleAndDate();
         };
-        timers.push(window.setTimeout(tick, 420));
+        window.addEventListener('post-transition-release', trigger, { once: true });
+        timers.push(window.setTimeout(trigger, 1200));
+      } else {
+        startTitleAndDate();
       }
 
       // ---------- Blocks: tag each direct child, reveal via IntersectionObserver ----------
@@ -483,6 +515,36 @@ const hasToc = tocHeadings.length > 1;
         const ro = new ResizeObserver(() => { placeDots(); ScrollTrigger.refresh(); });
         ro.observe(prose);
         signal.addEventListener('abort', () => ro.disconnect());
+      }
+
+      // ---------- Series Tooltips: dynamic boundary clamping ----------
+      const seriesContainer = document.querySelector<HTMLElement>('.series-dots');
+      if (seriesContainer) {
+        function updateSeriesTooltip(dot: HTMLElement) {
+          const tip = dot.querySelector<HTMLElement>('.series-dot-tip');
+          if (!tip) return;
+          const dotRect = dot.getBoundingClientRect();
+          const containerRect = seriesContainer!.getBoundingClientRect();
+          const tipWidth = tip.offsetWidth || 220;
+          const dotCenterX = dotRect.left + dotRect.width / 2;
+
+          const clampedLeft = Math.max(
+            containerRect.left,
+            Math.min(dotCenterX - tipWidth / 2, containerRect.right - tipWidth)
+          );
+          const offsetFromDot = Math.round(clampedLeft - dotRect.left);
+          const arrowX = Math.round(dotCenterX - clampedLeft);
+
+          tip.style.setProperty('--tip-left', `${offsetFromDot}px`);
+          tip.style.setProperty('--tip-translate', '0 6px');
+          tip.style.setProperty('--tip-translate-active', '0 -2px');
+          tip.style.setProperty('--arrow-left', `${arrowX}px`);
+        }
+
+        seriesContainer.querySelectorAll<HTMLElement>('.series-dot').forEach((dot) => {
+          dot.addEventListener('pointerenter', () => updateSeriesTooltip(dot), { signal, passive: true });
+          dot.addEventListener('focus', () => updateSeriesTooltip(dot), { signal, passive: true });
+        });
       }
 
       (window as any)[CLEANUP_KEY] = () => {

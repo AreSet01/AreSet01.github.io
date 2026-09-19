@@ -1,0 +1,349 @@
+---
+// Fullscreen Chinese Ink Wash Transition for Post Navigation
+// 「落笔生澜 · 墨染宣纸」
+// Seamless full-screen ink blossom when entering article pages.
+---
+
+<div id="post-transition" class="post-transition" transition:persist="post-transition" aria-hidden="true">
+  <div class="post-transition-paper" data-post-paper></div>
+  <canvas class="post-transition-canvas" data-post-canvas></canvas>
+</div>
+
+<style>
+  .post-transition {
+    position: fixed;
+    inset: 0;
+    z-index: 9990;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    overflow: hidden;
+  }
+
+  .post-transition.is-active {
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .post-transition-paper {
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+    opacity: 0;
+    will-change: opacity;
+  }
+
+  .post-transition-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    will-change: transform, opacity;
+  }
+</style>
+
+<script>
+  import gsap from 'gsap';
+
+  (() => {
+    // Prevent double-binding on astro page swaps
+    if ((window as any).__areSetPostTransitionInit__) return;
+    (window as any).__areSetPostTransitionInit__ = true;
+
+    const overlay = document.getElementById('post-transition');
+    if (!overlay) return;
+
+    const paper = overlay.querySelector<HTMLElement>('[data-post-paper]');
+    const canvas = overlay.querySelector<HTMLCanvasElement>('[data-post-canvas]');
+    const ctx = canvas?.getContext('2d');
+    if (!paper || !canvas || !ctx) return;
+
+    let isTransitioning = false;
+    let clickOrigin = { x: window.innerWidth / 2, y: window.innerHeight * 0.45 };
+    let safetyTimer: number | null = null;
+    let animTween: gsap.core.Tween | null = null;
+
+    // Track user clicks on article links to anchor the ink bloom origin
+    window.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (e.target instanceof Element && e.target.closest('a[href*="/posts/"]')) {
+          clickOrigin = {
+            x: e.clientX > 0 ? e.clientX : window.innerWidth / 2,
+            y: e.clientY > 0 ? e.clientY : window.innerHeight * 0.45,
+          };
+        }
+      },
+      { capture: true, passive: true }
+    );
+
+    // Droplet particles for ink spray / 飞白
+    interface Droplet {
+      angle: number;
+      distMultiplier: number;
+      size: number;
+      seed: number;
+      alpha: number;
+    }
+
+    const droplets: Droplet[] = [];
+    for (let i = 0; i < 48; i++) {
+      droplets.push({
+        angle: Math.random() * Math.PI * 2,
+        distMultiplier: 0.35 + Math.random() * 0.75,
+        size: 2 + Math.random() * 8,
+        seed: Math.random() * 10,
+        alpha: 0.35 + Math.random() * 0.55,
+      });
+    }
+
+    function getThemeColors() {
+      const style = getComputedStyle(document.documentElement);
+      const bg = style.getPropertyValue('--bg').trim() || '#fcfbf9';
+      const inkStrong = style.getPropertyValue('--ink-strong').trim() || '#111111';
+      const inkMid = style.getPropertyValue('--ink-mid').trim() || '#555555';
+      const inkWash = style.getPropertyValue('--ink-wash').trim() || 'rgba(0, 0, 0, 0.45)';
+      const inkMist = style.getPropertyValue('--ink-mist').trim() || 'rgba(0, 0, 0, 0.18)';
+      return { bg, inkStrong, inkMid, inkWash, inkMist };
+    }
+
+    function resizeCanvas() {
+      if (!canvas) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+      }
+    }
+
+    // Draw an organic hand-brushed ink shape
+    function drawInkBlob(
+      c: CanvasRenderingContext2D,
+      cx: number,
+      cy: number,
+      radius: number,
+      seed: number,
+      color: string,
+      alpha: number
+    ) {
+      if (radius <= 1) return;
+      c.save();
+      c.globalAlpha = Math.min(1, Math.max(0, alpha));
+      c.fillStyle = color;
+      c.beginPath();
+
+      const steps = 64;
+      for (let i = 0; i <= steps; i++) {
+        const angle = (i / steps) * Math.PI * 2;
+        // Harmonic organic deformation
+        const perturbation =
+          Math.sin(angle * 3 + seed) * 0.16 +
+          Math.cos(angle * 5 + seed * 1.6) * 0.11 +
+          Math.sin(angle * 7 + seed * 2.4) * 0.07 +
+          Math.cos(angle * 11 + seed * 3.2) * 0.04;
+        const r = Math.max(0, radius * (1 + perturbation));
+        const px = cx + Math.cos(angle) * r;
+        const py = cy + Math.sin(angle) * r;
+        if (i === 0) c.moveTo(px, py);
+        else c.lineTo(px, py);
+      }
+      c.closePath();
+      c.fill();
+      c.restore();
+    }
+
+    function renderScene(progress: number, isLeaving: boolean) {
+      if (!canvas || !ctx) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, w, h);
+
+      const colors = getThemeColors();
+      const originX = clickOrigin.x;
+      const originY = clickOrigin.y;
+
+      // Max radius to cover entire viewport from origin
+      const maxDist = Math.hypot(Math.max(originX, w - originX), Math.max(originY, h - originY)) * 1.25;
+
+      let r: number;
+      let alphaMultiplier: number;
+
+      if (!isLeaving) {
+        // Entering: rapidly blooming outward
+        r = maxDist * progress;
+        alphaMultiplier = 1;
+      } else {
+        // Leaving: dispersing and softening outwards
+        r = maxDist * (1 + progress * 0.25);
+        alphaMultiplier = Math.max(0, 1 - progress);
+      }
+
+      // 1. Soft atmospheric mist (淡墨微晕)
+      drawInkBlob(ctx, originX, originY, r * 1.28, 1.2, colors.inkMist, 0.45 * alphaMultiplier);
+
+      // 2. Mid ink wash (水墨晕染)
+      drawInkBlob(ctx, originX, originY, r * 1.05, 3.4, colors.inkWash, 0.7 * alphaMultiplier);
+
+      // 3. Dense core ink (浓墨)
+      drawInkBlob(ctx, originX, originY, r * 0.88, 5.7, colors.inkMid, 0.85 * alphaMultiplier);
+
+      // 4. Heavy pitch ink (焦墨)
+      drawInkBlob(ctx, originX, originY, r * 0.72, 8.1, colors.inkStrong, 0.98 * alphaMultiplier);
+
+      // 5. Splattered ink droplets around the expanding boundary
+      if (r > 20 && alphaMultiplier > 0.05) {
+        droplets.forEach((d) => {
+          const dropDist = r * d.distMultiplier;
+          const dx = originX + Math.cos(d.angle) * dropDist;
+          const dy = originY + Math.sin(d.angle) * dropDist;
+          const dropR = d.size * (isLeaving ? (1 - progress * 0.5) : (0.4 + progress * 0.6));
+          drawInkBlob(ctx, dx, dy, dropR, d.seed, colors.inkStrong, d.alpha * alphaMultiplier);
+        });
+      }
+
+      ctx.restore();
+    }
+
+    const postTransition = {
+      get isTransitioning() {
+        return isTransitioning;
+      },
+
+      async enter(): Promise<void> {
+        if (isTransitioning) return;
+        isTransitioning = true;
+        (window as any).__postTransitionPending = true;
+
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          overlay.classList.add('is-active');
+          gsap.set(overlay, { opacity: 1 });
+          gsap.set(paper, { opacity: 1 });
+          return;
+        }
+
+        resizeCanvas();
+        overlay.classList.add('is-active');
+        gsap.set(overlay, { opacity: 1 });
+
+        // Temporarily halt Lenis so scroll doesn't shift during enter
+        try {
+          (window as any).lenis?.stop();
+        } catch {}
+
+        // Dead-man safety switch (2.5s) to guarantee UI never gets stuck
+        if (safetyTimer) window.clearTimeout(safetyTimer);
+        safetyTimer = window.setTimeout(() => {
+          if (isTransitioning) {
+            postTransition.leave();
+          }
+        }, 2500);
+
+        return new Promise<void>((resolve) => {
+          const state = { p: 0 };
+          if (animTween) animTween.kill();
+
+          // Animate paper opacity and ink blossom
+          gsap.set(paper, { opacity: 0 });
+          gsap.to(paper, {
+            opacity: 1,
+            duration: 0.38,
+            ease: 'power2.in',
+          });
+
+          animTween = gsap.to(state, {
+            p: 1,
+            duration: 0.42,
+            ease: 'power2.in',
+            onUpdate: () => {
+              renderScene(state.p, false);
+            },
+            onComplete: () => {
+              renderScene(1, false);
+              resolve();
+            },
+          });
+        });
+      },
+
+      async leave(): Promise<void> {
+        if (!isTransitioning && !overlay.classList.contains('is-active')) return;
+        if (safetyTimer) {
+          window.clearTimeout(safetyTimer);
+          safetyTimer = null;
+        }
+
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          (window as any).__postTransitionPending = false;
+          (window as any).__releasePageEnter?.();
+          window.dispatchEvent(new CustomEvent('post-transition-release'));
+          try {
+            (window as any).lenis?.start();
+          } catch {}
+          overlay.classList.remove('is-active');
+          gsap.set(overlay, { opacity: 0 });
+          gsap.set(paper, { opacity: 0 });
+          isTransitioning = false;
+          return;
+        }
+
+        return new Promise<void>((resolve) => {
+          const state = { p: 0 };
+          if (animTween) animTween.kill();
+
+          let released = false;
+          const triggerHandover = () => {
+            if (released) return;
+            released = true;
+            (window as any).__postTransitionPending = false;
+            // Handover: release page enter and trigger post-reveal simultaneously
+            (window as any).__releasePageEnter?.();
+            window.dispatchEvent(new CustomEvent('post-transition-release'));
+            try {
+              (window as any).lenis?.start();
+            } catch {}
+          };
+
+          // Softly fade paper background
+          gsap.to(paper, {
+            opacity: 0,
+            duration: 0.52,
+            ease: 'power2.out',
+          });
+
+          animTween = gsap.to(state, {
+            p: 1,
+            duration: 0.52,
+            ease: 'power2.out',
+            onUpdate: () => {
+              renderScene(state.p, true);
+              // At ~48% of the leave phase (~0.25s), begin revealing the title & content
+              if (state.p >= 0.48 && !released) {
+                triggerHandover();
+              }
+            },
+            onComplete: () => {
+              triggerHandover();
+              overlay.classList.remove('is-active');
+              gsap.set(overlay, { opacity: 0 });
+              if (ctx && canvas) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+              }
+              isTransitioning = false;
+              animTween = null;
+              resolve();
+            },
+          });
+        });
+      },
+    };
+
+    (window as any).__postTransition = postTransition;
+  })();
+</script>
