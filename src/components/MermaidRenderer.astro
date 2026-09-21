@@ -88,6 +88,17 @@
       if (!modal || !modalContent) return;
       if (modalLabel) modalLabel.textContent = title || 'Mermaid 架构预览';
       modalContent.innerHTML = svgContent;
+      const modalSvg = modalContent.querySelector<SVGSVGElement>('svg');
+      if (modalSvg) {
+        modalSvg.style.opacity = '1';
+        modalSvg.style.transform = 'none';
+        modalSvg.style.transition = 'none';
+        modalSvg.querySelectorAll<SVGElement>('*').forEach((el) => {
+          el.style.opacity = '1';
+          el.style.strokeDashoffset = '0';
+          el.style.transition = 'none';
+        });
+      }
       modal.hidden = false;
       modal.setAttribute('aria-hidden', 'false');
       document.body.classList.add('mermaid-modal-open');
@@ -123,18 +134,18 @@
         return;
       }
 
-      // Initial state
+      // Initial state: animate the root SVG container safely
       svg.style.opacity = '0';
-      svg.style.transform = 'translateY(12px) scale(0.98)';
-      svg.style.transition = 'opacity 650ms cubic-bezier(0.16, 1, 0.3, 1), transform 750ms cubic-bezier(0.16, 1, 0.3, 1)';
+      svg.style.transform = 'translateY(10px) scale(0.98)';
+      svg.style.transition = 'opacity 550ms cubic-bezier(0.16, 1, 0.3, 1), transform 650ms cubic-bezier(0.16, 1, 0.3, 1)';
 
-      // Stagger nodes, actors, notes, clusters
+      // Stagger nodes, actors, notes, clusters using OPACITY ONLY!
+      // NEVER set inline style.transform on SVG <g class="node"> elements,
+      // as CSS transform wipes out the SVG transform="translate(x,y)" coordinate attribute!
       const nodes = Array.from(svg.querySelectorAll<SVGElement>('.node, .actor, .note, g.cluster, .label, .actor-man'));
       nodes.forEach((node, i) => {
         node.style.opacity = '0';
-        node.style.transform = 'translateY(10px) scale(0.94)';
-        node.style.transformOrigin = 'center center';
-        node.style.transition = `opacity 500ms cubic-bezier(0.16, 1, 0.3, 1) ${60 + i * 35}ms, transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1) ${60 + i * 35}ms`;
+        node.style.transition = `opacity 400ms cubic-bezier(0.16, 1, 0.3, 1) ${40 + i * 25}ms`;
       });
 
       // Lines, lifelines, arrows
@@ -145,10 +156,10 @@
           line.style.strokeDasharray = `${len}`;
           line.style.strokeDashoffset = `${len}`;
           line.style.opacity = '0';
-          line.style.transition = `stroke-dashoffset 750ms cubic-bezier(0.16, 1, 0.3, 1) ${120 + i * 45}ms, opacity 350ms ease ${120 + i * 45}ms`;
+          line.style.transition = `stroke-dashoffset 650ms cubic-bezier(0.16, 1, 0.3, 1) ${80 + i * 35}ms, opacity 300ms ease ${80 + i * 35}ms`;
         } else {
           line.style.opacity = '0';
-          line.style.transition = `opacity 500ms ease ${120 + i * 45}ms`;
+          line.style.transition = `opacity 400ms ease ${80 + i * 35}ms`;
         }
       });
 
@@ -159,13 +170,24 @@
 
           nodes.forEach((node) => {
             node.style.opacity = '1';
-            node.style.transform = 'translateY(0) scale(1)';
           });
 
           lines.forEach((line) => {
             line.style.strokeDashoffset = '0';
             line.style.opacity = '1';
           });
+
+          // Clean up inline styles once animation concludes so DOM is 100% clean
+          window.setTimeout(() => {
+            nodes.forEach((node) => {
+              node.style.transition = '';
+            });
+            lines.forEach((line) => {
+              line.style.transition = '';
+              line.style.strokeDasharray = '';
+              line.style.strokeDashoffset = '';
+            });
+          }, 1400);
         });
       });
     }

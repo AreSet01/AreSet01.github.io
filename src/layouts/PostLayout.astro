@@ -103,7 +103,7 @@ const hasToc = tocHeadings.length > 1;
         )}
       </header>
       {series && (
-        <nav class="series-strip" data-enter="bottom" aria-label={`系列：${series.name}`}>
+        <nav class="series-strip" data-enter="bottom" data-no-replay aria-label={`系列：${series.name}`}>
           <div class="series-strip-head">
             <span class="series-strip-kicker">Series</span>
             <span class="series-strip-name">{series.name}</span>
@@ -177,7 +177,7 @@ const hasToc = tocHeadings.length > 1;
         hidden={isLocked}
       >
         {hasToc && (
-          <details class="post-toc panel" open aria-labelledby="post-toc-title" data-enter="bottom">
+          <details class="post-toc panel" open aria-labelledby="post-toc-title" data-enter="bottom" data-no-replay>
             <summary class="post-toc-summary">
               <div class="flex items-center gap-2">
                 <span class="post-toc-kicker">Navigation</span>
@@ -214,7 +214,7 @@ const hasToc = tocHeadings.length > 1;
         </div>
       </div>
       {series && (series.prev || series.next) && (
-        <nav class="series-ends" data-enter="bottom" aria-label="系列上下篇">
+        <nav class="series-ends" data-enter="bottom" data-no-replay aria-label="系列上下篇">
           {series.prev ? (
             <a class="series-end is-prev" href={series.prev.href}>
               <span>← 上一篇</span>
@@ -233,7 +233,7 @@ const hasToc = tocHeadings.length > 1;
           )}
         </nav>
       )}
-      <div class="pt-6 border-t border-[var(--rule)]" data-enter="bottom" style="border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;">
+      <div class="pt-6 border-t border-[var(--rule)]" data-enter="bottom" data-no-replay style="border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;">
         <p class="eyebrow mb-6">Discussion</p>
         <Giscus />
       </div>
@@ -457,10 +457,15 @@ const hasToc = tocHeadings.length > 1;
       } else {
         const io = new IntersectionObserver((entries) => {
           entries.forEach((entry) => {
-            // Replays every time a block comes back into view
-            entry.target.classList.toggle('is-in', entry.isIntersecting);
+            // Once a block enters into view, reveal and unobserve.
+            // This prevents blocks from disappearing when scrolled past, eliminates 68px transform
+            // layout shifts on scroll-direction switches, and stops scroll jitter / pulling.
+            if (entry.isIntersecting || entry.boundingClientRect.top < window.innerHeight) {
+              entry.target.classList.add('is-in');
+              io.unobserve(entry.target);
+            }
           });
-        }, { rootMargin: '0px 0px -6% 0px', threshold: 0 });
+        }, { rootMargin: '0px 0px -4% 0px', threshold: 0 });
         blocks.forEach((el) => io.observe(el));
         signal.addEventListener('abort', () => io.disconnect());
       }
@@ -473,16 +478,24 @@ const hasToc = tocHeadings.length > 1;
 
       function placeDots() {
         if (!body || !spine) return;
-        dots.forEach((d) => d.remove());
-        dots.length = 0;
+        const h2s = Array.from(prose.querySelectorAll<HTMLElement>('h2'));
         const bodyTop = body.getBoundingClientRect().top;
-        prose.querySelectorAll<HTMLElement>('h2').forEach((h2) => {
+
+        while (dots.length > h2s.length) {
+          dots.pop()?.remove();
+        }
+        while (dots.length < h2s.length) {
           const dot = document.createElement('i');
           dot.className = 'post-spine-dot';
-          const y = h2.getBoundingClientRect().top - bodyTop + parseFloat(getComputedStyle(h2).paddingTop) + 14;
-          dot.style.top = `${Math.round(y)}px`;
           spine.appendChild(dot);
           dots.push(dot);
+        }
+
+        h2s.forEach((h2, i) => {
+          const dot = dots[i];
+          if (!dot) return;
+          const y = h2.getBoundingClientRect().top - bodyTop + parseFloat(getComputedStyle(h2).paddingTop) + 14;
+          dot.style.top = `${Math.round(y)}px`;
         });
       }
 
@@ -515,10 +528,32 @@ const hasToc = tocHeadings.length > 1;
         headings.forEach((h) => litIo.observe(h));
         signal.addEventListener('abort', () => litIo.disconnect());
 
-        // Images and fonts shift layout after first paint — keep the dots pinned to their headings
-        const ro = new ResizeObserver(() => { placeDots(); ScrollTrigger.refresh(); });
+        // Images and fonts shift layout after first paint — keep the dots pinned to their headings.
+        // Debounce and avoid calling ScrollTrigger.refresh() while Lenis is actively scrolling!
+        let roTimer: number | null = null;
+        const ro = new ResizeObserver(() => {
+          if (roTimer) window.clearTimeout(roTimer);
+          roTimer = window.setTimeout(() => {
+            placeDots();
+            if (!(window as any).lenis?.isScrolling) {
+              ScrollTrigger.refresh();
+            } else {
+              const checkScroll = () => {
+                if (!(window as any).lenis?.isScrolling) {
+                  ScrollTrigger.refresh();
+                } else {
+                  window.setTimeout(checkScroll, 120);
+                }
+              };
+              window.setTimeout(checkScroll, 120);
+            }
+          }, 150);
+        });
         ro.observe(prose);
-        signal.addEventListener('abort', () => ro.disconnect());
+        signal.addEventListener('abort', () => {
+          ro.disconnect();
+          if (roTimer) window.clearTimeout(roTimer);
+        });
       }
 
       // ---------- Series Tooltips: dynamic boundary clamping ----------
