@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx astro:*)",
       "Read(//c/Users/win11/.claude/projects/c--Users-win11-Desktop-Web-AreSet01-github-io/memory/**)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(awk 'NR>=1 && NR<=200' src/layouts/PostLayout.astro)"
     ]
   }
 }

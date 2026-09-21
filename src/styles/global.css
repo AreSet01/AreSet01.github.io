@@ -1753,6 +1753,12 @@ html.theme-switching .prose blockquote {
     width: 100% !important;
   }
 
+  /* Brand row: below lg the collapse button is display:none, so the wordmark is the
+     row's only child — centre it over the column instead of hugging the left rule. */
+  .glass-nav-inner > div:first-child > div:first-child {
+    justify-content: center !important;
+  }
+
   .brand-mark {
     justify-content: flex-start !important;
     font-size: 1.18rem !important;
@@ -1794,6 +1800,12 @@ html.theme-switching .prose blockquote {
   }
 
   .theme-toggle {
+    /* The cluster is a 1fr/auto grid whose DOM order is search → links → toggle.
+       `.nav-links` spans the full width, which parks the auto-placement cursor on
+       row 2; without an explicit row the toggle then lands on row 3, alone, with
+       row 1's second cell left empty. Pin it beside the search field, which is
+       what the 1fr/auto columns were there for. */
+    grid-row: 1 !important;
     grid-column: 2 / 3 !important;
     justify-self: end !important;
     flex-shrink: 0 !important;
@@ -1816,12 +1828,16 @@ html.theme-switching .prose blockquote {
     display: flex !important;
     flex-direction: row !important;
     align-items: center !important;
-    justify-content: flex-start !important;
-    gap: 0.35rem !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
+    /* Six links measure ~341px tightened, ~413px at the old metrics — wider than
+       a 360px phone's column, which is why this row used to be a scroller that cut
+       the last item off. Wrapping + centring keeps every label on screen and makes
+       the row read as centred; `safe center` is still the fallback so a future
+       seventh link can never be pushed somewhere it can't be scrolled back from. */
+    justify-content: safe center !important;
+    flex-wrap: wrap !important;
+    gap: 0.25rem !important;
+    row-gap: 0.35rem !important;
+    overflow-x: visible !important;
     box-sizing: border-box !important;
     padding: 0.15rem 0.1rem 0.3rem !important;
     margin: 0 !important;
@@ -1834,9 +1850,11 @@ html.theme-switching .prose blockquote {
   .nav-link {
     flex: 0 0 auto !important;
     white-space: nowrap !important;
-    font-size: 0.72rem !important;
-    letter-spacing: 0.08em !important;
-    padding: 0.35rem 0.6rem !important;
+    /* Slightly tighter than the desktop metrics so all six fit one centred row on
+       a 390-430px phone instead of scrolling; below ~370px they wrap instead. */
+    font-size: 0.68rem !important;
+    letter-spacing: 0.05em !important;
+    padding: 0.35rem 0.45rem !important;
     border-radius: 4px !important;
   }
 
@@ -6289,3 +6307,152 @@ body.mermaid-modal-open {
   overscroll-behavior: none !important;
 }
 
+
+/* =========================================================
+   Phone layout (≤767.98px) — width pass
+   ---------------------------------------------------------
+   Two habits of this design meet badly on a narrow screen:
+
+   1. CJK prose carrying a machine-ish token — a URL, a C++ signature, an RPC
+      specifier list like `Server/Client/NetMulticast/Reliable/WithValidation` —
+      has a min-content width equal to that token, because ASCII words do not
+      break. A grid/flex item defaults to min-width:auto, so the track grows to
+      the token and drags every sibling off the right edge with it. Fixed with
+      `overflow-wrap: anywhere` (the one value that also shrinks min-content)
+      plus tracks pinned to minmax(0, 1fr), so nothing can outgrow its column.
+
+   2. Pieces sized for a desktop column — the seal stamps, the vertical
+      写作方向 heading, the metric seals — need a phone equivalent that keeps
+      the same shapes at a smaller scale.
+
+   Colours, type and the ink vocabulary are untouched; only widths, wrapping
+   and spacing change, and only below the site's own 768px breakpoint.
+   ========================================================= */
+
+@media (max-width: 767.98px) {
+  /* ---- 1. Long tokens must never widen a track ---- */
+
+  .site-shell > main :where(h1, h2, h3, h4, p, li, dd, dt, a, span, strong, em, time, summary, blockquote),
+  .preview-modal-body :where(p, li, a) {
+    overflow-wrap: anywhere;
+  }
+
+  /* Tracks are pinned to the paper, never to their content */
+  .home-digest,
+  .home-feature,
+  .notes-heading,
+  .notes-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-digest > *,
+  .home-feature > *,
+  .home-feature-main,
+  .notes-heading > *,
+  .notes-grid > *,
+  .note-card,
+  .archive-metrics-grid > * {
+    min-width: 0;
+  }
+
+  /* ---- 2. Pieces that carry a desktop footprint ---- */
+
+  /* Hero: less air at the top, and stat seals centred under the copy */
+  .home-hero {
+    padding-block: 2.4rem 2.2rem !important;
+  }
+
+  .home-hero-title {
+    max-width: 100% !important;
+    padding-left: 1.5rem !important;
+  }
+
+  .home-rail {
+    justify-content: center;
+    gap: 0.85rem;
+    padding-top: 0.4rem;
+  }
+
+  .home-stat {
+    width: 5.4rem;
+    height: 5.4rem;
+  }
+
+  .home-stat strong {
+    font-size: 1.5rem;
+  }
+
+  .home-stat span {
+    font-size: 0.56rem;
+    letter-spacing: 0.06em;
+  }
+
+  /* 写作方向 runs down the margin as a vertical rule on desktop. On a phone it
+     has to lie down, or it sits past the right edge and is never seen at all. */
+  .home-topics {
+    padding-right: 0;
+  }
+
+  .home-topics h2 {
+    position: relative;
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    height: auto;
+    padding-inline: 0;
+  }
+
+  .home-feature {
+    padding: 1.15rem;
+  }
+
+  /* Archive: three seals have to survive a ~350px column */
+  .archive-metrics-grid {
+    gap: 0.8rem;
+    padding: 0.3rem 0;
+  }
+
+  .archive-metric-card {
+    width: clamp(5rem, 26vw, 7.8rem) !important;
+    height: clamp(5rem, 26vw, 7.8rem) !important;
+    padding: 0.45rem !important;
+  }
+
+  .archive-metric-value {
+    font-size: 1.45rem !important;
+  }
+
+  .archive-metric-label {
+    font-size: 0.58rem !important;
+    letter-spacing: 0.06em !important;
+  }
+
+  .archive-metric-note {
+    font-size: 0.55rem !important;
+  }
+
+  /* Archive rows: a tighter gutter between the date rule and the title. The date
+     keeps its own 6rem column (w-24) — narrowing it wrapped 2026年9月21日 onto
+     two lines, which breaks the row rhythm. */
+  .timeline-link {
+    gap: 0.85rem;
+  }
+
+  /* Tag constellation: a phone-sized sky, so the constellation stays dense
+     instead of drifting apart across a column taller than it needs */
+  .tag-sky {
+    height: min(58vh, 26rem);
+    min-height: 19rem;
+    margin-top: 1.4rem;
+  }
+
+  .tag-legend {
+    gap: 0.9rem;
+    margin-top: 1rem;
+  }
+
+  /* Stat cards carry 1.4rem of side padding each; three across, that is most
+     of the cell */
+  .stat-card {
+    padding-inline: 0.9rem;
+  }
+}
