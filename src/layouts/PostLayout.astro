@@ -4,6 +4,7 @@ import Header from '../components/Header.astro';
 
 import TagList from '../components/TagList.astro';
 import Giscus from '../components/Giscus.astro';
+import MermaidRenderer from '../components/MermaidRenderer.astro';
 import { formatDate } from '../utils/date';
 
 interface SeriesLink {
@@ -239,6 +240,8 @@ const hasToc = tocHeadings.length > 1;
     </article>
   </main>
 
+  <MermaidRenderer />
+
   {isLocked && (
     <script is:inline data-astro-rerun>
       (() => {
@@ -331,6 +334,7 @@ const hasToc = tocHeadings.length > 1;
 
     // Which reveal each direct child of the article gets — everything else is a plain block
     function revealKind(el: Element): string {
+      if (el.classList.contains('mermaid-block') || el.hasAttribute('data-mermaid-code')) return 'mermaid';
       const tag = el.tagName;
       if (tag === 'H2') return 'heading';
       if (tag === 'H3' || tag === 'H4') return 'subheading';
@@ -432,7 +436,7 @@ const hasToc = tocHeadings.length > 1;
       const blocks = (Array.from(prose.children) as HTMLElement[]).map((el) => {
         if (el.classList.contains('pr-wrap')) return el;
         const kind = revealKind(el);
-        if (kind !== 'code' && kind !== 'image') return el;
+        if (kind !== 'code' && kind !== 'image' && kind !== 'mermaid') return el;
         const wrap = document.createElement('div');
         wrap.className = 'pr-wrap';
         wrap.dataset.pr = kind;
@@ -693,6 +697,7 @@ const hasToc = tocHeadings.length > 1;
         function enhanceCodeBlocks() {
           prose.querySelectorAll('pre').forEach((pre) => {
             if (pre.dataset.codeEnhanced === 'true') return;
+            if (pre.closest('.mermaid-block')) return;
             const code = pre.querySelector('code');
             if (!code) return;
 

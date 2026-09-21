@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
+import { visit } from 'unist-util-visit';
 
 /**
  * Fence meta we understand, e.g.
@@ -65,9 +66,78 @@ const codeMetaTransformer = {
   },
 };
 
+function remarkMermaid() {
+  return (tree) => {
+    visit(tree, 'code', (node, index, parent) => {
+      if (!node || node.lang !== 'mermaid') return;
+
+      const { title } = parseFenceMeta(node.meta);
+      const rawCode = String(node.value || '').trim();
+      const encodedCode = encodeURIComponent(rawCode);
+      const escapedCode = rawCode
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      const titleAttr = title ? ` data-title="${encodeURIComponent(title)}"` : '';
+      const displayTitle = title ? `<span class="mermaid-block-title-text">${title}</span>` : '';
+
+      const html = `<div class="mermaid-block" data-mermaid-code="${encodedCode}"${titleAttr}>
+  <div class="mermaid-block-header">
+    <div class="mermaid-block-title">
+      <span class="mermaid-badge">
+        <svg class="mermaid-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="6" height="6" rx="1"></rect>
+          <rect x="15" y="15" width="6" height="6" rx="1"></rect>
+          <path d="M6 9v3a3 3 0 0 0 3 3h6"></path>
+        </svg>
+        <span>MERMAID</span>
+      </span>
+      ${displayTitle}
+    </div>
+    <div class="mermaid-block-actions">
+      <button type="button" class="mermaid-action-btn mermaid-btn-copy" aria-label="复制 Mermaid 代码" title="复制代码">
+        <span>Copy</span>
+      </button>
+      <button type="button" class="mermaid-action-btn mermaid-btn-source" aria-label="切换源码/图表视图" title="查看源码">
+        <span>Code</span>
+      </button>
+      <button type="button" class="mermaid-action-btn mermaid-btn-expand" aria-label="全屏查看图表" title="全屏查看">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 3 21 3 21 9"></polyline>
+          <polyline points="9 21 3 21 3 15"></polyline>
+          <line x1="21" y1="3" x2="14" y2="10"></line>
+          <line x1="3" y1="21" x2="10" y2="14"></line>
+        </svg>
+        <span>Expand</span>
+      </button>
+    </div>
+  </div>
+  <div class="mermaid-stage">
+    <div class="mermaid-render" data-rendered="false">
+      <div class="mermaid-loading">
+        <span class="mermaid-spinner"></span>
+        <span>图表渲染中...</span>
+      </div>
+    </div>
+  </div>
+  <div class="mermaid-source" hidden>
+    <pre class="mermaid-source-pre"><code>${escapedCode}</code></pre>
+  </div>
+</div>`;
+
+      parent.children.splice(index, 1, {
+        type: 'html',
+        value: html,
+      });
+    });
+  };
+}
+
 export default defineConfig({
   site: 'https://AreSet01.github.io',
   markdown: {
+    remarkPlugins: [remarkMermaid],
     shikiConfig: {
       transformers: [codeMetaTransformer],
     },

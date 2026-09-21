@@ -1,0 +1,316 @@
+---
+// MermaidRenderer.astro
+// Dynamically renders .mermaid-block elements with full theme support,
+// copy, source toggle, and full-screen preview.
+---
+
+<!-- Modal for full-screen diagram expansion -->
+<div class="mermaid-modal-overlay" id="mermaid-modal" hidden aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="mermaid-modal-backdrop" data-mermaid-modal-close></div>
+  <div class="mermaid-modal-shell panel">
+    <div class="mermaid-modal-header">
+      <div class="mermaid-modal-title">
+        <svg class="mermaid-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="6" height="6" rx="1"></rect>
+          <rect x="15" y="15" width="6" height="6" rx="1"></rect>
+          <path d="M6 9v3a3 3 0 0 0 3 3h6"></path>
+        </svg>
+        <span id="mermaid-modal-label">Mermaid 预览</span>
+      </div>
+      <button type="button" class="mermaid-modal-close" data-mermaid-modal-close aria-label="关闭预览" title="关闭 (Esc)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    <div class="mermaid-modal-body" id="mermaid-modal-content"></div>
+  </div>
+</div>
+
+<script>
+  let abortController: AbortController | null = null;
+  let renderCounter = 0;
+
+  async function initMermaid() {
+    const blocks = document.querySelectorAll<HTMLElement>('.mermaid-block');
+    if (!blocks.length) return;
+
+    // Load mermaid asynchronously only when mermaid blocks exist
+    const { default: mermaid } = await import('mermaid');
+
+    if (abortController) {
+      abortController.abort();
+    }
+    abortController = new AbortController();
+    const { signal } = abortController;
+
+    function getMermaidTheme(themeName: string) {
+      if (themeName === 'dark') return 'dark';
+      if (themeName === 'moss') return 'forest';
+      return 'default';
+    }
+
+    function getCurrentTheme() {
+      return document.documentElement.getAttribute('data-theme') || 'light';
+    }
+
+    function setupMermaidConfig(themeName: string) {
+      const isDark = themeName === 'dark';
+      const isMoss = themeName === 'moss';
+      const mTheme = getMermaidTheme(themeName);
+
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'loose',
+        theme: mTheme,
+        fontFamily: 'var(--font-mono, ui-monospace, monospace)',
+        themeVariables: {
+          darkMode: isDark,
+          background: 'transparent',
+          fontFamily: 'var(--font-mono, ui-monospace, monospace)',
+          primaryColor: isDark ? '#1a1f26' : isMoss ? '#EAF4EC' : '#f4f5f7',
+          primaryTextColor: isDark ? '#e2e8f0' : isMoss ? '#1F3A24' : '#1e293b',
+          primaryBorderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : isMoss ? 'rgba(31, 58, 36, 0.25)' : 'rgba(0, 0, 0, 0.18)',
+          lineColor: isDark ? '#94a3b8' : isMoss ? '#43764E' : '#64748b',
+          secondaryColor: isDark ? '#111827' : isMoss ? '#D7EBDC' : '#e2e8f0',
+          tertiaryColor: isDark ? '#1f2937' : isMoss ? '#C3E0CB' : '#cbd5e1',
+        },
+      });
+    }
+
+    // Modal elements
+    const modal = document.getElementById('mermaid-modal') as HTMLElement | null;
+    const modalContent = document.getElementById('mermaid-modal-content') as HTMLElement | null;
+    const modalLabel = document.getElementById('mermaid-modal-label') as HTMLElement | null;
+
+    function openModal(title: string, svgContent: string) {
+      if (!modal || !modalContent) return;
+      if (modalLabel) modalLabel.textContent = title || 'Mermaid 架构预览';
+      modalContent.innerHTML = svgContent;
+      modal.hidden = false;
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('mermaid-modal-open');
+    }
+
+    function closeModal() {
+      if (!modal || !modalContent) return;
+      modal.hidden = true;
+      modal.setAttribute('aria-hidden', 'true');
+      modalContent.innerHTML = '';
+      document.body.classList.remove('mermaid-modal-open');
+    }
+
+    // Bind modal close events
+    if (modal) {
+      modal.querySelectorAll('[data-mermaid-modal-close]').forEach((el) => {
+        el.addEventListener('click', closeModal, { signal });
+      });
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !modal.hidden) {
+          closeModal();
+        }
+      }, { signal });
+    }
+
+    function animateMermaidSvg(renderEl: HTMLElement) {
+      const svg = renderEl.querySelector<SVGSVGElement>('svg');
+      if (!svg) return;
+
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion) {
+        svg.style.opacity = '1';
+        return;
+      }
+
+      // Initial state
+      svg.style.opacity = '0';
+      svg.style.transform = 'translateY(12px) scale(0.98)';
+      svg.style.transition = 'opacity 650ms cubic-bezier(0.16, 1, 0.3, 1), transform 750ms cubic-bezier(0.16, 1, 0.3, 1)';
+
+      // Stagger nodes, actors, notes, clusters
+      const nodes = Array.from(svg.querySelectorAll<SVGElement>('.node, .actor, .note, g.cluster, .label, .actor-man'));
+      nodes.forEach((node, i) => {
+        node.style.opacity = '0';
+        node.style.transform = 'translateY(10px) scale(0.94)';
+        node.style.transformOrigin = 'center center';
+        node.style.transition = `opacity 500ms cubic-bezier(0.16, 1, 0.3, 1) ${60 + i * 35}ms, transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1) ${60 + i * 35}ms`;
+      });
+
+      // Lines, lifelines, arrows
+      const lines = Array.from(svg.querySelectorAll<SVGElement>('.edgePath path, .messageLine0, .messageLine1, line, .flowchart-link'));
+      lines.forEach((line, i) => {
+        const len = (line as any).getTotalLength ? (line as any).getTotalLength() : 0;
+        if (len > 0) {
+          line.style.strokeDasharray = `${len}`;
+          line.style.strokeDashoffset = `${len}`;
+          line.style.opacity = '0';
+          line.style.transition = `stroke-dashoffset 750ms cubic-bezier(0.16, 1, 0.3, 1) ${120 + i * 45}ms, opacity 350ms ease ${120 + i * 45}ms`;
+        } else {
+          line.style.opacity = '0';
+          line.style.transition = `opacity 500ms ease ${120 + i * 45}ms`;
+        }
+      });
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          svg.style.opacity = '1';
+          svg.style.transform = 'translateY(0) scale(1)';
+
+          nodes.forEach((node) => {
+            node.style.opacity = '1';
+            node.style.transform = 'translateY(0) scale(1)';
+          });
+
+          lines.forEach((line) => {
+            line.style.strokeDashoffset = '0';
+            line.style.opacity = '1';
+          });
+        });
+      });
+    }
+
+    async function renderAllBlocks() {
+      const currentTheme = getCurrentTheme();
+      setupMermaidConfig(currentTheme);
+
+      for (let i = 0; i < blocks.length; i++) {
+        const block = blocks[i];
+        const encoded = block.dataset.mermaidCode || '';
+        const rawCode = decodeURIComponent(encoded);
+        if (!rawCode) continue;
+
+        const renderEl = block.querySelector<HTMLElement>('.mermaid-render');
+        const loadingEl = block.querySelector<HTMLElement>('.mermaid-loading');
+        const sourceEl = block.querySelector<HTMLElement>('.mermaid-source');
+        const stageEl = block.querySelector<HTMLElement>('.mermaid-stage');
+        const titleText = block.getAttribute('data-title') ? decodeURIComponent(block.getAttribute('data-title') || '') : '';
+
+        if (!renderEl) continue;
+
+        try {
+          const uniqueId = `mermaid-graph-${++renderCounter}`;
+          const { svg, bindFunctions } = await mermaid.render(uniqueId, rawCode);
+          renderEl.innerHTML = svg;
+          renderEl.dataset.rendered = 'true';
+          if (typeof bindFunctions === 'function') {
+            try {
+              bindFunctions(renderEl);
+            } catch (e) {}
+          }
+          if (loadingEl) loadingEl.remove();
+
+          // Auto-detect wide diagrams and enable scrollable stage
+          const svgEl = renderEl.querySelector<SVGSVGElement>('svg');
+          if (svgEl && stageEl) {
+            const naturalWidth = svgEl.viewBox?.baseVal?.width || parseFloat(svgEl.getAttribute('width') || '0') || 0;
+            if (naturalWidth > 640 && stageEl.clientWidth > 0 && naturalWidth > stageEl.clientWidth - 40) {
+              stageEl.dataset.scrollable = 'true';
+            } else {
+              delete stageEl.dataset.scrollable;
+            }
+          }
+
+          // Trigger entrance animation for SVG elements
+          animateMermaidSvg(renderEl);
+
+          // Bind block actions once
+          if (block.dataset.actionsBound !== 'true') {
+            block.dataset.actionsBound = 'true';
+
+            // 1. Copy button
+            const copyBtn = block.querySelector<HTMLElement>('.mermaid-btn-copy');
+            if (copyBtn) {
+              copyBtn.addEventListener('click', async () => {
+                try {
+                  await navigator.clipboard.writeText(rawCode);
+                  const span = copyBtn.querySelector('span') || copyBtn;
+                  const original = span.textContent;
+                  span.textContent = 'Copied!';
+                  setTimeout(() => { span.textContent = original; }, 1500);
+                } catch {
+                  // Fallback
+                }
+              }, { signal });
+            }
+
+            // 2. Code toggle button
+            const sourceBtn = block.querySelector<HTMLElement>('.mermaid-btn-source');
+            if (sourceBtn && sourceEl && stageEl) {
+              sourceBtn.addEventListener('click', () => {
+                const isShowingSource = !sourceEl.hidden;
+                if (isShowingSource) {
+                  sourceEl.hidden = true;
+                  stageEl.hidden = false;
+                  sourceBtn.classList.remove('is-active');
+                  const span = sourceBtn.querySelector('span') || sourceBtn;
+                  span.textContent = 'Code';
+                } else {
+                  sourceEl.hidden = false;
+                  stageEl.hidden = true;
+                  sourceBtn.classList.add('is-active');
+                  const span = sourceBtn.querySelector('span') || sourceBtn;
+                  span.textContent = 'Diagram';
+                }
+              }, { signal });
+            }
+
+            // 3. Expand button
+            const expandBtn = block.querySelector<HTMLElement>('.mermaid-btn-expand');
+            if (expandBtn) {
+              expandBtn.addEventListener('click', () => {
+                const currentSvg = renderEl.innerHTML;
+                openModal(titleText, currentSvg);
+              }, { signal });
+            }
+          }
+        } catch (error: any) {
+          console.error('[Mermaid Render Error]:', error);
+          if (loadingEl) loadingEl.remove();
+          renderEl.innerHTML = `
+            <div class="mermaid-error">
+              <div class="mermaid-error-head">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span>Mermaid 语法解析失败</span>
+              </div>
+              <p class="mermaid-error-msg">${error?.message || '图表语法有误，请点击上方 Code 查看源码并修正'}</p>
+            </div>
+          `;
+          // Auto display source if render failed
+          if (sourceEl) sourceEl.hidden = false;
+        }
+      }
+    }
+
+    // Initial render
+    await renderAllBlocks();
+
+    // Listen to theme switch
+    window.addEventListener('theme-change', () => {
+      renderAllBlocks();
+    }, { signal });
+  }
+
+  // Initial & ViewTransitions lifecycle support
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => initMermaid(), { once: true });
+  } else {
+    initMermaid();
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    initMermaid();
+  });
+
+  document.addEventListener('astro:before-swap', () => {
+    if (abortController) {
+      abortController.abort();
+      abortController = null;
+    }
+    document.body.classList.remove('mermaid-modal-open');
+  });
+</script>

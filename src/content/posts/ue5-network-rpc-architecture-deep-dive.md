@@ -95,6 +95,27 @@ void ServerRequestAttack(AActor* TargetActor, int32 SkillID);
 > 2. `Server` ➔ 校验请求合法性后，在服务器内部调用 `MulticastPlayFX()`（权威端发起广播）  
 > 3. `网络广播下发` ➔ **Server 本地执行** + **所有相关 Client（A、B、C...）同步执行**
 
+```mermaid title="UE5 权威广播与全端同步时序闭环"
+sequenceDiagram
+    autonumber
+    actor PlayerA as 客户端 A (调用者)
+    participant Server as 权威服务器 (Server)
+    actor PlayerB as 客户端 B (队友)
+    actor PlayerC as 客户端 C (远端敌方)
+
+    Note over PlayerA: 触发技能/开火事件
+    PlayerA->>Server: ServerRequestPlayFX() [Server RPC]
+    Note over Server: 执行 _Validate 校验门禁
+    Server-->>Server: 执行权威端技能结算
+    Server->>Server: 本地触发 MulticastPlayFX()
+    par 跨网络权威组播分发
+        Server->>PlayerA: MulticastPlayFX() [下发执行]
+        Server->>PlayerB: MulticastPlayFX() [下发执行]
+        Server->>PlayerC: 相关性裁剪 (NetCullDistance) 过滤后下发
+    end
+    Note over PlayerA,PlayerC: 各端本地播放击中特效与音效
+```
+
 ---
 
 ### 4. Reliable vs Unreliable：可靠性与带宽的博弈
@@ -180,6 +201,38 @@ bool AMyCharacter::ServerCastSpell_Validate(FVector TargetLocation, float ManaCo
 | **通道隔离层** | `UChannel` (`UActorChannel`) | 消除线头阻塞的核心微观隔离。每个 Actor 绑定专属的 `UActorChannel`，独立维护保序队列与生命周期。 |
 | **报文切片层** | `FOutBunch` / `FInBunch` | 逻辑数据束。包含通道索引（`ChIndex`）、可靠序号（`ChSequence`）及利用 `FNetBitWriter` 压缩的比特流。 |
 | **物理传输层** | `FSocket` (UDP Packet) | 将多个 Channel 的 Bunches 合并打包为标准 UDP 数据报（约 1024~1400 字节），投递至物理网络。 |
+
+```mermaid title="虚幻底层网络对象分层与多路复用拓扑架构"
+flowchart TD
+    World["UWorld 全局网络世界"]
+    NetDriver["UNetDriver (TickDispatch / TickFlush 调度枢纽)"]
+
+    ConnA["UNetConnection (Client 1 双向链路)"]
+    ConnB["UNetConnection (Client 2 双向链路)"]
+
+    Chan0["UControlChannel (ChIndex 0: 握手协议)"]
+    ChanActor1["UActorChannel (PlayerCharacter)"]
+    ChanActor2["UActorChannel (BossActor)"]
+    ChanVoice["UVoiceChannel (语音频流)"]
+
+    Bunch1["FOutBunch (RPC: SkillAttack)"]
+    Bunch2["FOutBunch (PropRep: Health=80)"]
+    UDPPacket["UDP Socket 物理报文 (多 Bunch 合批传输)"]
+
+    World --> NetDriver
+    NetDriver --> ConnA
+    NetDriver --> ConnB
+
+    ConnA --> Chan0
+    ConnA --> ChanActor1
+    ConnA --> ChanActor2
+    ConnA --> ChanVoice
+
+    ChanActor1 --> Bunch1
+    ChanActor2 --> Bunch2
+    Bunch1 --> UDPPacket
+    Bunch2 --> UDPPacket
+```
 
 ---
 
