@@ -323,11 +323,18 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           gestureOrientation: 'vertical',
           smoothWheel: true,
           wheelMultiplier: 0.8, // Make wheel slightly heavier
-          allowNestedScroll: true,
+          allowNestedScroll: false, // Do not let containers (mermaid/code) hijack vertical scroll!
           anchors: { offset: -70 },
           virtualScroll: (data) => {
             // When Shift key is held, completely bypass Lenis to permit horizontal scroll!
             if (data.event.shiftKey) return false;
+            // On trackpad, allow native horizontal swipe over horizontal containers
+            if (Math.abs(data.deltaX) > Math.abs(data.deltaY) && Math.abs(data.deltaX) > 2) {
+              const target = data.event.target;
+              if (target instanceof Element && target.closest('.mermaid-stage, pre, [data-scrollable]')) {
+                return false;
+              }
+            }
             return true;
           },
         });
@@ -356,9 +363,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
       });
 
       function initScrollableContainers() {
-        // Clean up any stale data-lenis-prevent attributes from TOC and code blocks
-        document.querySelectorAll('.post-toc-nav, .post-toc, .post-toc-inner, [data-scrollable], .prose pre, pre').forEach((el) => {
+        // Clean up any stale data-lenis-prevent attributes from code blocks and diagrams
+        document.querySelectorAll('.post-toc, .post-toc-inner, [data-scrollable], .prose pre, pre, .mermaid-stage').forEach((el) => {
           el.removeAttribute('data-lenis-prevent');
+        });
+        // Ensure TOC nav can scroll vertically inside its panel
+        document.querySelectorAll('.post-toc-nav').forEach((el) => {
+          el.setAttribute('data-lenis-prevent', '');
         });
       }
 
@@ -940,7 +951,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               borderRadius: '50%',
               background: color,
               pointerEvents: 'none',
-              zIndex: '9999',
+              zIndex: '100006',
               boxShadow: `0 0 ${size + 3}px ${color}`,
               opacity: '0.78',
               filter: 'blur(0.3px)',
@@ -982,7 +993,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               borderRadius: '50%',
               background: `radial-gradient(circle, ${dColor} 0%, ${dColor} 35%, transparent 75%)`,
               pointerEvents: 'none',
-              zIndex: '9998',
+              zIndex: '100005',
               opacity: '0.5',
               filter: 'blur(1.6px)',
               transform: 'scale(0.6)',

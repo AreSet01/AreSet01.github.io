@@ -31,27 +31,30 @@ draft: false
 UBT 会在真正的 C++ 编译器介入之前，优先调度 **UHT** 对所有包含反射标记的头文件进行预处理扫描：
 
 ```mermaid title="虚幻引擎构建全流程时序图"
-flowchart TD
-    A[开发者编写 C++ 源码 .h & .cpp] --> B[UBT: Unreal Build Tool 启动构建任务]
-    B --> C[UHT: Unreal Header Tool 预编译扫描]
+sequenceDiagram
+    autonumber
+    actor Dev as 开发者
+    participant UBT as UBT (构建调度器)
+    participant UHT as UHT (虚幻头文件工具)
+    participant Comp as C++ 编译器 (MSVC/Clang)
+    participant Linker as 静态链接器
+
+    Dev->>UBT: 触发构建任务 (Build)
+    UBT->>UHT: 优先调度：扫描头文件反射宏标记
     
-    subgraph UHT 处理阶段
-        C --> D{头文件是否包含反射宏?}
-        D -- 是 --> E[解析 AST 语法树与元数据契约]
-        E --> F[生成目标代码: .generated.h]
-        E --> G[生成目标代码: .gen.cpp]
-        D -- 否 --> H[跳过, 保持原生编译]
+    rect rgb(30, 45, 60, 0.08)
+        note over UHT: UHT 反射分析流水线
+        UHT->>UHT: 解析 AST 语法树与元数据契约
+        alt 头文件包含反射宏 (UCLASS / UPROPERTY 等)
+            UHT->>Comp: 生成 .generated.h 与 .gen.cpp
+        else 原生 C++ 头文件
+            UHT->>Comp: 保持原生代码透传
+        end
     end
 
-    F --> I[标准 C++ 编译器: MSVC / Clang]
-    G --> I
-    A --> I
-    
-    subgraph C++ 编译与链接阶段
-        I --> J[生成机器码目标文件 .obj / .o]
-        J --> K[Linker 静态链接器]
-        K --> L[输出最终动态库/可执行二进制: .dll / .exe]
-    end
+    UBT->>Comp: 调度标准编译 (编译原生源码与生成代码)
+    Comp->>Linker: 输出 .obj / .o 机器码目标文件
+    Linker-->>Dev: 输出最终动态库与可执行文件 (.dll / .exe)
 ```
 
 ### 1. UHT 的技术演进：从 C++ 到 C# .NET Core

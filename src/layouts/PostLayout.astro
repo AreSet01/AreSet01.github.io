@@ -187,7 +187,7 @@ const hasToc = tocHeadings.length > 1;
               <span class="post-toc-badge">{tocHeadings.length} 节</span>
             </summary>
             <div class="post-toc-inner">
-              <nav class="post-toc-nav" aria-label="文章目录">
+              <nav class="post-toc-nav" aria-label="文章目录" data-lenis-prevent>
                 {tocHeadings.map((heading) => (
                   <a
                     href={`#${heading.slug}`}
@@ -457,15 +457,10 @@ const hasToc = tocHeadings.length > 1;
       } else {
         const io = new IntersectionObserver((entries) => {
           entries.forEach((entry) => {
-            // Once a block enters into view, reveal and unobserve.
-            // This prevents blocks from disappearing when scrolled past, eliminates 68px transform
-            // layout shifts on scroll-direction switches, and stops scroll jitter / pulling.
-            if (entry.isIntersecting || entry.boundingClientRect.top < window.innerHeight) {
-              entry.target.classList.add('is-in');
-              io.unobserve(entry.target);
-            }
+            // Replays every time a block comes back into view
+            entry.target.classList.toggle('is-in', entry.isIntersecting);
           });
-        }, { rootMargin: '0px 0px -4% 0px', threshold: 0 });
+        }, { rootMargin: '0px 0px -6% 0px', threshold: 0 });
         blocks.forEach((el) => io.observe(el));
         signal.addEventListener('abort', () => io.disconnect());
       }

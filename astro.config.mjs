@@ -96,6 +96,17 @@ function remarkMermaid() {
       ${displayTitle}
     </div>
     <div class="mermaid-block-actions">
+      <div class="mermaid-zoom-group">
+        <button type="button" class="mermaid-action-btn mermaid-btn-zoom-out" aria-label="缩小图表" title="缩小 (−)">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </button>
+        <button type="button" class="mermaid-action-btn mermaid-btn-zoom-reset" aria-label="重置缩放" title="重置缩放 (100%)">
+          <span class="mermaid-zoom-val">100%</span>
+        </button>
+        <button type="button" class="mermaid-action-btn mermaid-btn-zoom-in" aria-label="放大图表" title="放大 (+)">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </button>
+      </div>
       <button type="button" class="mermaid-action-btn mermaid-btn-copy" aria-label="复制 Mermaid 代码" title="复制代码">
         <span>Copy</span>
       </button>

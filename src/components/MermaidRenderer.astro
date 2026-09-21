@@ -17,14 +17,29 @@
         </svg>
         <span id="mermaid-modal-label">Mermaid 预览</span>
       </div>
-      <button type="button" class="mermaid-modal-close" data-mermaid-modal-close aria-label="关闭预览" title="关闭 (Esc)">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
+      <div class="mermaid-modal-actions">
+        <div class="mermaid-zoom-group">
+          <button type="button" class="mermaid-action-btn" id="mermaid-modal-zoom-out" aria-label="缩小" title="缩小 (−)">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
+          <button type="button" class="mermaid-action-btn" id="mermaid-modal-zoom-reset" aria-label="重置" title="重置缩放 (100%)">
+            <span id="mermaid-modal-zoom-val" class="mermaid-zoom-val">100%</span>
+          </button>
+          <button type="button" class="mermaid-action-btn" id="mermaid-modal-zoom-in" aria-label="放大" title="放大 (+)">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
+        </div>
+        <button type="button" class="mermaid-modal-close" data-mermaid-modal-close aria-label="关闭预览" title="关闭 (Esc)">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
     </div>
-    <div class="mermaid-modal-body" id="mermaid-modal-content"></div>
+    <div class="mermaid-modal-body" id="mermaid-modal-content">
+      <div class="mermaid-modal-canvas" id="mermaid-modal-canvas"></div>
+    </div>
   </div>
 </div>
 
@@ -79,17 +94,45 @@
       });
     }
 
-    // Modal elements
+    // Modal elements & state
     const modal = document.getElementById('mermaid-modal') as HTMLElement | null;
     const modalContent = document.getElementById('mermaid-modal-content') as HTMLElement | null;
+    const modalCanvas = document.getElementById('mermaid-modal-canvas') as HTMLElement | null;
     const modalLabel = document.getElementById('mermaid-modal-label') as HTMLElement | null;
+    const modalZoomIn = document.getElementById('mermaid-modal-zoom-in') as HTMLElement | null;
+    const modalZoomOut = document.getElementById('mermaid-modal-zoom-out') as HTMLElement | null;
+    const modalZoomReset = document.getElementById('mermaid-modal-zoom-reset') as HTMLElement | null;
+    const modalZoomVal = document.getElementById('mermaid-modal-zoom-val') as HTMLElement | null;
+
+    let modalScale = 1.0;
+    let modalTranslateX = 0;
+    let modalTranslateY = 0;
+    let isModalDragging = false;
+    let modalDragStartX = 0;
+    let modalDragStartY = 0;
+
+    function updateModalTransform() {
+      if (!modalCanvas) return;
+      modalCanvas.style.transform = `translate(${modalTranslateX}px, ${modalTranslateY}px) scale(${modalScale})`;
+      if (modalZoomVal) {
+        modalZoomVal.textContent = `${Math.round(modalScale * 100)}%`;
+      }
+    }
 
     function openModal(title: string, svgContent: string) {
-      if (!modal || !modalContent) return;
+      if (!modal || !modalContent || !modalCanvas) return;
       if (modalLabel) modalLabel.textContent = title || 'Mermaid 架构预览';
-      modalContent.innerHTML = svgContent;
-      const modalSvg = modalContent.querySelector<SVGSVGElement>('svg');
+      modalScale = 1.0;
+      modalTranslateX = 0;
+      modalTranslateY = 0;
+      modalCanvas.innerHTML = svgContent;
+      updateModalTransform();
+
+      const modalSvg = modalCanvas.querySelector<SVGSVGElement>('svg');
       if (modalSvg) {
+        modalSvg.style.maxWidth = 'min(86vw, 1120px)';
+        modalSvg.style.width = '100%';
+        modalSvg.style.height = 'auto';
         modalSvg.style.opacity = '1';
         modalSvg.style.transform = 'none';
         modalSvg.style.transition = 'none';
@@ -105,14 +148,18 @@
     }
 
     function closeModal() {
-      if (!modal || !modalContent) return;
+      if (!modal || !modalCanvas) return;
       modal.hidden = true;
       modal.setAttribute('aria-hidden', 'true');
-      modalContent.innerHTML = '';
+      modalCanvas.innerHTML = '';
+      modalScale = 1.0;
+      modalTranslateX = 0;
+      modalTranslateY = 0;
+      updateModalTransform();
       document.body.classList.remove('mermaid-modal-open');
     }
 
-    // Bind modal close events
+    // Bind modal controls
     if (modal) {
       modal.querySelectorAll('[data-mermaid-modal-close]').forEach((el) => {
         el.addEventListener('click', closeModal, { signal });
@@ -122,6 +169,53 @@
           closeModal();
         }
       }, { signal });
+
+      modalZoomIn?.addEventListener('click', () => {
+        modalScale = Math.min(3.5, Math.round((modalScale + 0.25) * 100) / 100);
+        updateModalTransform();
+      }, { signal });
+
+      modalZoomOut?.addEventListener('click', () => {
+        modalScale = Math.max(0.4, Math.round((modalScale - 0.25) * 100) / 100);
+        updateModalTransform();
+      }, { signal });
+
+      modalZoomReset?.addEventListener('click', () => {
+        modalScale = 1.0;
+        modalTranslateX = 0;
+        modalTranslateY = 0;
+        updateModalTransform();
+      }, { signal });
+
+      if (modalContent) {
+        modalContent.addEventListener('pointerdown', (e) => {
+          isModalDragging = true;
+          modalDragStartX = e.clientX - modalTranslateX;
+          modalDragStartY = e.clientY - modalTranslateY;
+          modalContent.classList.add('is-dragging');
+        }, { signal });
+
+        window.addEventListener('pointermove', (e) => {
+          if (!isModalDragging) return;
+          modalTranslateX = e.clientX - modalDragStartX;
+          modalTranslateY = e.clientY - modalDragStartY;
+          updateModalTransform();
+        }, { signal });
+
+        window.addEventListener('pointerup', () => {
+          if (isModalDragging) {
+            isModalDragging = false;
+            modalContent.classList.remove('is-dragging');
+          }
+        }, { signal });
+
+        modalContent.addEventListener('wheel', (e) => {
+          e.preventDefault();
+          const step = e.deltaY < 0 ? 0.12 : -0.12;
+          modalScale = Math.min(3.5, Math.max(0.4, Math.round((modalScale + step) * 100) / 100));
+          updateModalTransform();
+        }, { passive: false, signal });
+      }
     }
 
     function animateMermaidSvg(renderEl: HTMLElement) {
@@ -137,18 +231,14 @@
       // Initial state: animate the root SVG container safely
       svg.style.opacity = '0';
       svg.style.transform = 'translateY(10px) scale(0.98)';
-      svg.style.transition = 'opacity 550ms cubic-bezier(0.16, 1, 0.3, 1), transform 650ms cubic-bezier(0.16, 1, 0.3, 1)';
+      svg.style.transition = 'opacity 500ms cubic-bezier(0.16, 1, 0.3, 1), transform 550ms cubic-bezier(0.16, 1, 0.3, 1)';
 
-      // Stagger nodes, actors, notes, clusters using OPACITY ONLY!
-      // NEVER set inline style.transform on SVG <g class="node"> elements,
-      // as CSS transform wipes out the SVG transform="translate(x,y)" coordinate attribute!
       const nodes = Array.from(svg.querySelectorAll<SVGElement>('.node, .actor, .note, g.cluster, .label, .actor-man'));
       nodes.forEach((node, i) => {
         node.style.opacity = '0';
-        node.style.transition = `opacity 400ms cubic-bezier(0.16, 1, 0.3, 1) ${40 + i * 25}ms`;
+        node.style.transition = `opacity 350ms cubic-bezier(0.16, 1, 0.3, 1) ${30 + i * 20}ms`;
       });
 
-      // Lines, lifelines, arrows
       const lines = Array.from(svg.querySelectorAll<SVGElement>('.edgePath path, .messageLine0, .messageLine1, line, .flowchart-link'));
       lines.forEach((line, i) => {
         const len = (line as any).getTotalLength ? (line as any).getTotalLength() : 0;
@@ -156,40 +246,53 @@
           line.style.strokeDasharray = `${len}`;
           line.style.strokeDashoffset = `${len}`;
           line.style.opacity = '0';
-          line.style.transition = `stroke-dashoffset 650ms cubic-bezier(0.16, 1, 0.3, 1) ${80 + i * 35}ms, opacity 300ms ease ${80 + i * 35}ms`;
+          line.style.transition = `stroke-dashoffset 550ms cubic-bezier(0.16, 1, 0.3, 1) ${60 + i * 25}ms, opacity 250ms ease ${60 + i * 25}ms`;
         } else {
           line.style.opacity = '0';
-          line.style.transition = `opacity 400ms ease ${80 + i * 35}ms`;
+          line.style.transition = `opacity 350ms ease ${60 + i * 25}ms`;
         }
       });
 
+      const showAll = () => {
+        svg.style.opacity = '1';
+        svg.style.transform = 'translateY(0) scale(1)';
+        nodes.forEach((node) => {
+          node.style.opacity = '1';
+        });
+        lines.forEach((line) => {
+          line.style.strokeDashoffset = '0';
+          line.style.opacity = '1';
+        });
+      };
+
+      const cleanup = () => {
+        svg.style.opacity = '';
+        svg.style.transform = '';
+        svg.style.transition = '';
+        nodes.forEach((node) => {
+          node.style.transition = '';
+          node.style.opacity = '';
+        });
+        lines.forEach((line) => {
+          line.style.transition = '';
+          line.style.opacity = '';
+          line.style.strokeDasharray = '';
+          line.style.strokeDashoffset = '';
+        });
+      };
+
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          svg.style.opacity = '1';
-          svg.style.transform = 'translateY(0) scale(1)';
-
-          nodes.forEach((node) => {
-            node.style.opacity = '1';
-          });
-
-          lines.forEach((line) => {
-            line.style.strokeDashoffset = '0';
-            line.style.opacity = '1';
-          });
-
-          // Clean up inline styles once animation concludes so DOM is 100% clean
-          window.setTimeout(() => {
-            nodes.forEach((node) => {
-              node.style.transition = '';
-            });
-            lines.forEach((line) => {
-              line.style.transition = '';
-              line.style.strokeDasharray = '';
-              line.style.strokeDashoffset = '';
-            });
-          }, 1400);
+          showAll();
+          window.setTimeout(cleanup, 1200);
         });
       });
+
+      // Safety fallback: guaranteed cleanup after 1400ms
+      window.setTimeout(() => {
+        showAll();
+        cleanup();
+      }, 1400);
     }
 
     async function renderAllBlocks() {
@@ -239,6 +342,67 @@
           // Bind block actions once
           if (block.dataset.actionsBound !== 'true') {
             block.dataset.actionsBound = 'true';
+
+            // 0. Inline Zoom Controls & Drag to Pan
+            let currentZoom = 1.0;
+            const zoomInBtn = block.querySelector<HTMLElement>('.mermaid-btn-zoom-in');
+            const zoomOutBtn = block.querySelector<HTMLElement>('.mermaid-btn-zoom-out');
+            const zoomResetBtn = block.querySelector<HTMLElement>('.mermaid-btn-zoom-reset');
+            const zoomVal = block.querySelector<HTMLElement>('.mermaid-zoom-val');
+
+            function applyZoom(newZoom: number) {
+              currentZoom = Math.min(2.5, Math.max(0.5, Math.round(newZoom * 100) / 100));
+              if (zoomVal) zoomVal.textContent = `${Math.round(currentZoom * 100)}%`;
+              renderEl.style.transform = currentZoom === 1.0 ? '' : `scale(${currentZoom})`;
+              if (currentZoom > 1.0) {
+                stageEl?.classList.add('is-zoomed');
+              } else {
+                stageEl?.classList.remove('is-zoomed');
+              }
+            }
+
+            if (zoomInBtn) {
+              zoomInBtn.addEventListener('click', () => applyZoom(currentZoom + 0.2), { signal });
+            }
+            if (zoomOutBtn) {
+              zoomOutBtn.addEventListener('click', () => applyZoom(currentZoom - 0.2), { signal });
+            }
+            if (zoomResetBtn) {
+              zoomResetBtn.addEventListener('click', () => applyZoom(1.0), { signal });
+            }
+
+            // Drag to pan when zoomed
+            let isStageDragging = false;
+            let stageStartX = 0;
+            let stageStartY = 0;
+            let stageScrollLeft = 0;
+            let stageScrollTop = 0;
+
+            stageEl?.addEventListener('mousedown', (e) => {
+              if (currentZoom <= 1.0) return;
+              isStageDragging = true;
+              stageEl.classList.add('is-dragging');
+              stageStartX = e.pageX - stageEl.offsetLeft;
+              stageStartY = e.pageY - stageEl.offsetTop;
+              stageScrollLeft = stageEl.scrollLeft;
+              stageScrollTop = stageEl.scrollTop;
+            }, { signal });
+
+            window.addEventListener('mousemove', (e) => {
+              if (!isStageDragging || !stageEl) return;
+              e.preventDefault();
+              const x = e.pageX - stageEl.offsetLeft;
+              const y = e.pageY - stageEl.offsetTop;
+              stageEl.scrollLeft = stageScrollLeft - (x - stageStartX);
+              stageEl.scrollTop = stageScrollTop - (y - stageStartY);
+            }, { signal });
+
+            window.addEventListener('mouseup', () => {
+              if (isStageDragging && stageEl) {
+                isStageDragging = false;
+                stageEl.classList.remove('is-dragging');
+              }
+            }, { signal });
 
             // 1. Copy button
             const copyBtn = block.querySelector<HTMLElement>('.mermaid-btn-copy');
