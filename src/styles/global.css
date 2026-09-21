@@ -5778,6 +5778,7 @@ a.chart-bar-name:hover {
   min-height: 120px;
   max-height: min(72vh, 520px);
   overflow: auto;
+  overscroll-behavior: contain !important;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -5996,6 +5997,7 @@ a.chart-bar-name:hover {
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
+  overscroll-behavior: contain !important;
 }
 
 .mermaid-modal-backdrop {
@@ -6018,6 +6020,7 @@ a.chart-bar-name:hover {
   border: 1px solid var(--rule-strong);
   box-shadow: 0 32px 80px rgba(0, 0, 0, 0.4);
   overflow: hidden;
+  overscroll-behavior: contain !important;
 }
 
 .mermaid-modal-header {
@@ -6083,6 +6086,7 @@ a.chart-bar-name:hover {
   align-items: center;
   cursor: grab;
   user-select: none;
+  overscroll-behavior: contain !important;
   background: radial-gradient(var(--rule-soft) 1.2px, transparent 1.2px);
   background-size: 24px 24px;
 }
@@ -6112,5 +6116,6 @@ a.chart-bar-name:hover {
 
 body.mermaid-modal-open {
   overflow: hidden !important;
+  overscroll-behavior: none !important;
 }
 

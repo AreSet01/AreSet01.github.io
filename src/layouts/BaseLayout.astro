@@ -328,11 +328,24 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           virtualScroll: (data) => {
             // When Shift key is held, completely bypass Lenis to permit horizontal scroll!
             if (data.event.shiftKey) return false;
-            // On trackpad, allow native horizontal swipe over horizontal containers
-            if (Math.abs(data.deltaX) > Math.abs(data.deltaY) && Math.abs(data.deltaX) > 2) {
-              const target = data.event.target;
-              if (target instanceof Element && target.closest('.mermaid-stage, pre, [data-scrollable]')) {
+            // If any modal (e.g. Mermaid fullscreen modal) is open, completely block page scroll!
+            if (document.body.classList.contains('mermaid-modal-open')) return false;
+
+            const target = data.event.target;
+            if (target instanceof Element) {
+              // Completely prevent Lenis from scrolling page when interacting with TOC or modals
+              if (target.closest('.post-toc, .post-toc-inner, .post-toc-nav, .mermaid-modal-overlay, #mermaid-modal, [data-lenis-prevent]')) {
                 return false;
+              }
+              // When an inline diagram is zoomed, allow native pan/scroll without page hijacking
+              if (target.closest('.mermaid-stage.is-zoomed')) {
+                return false;
+              }
+              // On trackpad, allow native horizontal swipe over horizontal containers
+              if (Math.abs(data.deltaX) > Math.abs(data.deltaY) && Math.abs(data.deltaX) > 2) {
+                if (target.closest('.mermaid-stage, pre, [data-scrollable]')) {
+                  return false;
+                }
               }
             }
             return true;
@@ -364,11 +377,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
       function initScrollableContainers() {
         // Clean up any stale data-lenis-prevent attributes from code blocks and diagrams
-        document.querySelectorAll('.post-toc, .post-toc-inner, [data-scrollable], .prose pre, pre, .mermaid-stage').forEach((el) => {
+        document.querySelectorAll('[data-scrollable], .prose pre, pre, .mermaid-stage').forEach((el) => {
           el.removeAttribute('data-lenis-prevent');
         });
-        // Ensure TOC nav can scroll vertically inside its panel
-        document.querySelectorAll('.post-toc-nav').forEach((el) => {
+        // Ensure TOC container and navigation can scroll vertically inside its panel without moving the page
+        document.querySelectorAll('.post-toc, .post-toc-inner, .post-toc-nav').forEach((el) => {
           el.setAttribute('data-lenis-prevent', '');
         });
       }

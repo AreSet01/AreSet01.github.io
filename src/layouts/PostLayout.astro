@@ -177,8 +177,8 @@ const hasToc = tocHeadings.length > 1;
         hidden={isLocked}
       >
         {hasToc && (
-          <details class="post-toc panel" open aria-labelledby="post-toc-title" data-enter="bottom" data-no-replay>
-            <summary class="post-toc-summary">
+          <details class="post-toc panel" open aria-labelledby="post-toc-title" data-enter="bottom" data-no-replay data-lenis-prevent>
+            <summary class="post-toc-summary" data-lenis-prevent>
               <div class="flex items-center gap-2">
                 <span class="post-toc-kicker">Navigation</span>
                 <span class="opacity-30">/</span>
@@ -186,7 +186,7 @@ const hasToc = tocHeadings.length > 1;
               </div>
               <span class="post-toc-badge">{tocHeadings.length} 节</span>
             </summary>
-            <div class="post-toc-inner">
+            <div class="post-toc-inner" data-lenis-prevent>
               <nav class="post-toc-nav" aria-label="文章目录" data-lenis-prevent>
                 {tocHeadings.map((heading) => (
                   <a
@@ -457,10 +457,15 @@ const hasToc = tocHeadings.length > 1;
       } else {
         const io = new IntersectionObserver((entries) => {
           entries.forEach((entry) => {
-            // Replays every time a block comes back into view
-            entry.target.classList.toggle('is-in', entry.isIntersecting);
+            // Once a block enters into view, reveal and unobserve.
+            // This prevents blocks from disappearing when scrolled past, eliminates 68px transform
+            // layout shifts on scroll-direction switches, and stops scroll jitter / pulling.
+            if (entry.isIntersecting || entry.boundingClientRect.top < window.innerHeight) {
+              entry.target.classList.add('is-in');
+              io.unobserve(entry.target);
+            }
           });
-        }, { rootMargin: '0px 0px -6% 0px', threshold: 0 });
+        }, { rootMargin: '0px 0px -4% 0px', threshold: 0 });
         blocks.forEach((el) => io.observe(el));
         signal.addEventListener('abort', () => io.disconnect());
       }
@@ -835,6 +840,7 @@ const hasToc = tocHeadings.length > 1;
       background: var(--bg-soft);
       border: 1px solid var(--rule);
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      overscroll-behavior: contain !important;
     }
     .post-toc:hover {
       border-color: var(--rule-strong);
@@ -877,6 +883,7 @@ const hasToc = tocHeadings.length > 1;
       margin-top: 0.85rem;
       padding-top: 0.85rem;
       border-top: 1px dashed var(--rule);
+      overscroll-behavior: contain !important;
     }
     .post-toc-nav {
       display: flex;
@@ -885,6 +892,7 @@ const hasToc = tocHeadings.length > 1;
       max-height: 22rem;
       overflow-y: auto;
       padding-right: 0.4rem;
+      overscroll-behavior: contain !important;
     }
     .post-toc-nav::-webkit-scrollbar {
       width: 4px;
