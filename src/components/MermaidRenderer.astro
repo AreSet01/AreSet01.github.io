@@ -343,7 +343,25 @@
           if (block.dataset.actionsBound !== 'true') {
             block.dataset.actionsBound = 'true';
 
-            // 0. Inline Zoom Controls & Drag to Pan
+            // 0. Inline Zoom Controls & Drag to Pan (dynamically inject if missing in cached HTML)
+            const actionsEl = block.querySelector<HTMLElement>('.mermaid-block-actions');
+            if (actionsEl && !actionsEl.querySelector('.mermaid-zoom-group')) {
+              const zoomGroup = document.createElement('div');
+              zoomGroup.className = 'mermaid-zoom-group';
+              zoomGroup.innerHTML = `
+                <button type="button" class="mermaid-action-btn mermaid-btn-zoom-out" aria-label="缩小图表" title="缩小 (−)">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+                <button type="button" class="mermaid-action-btn mermaid-btn-zoom-reset" aria-label="重置缩放" title="重置缩放 (100%)">
+                  <span class="mermaid-zoom-val">100%</span>
+                </button>
+                <button type="button" class="mermaid-action-btn mermaid-btn-zoom-in" aria-label="放大图表" title="放大 (+)">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+              `;
+              actionsEl.prepend(zoomGroup);
+            }
+
             let currentZoom = 1.0;
             const zoomInBtn = block.querySelector<HTMLElement>('.mermaid-btn-zoom-in');
             const zoomOutBtn = block.querySelector<HTMLElement>('.mermaid-btn-zoom-out');
