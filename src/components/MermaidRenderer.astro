@@ -47,9 +47,44 @@
   let abortController: AbortController | null = null;
   let renderCounter = 0;
 
+  // Laying a diagram out (ELK especially) is 70–150 ms of main-thread work per block, so starting
+  // it the moment the page loads drops that whole cluster onto the entrance choreography and the
+  // title/block reveals stutter. Every diagram sits below the fold, so hold off until the entrance
+  // has settled — unless one comes near the viewport first (the reader scrolled straight down), in
+  // which case render at once. Either way the diagrams appear rendered exactly as before.
+  const ENTRANCE_SETTLE_MS = 1100; // the reveal tween runs 1.6 s with a 0.14 s delay and reads as done well before its end
+  const NEAR_VIEWPORT_PX = 1500;
+
+  function waitForQuietMoment(blocks: NodeListOf<HTMLElement>): Promise<void> {
+    const afterEntrance = new Promise<void>((resolve) => {
+      if ((window as any).__postTransitionPending) {
+        // The reveal only starts when the ink curtain hands the page over
+        window.addEventListener('post-transition-release', () => window.setTimeout(resolve, ENTRANCE_SETTLE_MS), { once: true });
+      } else {
+        window.setTimeout(resolve, ENTRANCE_SETTLE_MS);
+      }
+    });
+
+    const scrolledClose = new Promise<void>((resolve) => {
+      if (!('IntersectionObserver' in window)) return; // never settles; the entrance timer decides
+      const io = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          io.disconnect();
+          resolve();
+        }
+      }, { rootMargin: `${NEAR_VIEWPORT_PX}px 0px ${NEAR_VIEWPORT_PX}px 0px` });
+      blocks.forEach((block) => io.observe(block));
+    });
+
+    return Promise.race([afterEntrance, scrolledClose]);
+  }
+
   async function initMermaid() {
     const blocks = document.querySelectorAll<HTMLElement>('.mermaid-block');
     if (!blocks.length) return;
+
+    await waitForQuietMoment(blocks);
+    if (!blocks[0].isConnected) return; // another page was swapped in while we waited
 
     // Load mermaid asynchronously only when mermaid blocks exist
     const { default: mermaid } = await import('mermaid');
@@ -182,7 +217,7 @@
       }, { signal });
 
       modalZoomIn?.addEventListener('click', () => {
-        modalScale = Math.min(3.5, Math.round((modalScale + 0.25) * 100) / 100);
+        modalScale = Math.min(5.0, Math.round((modalScale + 0.25) * 100) / 100);
         updateModalTransform();
       }, { signal });
 
@@ -225,7 +260,7 @@
           e.stopPropagation();
           (e as any).stopImmediatePropagation?.();
           const step = e.deltaY < 0 ? 0.12 : -0.12;
-          modalScale = Math.min(3.5, Math.max(0.4, Math.round((modalScale + step) * 100) / 100));
+          modalScale = Math.min(5.0, Math.max(0.4, Math.round((modalScale + step) * 100) / 100));
           updateModalTransform();
         }, { passive: false, signal });
       }
@@ -382,7 +417,7 @@
             const zoomVal = block.querySelector<HTMLElement>('.mermaid-zoom-val');
 
             function applyZoom(newZoom: number) {
-              currentZoom = Math.min(2.5, Math.max(0.5, Math.round(newZoom * 100) / 100));
+              currentZoom = Math.min(5.0, Math.max(0.4, Math.round(newZoom * 100) / 100));
               if (zoomVal) zoomVal.textContent = `${Math.round(currentZoom * 100)}%`;
               renderEl.style.transform = currentZoom === 1.0 ? '' : `scale(${currentZoom})`;
               if (currentZoom > 1.0) {

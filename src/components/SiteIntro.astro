@@ -192,8 +192,10 @@ const tagline = '日常记录 · 技术分享';
     const coarse = window.matchMedia('(pointer: coarse)').matches;
     const finePointer = window.matchMedia('(pointer: fine)').matches;
     const dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2);
-    const W = window.innerWidth;
-    const H = window.innerHeight;
+    // The curtain is fixed inset:0, so its box is the viewport minus the scrollbar; innerWidth
+    // would include the scrollbar and squeeze the canvas ~1% relative to the DOM stage above it
+    const W = intro.clientWidth || window.innerWidth;
+    const H = intro.clientHeight || window.innerHeight;
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
 

@@ -803,8 +803,9 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             if (isTargetPost && (window as any).__postTransition) {
               const originalLoader = event.loader;
               event.loader = async () => {
-                await (window as any).__postTransition.enter();
-                await originalLoader();
+                // Fetch and parse the article while the ink blooms, not after it: the bloom is
+                // 0.42s of cover that the network round-trip can hide behind
+                await Promise.all([(window as any).__postTransition.enter(), originalLoader()]);
               };
             }
           } catch (e) {
@@ -1307,7 +1308,10 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           document.documentElement.style.setProperty('--scrollbar-offset', `${scrollbarWidth}px`);
         };
 
-        syncScrollbarOffset();
+        // Not measured here on purpose: --scrollbar-offset is only read by the three
+        // body.*-lock rules, and each overlay's open path syncs it before adding its class.
+        // Reading it on page load forced a full layout of the freshly swapped document, in the
+        // middle of the page-enter choreography, for a value nothing on screen was using yet.
         window.addEventListener('resize', syncScrollbarOffset, { signal });
 
         function clearSearchCloseTimer() {
