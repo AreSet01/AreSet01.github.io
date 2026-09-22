@@ -378,7 +378,7 @@ const timeline = [
     if (replayBtn) {
       replayBtn.addEventListener('click', () => {
         try { sessionStorage.removeItem('about-intro-seen'); } catch {}
-        location.href = '/about?intro=1';
+        location.href = '/about?about-intro=1';
       }, { signal });
     }
 

@@ -261,8 +261,10 @@
     if (intro.dataset.started === 'true') return;
     intro.dataset.started = 'true';
 
-    // Once per session unless forced via ?intro=1 or #intro
-    const forced = /[?&]intro=1(&|$)/.test(location.search) || location.hash === '#intro';
+    // Once per session unless forced via ?about-intro=1 or #about-intro or ?zen=1
+    const forced = /[?&]about-intro=1(&|$)/.test(location.search) ||
+                   location.hash === '#about-intro' ||
+                   /[?&]zen=1(&|$)/.test(location.search);
     let seen = false;
     try {
       seen = sessionStorage.getItem('about-intro-seen') === '1';
@@ -276,7 +278,10 @@
       (window as any).__releasePageEnter?.(options);
     };
 
-    if (!forced && (seen || reducedMotion)) {
+    // If SiteIntro is currently active/pending, AboutIntro must NOT run simultaneously
+    const siteIntroActive = document.documentElement.classList.contains('site-intro-active') || (window as any).__siteIntroPending;
+
+    if (siteIntroActive || (!forced && (seen || reducedMotion))) {
       releasePage();
       intro.remove();
       return;
@@ -363,36 +368,86 @@
     const gridX = Math.round(cx - gridW / 2);
     const gridY = Math.round(cy - gridH / 2 + 10);
 
-    // Tetromino shapes (coordinates [col, row])
-    const SHAPES = [
-      [[0, 0], [1, 0], [2, 0], [3, 0]],         // I
-      [[0, 0], [0, 1], [1, 1], [2, 1]],         // J
-      [[2, 0], [0, 1], [1, 1], [2, 1]],         // L
-      [[0, 0], [1, 0], [0, 1], [1, 1]],         // O
-      [[1, 0], [2, 0], [0, 1], [1, 1]],         // S
-      [[1, 0], [0, 1], [1, 1], [2, 1]],         // T
-      [[0, 0], [1, 0], [1, 1], [2, 1]],         // Z
-    ];
+    // Authentic Tetris Pieces Sequence (100% compliant with standard rules)
+    // Board floor is row 11.
+    // Piece 1: O-Piece (cols 0-1, rows 10-11)
+    // Piece 2: I-Piece horizontal (cols 2-5, row 11)
+    // Piece 3: L-Piece flat (cols 6-8, row 11; col 8, row 10)
+    // Piece 4: I-Piece vertical (col 9, rows 8-11) -> Completes row 11 perfectly!
+    // Row 11 clears, upper blocks drop down 1 row!
+    // Piece 5: T-Piece (Signature Vermilion) lands in center terrain!
 
-    interface Piece {
-      shape: number[][];
+    interface TetrisPiece {
+      id: number;
+      shape: number[][]; // [colOffset, rowOffset]
       col: number;
       targetRow: number;
       spawnTime: number;
-      settleTime: number;
-      curRow: number;
+      lockTime: number;
       color: string;
-      isSettled: boolean;
+      ghostColor: string;
+      settledSplash: boolean;
     }
 
-    const pieces: Piece[] = [
-      { shape: SHAPES[0], col: 3, targetRow: 11, spawnTime: 1.8, settleTime: 2.3, curRow: -2, color: withAlpha(ink, 0.9), isSettled: false },
-      { shape: SHAPES[3], col: 0, targetRow: 10, spawnTime: 2.2, settleTime: 2.7, curRow: -2, color: withAlpha(ink, 0.75), isSettled: false },
-      { shape: SHAPES[1], col: 7, targetRow: 10, spawnTime: 2.6, settleTime: 3.1, curRow: -2, color: withAlpha(ink, 0.85), isSettled: false },
-      { shape: SHAPES[5], col: 2, targetRow: 10, spawnTime: 3.0, settleTime: 3.5, curRow: -2, color: vermilion, isSettled: false },
-      { shape: SHAPES[2], col: 4, targetRow: 9, spawnTime: 3.4, settleTime: 3.9, curRow: -2, color: withAlpha(ink, 0.8), isSettled: false },
-      { shape: SHAPES[4], col: 6, targetRow: 8, spawnTime: 3.8, settleTime: 4.3, curRow: -2, color: withAlpha(ink, 0.7), isSettled: false },
+    const tetrisPieces: TetrisPiece[] = [
+      {
+        id: 1,
+        shape: [[0, 0], [1, 0], [0, 1], [1, 1]],
+        col: 0,
+        targetRow: 10,
+        spawnTime: 1.7,
+        lockTime: 2.15,
+        color: '#c28938', // 琥珀金
+        ghostColor: 'rgba(194, 137, 56, 0.24)',
+        settledSplash: false,
+      },
+      {
+        id: 2,
+        shape: [[0, 0], [1, 0], [2, 0], [3, 0]],
+        col: 2,
+        targetRow: 11,
+        spawnTime: 2.2,
+        lockTime: 2.65,
+        color: '#2b6e68', // 松绿青
+        ghostColor: 'rgba(43, 110, 104, 0.24)',
+        settledSplash: false,
+      },
+      {
+        id: 3,
+        shape: [[0, 1], [1, 1], [2, 1], [2, 0]],
+        col: 6,
+        targetRow: 10,
+        spawnTime: 2.7,
+        lockTime: 3.15,
+        color: '#b35d33', // 赭石褐
+        ghostColor: 'rgba(179, 93, 51, 0.24)',
+        settledSplash: false,
+      },
+      {
+        id: 4,
+        shape: [[0, 0], [0, 1], [0, 2], [0, 3]],
+        col: 9,
+        targetRow: 8,
+        spawnTime: 3.2,
+        lockTime: 3.6,
+        color: '#233d63', // 黛蓝墨
+        ghostColor: 'rgba(35, 61, 99, 0.28)',
+        settledSplash: false,
+      },
+      {
+        id: 5,
+        shape: [[1, 0], [0, 1], [1, 1], [2, 1]],
+        col: 3,
+        targetRow: 10,
+        spawnTime: 4.1,
+        lockTime: 4.5,
+        color: vermilion, // 朱砂红
+        ghostColor: withAlpha(vermilion, 0.28),
+        settledSplash: false,
+      },
     ];
+
+    let lineClearParticlesSpawned = false;
 
     // Particle pool for the vortex and homeward flight
     const N = coarse ? 900 : 1800;
@@ -456,18 +511,22 @@
       c.fill();
     }
 
-    // Grid rendering: subtle ink guidelines
+    // Grid rendering: authentic 10x12 matrix with subtle ink guidelines
     function drawGrid(c: CanvasRenderingContext2D, t: number) {
-      if (t < T.impact) return;
-      const alpha = smooth(T.impact, T.impact + 0.5, t) * (1 - smooth(T.lineFill, T.vortex, t));
+      if (t < T.tetrisStart - 0.1 || t > T.vortex + 0.8) return;
+      const alpha = smooth(T.tetrisStart - 0.1, T.tetrisStart + 0.4, t) * (1 - smooth(T.vortex, T.vortex + 0.8, t));
       if (alpha <= 0.01) return;
 
       c.save();
-      c.strokeStyle = withAlpha(ink, 0.12 * alpha);
+      c.strokeStyle = withAlpha(ink, 0.14 * alpha);
       c.lineWidth = 1;
 
-      // Draw dashed matrix box and cell corners
-      for (let r = 0; r <= ROWS; r++) {
+      // Outer matrix frame with subtle ink weight
+      c.strokeRect(gridX - 0.5, gridY - 0.5, gridW + 1, gridH + 1);
+
+      // Inner dashed cell grid
+      c.strokeStyle = withAlpha(ink, 0.08 * alpha);
+      for (let r = 1; r < ROWS; r++) {
         const y = gridY + r * CELL_SIZE;
         c.beginPath();
         c.setLineDash([2, 4]);
@@ -475,7 +534,7 @@
         c.lineTo(gridX + gridW, y);
         c.stroke();
       }
-      for (let col = 0; col <= COLS; col++) {
+      for (let col = 1; col < COLS; col++) {
         const x = gridX + col * CELL_SIZE;
         c.beginPath();
         c.setLineDash([2, 4]);
@@ -487,57 +546,146 @@
       c.restore();
     }
 
-    // Tetromino pieces falling & line dissolve
+    // Individual Tetris block rendering with authentic pixel borders, bevels and line clear flashes
+    function drawTetrisBlock(
+      c: CanvasRenderingContext2D,
+      col: number,
+      row: number,
+      color: string,
+      alpha: number,
+      isGhost = false,
+      isFlash = false
+    ) {
+      if (alpha <= 0.01 || row < -1) return;
+      const pxX = gridX + col * CELL_SIZE;
+      const pxY = gridY + row * CELL_SIZE;
+      const pad = 1.2;
+      const size = CELL_SIZE - pad * 2;
+
+      c.save();
+      c.globalAlpha = alpha;
+
+      if (isGhost) {
+        c.fillStyle = color;
+        c.fillRect(pxX + pad, pxY + pad, size, size);
+        c.strokeStyle = color;
+        c.lineWidth = 1;
+        c.setLineDash([2, 2]);
+        c.strokeRect(pxX + pad, pxY + pad, size, size);
+      } else if (isFlash) {
+        c.fillStyle = '#ffffff';
+        c.fillRect(pxX + pad, pxY + pad, size, size);
+        c.strokeStyle = vermilion;
+        c.lineWidth = 2;
+        c.strokeRect(pxX + pad, pxY + pad, size, size);
+      } else {
+        c.fillStyle = color;
+        c.fillRect(pxX + pad, pxY + pad, size, size);
+
+        // Tactile 3D pixel bevel highlights
+        c.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+        c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(pxX + pad, pxY + pad + size);
+        c.lineTo(pxX + pad, pxY + pad);
+        c.lineTo(pxX + pad + size, pxY + pad);
+        c.stroke();
+
+        c.strokeStyle = 'rgba(0, 0, 0, 0.22)';
+        c.beginPath();
+        c.moveTo(pxX + pad + size, pxY + pad);
+        c.lineTo(pxX + pad + size, pxY + pad + size);
+        c.lineTo(pxX + pad, pxY + pad + size);
+        c.stroke();
+      }
+      c.restore();
+    }
+
+    // Tetromino pieces falling, authentic row 11 completion, flash clear, drop & vortex
     function updateAndDrawPieces(c: CanvasRenderingContext2D, t: number) {
-      if (t < T.tetrisStart || t > T.vortex + 1) return;
-      const dissolve = smooth(T.lineFill, T.vortex, t);
+      if (t < T.tetrisStart || t > T.vortex + 1.2) return;
+      const dissolve = smooth(T.vortex, T.vortex + 0.8, t);
+      const baseAlpha = 1 - dissolve;
+      if (baseAlpha <= 0.01) return;
 
-      pieces.forEach((p) => {
-        if (t < p.spawnTime) return;
-        const progress = clamp01((t - p.spawnTime) / (p.settleTime - p.spawnTime));
-        p.curRow = -2 + (p.targetRow + 2) * easeOutQuad(progress);
+      const CLEAR_FLASH_START = 3.65;
+      const CLEAR_DROP_START = 3.9;
+      const CLEAR_DROP_END = 4.05;
 
-        if (progress >= 1 && !p.isSettled) {
-          p.isSettled = true;
-          // Soft ink impact splash when piece settles
+      const isLine11Clearing = t >= CLEAR_FLASH_START && t < CLEAR_DROP_START;
+      const isLine11Cleared = t >= CLEAR_DROP_START;
+      const dropProgress = isLine11Cleared
+        ? easeOutQuad(clamp01((t - CLEAR_DROP_START) / (CLEAR_DROP_END - CLEAR_DROP_START)))
+        : 0;
+
+      // 1. Splash particles on piece landing
+      tetrisPieces.forEach((p) => {
+        if (!p.settledSplash && t >= p.lockTime) {
+          p.settledSplash = true;
           const hitX = gridX + (p.col + 1) * CELL_SIZE;
-          const hitY = gridY + p.targetRow * CELL_SIZE;
+          const hitY = gridY + (p.targetRow + 1) * CELL_SIZE;
           spawnParticles(hitX, hitY, 14, 8, 120);
         }
-
-        const alpha = (1 - dissolve) * (0.5 + progress * 0.5);
-        if (alpha <= 0.01) return;
-
-        c.save();
-        p.shape.forEach(([sc, sr]) => {
-          const cellCol = p.col + sc;
-          const cellRow = p.curRow + sr;
-          const pxX = gridX + cellCol * CELL_SIZE;
-          const pxY = gridY + cellRow * CELL_SIZE;
-
-          // Inward rounded pixel block
-          c.fillStyle = p.color;
-          c.globalAlpha = alpha;
-          const pad = 1.5;
-          const size = CELL_SIZE - pad * 2;
-          c.fillRect(pxX + pad, pxY + pad, size, size);
-
-          // Subtle inner ink highlight
-          c.strokeStyle = withAlpha(ink, 0.2 * alpha);
-          c.lineWidth = 1;
-          c.strokeRect(pxX + pad, pxY + pad, size, size);
-        });
-        c.restore();
       });
 
-      // Line clear ink wash effect at T.lineFill
-      if (t >= T.lineFill && t < T.lineFill + 0.8) {
-        const q = (t - T.lineFill) / 0.8;
-        const washY = gridY + 11 * CELL_SIZE + CELL_SIZE / 2;
+      // 2. Line clear particle burst at t = 3.7s
+      if (!lineClearParticlesSpawned && t >= 3.7) {
+        lineClearParticlesSpawned = true;
+        spawnParticles(cx, gridY + 11.5 * CELL_SIZE, coarse ? 120 : 260, gridW * 0.45, 260);
+      }
+
+      // 3. Render pieces
+      tetrisPieces.forEach((p) => {
+        if (t < p.spawnTime) return;
+
+        const isLocked = t >= p.lockTime;
+        const fallProgress = isLocked ? 1 : clamp01((t - p.spawnTime) / (p.lockTime - p.spawnTime));
+        const curRow = isLocked ? p.targetRow : -3 + (p.targetRow + 3) * easeOutQuad(fallProgress);
+
+        // Draw ghost piece if piece is currently falling
+        if (!isLocked && t >= p.spawnTime + 0.06) {
+          p.shape.forEach(([sc, sr]) => {
+            drawTetrisBlock(c, p.col + sc, p.targetRow + sr, p.ghostColor, baseAlpha * 0.55, true, false);
+          });
+        }
+
+        // Draw active or locked blocks
+        p.shape.forEach(([sc, sr]) => {
+          const col = p.col + sc;
+          let row = curRow + sr;
+
+          if (isLocked) {
+            const initialRow = p.targetRow + sr;
+            if (initialRow === 11) {
+              // Block in row 11!
+              if (isLine11Cleared) {
+                return; // Cleared!
+              }
+              if (isLine11Clearing) {
+                const flashFreq = Math.sin((t - CLEAR_FLASH_START) * 35);
+                drawTetrisBlock(c, col, initialRow, p.color, baseAlpha, false, flashFreq > 0);
+                return;
+              }
+            } else if (initialRow < 11 && isLine11Cleared) {
+              // Drop upper blocks down by 1 row
+              row = initialRow + dropProgress;
+            } else {
+              row = initialRow;
+            }
+          }
+
+          drawTetrisBlock(c, col, row, p.color, baseAlpha * (0.6 + fallProgress * 0.4), false, false);
+        });
+      });
+
+      // 4. Line clear beam / golden ink wave
+      if (t >= CLEAR_FLASH_START && t < CLEAR_DROP_START + 0.15) {
+        const q = clamp01((t - CLEAR_FLASH_START) / (CLEAR_DROP_START + 0.15 - CLEAR_FLASH_START));
+        const washY = gridY + 11 * CELL_SIZE;
         c.save();
-        c.globalAlpha = (1 - q) * 0.6;
+        c.globalAlpha = (1 - q) * 0.65;
         c.fillStyle = vermilion;
-        c.fillRect(gridX - 20 * q, washY - CELL_SIZE * (0.5 + q), gridW + 40 * q, CELL_SIZE * (1 + q * 2));
+        c.fillRect(gridX - 25 * q, washY - 4 * (1 - q), gridW + 50 * q, CELL_SIZE + 8 * (1 - q));
         c.restore();
       }
     }
@@ -706,9 +854,9 @@
         shockRadius += dtFrame * 320;
       }
 
-      // Line dissolve explosion
-      if (t >= T.lineFill && t < T.lineFill + 0.1 && alive < 400) {
-        spawnParticles(cx, gridY + gridH - CELL_SIZE, coarse ? 200 : 450, gridW * 0.4, 280);
+      // Grid & blocks dissolving into vortex explosion
+      if (t >= T.vortex && t < T.vortex + 0.1 && alive < 500) {
+        spawnParticles(cx, cy, coarse ? 180 : 360, gridW * 0.35, 260);
       }
 
       // Physics stepping
@@ -817,6 +965,15 @@
       tl.kill();
       gsap.killTweensOf([intro, seal, taglineEl, foot, ring]);
       releasePage();
+      try {
+        sessionStorage.setItem('about-intro-seen', '1');
+        if (/[?&]about-intro=1(&|$)/.test(location.search) || /[?&]zen=1(&|$)/.test(location.search)) {
+          const url = new URL(location.href);
+          url.searchParams.delete('about-intro');
+          url.searchParams.delete('zen');
+          history.replaceState(null, '', url.pathname + (url.search ? url.search : '') + url.hash);
+        }
+      } catch {}
       intro.remove();
       try {
         (window as any).lenis?.start();
