@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
+import AboutIntro from '../components/AboutIntro.astro';
 import { getCollection } from 'astro:content';
 import { sortPostsByDate } from '../utils/date';
 
@@ -41,6 +42,7 @@ const timeline = [
 ---
 
 <BaseLayout title="关于我 - 梦付千秋">
+  <AboutIntro />
   <Header />
   <main class="container-wide flex-1 pt-14 pb-16 md:pt-20" style="position: relative;">
     <div class="about-marquee" data-about-marquee aria-hidden="true">
@@ -53,7 +55,12 @@ const timeline = [
 
     <section class="grid gap-16 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] lg:gap-20 lg:pr-16">
       <div class="panel">
-        <p class="eyebrow" data-enter="top">About the Author</p>
+        <div class="flex items-center justify-between">
+          <p class="eyebrow" data-enter="top">About the Author</p>
+          <button type="button" class="about-zen-replay-btn" data-about-zen-replay title="重新播放水墨像素入场动效">
+            <span class="replay-icon">↺</span> 墨化推演
+          </button>
+        </div>
         <h1 class="section-title mt-6 max-w-2xl" data-enter="left">
           我就是我！
         </h1>
@@ -364,6 +371,15 @@ const timeline = [
         once: true,
         onEnter: () => timers.push(window.setTimeout(() => stamp.classList.add('is-stamped'), 420)),
       });
+    }
+
+    // ---------- Replay button for Zen intro ----------
+    const replayBtn = document.querySelector<HTMLElement>('[data-about-zen-replay]');
+    if (replayBtn) {
+      replayBtn.addEventListener('click', () => {
+        try { sessionStorage.removeItem('about-intro-seen'); } catch {}
+        location.href = '/about?intro=1';
+      }, { signal });
     }
 
     (window as any)[CLEANUP_KEY] = () => {

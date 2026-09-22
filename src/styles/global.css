@@ -1225,11 +1225,14 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
   position: fixed;
   top: 0;
   left: 0;
-  width: 0%;
+  width: 100%;
   height: 2px;
   z-index: 9998;
   background: var(--accent);
-  transition: width 60ms linear, opacity 280ms var(--ease);
+  transform-origin: left center;
+  transform: scaleX(0);
+  will-change: transform;
+  transition: transform 60ms linear, opacity 280ms var(--ease);
   pointer-events: none;
   border-radius: 0;
 }
@@ -3365,6 +3368,39 @@ body.preview-open .site-shell {
   50% { opacity: 0; }
 }
 
+/* About Zen Intro replay button */
+.about-zen-replay-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  background: var(--bg-soft, rgba(0, 0, 0, 0.03));
+  border: 1px solid var(--rule);
+  padding: 0.22rem 0.65rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.about-zen-replay-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.about-zen-replay-btn .replay-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: transform 0.35s ease;
+}
+
+.about-zen-replay-btn:hover .replay-icon {
+  transform: rotate(-180deg);
+}
+
 /* Hover tilt cards — JS drives rotateX/rotateY, CSS only sets up the 3D stage */
 .about-tilt-stage {
   perspective: 900px;
@@ -3521,13 +3557,20 @@ body.preview-open .site-shell {
 }
 
 /* ---------- Title: split into chars by JS; keep glyphs boxed so transforms don't reflow ---------- */
-.post-title.is-split-ready .post-title-char {
+.post-title-char {
   display: inline-block;
+}
+
+.post-title.is-split-ready {
   will-change: transform, opacity;
 }
 
-.post-title.is-split-ready .post-title-char:last-child {
-  will-change: auto;
+/* ---------- Date typewriter: isolate layout to eliminate flex reflow during typing ---------- */
+[data-post-typed] {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  contain: layout style;
+  white-space: nowrap;
 }
 
 /* ---------- Date typewriter caret ---------- */
@@ -6279,7 +6322,8 @@ a.chart-bar-name:hover {
   background-size: 24px 24px;
 }
 
-.mermaid-modal-body.is-dragging {
+.mermaid-modal-body.is-dragging,
+.mermaid-modal-content.is-dragging {
   cursor: grabbing;
 }
 
@@ -6290,6 +6334,11 @@ a.chart-bar-name:hover {
   padding: 3rem;
   transform-origin: center center;
   transition: transform 60ms ease-out;
+}
+
+.mermaid-modal-body.is-dragging .mermaid-modal-canvas,
+.mermaid-modal-content.is-dragging .mermaid-modal-canvas {
+  transition: none !important;
 }
 
 .mermaid-modal-canvas svg {

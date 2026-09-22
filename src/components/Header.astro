@@ -139,7 +139,7 @@ const year = new Date().getFullYear();
   // ── Canvas resize ─────────────────────────────────────────────────────────
   function resize() {
     if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.style.width = window.innerWidth + 'px';
     canvas.style.height = window.innerHeight + 'px';
     canvas.width  = window.innerWidth  * dpr;
@@ -241,7 +241,8 @@ const year = new Date().getFullYear();
       ctx.stroke();
     }
 
-    if (!brush.isVisible && points.length === 0) {
+    const isStationary = points.length === 0 && speed <= 0.05;
+    if (!brush.isVisible || isStationary) {
       isDrawing = false;
     } else if (isDrawing) {
       requestAnimationFrame(updateAndDraw);
@@ -334,12 +335,14 @@ const year = new Date().getFullYear();
     window.addEventListener('pointerup',    onPointerUp);
 
     // Check mobile
-    isMobile = !window.matchMedia('(pointer: fine)').matches;
-    window.addEventListener('resize', () => {
+    const onMobileCheck = () => {
       isMobile = !window.matchMedia('(pointer: fine)').matches;
-    });
+    };
+    onMobileCheck();
+    window.addEventListener('resize', onMobileCheck);
 
     cleanupFns.push(
+      () => window.removeEventListener('resize',       onMobileCheck),
       () => window.removeEventListener('resize',       onResize),
       () => window.removeEventListener('pointerenter', onPointerEnter),
       () => window.removeEventListener('pointerleave', onPointerLeave),

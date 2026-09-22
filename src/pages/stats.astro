@@ -246,7 +246,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     </section>
 
     <!-- Table view: every number above, reachable without hovering -------- -->
-    <details class="stats-table" data-enter="bottom" data-no-replay>
+    <details class="stats-table" data-enter="bottom">
       <summary>数据表</summary>
       <div class="stats-table-scroll">
         <table>
@@ -442,21 +442,31 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
       if (reduceMotion) return;
       const counter = { value: 0 };
       const format = (value: number) => new Intl.NumberFormat('en-US').format(Math.round(value));
+      let tween: gsap.core.Tween | null = null;
       const io = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          io.disconnect();
-          gsap.to(counter, {
-            value: target,
-            duration: 1.6,
-            ease: 'expo.out',
-            onUpdate: () => { el.textContent = format(counter.value); },
-            onComplete: () => { el.textContent = format(target); },
-          });
+          if (entry.isIntersecting) {
+            tween?.kill();
+            counter.value = 0;
+            tween = gsap.to(counter, {
+              value: target,
+              duration: 1.5,
+              ease: 'expo.out',
+              onUpdate: () => { el.textContent = format(counter.value); },
+              onComplete: () => { el.textContent = format(target); },
+            });
+          } else {
+            tween?.kill();
+            counter.value = 0;
+            el.textContent = format(0);
+          }
         });
-      }, { threshold: 0.4 });
+      }, { threshold: 0.2 });
       io.observe(el);
-      signal.addEventListener('abort', () => io.disconnect());
+      signal.addEventListener('abort', () => {
+        io.disconnect();
+        tween?.kill();
+      });
     });
 
     // ---------- Grow the marks on entry ----------
@@ -466,11 +476,9 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     } else {
       const io = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          entry.target.classList.add('is-drawn');
-          io.unobserve(entry.target);
+          entry.target.classList.toggle('is-drawn', entry.isIntersecting);
         });
-      }, { threshold: 0.25 });
+      }, { threshold: 0.15 });
       charts.forEach((chart) => io.observe(chart));
       signal.addEventListener('abort', () => io.disconnect());
     }

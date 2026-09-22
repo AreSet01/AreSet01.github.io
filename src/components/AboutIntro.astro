@@ -1,0 +1,851 @@
+---
+// About-entry curtain: 「落墨成格 · 像素推演」
+// Zen Oriental Ink-to-Pixel Animation for About Me Page.
+// Harmonized strictly with SiteIntro.astro (rice paper, ink wash, vermilion seal, Zpix typography, non-linear 10s rhythm).
+// Skippable at any moment (Click, Esc / Enter / Space, or Skip button).
+---
+
+<div class="about-intro" data-about-intro data-enter-hold aria-hidden="true">
+  <canvas class="about-intro-canvas" data-about-canvas></canvas>
+  <div class="about-intro-stage" data-about-stage>
+    <span class="about-intro-seal" data-about-seal>
+      <span class="about-intro-ring" data-about-ring></span>
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="aboutSealRough" x="-12%" y="-12%" width="124%" height="124%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="19" />
+            <feDisplacementMap in="SourceGraphic" scale="2" />
+          </filter>
+        </defs>
+        <g filter="url(#aboutSealRough)">
+          <rect class="seal-plate" x="5" y="5" width="90" height="90" />
+          <rect class="seal-frame" x="11" y="11" width="78" height="78" />
+          <text class="seal-glyph" x="50" y="58">汐</text>
+        </g>
+      </svg>
+    </span>
+    <p class="about-intro-tagline" data-about-tagline>
+      <span data-about-typed-title></span><i class="about-intro-caret" aria-hidden="true"></i>
+    </p>
+  </div>
+  <div class="about-intro-foot" data-about-foot>
+    <span class="about-intro-status" data-about-status>ABOUT · 00% · 凝</span>
+    <span class="about-intro-progress"><i data-about-progress></i></span>
+    <button type="button" class="about-intro-skip" data-about-skip>跳过 <span aria-hidden="true">→</span></button>
+  </div>
+</div>
+
+<style>
+  .about-intro {
+    position: fixed;
+    inset: 0;
+    z-index: 9995;
+    background: var(--bg);
+    overflow: hidden;
+    user-select: none;
+    touch-action: none;
+    opacity: 1;
+    transition: opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .about-intro.is-lifting {
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .about-intro-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .about-intro-stage {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .about-intro-seal {
+    position: absolute;
+    width: 64px;
+    height: 64px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    opacity: 0;
+    will-change: transform, opacity;
+  }
+
+  .about-intro-seal svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .about-intro-seal .seal-plate {
+    fill: var(--vermilion, #b93a2b);
+  }
+
+  .about-intro-seal .seal-frame {
+    fill: none;
+    stroke: #ffffff;
+    stroke-width: 2.5;
+    opacity: 0.95;
+  }
+
+  .about-intro-seal .seal-glyph {
+    font-family: 'Zpix', 'VT323', monospace;
+    font-size: 38px;
+    font-weight: 600;
+    fill: #ffffff;
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+
+  .about-intro-ring {
+    position: absolute;
+    inset: -30px;
+    border: 1.5px solid var(--vermilion, #b93a2b);
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .about-intro-tagline {
+    position: absolute;
+    left: 50%;
+    top: calc(50% + 56px);
+    transform: translateX(-50%);
+    font-family: 'Zpix', 'VT323', monospace;
+    font-size: clamp(0.95rem, 1.8vw, 1.25rem);
+    letter-spacing: 0.2em;
+    color: var(--ink-strong, #111111);
+    opacity: 0;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .about-intro-caret {
+    display: inline-block;
+    width: 0.55em;
+    height: 1em;
+    margin-left: 0.2em;
+    vertical-align: -0.15em;
+    background: var(--vermilion, #b93a2b);
+    animation: aboutCaretBlink 0.9s steps(2, end) infinite;
+  }
+
+  .about-intro-foot {
+    position: absolute;
+    left: 2rem;
+    right: 2rem;
+    bottom: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted, #888888);
+    opacity: 0;
+  }
+
+  .about-intro-progress {
+    flex: 1;
+    max-width: 240px;
+    height: 1px;
+    background: var(--rule, rgba(0, 0, 0, 0.12));
+    position: relative;
+    overflow: hidden;
+  }
+
+  .about-intro-progress i {
+    position: absolute;
+    inset: 0;
+    background: var(--ink-strong, #111111);
+    transform-origin: left center;
+    transform: scaleX(0);
+  }
+
+  .about-intro-skip {
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: inherit;
+    letter-spacing: inherit;
+    color: var(--muted-strong, #555555);
+    cursor: pointer;
+    padding: 0.35rem 0.6rem;
+    border-radius: 4px;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+
+  .about-intro-skip:hover {
+    color: var(--ink-strong, #111111);
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  @keyframes aboutCaretBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+</style>
+
+<script>
+  import gsap from 'gsap';
+
+  const TAGLINE = '落墨成格 · 像素推演';
+
+  // Poetic beats in seconds: 凝 → 落 → 消 → 成 → 归
+  const T = {
+    dropForm: 0.6,
+    detach: 1.1,
+    impact: 1.6,       // drop hits canvas & splash
+    tetrisStart: 1.7,  // blocks begin gently floating onto grid
+    lineFill: 4.2,     // row clears and blooms
+    vortex: 4.8,       // remaining pixels sweep into spiral
+    seal: 6.4,         // vermilion seal gathers
+    sealImpact: 6.8,   // seal stamps down with ink ring
+    tagline: 7.0,      // typewriter tagline
+    lift: 8.0,         // paper becomes translucent, page ready underneath
+    release: 8.4,      // release page enter; particles fly home
+    end: 10.0,
+  };
+
+  const PHASES: Array<[number, string]> = [
+    [T.detach, '凝'],
+    [T.tetrisStart, '落'],
+    [T.lineFill, '推'],
+    [T.vortex, '消'],
+    [T.seal, '聚'],
+    [T.lift, '成'],
+    [Infinity, '归'],
+  ];
+
+  const STEP = 1 / 120;
+  const SKIP_KEYS = new Set(['Escape', 'Enter', ' ', 'Spacebar']);
+  const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End']);
+
+  const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+  const smooth = (a: number, b: number, v: number) => {
+    const q = clamp01((v - a) / (b - a));
+    return q * q * (3 - 2 * q);
+  };
+  const easeOutQuad = (p: number) => 1 - (1 - p) * (1 - p);
+  const rnd = Math.random;
+
+  function cssVar(name: string, fallback: string) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  }
+
+  function withAlpha(hex: string, alpha: number) {
+    const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex);
+    if (!m) return `rgba(0, 0, 0, ${alpha})`;
+    const h = m[1].length === 3 ? m[1].split('').map((c) => c + c).join('') : m[1];
+    const n = parseInt(h, 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  }
+
+  function runAboutIntro() {
+    const intro = document.querySelector<HTMLElement>('[data-about-intro]');
+    if (!intro) return;
+    if (intro.dataset.started === 'true') return;
+    intro.dataset.started = 'true';
+
+    // Once per session unless forced via ?intro=1 or #intro
+    const forced = /[?&]intro=1(&|$)/.test(location.search) || location.hash === '#intro';
+    let seen = false;
+    try {
+      seen = sessionStorage.getItem('about-intro-seen') === '1';
+    } catch {}
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let released = false;
+    const releasePage = (options?: { timeScale?: number }) => {
+      if (released) return;
+      released = true;
+      (window as any).__releasePageEnter?.(options);
+    };
+
+    if (!forced && (seen || reducedMotion)) {
+      releasePage();
+      intro.remove();
+      return;
+    }
+    try {
+      sessionStorage.setItem('about-intro-seen', '1');
+    } catch {}
+
+    const canvas = intro.querySelector<HTMLCanvasElement>('[data-about-canvas]')!;
+    const stage = intro.querySelector<HTMLElement>('[data-about-stage]')!;
+    const seal = intro.querySelector<HTMLElement>('[data-about-seal]')!;
+    const ring = intro.querySelector<HTMLElement>('[data-about-ring]')!;
+    const taglineEl = intro.querySelector<HTMLElement>('[data-about-tagline]')!;
+    const typedTitle = intro.querySelector<HTMLElement>('[data-about-typed-title]')!;
+    const foot = intro.querySelector<HTMLElement>('[data-about-foot]')!;
+    const status = intro.querySelector<HTMLElement>('[data-about-status]')!;
+    const progress = intro.querySelector<HTMLElement>('[data-about-progress]')!;
+    const skipBtn = intro.querySelector<HTMLElement>('[data-about-skip]')!;
+    const ctx = canvas.getContext('2d');
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    let finished = false;
+    let skipping = false;
+    let skipAt = 0;
+    let lifted = false;
+
+    if (!ctx) {
+      releasePage();
+      intro.remove();
+      return;
+    }
+
+    const holdScroll = () => {
+      try {
+        const lenis = (window as any).lenis;
+        if (lenis && !lenis.isStopped) lenis.stop();
+      } catch {}
+    };
+    holdScroll();
+
+    // Stage dimensions & DPR
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const finePointer = window.matchMedia('(pointer: fine)').matches;
+    const dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2);
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+
+    const ink = cssVar('--ink-strong', '#111111');
+    const vermilion = cssVar('--vermilion', '#b93a2b');
+    const theme = document.documentElement.getAttribute('data-theme');
+    const grainAlpha = theme === null || theme === 'light' ? 0.05 : 0.075;
+    const cx = W / 2;
+    const cy = Math.round(H * 0.44);
+    const dropX = cx;
+    const dropY = Math.round(H * 0.12);
+
+    // Paper grain tiles
+    const grainTiles = [0, 1, 2].map(() => {
+      const tile = document.createElement('canvas');
+      tile.width = tile.height = 128;
+      const c = tile.getContext('2d')!;
+      c.fillStyle = ink;
+      for (let i = 0; i < 500; i += 1) {
+        c.globalAlpha = 0.2 + rnd() * 0.5;
+        c.fillRect(Math.floor(rnd() * 128), Math.floor(rnd() * 128), 1, 1);
+      }
+      return ctx.createPattern(tile, 'repeat')!;
+    });
+    let grainTile = 0, grainX = 0, grainY = 0, grainAt = -1;
+
+    // Tetris Grid on Canvas
+    // 10 columns x 12 rows matrix in center
+    const CELL_SIZE = Math.max(16, Math.min(28, Math.round(Math.min(W, H) * 0.038)));
+    const COLS = 10;
+    const ROWS = 12;
+    const gridW = COLS * CELL_SIZE;
+    const gridH = ROWS * CELL_SIZE;
+    const gridX = Math.round(cx - gridW / 2);
+    const gridY = Math.round(cy - gridH / 2 + 10);
+
+    // Tetromino shapes (coordinates [col, row])
+    const SHAPES = [
+      [[0, 0], [1, 0], [2, 0], [3, 0]],         // I
+      [[0, 0], [0, 1], [1, 1], [2, 1]],         // J
+      [[2, 0], [0, 1], [1, 1], [2, 1]],         // L
+      [[0, 0], [1, 0], [0, 1], [1, 1]],         // O
+      [[1, 0], [2, 0], [0, 1], [1, 1]],         // S
+      [[1, 0], [0, 1], [1, 1], [2, 1]],         // T
+      [[0, 0], [1, 0], [1, 1], [2, 1]],         // Z
+    ];
+
+    interface Piece {
+      shape: number[][];
+      col: number;
+      targetRow: number;
+      spawnTime: number;
+      settleTime: number;
+      curRow: number;
+      color: string;
+      isSettled: boolean;
+    }
+
+    const pieces: Piece[] = [
+      { shape: SHAPES[0], col: 3, targetRow: 11, spawnTime: 1.8, settleTime: 2.3, curRow: -2, color: withAlpha(ink, 0.9), isSettled: false },
+      { shape: SHAPES[3], col: 0, targetRow: 10, spawnTime: 2.2, settleTime: 2.7, curRow: -2, color: withAlpha(ink, 0.75), isSettled: false },
+      { shape: SHAPES[1], col: 7, targetRow: 10, spawnTime: 2.6, settleTime: 3.1, curRow: -2, color: withAlpha(ink, 0.85), isSettled: false },
+      { shape: SHAPES[5], col: 2, targetRow: 10, spawnTime: 3.0, settleTime: 3.5, curRow: -2, color: vermilion, isSettled: false },
+      { shape: SHAPES[2], col: 4, targetRow: 9, spawnTime: 3.4, settleTime: 3.9, curRow: -2, color: withAlpha(ink, 0.8), isSettled: false },
+      { shape: SHAPES[4], col: 6, targetRow: 8, spawnTime: 3.8, settleTime: 4.3, curRow: -2, color: withAlpha(ink, 0.7), isSettled: false },
+    ];
+
+    // Particle pool for the vortex and homeward flight
+    const N = coarse ? 900 : 1800;
+    const px = new Float32Array(N);
+    const py = new Float32Array(N);
+    const vx = new Float32Array(N);
+    const vy = new Float32Array(N);
+    const hx = new Float32Array(N);
+    const hy = new Float32Array(N);
+    const tH = new Float32Array(N);
+    const pref = new Float32Array(N);
+    const mode = new Uint8Array(N); // 0: idle, 1: fly, 2: home, 3: dead
+    let alive = 0;
+    let homesAssigned = false;
+    let impactOccurred = false;
+    let shockRadius = 0;
+
+    for (let i = 0; i < N; i++) {
+      pref[i] = Math.min(W, H) * (0.15 + rnd() * 0.25);
+    }
+
+    function spawnParticles(x0: number, y0: number, count: number, spread: number, speedMax: number) {
+      let spawned = 0;
+      for (let i = 0; i < N && spawned < count; i++) {
+        if (mode[i] === 0 || mode[i] === 3) {
+          const a = rnd() * Math.PI * 2;
+          const r = Math.sqrt(rnd()) * spread;
+          px[i] = x0 + Math.cos(a) * r;
+          py[i] = y0 + Math.sin(a) * r;
+          const sp = 60 + rnd() * speedMax;
+          vx[i] = Math.cos(a) * sp;
+          vy[i] = Math.sin(a) * sp;
+          mode[i] = 1; // fly
+          alive++;
+          spawned++;
+        }
+      }
+    }
+
+    function dropPos(t: number) {
+      if (t < T.detach) return { x: dropX, y: dropY + 8 * smooth(T.dropForm, T.detach, t) };
+      const q = clamp01((t - T.detach) / (T.impact - T.detach));
+      return { x: dropX, y: dropY + (cy - dropY) * q * q };
+    }
+
+    function drawInitialDrop(c: CanvasRenderingContext2D, t: number) {
+      if (t >= T.impact) return;
+      c.fillStyle = ink;
+      const stretch = smooth(T.dropForm, T.detach, t);
+      const { x, y } = dropPos(t);
+      const rb = 3 + 6 * smooth(0.2, 1.0, t);
+      let rx = rb * (1 - 0.3 * stretch);
+      let ry = rb * (1 + 1.2 * stretch);
+      if (t >= T.detach) {
+        const q = clamp01((t - T.detach) / (T.impact - T.detach));
+        rx = rb * 0.75;
+        ry = rb * (1.4 + 2.0 * q);
+      }
+      c.beginPath();
+      c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    // Grid rendering: subtle ink guidelines
+    function drawGrid(c: CanvasRenderingContext2D, t: number) {
+      if (t < T.impact) return;
+      const alpha = smooth(T.impact, T.impact + 0.5, t) * (1 - smooth(T.lineFill, T.vortex, t));
+      if (alpha <= 0.01) return;
+
+      c.save();
+      c.strokeStyle = withAlpha(ink, 0.12 * alpha);
+      c.lineWidth = 1;
+
+      // Draw dashed matrix box and cell corners
+      for (let r = 0; r <= ROWS; r++) {
+        const y = gridY + r * CELL_SIZE;
+        c.beginPath();
+        c.setLineDash([2, 4]);
+        c.moveTo(gridX, y);
+        c.lineTo(gridX + gridW, y);
+        c.stroke();
+      }
+      for (let col = 0; col <= COLS; col++) {
+        const x = gridX + col * CELL_SIZE;
+        c.beginPath();
+        c.setLineDash([2, 4]);
+        c.moveTo(x, gridY);
+        c.lineTo(x, gridY + gridH);
+        c.stroke();
+      }
+      c.setLineDash([]);
+      c.restore();
+    }
+
+    // Tetromino pieces falling & line dissolve
+    function updateAndDrawPieces(c: CanvasRenderingContext2D, t: number) {
+      if (t < T.tetrisStart || t > T.vortex + 1) return;
+      const dissolve = smooth(T.lineFill, T.vortex, t);
+
+      pieces.forEach((p) => {
+        if (t < p.spawnTime) return;
+        const progress = clamp01((t - p.spawnTime) / (p.settleTime - p.spawnTime));
+        p.curRow = -2 + (p.targetRow + 2) * easeOutQuad(progress);
+
+        if (progress >= 1 && !p.isSettled) {
+          p.isSettled = true;
+          // Soft ink impact splash when piece settles
+          const hitX = gridX + (p.col + 1) * CELL_SIZE;
+          const hitY = gridY + p.targetRow * CELL_SIZE;
+          spawnParticles(hitX, hitY, 14, 8, 120);
+        }
+
+        const alpha = (1 - dissolve) * (0.5 + progress * 0.5);
+        if (alpha <= 0.01) return;
+
+        c.save();
+        p.shape.forEach(([sc, sr]) => {
+          const cellCol = p.col + sc;
+          const cellRow = p.curRow + sr;
+          const pxX = gridX + cellCol * CELL_SIZE;
+          const pxY = gridY + cellRow * CELL_SIZE;
+
+          // Inward rounded pixel block
+          c.fillStyle = p.color;
+          c.globalAlpha = alpha;
+          const pad = 1.5;
+          const size = CELL_SIZE - pad * 2;
+          c.fillRect(pxX + pad, pxY + pad, size, size);
+
+          // Subtle inner ink highlight
+          c.strokeStyle = withAlpha(ink, 0.2 * alpha);
+          c.lineWidth = 1;
+          c.strokeRect(pxX + pad, pxY + pad, size, size);
+        });
+        c.restore();
+      });
+
+      // Line clear ink wash effect at T.lineFill
+      if (t >= T.lineFill && t < T.lineFill + 0.8) {
+        const q = (t - T.lineFill) / 0.8;
+        const washY = gridY + 11 * CELL_SIZE + CELL_SIZE / 2;
+        c.save();
+        c.globalAlpha = (1 - q) * 0.6;
+        c.fillStyle = vermilion;
+        c.fillRect(gridX - 20 * q, washY - CELL_SIZE * (0.5 + q), gridW + 40 * q, CELL_SIZE * (1 + q * 2));
+        c.restore();
+      }
+    }
+
+    // Compute home positions on the About page
+    function computeAboutHomes() {
+      const plan: Array<{ el: HTMLElement; at: number }> = (window as any).__peekPageEnter?.() ?? [];
+      const homes: Array<{ x: number; y: number; at: number }> = [];
+      const base = T.release + 0.05;
+
+      plan.forEach((p) => {
+        const r = p.el.getBoundingClientRect();
+        if (r.width > 4 && r.height > 4 && r.bottom > 0 && r.top < H) {
+          const pts = Math.min(120, Math.max(16, Math.round((r.width * r.height) / 180)));
+          for (let k = 0; k < pts; k++) {
+            homes.push({
+              x: r.left + r.width * (0.05 + rnd() * 0.9),
+              y: r.top + r.height * (0.05 + rnd() * 0.9),
+              at: base + p.at * 0.65,
+            });
+          }
+        }
+      });
+      return homes;
+    }
+
+    function assignHomes(now: number, fast: boolean) {
+      if (homesAssigned) return;
+      homesAssigned = true;
+      const targetHomes = computeAboutHomes();
+      const count = Math.min(alive, targetHomes.length);
+
+      let hIdx = 0;
+      for (let i = 0; i < N; i++) {
+        if (mode[i] === 1) { // is flying
+          if (hIdx < count) {
+            const h = targetHomes[hIdx++];
+            hx[i] = h.x + (rnd() - 0.5) * 4;
+            hy[i] = h.y + (rnd() - 0.5) * 4;
+            tH[i] = fast ? now + 0.08 + rnd() * 0.25 : h.at + rnd() * 0.2;
+            mode[i] = 2; // home
+          } else {
+            mode[i] = 3; // dissipate as ash
+          }
+        }
+      }
+    }
+
+    // Step particle physics
+    function stepPhysics(dt: number, t: number) {
+      const vortexMix = smooth(T.vortex, T.vortex + 0.6, t);
+      const drag = Math.exp(-2.2 * dt);
+
+      for (let i = 0; i < N; i++) {
+        const m = mode[i];
+        if (m === 0 || m === 3) continue;
+
+        if (m === 2) { // homeward seek
+          if (t < tH[i]) continue;
+          const dx = hx[i] - px[i];
+          const dy = hy[i] - py[i];
+          vx[i] += (dx * 55 - vx[i] * 14) * dt;
+          vy[i] += (dy * 55 - vy[i] * 14) * dt;
+          const sp = Math.hypot(vx[i], vy[i]);
+          if (sp > 2600) { vx[i] *= 2600 / sp; vy[i] *= 2600 / sp; }
+          px[i] += vx[i] * dt;
+          py[i] += vy[i] * dt;
+          if (dx * dx + dy * dy < 9 || t > tH[i] + 0.6) {
+            mode[i] = 3;
+            alive--;
+          }
+          continue;
+        }
+
+        // M_FLY: Spiral vortex around canvas center
+        if (vortexMix > 0) {
+          const dx = px[i] - cx;
+          const dy = py[i] - cy;
+          const r = Math.max(1, Math.hypot(dx, dy));
+          const nx = dx / r, ny = dy / r;
+          const tang = Math.min(420, 120 + 80000 / (r + 100));
+          const inward = Math.max(-140, Math.min(280, (r - pref[i]) * 0.8));
+          const wantX = -ny * tang - nx * inward;
+          const wantY = nx * tang - ny * inward;
+          vx[i] += (wantX - vx[i]) * (1 - Math.exp(-3.5 * dt)) * vortexMix;
+          vy[i] += (wantY - vy[i]) * (1 - Math.exp(-3.5 * dt)) * vortexMix;
+        }
+
+        vx[i] *= drag;
+        vy[i] *= drag;
+        px[i] += vx[i] * dt;
+        py[i] += vy[i] * dt;
+      }
+    }
+
+    // Draw frame
+    function draw(t: number) {
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx!.clearRect(0, 0, W, H);
+
+      // Paper grain
+      if (!lifted) {
+        if (t - grainAt > 0.08) {
+          grainAt = t;
+          grainTile = (grainTile + 1) % 3;
+          grainX = Math.floor(rnd() * 128);
+          grainY = Math.floor(rnd() * 128);
+        }
+        ctx!.globalAlpha = grainAlpha;
+        ctx!.fillStyle = grainTiles[grainTile];
+        ctx!.save();
+        ctx!.translate(grainX, grainY);
+        ctx!.fillRect(-grainX - 128, -grainY - 128, W + 256, H + 256);
+        ctx!.restore();
+        ctx!.globalAlpha = 1;
+      }
+
+      // Initial falling drop
+      drawInitialDrop(ctx!, t);
+
+      // Shock rings
+      if (shockRadius > 0) {
+        ctx!.save();
+        ctx!.strokeStyle = ink;
+        ctx!.lineWidth = 1.2;
+        ctx!.globalAlpha = Math.max(0, 1 - shockRadius / (Math.min(W, H) * 0.45));
+        ctx!.beginPath();
+        ctx!.arc(cx, cy, shockRadius, 0, Math.PI * 2);
+        ctx!.stroke();
+        ctx!.restore();
+      }
+
+      // Tetris grid & falling pieces
+      drawGrid(ctx!, t);
+      updateAndDrawPieces(ctx!, t);
+
+      // Free & homing particles
+      ctx!.fillStyle = ink;
+      const dotSize = coarse ? 3 : 2.5;
+      for (let i = 0; i < N; i++) {
+        if (mode[i] === 0 || mode[i] === 3) continue;
+        ctx!.fillRect(px[i], py[i], dotSize, dotSize);
+      }
+    }
+
+    // Clock and animation loop
+    let started = 0, last = 0, acc = 0, simT = 0, frameId = 0;
+    let currentPhase = '凝';
+
+    function loop(stamp: number) {
+      if (finished) return;
+      if (!started) { started = stamp; last = stamp; }
+      holdScroll();
+      const t = (stamp - started) / 1000;
+      const dtFrame = Math.min(0.1, (stamp - last) / 1000);
+      last = stamp;
+
+      // Handle drop impact
+      if (!impactOccurred && t >= T.impact) {
+        impactOccurred = true;
+        spawnParticles(cx, cy, coarse ? 80 : 160, 12, 340);
+        shockRadius = 2;
+        (window as any).__inkSplash?.(cx, cy, 22);
+      }
+      if (shockRadius > 0 && shockRadius < Math.min(W, H) * 0.45) {
+        shockRadius += dtFrame * 320;
+      }
+
+      // Line dissolve explosion
+      if (t >= T.lineFill && t < T.lineFill + 0.1 && alive < 400) {
+        spawnParticles(cx, gridY + gridH - CELL_SIZE, coarse ? 200 : 450, gridW * 0.4, 280);
+      }
+
+      // Physics stepping
+      acc += dtFrame;
+      let n = 0;
+      while (acc >= STEP && n < 10) {
+        stepPhysics(STEP, simT);
+        simT += STEP;
+        acc -= STEP;
+        n++;
+      }
+      if (n >= 10) { acc = 0; simT = t; }
+
+      if (!skipping && !homesAssigned && t >= T.release) {
+        assignHomes(t, false);
+      }
+
+      draw(t);
+
+      const phase = PHASES.find(([until]) => t < until)?.[1] ?? '归';
+      if (phase !== currentPhase) {
+        currentPhase = phase;
+        intro.dataset.phase = phase;
+      }
+
+      if (skipping && (t > skipAt + 1.2 || alive === 0)) {
+        finish();
+        return;
+      }
+
+      frameId = requestAnimationFrame(loop);
+    }
+
+    // DOM Timeline
+    gsap.set(seal, { opacity: 0, scale: 2.2, rotation: -16 });
+    gsap.set(ring, { opacity: 0, scale: 0 });
+    gsap.set(taglineEl, { opacity: 0 });
+    gsap.set(foot, { opacity: 0, y: 10 });
+    typedTitle.textContent = '';
+
+    const meter = { value: 0 };
+    const tl = gsap.timeline();
+    tl.to(meter, {
+      value: 1,
+      duration: T.release,
+      ease: 'none',
+      onUpdate: () => {
+        progress.style.transform = `scaleX(${meter.value})`;
+        status.textContent = `ABOUT · ${String(Math.round(meter.value * 100)).padStart(2, '0')}% · ${currentPhase}`;
+      },
+    }, 0);
+    tl.to(foot, { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' }, 0.4);
+
+    // Vermilion Seal impact at T.seal
+    tl.to(seal, { opacity: 1, scale: 1, rotation: -4, duration: 0.5, ease: 'back.out(2.2)' }, T.seal);
+    tl.call(() => {
+      const r = seal.getBoundingClientRect();
+      (window as any).__inkSplash?.(r.left + r.width / 2, r.top + r.height / 2, 24);
+    }, undefined, T.sealImpact);
+    tl.fromTo(ring, { opacity: 0.7, scale: 0 }, { opacity: 0, scale: 1.3, duration: 1.1, ease: 'expo.out' }, T.sealImpact);
+
+    // Tagline typewriter at T.tagline
+    const typeObj = { idx: 0 };
+    tl.to(taglineEl, { opacity: 1, duration: 0.3 }, T.tagline - 0.1);
+    tl.to(typeObj, {
+      idx: TAGLINE.length,
+      duration: 0.8,
+      ease: 'none',
+      onUpdate: () => {
+        typedTitle.textContent = TAGLINE.slice(0, Math.round(typeObj.idx));
+      },
+    }, T.tagline);
+
+    // Lift and release
+    tl.call(() => {
+      lifted = true;
+      intro.classList.add('is-lifting');
+    }, undefined, T.lift);
+    tl.to([seal, taglineEl, foot], { opacity: 0, duration: 0.4, ease: 'power2.in' }, T.lift);
+    tl.call(() => {
+      assignHomes(simT, false);
+      releasePage();
+    }, undefined, T.release);
+    tl.call(finish, undefined, T.end);
+
+    function skip() {
+      if (finished || skipping) return;
+      skipping = true;
+      const t = (performance.now() - started) / 1000;
+      skipAt = t;
+      tl.kill();
+      lifted = true;
+      intro.classList.add('is-lifting');
+      gsap.to([seal, taglineEl, foot], { opacity: 0, duration: 0.25, ease: 'power2.in', overwrite: 'auto' });
+      if (!homesAssigned) {
+        assignHomes(t, true);
+      }
+      releasePage();
+    }
+
+    function finish() {
+      if (finished) return;
+      finished = true;
+      cancelAnimationFrame(frameId);
+      controller.abort();
+      tl.kill();
+      gsap.killTweensOf([intro, seal, taglineEl, foot, ring]);
+      releasePage();
+      intro.remove();
+      try {
+        (window as any).lenis?.start();
+        (window as any).lenis?.resize();
+      } catch {}
+    }
+
+    skipBtn.addEventListener('click', skip, { signal });
+    intro.addEventListener('click', skip, { signal });
+    intro.addEventListener('wheel', (e) => e.preventDefault(), { passive: false, signal });
+    document.addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (SKIP_KEYS.has(e.key)) {
+        e.preventDefault();
+        skip();
+      } else if (SCROLL_KEYS.has(e.key)) {
+        e.preventDefault();
+      }
+    }, { signal });
+
+    window.addEventListener('resize', () => {
+      if (!finished) skip();
+    }, { signal, once: true });
+
+    frameId = requestAnimationFrame(loop);
+  }
+
+  runAboutIntro();
+
+  document.addEventListener('astro:page-load', () => {
+    runAboutIntro();
+  });
+
+  document.addEventListener('astro:before-swap', () => {
+    try { (window as any).lenis?.start(); } catch {}
+  });
+</script>

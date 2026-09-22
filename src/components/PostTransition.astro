@@ -199,13 +199,21 @@
 
       // 5. Splattered ink droplets around the expanding boundary
       if (r > 20 && alphaMultiplier > 0.05) {
+        ctx.save();
+        ctx.fillStyle = colors.inkStrong;
         droplets.forEach((d) => {
           const dropDist = r * d.distMultiplier;
           const dx = originX + Math.cos(d.angle) * dropDist;
           const dy = originY + Math.sin(d.angle) * dropDist;
           const dropR = d.size * (isLeaving ? (1 - progress * 0.5) : (0.4 + progress * 0.6));
-          drawInkBlob(ctx, dx, dy, dropR, d.seed, colors.inkStrong, d.alpha * alphaMultiplier);
+          if (dropR > 0.5) {
+            ctx.globalAlpha = d.alpha * alphaMultiplier;
+            ctx.beginPath();
+            ctx.arc(dx, dy, dropR, 0, Math.PI * 2);
+            ctx.fill();
+          }
         });
+        ctx.restore();
       }
 
       ctx.restore();

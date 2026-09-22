@@ -354,9 +354,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
         lenis.on('scroll', ScrollTrigger.update);
 
-        gsap.ticker.add((time) => {
+        if (lenisTickerFn) {
+          gsap.ticker.remove(lenisTickerFn);
+        }
+        lenisTickerFn = (time: number) => {
           lenis.raf(time * 1000);
-        });
+        };
+        gsap.ticker.add(lenisTickerFn);
 
         gsap.ticker.lagSmoothing(0);
 
@@ -364,11 +368,17 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         window.lenis = lenis;
       }
 
+      let lenisTickerFn: ((time: number) => void) | null = null;
+
       // Initialize on first load
       initSmoothScroll();
 
       // Re-initialize after Astro View Transitions
       document.addEventListener('astro:after-swap', () => {
+        if (lenisTickerFn) {
+          gsap.ticker.remove(lenisTickerFn);
+          lenisTickerFn = null;
+        }
         if (window.lenis) {
           window.lenis.destroy();
         }
@@ -1120,19 +1130,51 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             'rgba(168,57,43,0.18)',
           ];
 
+          // Pre-bake soft glow sprites for each color to eliminate ~3,840 gradient allocations / sec
+          const spriteRadius = 32;
+          const spriteSize = spriteRadius * 2;
+          const sprites = ambientColors.map((col) => {
+            const sc = document.createElement('canvas');
+            sc.width = spriteSize;
+            sc.height = spriteSize;
+            const sctx = sc.getContext('2d');
+            if (sctx) {
+              // Inner solid dot
+              sctx.beginPath();
+              sctx.arc(spriteRadius, spriteRadius, spriteRadius * 0.4, 0, Math.PI * 2);
+              sctx.fillStyle = col;
+              sctx.fill();
+
+              // Outer halo gradient
+              sctx.beginPath();
+              sctx.arc(spriteRadius, spriteRadius, spriteRadius, 0, Math.PI * 2);
+              const grad = sctx.createRadialGradient(spriteRadius, spriteRadius, 0, spriteRadius, spriteRadius, spriteRadius);
+              grad.addColorStop(0, col);
+              grad.addColorStop(1, 'transparent');
+              sctx.fillStyle = grad;
+              sctx.fill();
+            }
+            return sc;
+          });
+
           for (let i = 0; i < dotCount; i += 1) {
+            const colorIndex = Math.floor(Math.random() * ambientColors.length);
             dots.push({
               x: Math.random() * viewportWidth,
               y: Math.random() * viewportHeight,
               r: Math.random() * 3 + 1.5,
               dx: (Math.random() - 0.5) * 0.3,
               dy: (Math.random() - 0.5) * 0.2 - 0.1,
-              color: ambientColors[Math.floor(Math.random() * ambientColors.length)],
+              colorIndex,
               phase: Math.random() * Math.PI * 2,
             });
           }
 
           function drawDots(time) {
+            if (document.hidden) {
+              ambientFrame = requestAnimationFrame(drawDots);
+              return;
+            }
             ctx.clearRect(0, 0, viewportWidth, viewportHeight);
 
             for (const dot of dots) {
@@ -1145,19 +1187,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               if (dot.y > viewportHeight + 10) dot.y = -10;
 
               const pulse = 0.7 + Math.sin(time * 0.001 + dot.phase) * 0.3;
-
-              ctx.beginPath();
-              ctx.arc(dot.x, dot.y, dot.r * pulse, 0, Math.PI * 2);
-              ctx.fillStyle = dot.color;
-              ctx.fill();
-
-              ctx.beginPath();
-              ctx.arc(dot.x, dot.y, dot.r * pulse * 2.5, 0, Math.PI * 2);
-              const gradient = ctx.createRadialGradient(dot.x, dot.y, 0, dot.x, dot.y, dot.r * pulse * 2.5);
-              gradient.addColorStop(0, dot.color);
-              gradient.addColorStop(1, 'transparent');
-              ctx.fillStyle = gradient;
-              ctx.fill();
+              const diameter = dot.r * pulse * 5;
+              const sprite = sprites[dot.colorIndex];
+              if (sprite) {
+                ctx.drawImage(sprite, dot.x - diameter / 2, dot.y - diameter / 2, diameter, diameter);
+              }
             }
 
             ambientFrame = requestAnimationFrame(drawDots);
@@ -2480,7 +2514,14 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <script is:inline>
       /* ========== 阅读进度条 ========== */
       (function initProgress() {
+        var cleanupListeners = null;
+
         function setup() {
+          if (cleanupListeners) {
+            cleanupListeners();
+            cleanupListeners = null;
+          }
+
           var old = document.querySelector('.reading-progress');
           if (old) old.remove();
 
@@ -2495,9 +2536,9 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             var rect = prose.getBoundingClientRect();
             var top = -rect.top;
             var total = rect.height - window.innerHeight;
-            if (total <= 0) { bar.style.width = '100%'; return; }
+            if (total <= 0) { bar.style.transform = 'scaleX(1)'; return; }
             var pct = Math.min(100, Math.max(0, (top / total) * 100));
-            bar.style.width = pct + '%';
+            bar.style.transform = 'scaleX(' + (pct / 100) + ')';
             if (pct >= 99.5) {
               bar.classList.add('is-hidden');
             } else {
@@ -2507,6 +2548,10 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
           window.addEventListener('scroll', update, { passive: true });
           window.addEventListener('resize', update, { passive: true });
+          cleanupListeners = function() {
+            window.removeEventListener('scroll', update);
+            window.removeEventListener('resize', update);
+          };
           update();
         }
 

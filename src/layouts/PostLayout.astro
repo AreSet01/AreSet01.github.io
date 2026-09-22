@@ -63,7 +63,7 @@ const hasToc = tocHeadings.length > 1;
       data-locked-post={isLocked ? 'true' : undefined}
       data-lock-key={isLocked ? passwordHash : undefined}
     >
-      <header class="panel">
+      <header class="panel" data-post-header>
         <div class="flex flex-wrap items-center gap-3 font-mono text-[0.72rem] tracking-[0.1em] uppercase text-[var(--muted)]" data-enter="left">
           <a href="/archive" class="transition hover:text-[var(--accent)]">Archive</a>
           <span class="opacity-40">/</span>
@@ -357,6 +357,7 @@ const hasToc = tocHeadings.length > 1;
       const controller = new AbortController();
       const { signal } = controller;
       const timers: number[] = [];
+      const typewriterTimers: number[] = [];
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
       ScrollTrigger.getAll().forEach((trigger) => {
@@ -365,66 +366,146 @@ const hasToc = tocHeadings.length > 1;
 
       // ---------- Title: characters drop in one by one ----------
       const title = document.querySelector<HTMLElement>('[data-post-title]');
+      const header = document.querySelector<HTMLElement>('[data-post-header]') || title?.closest('header');
+      const typed = document.querySelector<HTMLElement>('[data-post-typed]');
+
+      if (typed) {
+        const full = typed.dataset.full || typed.textContent || '';
+        typed.dataset.full = full;
+        // Pre-reserve rendered width so typing NEVER causes flexbox reflow
+        const rect = typed.getBoundingClientRect();
+        if (rect.width > 0) {
+          typed.style.minWidth = `${Math.ceil(rect.width)}px`;
+        }
+      }
+
       if (title && !title.dataset.split) {
+        const t0 = performance.now();
         const text = title.textContent?.trim() || '';
         title.textContent = '';
         title.dataset.split = 'true';
+        const frag = document.createDocumentFragment();
         for (const ch of text) {
           const span = document.createElement('span');
           span.className = 'post-title-char';
           span.textContent = ch === ' ' ? ' ' : ch;
-          title.appendChild(span);
+          frag.appendChild(span);
+        }
+        title.appendChild(frag);
+        const splitTime = performance.now() - t0;
+        if (splitTime > 1) {
+          console.debug(`[perf:title-split] Split ${text.length} chars in ${splitTime.toFixed(2)}ms`);
         }
       }
 
       function startTitleAndDate() {
+        if (signal.aborted) return;
+
         if (title) {
           title.classList.add('is-split-ready');
           const chars = title.querySelectorAll('.post-title-char');
           if (chars.length && !reduceMotion) {
+            const t0 = performance.now();
+            gsap.killTweensOf(chars);
             gsap.fromTo(chars,
               { y: 46, opacity: 0, rotation: () => gsap.utils.random(-7, 7) },
               {
                 y: 0, opacity: 1, rotation: 0,
                 duration: 1.3, ease: 'post-enter', stagger: 0.035, delay: 0.08, overwrite: 'auto',
-                onComplete: () => gsap.set(chars, { clearProps: 'transform,opacity' }),
+                onComplete: () => {
+                  gsap.set(chars, { clearProps: 'transform,opacity' });
+                  title.classList.remove('is-split-ready');
+                },
               }
             );
+            const setupTime = performance.now() - t0;
+            if (setupTime > 2) {
+              console.debug(`[perf:title-tween] Setup ${chars.length} char tweens in ${setupTime.toFixed(2)}ms`);
+            }
           }
         }
 
         // ---------- Date: typewriter ----------
-        const typed = document.querySelector<HTMLElement>('[data-post-typed]');
         if (typed && !reduceMotion) {
+          typewriterTimers.forEach((id) => window.clearTimeout(id));
+          typewriterTimers.length = 0;
           const full = typed.dataset.full || typed.textContent || '';
-          typed.dataset.full = full;
           typed.textContent = '';
           typed.classList.add('is-typing');
           let i = 0;
+          let totalTickCpuMs = 0;
+          let tickCount = 0;
           const tick = () => {
             if (signal.aborted) return;
+            const t0 = performance.now();
             i += 1;
             typed.textContent = full.slice(0, i);
-            if (i < full.length) timers.push(window.setTimeout(tick, 42));
-            else timers.push(window.setTimeout(() => typed.classList.remove('is-typing'), 900));
+            totalTickCpuMs += performance.now() - t0;
+            tickCount += 1;
+            if (i < full.length) {
+              const tid = window.setTimeout(tick, 42);
+              typewriterTimers.push(tid);
+              timers.push(tid);
+            } else {
+              const tid = window.setTimeout(() => {
+                typed.classList.remove('is-typing');
+                console.info(`[perf:typewriter] Completed: ${tickCount} ticks, avg ${(totalTickCpuMs / Math.max(1, tickCount)).toFixed(2)}ms/tick, total CPU ${totalTickCpuMs.toFixed(2)}ms`);
+              }, 900);
+              typewriterTimers.push(tid);
+              timers.push(tid);
+            }
           };
-          timers.push(window.setTimeout(tick, 180));
+          const tid = window.setTimeout(tick, 180);
+          typewriterTimers.push(tid);
+          timers.push(tid);
         }
+      }
+
+      function resetTitleAndDate() {
+        if (title) {
+          const chars = title.querySelectorAll('.post-title-char');
+          gsap.killTweensOf(chars);
+          gsap.set(chars, { opacity: 0, y: 46 });
+          title.classList.add('is-split-ready');
+        }
+        if (typed) {
+          typewriterTimers.forEach((id) => window.clearTimeout(id));
+          typewriterTimers.length = 0;
+          typed.classList.remove('is-typing');
+          typed.textContent = '';
+        }
+      }
+
+      // Bidirectional replay: observe header entering and exiting viewport
+      let headerCanReplay = false;
+      if (header && !reduceMotion) {
+        const headerObserver = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting && entry.boundingClientRect.bottom <= 0) {
+              // Scrolled down past the header: silently reset and arm for replay
+              headerCanReplay = true;
+              resetTitleAndDate();
+            } else if (entry.isIntersecting && headerCanReplay) {
+              // Scrolled back up to top: replay title and date entrance
+              headerCanReplay = false;
+              startTitleAndDate();
+            }
+          });
+        }, { threshold: 0 });
+        headerObserver.observe(header);
+        signal.addEventListener('abort', () => headerObserver.disconnect());
       }
 
       const isPendingTransition = Boolean((window as any).__postTransitionPending);
       if (isPendingTransition && !reduceMotion) {
-        if (title) {
-          const chars = title.querySelectorAll('.post-title-char');
-          gsap.set(chars, { opacity: 0, y: 46 });
-        }
+        resetTitleAndDate();
         let fired = false;
         const trigger = () => {
-          if (fired) return;
+          if (fired || signal.aborted) return;
           fired = true;
           startTitleAndDate();
         };
-        window.addEventListener('post-transition-release', trigger, { once: true });
+        window.addEventListener('post-transition-release', trigger, { signal, once: true });
         timers.push(window.setTimeout(trigger, 1200));
       } else {
         startTitleAndDate();
@@ -433,6 +514,7 @@ const hasToc = tocHeadings.length > 1;
       // ---------- Blocks: tag each direct child, reveal via IntersectionObserver ----------
       // Code blocks and images animate clip-path, and Chrome's IntersectionObserver treats a
       // target's own clip-path as clipping — so those get a wrapper that is observed instead.
+      const tBlocks0 = performance.now();
       const blocks = (Array.from(prose.children) as HTMLElement[]).map((el) => {
         if (el.classList.contains('pr-wrap')) return el;
         const kind = revealKind(el);
@@ -451,21 +533,20 @@ const hasToc = tocHeadings.length > 1;
         if (kind === 'table') el.querySelectorAll('tr').forEach((row, i) => row.style.setProperty('--i', String(Math.min(i, 12))));
         if (kind === 'list') Array.from(el.children).forEach((li, i) => (li as HTMLElement).style.setProperty('--i', String(Math.min(i, 8))));
       });
+      const tBlocksDuration = performance.now() - tBlocks0;
+      if (tBlocksDuration > 2) {
+        console.debug(`[perf:blocks-wrap] Prepared ${blocks.length} blocks in ${tBlocksDuration.toFixed(2)}ms`);
+      }
 
       if (reduceMotion) {
         blocks.forEach((el) => el.classList.add('is-in'));
       } else {
         const io = new IntersectionObserver((entries) => {
           entries.forEach((entry) => {
-            // Once a block enters into view, reveal and unobserve.
-            // This prevents blocks from disappearing when scrolled past, eliminates 68px transform
-            // layout shifts on scroll-direction switches, and stops scroll jitter / pulling.
-            if (entry.isIntersecting || entry.boundingClientRect.top < window.innerHeight) {
-              entry.target.classList.add('is-in');
-              io.unobserve(entry.target);
-            }
+            // Replays every time a block comes back into view
+            entry.target.classList.toggle('is-in', entry.isIntersecting);
           });
-        }, { rootMargin: '0px 0px -4% 0px', threshold: 0 });
+        }, { rootMargin: '0px 0px -6% 0px', threshold: 0 });
         blocks.forEach((el) => io.observe(el));
         signal.addEventListener('abort', () => io.disconnect());
       }
@@ -491,11 +572,12 @@ const hasToc = tocHeadings.length > 1;
           dots.push(dot);
         }
 
-        h2s.forEach((h2, i) => {
+        const positions = h2s.map((h2) => {
+          return Math.round(h2.getBoundingClientRect().top - bodyTop + parseFloat(getComputedStyle(h2).paddingTop) + 14);
+        });
+        positions.forEach((top, i) => {
           const dot = dots[i];
-          if (!dot) return;
-          const y = h2.getBoundingClientRect().top - bodyTop + parseFloat(getComputedStyle(h2).paddingTop) + 14;
-          dot.style.top = `${Math.round(y)}px`;
+          if (dot) dot.style.top = `${top}px`;
         });
       }
 
@@ -589,6 +671,11 @@ const hasToc = tocHeadings.length > 1;
       (window as any)[CLEANUP_KEY] = () => {
         controller.abort();
         timers.forEach((id) => window.clearTimeout(id));
+        typewriterTimers.forEach((id) => window.clearTimeout(id));
+        if (title) {
+          const chars = title.querySelectorAll('.post-title-char');
+          gsap.killTweensOf(chars);
+        }
         dots.forEach((d) => d.remove());
         ScrollTrigger.getAll().forEach((trigger) => {
           if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
@@ -597,12 +684,23 @@ const hasToc = tocHeadings.length > 1;
       };
     }
 
-    initPostReveal();
+    let initializedThisDocument = false;
+
+    function runPostReveal(force = false) {
+      if (initializedThisDocument && !force) return;
+      initializedThisDocument = true;
+      initPostReveal();
+    }
+
+    runPostReveal();
 
     if (!(window as any)[LISTENER_KEY]) {
-      document.addEventListener('astro:page-load', initPostReveal);
+      document.addEventListener('astro:page-load', () => runPostReveal());
+      document.addEventListener('astro:after-swap', () => {
+        initializedThisDocument = false;
+      });
       // Locked posts reveal their body only after the password check
-      window.addEventListener('post-unlocked', initPostReveal);
+      window.addEventListener('post-unlocked', () => runPostReveal(true));
       (window as any)[LISTENER_KEY] = true;
     }
   </script>
