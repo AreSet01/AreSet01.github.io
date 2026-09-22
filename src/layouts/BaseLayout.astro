@@ -49,6 +49,9 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           if (localStorage.getItem('pixel-mode') === 'true') {
             document.documentElement.setAttribute('data-pixel', 'true');
           }
+          if (localStorage.getItem('cursor-trail') === 'disabled') {
+            document.documentElement.setAttribute('data-cursor-trail', 'disabled');
+          }
         } catch (e) {}
 
         var runtimeKey = '__areSetThemeRuntimeBound__';
@@ -165,6 +168,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
         document.addEventListener('astro:after-swap', function() {
           applyTheme();
+          try {
+            if (localStorage.getItem('cursor-trail') === 'disabled') {
+              document.documentElement.setAttribute('data-cursor-trail', 'disabled');
+            } else {
+              document.documentElement.removeAttribute('data-cursor-trail');
+            }
+          } catch (e) {}
         });
 
         document.addEventListener('astro:page-load', function() {
@@ -192,6 +202,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         // latched on window so client navigations (which re-run this script) can't re-arm it.
         if (window.__siteIntroDecided) return;
         window.__siteIntroDecided = true;
+
+        var isAboutIntroForced = /[?&]about-intro=1(&|$)/.test(location.search) ||
+                                 location.hash === '#about-intro' ||
+                                 /[?&]zen=1(&|$)/.test(location.search);
+        if (isAboutIntroForced) return;
 
         var forced = /[?&]intro=1(&|$)/.test(location.search) || location.hash === '#intro';
         var seen = false;

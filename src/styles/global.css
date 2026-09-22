@@ -1168,6 +1168,62 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
 
 /* ================= Theme Toggle ================= */
 
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cursor-trail-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: var(--muted-strong);
+  cursor: pointer;
+  transition: color 280ms var(--ease), transform 280ms var(--ease);
+}
+
+.cursor-trail-toggle:hover {
+  color: var(--text-strong);
+  transform: none;
+}
+
+.cursor-trail-toggle svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 300ms var(--ease);
+}
+
+.cursor-trail-toggle:hover svg {
+  transform: scale(1.12);
+}
+
+.cursor-trail-toggle .icon-trail-off { display: none; }
+.cursor-trail-toggle .icon-trail-on  { display: block; }
+
+html[data-cursor-trail="disabled"] .cursor-trail-toggle .icon-trail-off { display: block; }
+html[data-cursor-trail="disabled"] .cursor-trail-toggle .icon-trail-on  { display: none; }
+
+[data-theme="dark"] .cursor-trail-toggle {
+  color: var(--muted-strong);
+}
+
+[data-theme="dark"] .cursor-trail-toggle:hover {
+  color: var(--text-strong);
+}
+
+[data-theme="moss"] .cursor-trail-toggle:hover {
+  color: var(--accent);
+}
+
 .theme-toggle {
   display: flex;
   align-items: center;
@@ -1354,6 +1410,7 @@ html.theme-switching .nav-link,
 html.theme-switching .nav-search-trigger,
 html.theme-switching .nav-search-kbd,
 html.theme-switching .theme-toggle,
+html.theme-switching .cursor-trail-toggle,
 html.theme-switching .btn-secondary,
 html.theme-switching .tag-chip,
 html.theme-switching .timeline-link,
@@ -1802,15 +1859,26 @@ html.theme-switching .prose blockquote {
     justify-content: space-between !important;
   }
 
-  .theme-toggle {
-    /* The cluster is a 1fr/auto grid whose DOM order is search → links → toggle.
+  .nav-actions {
+    /* The cluster is a 1fr/auto grid whose DOM order is search → links → actions.
        `.nav-links` spans the full width, which parks the auto-placement cursor on
-       row 2; without an explicit row the toggle then lands on row 3, alone, with
-       row 1's second cell left empty. Pin it beside the search field, which is
-       what the 1fr/auto columns were there for. */
+       row 2; without an explicit row the actions group then lands on row 3, alone, with
+       row 1's second cell left empty. Pin it beside the search field. */
     grid-row: 1 !important;
     grid-column: 2 / 3 !important;
     justify-self: end !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.35rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .theme-toggle,
+  .cursor-trail-toggle {
+    grid-row: auto !important;
+    grid-column: auto !important;
+    justify-self: auto !important;
     flex-shrink: 0 !important;
     width: 2.1rem !important;
     height: 2.1rem !important;
@@ -3275,6 +3343,58 @@ body.preview-open .site-shell {
   [contenteditable="true"],
   .search-input {
     cursor: text !important;
+  }
+
+  /* When cursor trail is disabled: restore default system pointers */
+  html[data-cursor-trail="disabled"],
+  html[data-cursor-trail="disabled"] body,
+  html[data-cursor-trail="disabled"] .home-ticker {
+    cursor: auto !important;
+  }
+
+  html[data-cursor-trail="disabled"] a,
+  html[data-cursor-trail="disabled"] button,
+  html[data-cursor-trail="disabled"] select,
+  html[data-cursor-trail="disabled"] summary,
+  html[data-cursor-trail="disabled"] [role="button"],
+  html[data-cursor-trail="disabled"] .btn-primary,
+  html[data-cursor-trail="disabled"] .btn-secondary,
+  html[data-cursor-trail="disabled"] .tag-chip,
+  html[data-cursor-trail="disabled"] .nav-link,
+  html[data-cursor-trail="disabled"] .timeline-link,
+  html[data-cursor-trail="disabled"] .prose img,
+  html[data-cursor-trail="disabled"] .image-viewer-close,
+  html[data-cursor-trail="disabled"] .stat-card,
+  html[data-cursor-trail="disabled"] .home-stat,
+  html[data-cursor-trail="disabled"] .archive-metric-card,
+  html[data-cursor-trail="disabled"] [data-post-preview],
+  html[data-cursor-trail="disabled"] [data-search-trigger],
+  html[data-cursor-trail="disabled"] [data-search-result],
+  html[data-cursor-trail="disabled"] .theme-toggle,
+  html[data-cursor-trail="disabled"] .cursor-trail-toggle,
+  html[data-cursor-trail="disabled"] .sidebar-collapse-btn,
+  html[data-cursor-trail="disabled"] .sidebar-expand-btn {
+    cursor: pointer !important;
+  }
+
+  html[data-cursor-trail="disabled"] input,
+  html[data-cursor-trail="disabled"] textarea,
+  html[data-cursor-trail="disabled"] [contenteditable="true"],
+  html[data-cursor-trail="disabled"] .search-input {
+    cursor: text !important;
+  }
+
+  html[data-cursor-trail="disabled"] .mermaid-viewport,
+  html[data-cursor-trail="disabled"] .mermaid-stage {
+    cursor: grab !important;
+  }
+
+  html[data-cursor-trail="disabled"] .mermaid-stage.is-panning {
+    cursor: grabbing !important;
+  }
+
+  html[data-cursor-trail="disabled"] #inkCanvas {
+    display: none !important;
   }
 }
 

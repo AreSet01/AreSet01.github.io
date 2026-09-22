@@ -377,7 +377,10 @@ const timeline = [
     const replayBtn = document.querySelector<HTMLElement>('[data-about-zen-replay]');
     if (replayBtn) {
       replayBtn.addEventListener('click', () => {
-        try { sessionStorage.removeItem('about-intro-seen'); } catch {}
+        try {
+          sessionStorage.removeItem('about-intro-seen');
+          sessionStorage.setItem('site-intro-seen', '1');
+        } catch {}
         location.href = '/about?about-intro=1';
       }, { signal });
     }

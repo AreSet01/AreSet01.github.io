@@ -368,14 +368,15 @@
     const gridX = Math.round(cx - gridW / 2);
     const gridY = Math.round(cy - gridH / 2 + 10);
 
-    // Authentic Tetris Pieces Sequence (100% compliant with standard rules)
+    // Authentic Tetris Pieces Sequence -> Double Clear (Row 10 & 11) -> 100% Perfect Clear (All Clear)
     // Board floor is row 11.
-    // Piece 1: O-Piece (cols 0-1, rows 10-11)
-    // Piece 2: I-Piece horizontal (cols 2-5, row 11)
-    // Piece 3: L-Piece flat (cols 6-8, row 11; col 8, row 10)
-    // Piece 4: I-Piece vertical (col 9, rows 8-11) -> Completes row 11 perfectly!
-    // Row 11 clears, upper blocks drop down 1 row!
-    // Piece 5: T-Piece (Signature Vermilion) lands in center terrain!
+    // Piece 1: J-Piece left foundation (cols 0-2, row 11; col 0, row 10)
+    // Piece 2: L-Piece left locking wedge (cols 1-3, row 10; col 3, row 11) -> Solid 4x2 on left!
+    // Piece 3: J-Piece right foundation (cols 6-8, row 10; col 6, row 11)
+    // Piece 4: L-Piece right locking wedge (col 9, row 10; cols 7-9, row 11) -> Solid 4x2 on right!
+    // Piece 5: O-Piece Signature Vermilion Seal (cols 4-5, rows 10-11) -> Plugs central channel!
+    // -> Row 10 & Row 11 are simultaneously completed (20/20 cells)!
+    // -> Double line clear flashes & clears cleanly, leaving ZERO blocks (All Clear)!
 
     interface TetrisPiece {
       id: number;
@@ -392,7 +393,7 @@
     const tetrisPieces: TetrisPiece[] = [
       {
         id: 1,
-        shape: [[0, 0], [1, 0], [0, 1], [1, 1]],
+        shape: [[0, 0], [0, 1], [1, 1], [2, 1]],
         col: 0,
         targetRow: 10,
         spawnTime: 1.7,
@@ -403,9 +404,9 @@
       },
       {
         id: 2,
-        shape: [[0, 0], [1, 0], [2, 0], [3, 0]],
-        col: 2,
-        targetRow: 11,
+        shape: [[0, 0], [1, 0], [2, 0], [2, 1]],
+        col: 1,
+        targetRow: 10,
         spawnTime: 2.2,
         lockTime: 2.65,
         color: '#2b6e68', // 松绿青
@@ -414,7 +415,7 @@
       },
       {
         id: 3,
-        shape: [[0, 1], [1, 1], [2, 1], [2, 0]],
+        shape: [[0, 0], [1, 0], [2, 0], [0, 1]],
         col: 6,
         targetRow: 10,
         spawnTime: 2.7,
@@ -425,23 +426,23 @@
       },
       {
         id: 4,
-        shape: [[0, 0], [0, 1], [0, 2], [0, 3]],
-        col: 9,
-        targetRow: 8,
+        shape: [[2, 0], [0, 1], [1, 1], [2, 1]],
+        col: 7,
+        targetRow: 10,
         spawnTime: 3.2,
-        lockTime: 3.6,
+        lockTime: 3.65,
         color: '#233d63', // 黛蓝墨
         ghostColor: 'rgba(35, 61, 99, 0.28)',
         settledSplash: false,
       },
       {
         id: 5,
-        shape: [[1, 0], [0, 1], [1, 1], [2, 1]],
-        col: 3,
+        shape: [[0, 0], [1, 0], [0, 1], [1, 1]],
+        col: 4,
         targetRow: 10,
-        spawnTime: 4.1,
-        lockTime: 4.5,
-        color: vermilion, // 朱砂红
+        spawnTime: 3.75,
+        lockTime: 4.25,
+        color: vermilion, // 朱砂红印章
         ghostColor: withAlpha(vermilion, 0.28),
         settledSplash: false,
       },
@@ -601,22 +602,18 @@
       c.restore();
     }
 
-    // Tetromino pieces falling, authentic row 11 completion, flash clear, drop & vortex
+    // Tetromino pieces falling, authentic Double Clear (Row 10 & 11) -> 100% Perfect Clear (All Clear)
     function updateAndDrawPieces(c: CanvasRenderingContext2D, t: number) {
       if (t < T.tetrisStart || t > T.vortex + 1.2) return;
       const dissolve = smooth(T.vortex, T.vortex + 0.8, t);
       const baseAlpha = 1 - dissolve;
       if (baseAlpha <= 0.01) return;
 
-      const CLEAR_FLASH_START = 3.65;
-      const CLEAR_DROP_START = 3.9;
-      const CLEAR_DROP_END = 4.05;
+      const CLEAR_FLASH_START = 4.25;
+      const CLEAR_END = 4.55;
 
-      const isLine11Clearing = t >= CLEAR_FLASH_START && t < CLEAR_DROP_START;
-      const isLine11Cleared = t >= CLEAR_DROP_START;
-      const dropProgress = isLine11Cleared
-        ? easeOutQuad(clamp01((t - CLEAR_DROP_START) / (CLEAR_DROP_END - CLEAR_DROP_START)))
-        : 0;
+      const isClearing = t >= CLEAR_FLASH_START && t < CLEAR_END;
+      const isCleared = t >= CLEAR_END;
 
       // 1. Splash particles on piece landing
       tetrisPieces.forEach((p) => {
@@ -628,10 +625,10 @@
         }
       });
 
-      // 2. Line clear particle burst at t = 3.7s
-      if (!lineClearParticlesSpawned && t >= 3.7) {
+      // 2. Double line clear particle burst at t = 4.28s
+      if (!lineClearParticlesSpawned && t >= 4.28) {
         lineClearParticlesSpawned = true;
-        spawnParticles(cx, gridY + 11.5 * CELL_SIZE, coarse ? 120 : 260, gridW * 0.45, 260);
+        spawnParticles(cx, gridY + 11 * CELL_SIZE, coarse ? 140 : 300, gridW * 0.45, 280);
       }
 
       // 3. Render pieces
@@ -655,37 +652,29 @@
           let row = curRow + sr;
 
           if (isLocked) {
-            const initialRow = p.targetRow + sr;
-            if (initialRow === 11) {
-              // Block in row 11!
-              if (isLine11Cleared) {
-                return; // Cleared!
-              }
-              if (isLine11Clearing) {
-                const flashFreq = Math.sin((t - CLEAR_FLASH_START) * 35);
-                drawTetrisBlock(c, col, initialRow, p.color, baseAlpha, false, flashFreq > 0);
-                return;
-              }
-            } else if (initialRow < 11 && isLine11Cleared) {
-              // Drop upper blocks down by 1 row
-              row = initialRow + dropProgress;
-            } else {
-              row = initialRow;
+            if (isCleared) {
+              return; // All Clear! Perfect clean board!
             }
+            if (isClearing) {
+              const flashFreq = Math.sin((t - CLEAR_FLASH_START) * 35);
+              drawTetrisBlock(c, col, p.targetRow + sr, p.color, baseAlpha, false, flashFreq > 0);
+              return;
+            }
+            row = p.targetRow + sr;
           }
 
           drawTetrisBlock(c, col, row, p.color, baseAlpha * (0.6 + fallProgress * 0.4), false, false);
         });
       });
 
-      // 4. Line clear beam / golden ink wave
-      if (t >= CLEAR_FLASH_START && t < CLEAR_DROP_START + 0.15) {
-        const q = clamp01((t - CLEAR_FLASH_START) / (CLEAR_DROP_START + 0.15 - CLEAR_FLASH_START));
-        const washY = gridY + 11 * CELL_SIZE;
+      // 4. Double Line clear beam / golden vermilion wave across Rows 10 & 11
+      if (t >= CLEAR_FLASH_START && t < CLEAR_END + 0.15) {
+        const q = clamp01((t - CLEAR_FLASH_START) / (CLEAR_END + 0.15 - CLEAR_FLASH_START));
+        const washY = gridY + 10 * CELL_SIZE;
         c.save();
-        c.globalAlpha = (1 - q) * 0.65;
+        c.globalAlpha = (1 - q) * 0.75;
         c.fillStyle = vermilion;
-        c.fillRect(gridX - 25 * q, washY - 4 * (1 - q), gridW + 50 * q, CELL_SIZE + 8 * (1 - q));
+        c.fillRect(gridX - 25 * q, washY - 4 * (1 - q), gridW + 50 * q, 2 * CELL_SIZE + 8 * (1 - q));
         c.restore();
       }
     }

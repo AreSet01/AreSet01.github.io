@@ -138,6 +138,13 @@ const tagline = '日常记录 · 技术分享';
   function runSiteIntro() {
     const intro = document.querySelector<HTMLElement>('[data-site-intro]');
     if (!intro) return;
+    // If about-intro is active or requested, SiteIntro must not play
+    if (/[?&]about-intro=1(&|$)/.test(location.search) || location.hash === '#about-intro' || /[?&]zen=1(&|$)/.test(location.search)) {
+      document.documentElement.classList.remove('site-intro-active');
+      (window as any).__siteIntroPending = false;
+      intro.remove();
+      return;
+    }
     // The markup ships on every page; only the load the head script armed should play it
     if (!document.documentElement.classList.contains('site-intro-active')) return;
     if (intro.dataset.started === 'true') return;
