@@ -5,6 +5,7 @@ import Header from '../components/Header.astro';
 import TagList from '../components/TagList.astro';
 import Giscus from '../components/Giscus.astro';
 import MermaidRenderer from '../components/MermaidRenderer.astro';
+import InkAsk from '../components/InkAsk.astro';
 import { formatDate } from '../utils/date';
 
 interface SeriesLink {
@@ -241,6 +242,7 @@ const hasToc = tocHeadings.length > 1;
   </main>
 
   <MermaidRenderer />
+  <InkAsk />
 
   {isLocked && (
     <script is:inline data-astro-rerun>
