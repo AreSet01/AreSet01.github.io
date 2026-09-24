@@ -43,6 +43,8 @@
 
 **绿粉主题** —— 主题循环 浅 → 深 → 绿粉，绿底 `#62A06F`。
 
+**划词问答（2026-09-23）** —— 文章里选中一段 → 选区末尾钤出「问」印 → 一笔墨圈圈住它 → 卡片里流式写出解释，可追问。见 2.6。服务端在 `server/`（零依赖 Node，key 只存服务器），本站没部署它时前端探测失败，整个功能不出现。
+
 ---
 
 ## 二、动效架构
@@ -185,7 +187,23 @@ if (!window[LISTENER_KEY]) {
 - **不要**把一次性状态放在 `initXxx` 内部的局部变量里（会被第二次初始化清零），要放模块级（三连印章的计数器就是这么修的）。
 - 向 SVG 里 `appendChild` 这类操作要先 `replaceChildren()`（标签星图的连线曾因此翻倍）。
 
-### 2.6 性能约定
+### 2.6 划词问答（`src/components/InkAsk.astro`）
+
+| 阶段 | 动作 |
+|---|---|
+| 出印 | 选区落定（`selectionchange` 静默 280ms）→ 正文里选满 2 个字 → 探测 `/api/ask` 可用 → 34px 的「问」印在选区末尾钤下（`scale 1.7 + rotate −16°` 过冲落定，`::after` 荡开一圈墨环） |
+| 圈字 | 点印：`getClientRects()` 取所有行盒 → 两笔手画的墨圈按 `pathLength=1` + `stroke-dashoffset` 从左上起笔画出（第二笔细而淡，是飞白）；高度 > 220px 的选区改画页边一道竖笔 |
+| 开卡 | 卡片用 `clip-path: circle(0 → r)` 从**印的位置**渗开，`r` 是到卡片最远角的距离 |
+| 流式 | 回答按 `requestAnimationFrame` 合帧重渲染（每个片段都重排 markdown 会卡），末尾一粒呼吸的墨点；服务端发 `{t:1}` 时状态文字从「研墨中」变「思量中」 |
+| 收笔 | Esc / 点空白：墨圈淡去，卡片把墨收回落印处（`circle(r → 0)`，380ms） |
+
+布局：桌面贴着选区下方（下方不够 300px 且上方更宽裕时翻到上方，`is-above` 用 `translateY(-100%)`）；`<768px` 变成底部抽屉（`is-sheet`，只改定位，不参与动画）。位置全部是文档坐标（`left/top + scrollX/Y`），所以滚动时不用跟随；`ResizeObserver` 只负责重画（图片、字体加载会让正文挪位）。
+
+选区→正文的对应：前端把 `cloneContents()` 里的代码块工具栏、mermaid 按钮等脚本注入的节点剔掉，再补上块间换行，得到和服务端从 `dist/posts/**/index.html` 里抽出来的同一串文字；再带上选区前后各 40 字，服务端按「前文 + 选区 + 后文」整体匹配来定位（同一段代码里相同的宏名不会认错）。服务端找不到就 422——接口因此没法被当成通用聊天机器人用。
+
+服务端 `server/ask.mjs` 与部署见 `server/README.md`；前端探测不到它（比如 GitHub Pages）就整个不出现。
+
+### 2.7 性能约定
 
 - 所有进场动画只动 `transform` / `opacity` / `clip-path`，不碰 `filter: blur`。
 - `will-change` 只在动画期间挂上，结束用 `clearProps` 摘掉。
@@ -212,6 +230,8 @@ if (!window[LISTENER_KEY]) {
 | 统计页数据表的开合 | `stats.astro` 里 `duration: 0.85`（开）/ `0.6`（关）；行级联在 `global.css` 的 `.stats-table.is-animated tr`（每行 40ms，最多数到第 18 行） |
 | 站点进场幕的节奏 / 文案 | `SiteIntro.astro`：`T` 对象各时间点、`MAX` / `MIN` 粒子预算、`fontSize`；frontmatter 的 `tagline`，标题在脚本顶部的 `TITLE` |
 | 站点进场幕只播一次的范围 | `BaseLayout.astro` `<head>` 内联脚本：把 `sessionStorage` 换成 `localStorage` 即为"每设备一次" |
+| 划词问答的墨圈形状 / 卡片节奏 | `InkAsk.astro`：`strokePoints()`（圈数与抖动）、`ANCHOR_CHARS`（前后各取多少字）、`MAX_SELECTION`；CSS 的 `780ms`（画圈）/ `640ms`（渗开）/ `380ms`（收回），`is-sheet` 的断点是 `768px` |
+| 划词问答的模型 / 限流 / 缓存 | `server/ask.env.example`（部署时是 `/etc/blog-ask.env`），说明见 `server/README.md` |
 
 ---
 

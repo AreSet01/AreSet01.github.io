@@ -155,5 +155,9 @@ export default defineConfig({
   },
   vite: {
     plugins: [tailwindcss()],
+    server: {
+      // 划词问答：本地另开一个 `npm run ask`（server/ask.mjs，默认 8787），dev 服务器把 /api 转过去
+      proxy: { '/api': 'http://127.0.0.1:8787' },
+    },
   },
 });

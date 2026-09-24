@@ -6,6 +6,8 @@
     "dev": "astro dev",
     "build": "astro build --force",
     "hash:password": "node scripts/hash-password.mjs",
+    "ask": "node server/ask.mjs",
+    "deploy": "node scripts/deploy-server.mjs",
     "preview": "astro preview"
   },
   "dependencies": {

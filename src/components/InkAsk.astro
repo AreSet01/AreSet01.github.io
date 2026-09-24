@@ -1,0 +1,1173 @@
+---
+// InkAsk.astro — 划词问答
+// 在正文里选中一段 → 选区末尾钤出「问」→ 一笔墨圈把它圈起来，卡片里流式写出 AI 的解释，还能追问。
+// 服务端是 server/ask.mjs（key 只在服务器上）。站点没部署它时（比如 GitHub Pages）探测失败，整个功能不出现。
+---
+
+<script>
+  const ENDPOINT = '/api/ask';
+  const MAX_SELECTION = 400;
+  const ANCHOR_CHARS = 40;
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const LISTENER_KEY = '__areSetInkAskBound__';
+  // 脚本注入的界面文字（代码块工具栏、按钮）不属于正文，服务端核对的是构建出来的原文
+  const SKIP = '.code-block-toolbar, .mermaid-block-header, button, [aria-hidden="true"]';
+  const BLOCK = 'p, li, pre, td, th, blockquote, h1, h2, h3, h4, h5, h6, dt, dd, figcaption, .mermaid-block';
+
+  type Anchor = { text: string; prefix: string; suffix: string };
+  type Box = { left: number; top: number; right: number; bottom: number; width: number; height: number };
+  type Session = {
+    card: HTMLElement;
+    thread: HTMLElement;
+    form: HTMLFormElement;
+    input: HTMLInputElement;
+    ring: SVGSVGElement;
+    range: Range;
+    anchor: Anchor;
+    origin: { x: number; y: number };
+    controller: AbortController | null;
+    stop: AbortController;
+  };
+
+  let available: Promise<boolean> | null = null;
+  let seal: HTMLButtonElement | null = null;
+  let sealRange: Range | null = null;
+  let session: Session | null = null;
+  let mouseDown = false;
+  let settleTimer = 0;
+
+  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const useSheet = () => window.innerWidth < 768;
+  const prose = () => document.querySelector<HTMLElement>('[data-post-prose]');
+
+  // 只探测一次：GitHub Pages 上 /api/ask 是 404，功能就静静地不出现
+  function probe(): Promise<boolean> {
+    available ??= fetch(ENDPOINT, { cache: 'no-store', signal: AbortSignal.timeout(4000) })
+      .then(async (res) => res.ok && (await res.json())?.ok === true)
+      .catch(() => false);
+    return available;
+  }
+
+  // ---------- 选区 → 纯文字 ----------
+
+  function rangeText(range: Range): string {
+    const fragment = range.cloneContents();
+    fragment.querySelectorAll(SKIP).forEach((el) => el.remove());
+    // 块与块之间补换行，不然两段话会粘成一行
+    fragment.querySelectorAll(BLOCK).forEach((el) => el.append('\n'));
+    return (fragment.textContent || '')
+      .replace(/[ \t\f\r ]+/g, ' ')
+      .replace(/ *\n */g, '\n')
+      .replace(/\n{2,}/g, '\n')
+      .trim();
+  }
+
+  function blockOf(node: Node, root: HTMLElement): Node {
+    const el = node instanceof Element ? node : node.parentElement;
+    const block = el?.closest(BLOCK);
+    return block && root.contains(block) ? block : root;
+  }
+
+  // 选区前后各几十个字：同一段文字在文章里出现多次时，服务端靠它认出是哪一处
+  function anchorOf(range: Range, root: HTMLElement): Anchor {
+    const before = document.createRange();
+    before.setStart(blockOf(range.startContainer, root), 0);
+    before.setEnd(range.startContainer, range.startOffset);
+    const endBlock = blockOf(range.endContainer, root);
+    const after = document.createRange();
+    after.setStart(range.endContainer, range.endOffset);
+    after.setEnd(endBlock, endBlock.childNodes.length);
+    return {
+      text: rangeText(range),
+      prefix: rangeText(before).slice(-ANCHOR_CHARS),
+      suffix: rangeText(after).slice(0, ANCHOR_CHARS),
+    };
+  }
+
+  function lineRects(range: Range): DOMRect[] {
+    return Array.from(range.getClientRects()).filter((r) => r.width > 1 && r.height > 1);
+  }
+
+  function boxOf(rects: DOMRect[]): Box {
+    const left = Math.min(...rects.map((r) => r.left));
+    const top = Math.min(...rects.map((r) => r.top));
+    const right = Math.max(...rects.map((r) => r.right));
+    const bottom = Math.max(...rects.map((r) => r.bottom));
+    return { left, top, right, bottom, width: right - left, height: bottom - top };
+  }
+
+  // ---------- 「问」印 ----------
+
+  function ensureSeal(): HTMLButtonElement {
+    if (seal?.isConnected) return seal;
+    seal = document.createElement('button');
+    seal.type = 'button';
+    seal.className = 'ink-ask-seal';
+    seal.textContent = '问';
+    seal.title = '问问 AI';
+    seal.setAttribute('aria-label', '问 AI：解释选中的内容');
+    // 按下时别让浏览器把选区清掉
+    seal.addEventListener('pointerdown', (event) => event.preventDefault());
+    seal.addEventListener('click', () => {
+      const root = prose();
+      if (sealRange && root) open(sealRange, root);
+    });
+    // 砸印和墨环两段动画都会触发 animationend，等后结束的墨环（::after）收尾再摘 class
+    seal.addEventListener('animationend', (event) => {
+      if (event.pseudoElement) seal?.classList.remove('is-stamping');
+    });
+    document.body.append(seal);
+    return seal;
+  }
+
+  function hideSeal() {
+    sealRange = null;
+    seal?.classList.remove('is-shown', 'is-stamping');
+  }
+
+  function showSeal(range: Range) {
+    const rects = lineRects(range);
+    if (!rects.length) return hideSeal();
+    const last = rects[rects.length - 1];
+    const button = ensureSeal();
+    const size = 34;
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    // 桌面贴在选区末尾；触屏放到下方，躲开系统的选区手柄和菜单
+    const x = coarse ? last.right - size / 2 : last.right + 6;
+    const y = coarse ? last.bottom + 22 : last.top + last.height / 2 - size / 2;
+    button.style.left = `${Math.round(Math.min(Math.max(x, 8), window.innerWidth - size - 8) + window.scrollX)}px`;
+    button.style.top = `${Math.round(y + window.scrollY)}px`;
+    const wasShown = button.classList.contains('is-shown');
+    sealRange = range.cloneRange();
+    button.classList.add('is-shown');
+    if (!wasShown && !reduceMotion()) {
+      button.classList.remove('is-stamping');
+      void button.offsetWidth;
+      button.classList.add('is-stamping');
+    }
+  }
+
+  function checkSelection() {
+    const root = prose();
+    const selection = window.getSelection();
+    if (!root || !selection || selection.rangeCount === 0 || selection.isCollapsed) return hideSeal();
+    const range = selection.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) return hideSeal();
+    if ([...selection.toString().trim()].length < 2) return hideSeal();
+    probe().then((ok) => {
+      // 探测是异步的，回来时选区可能已经变了
+      const now = window.getSelection();
+      if (ok && now && now.rangeCount && !now.isCollapsed && now.getRangeAt(0) === range) showSeal(range);
+    });
+  }
+
+  function settleSoon(delay: number) {
+    window.clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(checkSelection, delay);
+  }
+
+  // ---------- 墨圈：真的把选中的字「圈起来」 ----------
+
+  function seeded(seed: number) {
+    return () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // 手画的圈：从左上起笔，顺时针绕一圈多一点，半径略微外扩，收笔不和起笔重合。
+  // 选区太高（大段文字）就不圈了，改成页边的一道竖笔，像读书时在段落旁画的线
+  function strokePoints(box: Box, seed: number): Array<[number, number]> {
+    const rand = seeded(seed);
+    const points: Array<[number, number]> = [];
+    if (box.height > 220) {
+      const x = box.left - 14;
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24;
+        const hook = Math.sin(t * Math.PI);
+        points.push([x - hook * 5 + (rand() - 0.5) * 1.2, box.top - 4 + (box.height + 8) * t]);
+      }
+      return points;
+    }
+    const cx = box.left + box.width / 2;
+    const cy = box.top + box.height / 2;
+    const rx = box.width / 2 + 10 + Math.min(box.width * 0.06, 18);
+    const ry = box.height / 2 + 8;
+    const start = Math.PI * (1.08 + rand() * 0.14);
+    const phase = rand() * Math.PI * 2;
+    const steps = 64;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const angle = start + Math.PI * 2 * 1.1 * t;
+      const grow = 1 + 0.07 * t;
+      const wobble = 1 + 0.03 * Math.sin(angle * 3 + phase) + 0.018 * Math.sin(angle * 5 + phase * 2);
+      points.push([cx + rx * grow * wobble * Math.cos(angle), cy + ry * grow * wobble * Math.sin(angle) - 2.5 * t]);
+    }
+    return points;
+  }
+
+  function drawRing(range: Range, ring?: SVGSVGElement): SVGSVGElement | null {
+    const rects = lineRects(range);
+    if (!rects.length) return null;
+    const box = boxOf(rects);
+    const seed = Math.round(box.left * 7 + box.top * 13);
+    const strokes = [strokePoints(box, seed), strokePoints(box, seed + 1)];
+    const all = strokes.flat();
+    const minX = Math.min(...all.map((p) => p[0])) - 4;
+    const minY = Math.min(...all.map((p) => p[1])) - 4;
+    const width = Math.max(...all.map((p) => p[0])) - minX + 4;
+    const height = Math.max(...all.map((p) => p[1])) - minY + 4;
+
+    const svg = ring ?? (document.createElementNS(SVG_NS, 'svg') as SVGSVGElement);
+    svg.setAttribute('class', svg.getAttribute('class') || 'ink-ask-ring');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('width', String(Math.ceil(width)));
+    svg.setAttribute('height', String(Math.ceil(height)));
+    svg.setAttribute('viewBox', `0 0 ${Math.ceil(width)} ${Math.ceil(height)}`);
+    svg.style.left = `${Math.round(minX + window.scrollX)}px`;
+    svg.style.top = `${Math.round(minY + window.scrollY)}px`;
+    svg.replaceChildren(
+      ...strokes.map((points, i) => {
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('class', i ? 'ink-ask-ring-echo' : 'ink-ask-ring-main');
+        path.setAttribute('pathLength', '1');
+        path.setAttribute('d', points.map(([x, y], j) => `${j ? 'L' : 'M'}${(x - minX).toFixed(1)} ${(y - minY).toFixed(1)}`).join(''));
+        return path;
+      }),
+    );
+    return svg;
+  }
+
+  // ---------- 回答里的 Markdown：先整体转义，只放出自己生成的几种标签 ----------
+
+  const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  function inline(src: string): string {
+    return src
+      .split(/(`[^`\n]+`)/g)
+      .map((part, i) => {
+        if (i % 2) return `<code>${escapeHtml(part.slice(1, -1))}</code>`;
+        return escapeHtml(part)
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*(?!\w)/g, '$1<em>$2</em>')
+          .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer nofollow">$1</a>')
+          .replace(/\n/g, '<br>');
+      })
+      .join('');
+  }
+
+  function renderMarkdown(src: string): string {
+    const lines = src.replace(/\r\n?/g, '\n').split('\n');
+    const out: string[] = [];
+    let para: string[] = [];
+    let list: { tag: 'ul' | 'ol'; items: string[] } | null = null;
+    const flushPara = () => {
+      if (para.length) out.push(`<p>${inline(para.join('\n'))}</p>`);
+      para = [];
+    };
+    const flushList = () => {
+      if (list) out.push(`<${list.tag}>${list.items.map((item) => `<li>${inline(item)}</li>`).join('')}</${list.tag}>`);
+      list = null;
+    };
+    const cells = (row: string) => row.trim().replace(/^\||\|$/g, '').split('|').map((cell) => inline(cell.trim()));
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const fence = /^\s*(`{3,}|~{3,})/.exec(line);
+      if (fence) {
+        flushPara();
+        flushList();
+        const code: string[] = [];
+        while (++i < lines.length && !lines[i].trimStart().startsWith(fence[1])) code.push(lines[i]);
+        out.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`);
+        continue;
+      }
+      if (!line.trim()) {
+        flushPara();
+        flushList();
+        continue;
+      }
+      const heading = /^\s{0,3}#{1,6}\s+(.*)$/.exec(line);
+      if (heading) {
+        flushPara();
+        flushList();
+        out.push(`<p class="ink-ask-h">${inline(heading[1])}</p>`);
+        continue;
+      }
+      if (/^\s*\|.*\|\s*$/.test(line) && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1] ?? '')) {
+        flushPara();
+        flushList();
+        const head = cells(line);
+        const rows: string[][] = [];
+        i++;
+        while (/^\s*\|.*\|\s*$/.test(lines[i + 1] ?? '')) rows.push(cells(lines[++i]));
+        out.push(
+          `<div class="ink-ask-table"><table><thead><tr>${head.map((c) => `<th>${c}</th>`).join('')}</tr></thead>` +
+            `<tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`,
+        );
+        continue;
+      }
+      const item = /^\s*(?:([-*+])|\d+[.)])\s+(.*)$/.exec(line);
+      if (item) {
+        flushPara();
+        const tag = item[1] ? 'ul' : 'ol';
+        if (!list || list.tag !== tag) {
+          flushList();
+          list = { tag, items: [] };
+        }
+        list.items.push(item[2]);
+        continue;
+      }
+      if (list && /^\s{2,}\S/.test(line)) {
+        list.items[list.items.length - 1] += `\n${line.trim()}`;
+        continue;
+      }
+      const quote = /^\s*>\s?(.*)$/.exec(line);
+      if (quote) {
+        flushPara();
+        flushList();
+        out.push(`<blockquote>${inline(quote[1])}</blockquote>`);
+        continue;
+      }
+      flushList();
+      para.push(line.trim());
+    }
+    flushPara();
+    flushList();
+    return out.join('');
+  }
+
+  // 正在写的时候，句尾跟着一粒呼吸的墨点
+  function placeCaret(answer: HTMLElement) {
+    let host: Element | null = answer.lastElementChild;
+    while (host && /^(UL|OL|BLOCKQUOTE|DIV|TABLE|TBODY|TR|PRE)$/.test(host.tagName) && host.lastElementChild) host = host.lastElementChild;
+    const caret = document.createElement('span');
+    caret.className = 'ink-ask-caret';
+    (host ?? answer).append(caret);
+  }
+
+  // ---------- 卡片 ----------
+
+  const CLOSE_ICON =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+
+  function buildCard(anchor: Anchor): HTMLElement {
+    const card = document.createElement('div');
+    card.className = 'ink-ask-card';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', '墨问：AI 解释选中的内容');
+    card.tabIndex = -1;
+    card.innerHTML = `
+      <div class="ink-ask-head">
+        <p class="ink-ask-heading"><span class="ink-ask-kicker">Ask</span><span class="ink-ask-sep">/</span><span class="ink-ask-title">墨问</span></p>
+        <button type="button" class="ink-ask-close" aria-label="关闭" title="关闭 (Esc)">${CLOSE_ICON}</button>
+      </div>
+      <p class="ink-ask-quote"></p>
+      <div class="ink-ask-thread" data-lenis-prevent></div>
+      <form class="ink-ask-form" autocomplete="off">
+        <input class="ink-ask-input" name="question" maxlength="120" placeholder="就这段再追问一句…" enterkeyhint="send" />
+        <button type="submit" class="ink-ask-send" aria-label="追问">问</button>
+      </form>
+      <p class="ink-ask-foot">AI 生成 · 仅供参考</p>`;
+    card.querySelector('.ink-ask-quote')!.textContent = anchor.text;
+    return card;
+  }
+
+  let ringKey = '';
+
+  function place(s: Session) {
+    const rects = lineRects(s.range);
+    if (!rects.length) return;
+    const box = boxOf(rects);
+    // 只有选区真的挪了位置才重画墨圈，不然会把正在画的那一笔打断
+    const key = [box.left + window.scrollX, box.top + window.scrollY, box.width, box.height].map(Math.round).join();
+    if (key !== ringKey) {
+      ringKey = key;
+      drawRing(s.range, s.ring);
+    }
+
+    const { card } = s;
+    const sheet = useSheet();
+    card.classList.toggle('is-sheet', sheet);
+    if (sheet) {
+      card.style.left = card.style.top = card.style.width = '';
+      return;
+    }
+    const last = rects[rects.length - 1];
+    const width = Math.min(416, window.innerWidth - 32);
+    const spaceBelow = window.innerHeight - last.bottom;
+    const above = spaceBelow < 300 && box.top > spaceBelow;
+    card.classList.toggle('is-above', above);
+    card.style.width = `${width}px`;
+    card.style.left = `${Math.round(Math.min(Math.max(box.left - 12, 16), window.innerWidth - width - 16) + window.scrollX)}px`;
+    card.style.top = `${Math.round((above ? box.top - 16 : last.bottom + 16) + window.scrollY)}px`;
+  }
+
+  // 墨从「问」印落下的地方渗开 / 收回
+  function inkCircle(s: Session) {
+    const rect = s.card.getBoundingClientRect();
+    const x = s.origin.x - window.scrollX - rect.left;
+    const y = s.origin.y - window.scrollY - rect.top;
+    const height = Math.max(rect.height, window.innerHeight * 0.72);
+    const r = Math.hypot(Math.max(x, rect.width - x), Math.max(y, height - y)) + 24;
+    return { x, y, r };
+  }
+
+  function afterTransition(el: HTMLElement, ms: number, fn: () => void) {
+    let fired = false;
+    const run = () => {
+      if (fired) return;
+      fired = true;
+      fn();
+    };
+    el.addEventListener('transitionend', (event) => event.target === el && run(), { once: true });
+    window.setTimeout(run, ms);
+  }
+
+  function reveal(s: Session) {
+    if (reduceMotion()) return;
+    const { card } = s;
+    const { x, y, r } = inkCircle(s);
+    card.style.clipPath = `circle(0px at ${x}px ${y}px)`;
+    void card.offsetWidth;
+    card.classList.add('is-opening');
+    card.style.clipPath = `circle(${r}px at ${x}px ${y}px)`;
+    afterTransition(card, 900, () => {
+      card.classList.remove('is-opening');
+      card.style.clipPath = '';
+    });
+  }
+
+  function close(instant = false) {
+    const s = session;
+    if (!s) return;
+    session = null;
+    ringKey = '';
+    s.controller?.abort();
+    s.stop.abort();
+    if (instant || reduceMotion()) {
+      s.card.remove();
+      s.ring.remove();
+      return;
+    }
+    // 墨干：圈淡去，卡片把墨收回到落印处
+    s.ring.classList.add('is-drying');
+    window.setTimeout(() => s.ring.remove(), 600);
+    const { x, y, r } = inkCircle(s);
+    s.card.style.clipPath = `circle(${r}px at ${x}px ${y}px)`;
+    void s.card.offsetWidth;
+    s.card.classList.add('is-closing');
+    s.card.style.clipPath = `circle(0px at ${x}px ${y}px)`;
+    afterTransition(s.card, 600, () => s.card.remove());
+  }
+
+  // ---------- 一问一答 ----------
+
+  const nearEnd = (el: HTMLElement) => el.scrollHeight - el.scrollTop - el.clientHeight < 32;
+
+  function addTurn(s: Session, question: string) {
+    const turn = document.createElement('section');
+    turn.className = 'ink-ask-turn';
+    if (question) {
+      const q = document.createElement('p');
+      q.className = 'ink-ask-q';
+      q.textContent = question;
+      turn.append(q);
+    }
+    const answer = document.createElement('div');
+    answer.className = 'ink-ask-answer';
+    const status = document.createElement('p');
+    status.className = 'ink-ask-status';
+    status.setAttribute('role', 'status');
+    status.innerHTML = '<span class="ink-ask-status-text">研墨中</span><span class="ink-ask-dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+    turn.append(answer, status);
+    s.thread.append(turn);
+    s.thread.scrollTop = s.thread.scrollHeight;
+    return { turn, answer, status };
+  }
+
+  function note(turn: HTMLElement, text: string) {
+    const p = document.createElement('p');
+    p.className = 'ink-ask-note';
+    p.textContent = text;
+    turn.append(p);
+  }
+
+  async function ask(s: Session, question = '') {
+    if (s.controller) return;
+    const controller = new AbortController();
+    s.controller = controller;
+    s.form.classList.add('is-busy');
+    const { turn, answer, status } = addTurn(s, question);
+    let text = '';
+    let frame = 0;
+    const paint = () => {
+      frame = 0;
+      const stick = nearEnd(s.thread);
+      answer.innerHTML = renderMarkdown(text);
+      if (turn.classList.contains('is-streaming')) placeCaret(answer);
+      if (stick) s.thread.scrollTop = s.thread.scrollHeight;
+    };
+
+    try {
+      if ([...s.anchor.text].length > MAX_SELECTION) throw new Error(`选中的内容太长了（最多 ${MAX_SELECTION} 字），缩短一点再问`);
+      const response = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: location.pathname,
+          selection: s.anchor.text,
+          prefix: s.anchor.prefix,
+          suffix: s.anchor.suffix,
+          question,
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || `请求失败（${response.status}）`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finish: { cached?: boolean; truncated?: boolean } | null = null;
+      while (!finish) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        for (let cut; (cut = buffer.indexOf('\n\n')) !== -1; ) {
+          const line = buffer.slice(0, cut).split('\n').find((l) => l.startsWith('data:'));
+          buffer = buffer.slice(cut + 2);
+          if (!line) continue;
+          const message = JSON.parse(line.slice(5));
+          if (message.error) throw new Error(message.error);
+          if (message.t && !text) status.querySelector('.ink-ask-status-text')!.textContent = '思量中';
+          if (message.d) {
+            if (!text) {
+              status.hidden = true;
+              turn.classList.add('is-streaming');
+            }
+            text += message.d;
+            frame ||= requestAnimationFrame(paint);
+          }
+          if (message.done) finish = message;
+        }
+      }
+      if (!text.trim()) throw new Error('没有收到回答，稍后再试');
+      if (frame) cancelAnimationFrame(frame);
+      turn.classList.remove('is-streaming');
+      turn.classList.toggle('is-cached', Boolean(finish?.cached));
+      paint();
+      if (finish?.truncated) note(turn, '回答太长，后面被截断了');
+      else if (!finish) note(turn, '连接断了，回答可能不完整');
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      if (frame) cancelAnimationFrame(frame);
+      turn.classList.remove('is-streaming');
+      if (text) paint();
+      status.hidden = false;
+      status.classList.add('is-error');
+      status.textContent = error instanceof TypeError ? '网络好像断了，稍后再试' : (error as Error).message || '出错了，稍后再试';
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'ink-ask-retry';
+      retry.textContent = '再试一次';
+      retry.addEventListener('click', () => {
+        turn.remove();
+        ask(s, question);
+      });
+      status.append(retry);
+    } finally {
+      if (s.controller === controller) {
+        s.controller = null;
+        s.form.classList.remove('is-busy');
+      }
+    }
+  }
+
+  function open(range: Range, root: HTMLElement) {
+    close(true);
+    const anchor = anchorOf(range, root);
+    const sealRect = seal?.classList.contains('is-shown') ? seal.getBoundingClientRect() : null;
+    hideSeal();
+    const ring = anchor.text ? drawRing(range) : null;
+    if (!ring) return;
+    const last = lineRects(range).at(-1)!;
+    const origin = sealRect
+      ? { x: sealRect.left + sealRect.width / 2, y: sealRect.top + sealRect.height / 2 }
+      : { x: last.right, y: last.bottom };
+    window.getSelection()?.removeAllRanges();
+
+    const card = buildCard(anchor);
+    const s: Session = {
+      card,
+      ring,
+      range: range.cloneRange(),
+      anchor,
+      origin: { x: origin.x + window.scrollX, y: origin.y + window.scrollY },
+      controller: null,
+      stop: new AbortController(),
+      thread: card.querySelector<HTMLElement>('.ink-ask-thread')!,
+      form: card.querySelector<HTMLFormElement>('.ink-ask-form')!,
+      input: card.querySelector<HTMLInputElement>('.ink-ask-input')!,
+    };
+    session = s;
+    document.body.append(ring, card);
+    place(s);
+    void ring.getBoundingClientRect();
+    ring.classList.add('is-drawn');
+    reveal(s);
+
+    card.querySelector('.ink-ask-close')!.addEventListener('click', () => close());
+    s.form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const question = s.input.value.trim();
+      if (!question || s.controller) return;
+      s.input.value = '';
+      ask(s, question);
+    });
+    // 图片、字体加载会让正文挪位，墨圈和卡片跟着走
+    const ro = new ResizeObserver(() => requestAnimationFrame(() => session === s && place(s)));
+    ro.observe(root);
+    s.stop.signal.addEventListener('abort', () => ro.disconnect());
+
+    card.focus({ preventScroll: true });
+    ask(s);
+  }
+
+  // ---------- 全局监听：只绑一次，ClientRouter 换页后照样工作 ----------
+
+  if (!(window as any)[LISTENER_KEY]) {
+    (window as any)[LISTENER_KEY] = true;
+
+    document.addEventListener(
+      'pointerdown',
+      (event) => {
+        if ((event.target as Element | null)?.closest?.('.ink-ask-seal, .ink-ask-card')) return;
+        if (session) close();
+        if (event.pointerType === 'mouse' && event.button === 0) {
+          mouseDown = true;
+          hideSeal();
+        }
+      },
+      true,
+    );
+    document.addEventListener(
+      'pointerup',
+      () => {
+        if (!mouseDown) return;
+        mouseDown = false;
+        settleSoon(20);
+      },
+      true,
+    );
+    // 键盘选择、触屏拖动选区手柄都只有 selectionchange，等它停下来再出印
+    document.addEventListener('selectionchange', () => {
+      if (!mouseDown) settleSoon(280);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (session) close();
+      else hideSeal();
+    });
+    let resizeFrame = 0;
+    window.addEventListener('resize', () => {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        hideSeal();
+        if (session) place(session);
+      });
+    });
+    document.addEventListener('astro:before-swap', () => {
+      close(true);
+      hideSeal();
+      seal?.remove();
+      seal = null;
+    });
+  }
+</script>
+
+<style is:global>
+  /* ---------- 「问」印：和首页的印章同一套笔墨（--vermilion 随主题是黑 / 白 / 粉） ---------- */
+  .ink-ask-seal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 46;
+    display: none;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 2px solid var(--vermilion);
+    border-radius: 4px;
+    background: var(--bg-elev);
+    color: var(--vermilion);
+    font-family: var(--font-hand-title);
+    font-size: 1.05rem;
+    line-height: 1;
+    box-shadow: inset 0 0 6px var(--vermilion-soft), 0 6px 18px var(--ink-mist);
+    transform: rotate(-4deg);
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: transform 260ms var(--ease-bounce), box-shadow 260ms var(--ease);
+  }
+  .ink-ask-seal.is-shown {
+    display: grid;
+  }
+  .ink-ask-seal:hover,
+  .ink-ask-seal:focus-visible {
+    outline: none;
+    transform: rotate(0deg) scale(1.08);
+    box-shadow: inset 0 0 8px var(--vermilion-soft), 0 8px 24px var(--ink-mist);
+  }
+  /* 钤印砸落：放大 + 旋转过冲落定，落点荡开一圈墨 */
+  .ink-ask-seal.is-stamping {
+    animation: ink-ask-stamp 480ms var(--ease-bounce) backwards;
+  }
+  .ink-ask-seal::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border: 1px solid var(--vermilion);
+    border-radius: 6px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .ink-ask-seal.is-stamping::after {
+    animation: ink-ask-splash 620ms var(--ease) 180ms both;
+  }
+
+  /* ---------- 墨圈 ---------- */
+  .ink-ask-ring {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 44;
+    overflow: visible;
+    pointer-events: none;
+    color: var(--vermilion);
+  }
+  .ink-ask-ring path {
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  .ink-ask-ring-main {
+    stroke-width: 2.4;
+    opacity: 0.9;
+    transition: stroke-dashoffset 780ms cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  /* 第二笔细而淡，像毛笔拖出的飞白 */
+  .ink-ask-ring-echo {
+    stroke-width: 1.1;
+    opacity: 0.32;
+    transition: stroke-dashoffset 860ms cubic-bezier(0.65, 0, 0.35, 1) 90ms;
+  }
+  .ink-ask-ring.is-drawn path {
+    stroke-dashoffset: 0;
+  }
+  .ink-ask-ring.is-drying {
+    opacity: 0;
+    transition: opacity 520ms var(--ease);
+  }
+
+  /* ---------- 卡片 ---------- */
+  .ink-ask-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+    width: min(26rem, calc(100vw - 2rem));
+    max-height: min(64vh, 34rem);
+    overflow: hidden;
+    color: var(--text);
+    background: var(--bg-elev);
+    border: 1px solid var(--rule-strong);
+    border-radius: 8px;
+    box-shadow: var(--glass-shadow-lg);
+    font-family: var(--font-hand);
+    letter-spacing: var(--font-letter-base);
+    outline: none;
+  }
+  .ink-ask-card.is-above {
+    transform: translateY(-100%);
+  }
+  .ink-ask-card.is-sheet {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 60;
+    width: auto;
+    max-height: 72vh;
+    max-height: 72dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-width: 1px 0 0;
+    border-radius: 16px 16px 0 0;
+    transform: none;
+  }
+  .ink-ask-card.is-opening {
+    transition: clip-path 640ms var(--ease);
+  }
+  .ink-ask-card.is-closing {
+    pointer-events: none;
+    transition: clip-path 380ms cubic-bezier(0.55, 0, 0.8, 0.3);
+  }
+
+  .ink-ask-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.8rem 0.8rem 0.5rem 1.1rem;
+  }
+  .ink-ask-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin: 0;
+  }
+  .ink-ask-kicker {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .ink-ask-sep {
+    color: var(--muted);
+    opacity: 0.4;
+  }
+  .ink-ask-title {
+    font-size: 1.12rem;
+    font-weight: 700;
+    color: var(--text-strong);
+  }
+  .ink-ask-close {
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--muted-strong);
+    transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
+  }
+  .ink-ask-close:hover,
+  .ink-ask-close:focus-visible {
+    outline: none;
+    color: var(--text-strong);
+    border-color: var(--rule);
+    background: var(--accent-soft);
+  }
+
+  .ink-ask-quote {
+    display: -webkit-box;
+    margin: 0 1.1rem 0.7rem;
+    padding-left: 0.75rem;
+    overflow: hidden;
+    border-left: 2px solid var(--vermilion);
+    color: var(--muted-strong);
+    font-size: 0.86rem;
+    line-height: 1.6;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .ink-ask-thread {
+    flex: 1 1 auto;
+    min-height: 3.5rem;
+    padding: 0.8rem 1.1rem 1rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-top: 1px dashed var(--rule);
+    scrollbar-width: thin;
+  }
+  .ink-ask-turn + .ink-ask-turn {
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px dashed var(--rule-soft);
+  }
+  .ink-ask-q {
+    margin: 0 0 0.5rem;
+    font-size: 0.88rem;
+    color: var(--text-strong);
+  }
+  .ink-ask-q::before {
+    content: '追问';
+    margin-right: 0.5rem;
+    padding: 0.05rem 0.45rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    vertical-align: 0.1em;
+  }
+
+  /* 回答正文：沿用文章正文的字与墨色，只是小一号 */
+  .ink-ask-answer {
+    font-size: 0.95rem;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+  }
+  .ink-ask-answer > * {
+    margin: 0 0 0.65em;
+  }
+  .ink-ask-answer > :last-child {
+    margin-bottom: 0;
+  }
+  .ink-ask-answer ul {
+    padding-left: 1.3em;
+    list-style: disc;
+  }
+  .ink-ask-answer ol {
+    padding-left: 1.4em;
+    list-style: decimal;
+  }
+  .ink-ask-answer li {
+    margin-bottom: 0.25em;
+  }
+  .ink-ask-answer li::marker {
+    color: var(--ink-strong);
+  }
+  .ink-ask-answer strong,
+  .ink-ask-answer .ink-ask-h {
+    color: var(--text-strong);
+    font-weight: 700;
+  }
+  .ink-ask-answer em {
+    font-style: italic;
+  }
+  .ink-ask-answer a {
+    color: var(--ink-strong);
+    border-bottom: 1px solid currentColor;
+  }
+  .ink-ask-answer code {
+    padding: 0.08em 0.36em;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--bg-soft);
+    color: var(--ink-strong);
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+  }
+  .ink-ask-answer pre {
+    padding: 0.7rem 0.85rem;
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--bg-soft);
+    font-size: 0.82rem;
+    line-height: 1.6;
+  }
+  .ink-ask-answer pre code {
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: inherit;
+    white-space: pre;
+    overflow-wrap: normal;
+  }
+  .ink-ask-answer blockquote {
+    padding-left: 0.75rem;
+    border-left: 2px solid var(--rule-strong);
+    color: var(--muted-strong);
+  }
+  .ink-ask-table {
+    overflow-x: auto;
+  }
+  .ink-ask-table table {
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  .ink-ask-table th,
+  .ink-ask-table td {
+    padding: 0.3rem 0.55rem;
+    border: 1px solid var(--rule);
+    text-align: left;
+    vertical-align: top;
+  }
+  .ink-ask-table th {
+    background: var(--bg-soft);
+    color: var(--text-strong);
+  }
+  .ink-ask-turn.is-cached .ink-ask-answer {
+    animation: ink-ask-surface 520ms var(--ease) both;
+  }
+
+  .ink-ask-caret {
+    display: inline-block;
+    width: 0.45em;
+    height: 0.45em;
+    margin-left: 0.2em;
+    border-radius: 50%;
+    background: var(--ink-strong);
+    vertical-align: 0.1em;
+    animation: ink-ask-breathe 1.1s ease-in-out infinite;
+  }
+  .ink-ask-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.86rem;
+  }
+  .ink-ask-status[hidden] {
+    display: none;
+  }
+  .ink-ask-status.is-error {
+    color: var(--text-strong);
+  }
+  .ink-ask-dots {
+    display: inline-flex;
+    gap: 0.28rem;
+  }
+  .ink-ask-dots i {
+    width: 0.34rem;
+    height: 0.34rem;
+    border-radius: 50%;
+    background: var(--ink-strong);
+    animation: ink-ask-breathe 1.2s ease-in-out infinite;
+  }
+  .ink-ask-dots i:nth-child(2) {
+    animation-delay: 0.18s;
+  }
+  .ink-ask-dots i:nth-child(3) {
+    animation-delay: 0.36s;
+  }
+  .ink-ask-retry {
+    padding: 0.1rem 0.6rem;
+    border: 1px solid var(--rule-strong);
+    border-radius: 999px;
+    color: var(--text-strong);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    transition: background 180ms ease;
+  }
+  .ink-ask-retry:hover {
+    background: var(--accent-soft);
+  }
+  .ink-ask-note {
+    margin: 0.5rem 0 0;
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+
+  .ink-ask-form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 0.8rem 0.3rem 1.1rem;
+    border-top: 1px solid var(--rule-soft);
+  }
+  .ink-ask-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    outline: none;
+    background: var(--bg-soft);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+    transition: border-color 180ms ease;
+  }
+  .ink-ask-input::placeholder {
+    color: var(--muted);
+  }
+  .ink-ask-input:focus {
+    border-color: var(--rule-strong);
+  }
+  .ink-ask-send {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border: 1.5px solid var(--vermilion);
+    border-radius: 4px;
+    color: var(--vermilion);
+    font-family: var(--font-hand-title);
+    font-size: 1rem;
+    box-shadow: inset 0 0 5px var(--vermilion-soft);
+    transform: rotate(-3deg);
+    transition: transform 220ms var(--ease-bounce), opacity 180ms ease;
+  }
+  .ink-ask-send:hover,
+  .ink-ask-send:focus-visible {
+    outline: none;
+    transform: rotate(0deg) scale(1.06);
+  }
+  .ink-ask-form.is-busy .ink-ask-send {
+    opacity: 0.35;
+    pointer-events: none;
+  }
+  .ink-ask-foot {
+    margin: 0;
+    padding: 0.35rem 1.1rem 0.7rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+    text-align: right;
+  }
+
+  @keyframes ink-ask-stamp {
+    0% { opacity: 0; transform: scale(1.7) rotate(-16deg); }
+    55% { opacity: 1; transform: scale(0.92) rotate(1deg); }
+    100% { opacity: 1; transform: scale(1) rotate(-4deg); }
+  }
+  @keyframes ink-ask-splash {
+    0% { opacity: 0.55; transform: scale(0.9); }
+    100% { opacity: 0; transform: scale(1.9); }
+  }
+  @keyframes ink-ask-breathe {
+    0%, 100% { opacity: 0.25; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes ink-ask-surface {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* iOS 聚焦字号小于 16px 的输入框会整页放大 */
+  @media (max-width: 767.98px) {
+    .ink-ask-input {
+      font-size: 16px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ink-ask-ring path {
+      transition: none !important;
+    }
+    .ink-ask-caret,
+    .ink-ask-dots i {
+      animation: none;
+      opacity: 0.7;
+    }
+    .ink-ask-turn.is-cached .ink-ask-answer {
+      animation: none;
+    }
+  }
+  @media print {
+    .ink-ask-seal,
+    .ink-ask-ring,
+    .ink-ask-card {
+      display: none !important;
+    }
+  }
+</style>
