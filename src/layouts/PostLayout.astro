@@ -934,6 +934,10 @@ const hasToc = tocHeadings.length > 1;
   </script>
 
   <style is:global>
+    html[data-sidebar-collapsed="true"] [data-post-header] h1,
+    html[data-sidebar-collapsed="true"] [data-post-header] p {
+      max-width: none !important;
+    }
     .post-toc {
       border-radius: 18px !important;
       padding: 1.1rem 1.4rem !important;

@@ -78,8 +78,15 @@
   --border: var(--rule);
   --border-strong: var(--rule-strong);
 
-  /* ---------- Type system ---------- */
+  /* ---------- Type system ----------
+     Two faces ship side by side; the 字体 toggle swaps them by setting html[data-font]:
+     "pixel" (the default below) and "kai" (see the html[data-font="kai"] block). Nothing
+     outside those two places names a family directly — every rule reads a role token. */
   --font-pixel: "Zpix", "VT323", "Press Start 2P", monospace;
+  /* 毛笔行楷 for display sizes; 华文行楷 first so a machine that has it gets the real cut */
+  --font-kai-brush: "STXingkai", "华文行楷", "Ma Shan Zheng", "LXGW WenKai", "STKaiti", "KaiTi", "楷体", cursive;
+  /* 霞鹜文楷 — a 楷体 cut made for long-form reading, which the brush face is not at body size */
+  --font-kai-read: "LXGW WenKai", "STKaiti", "KaiTi", "楷体", "Noto Serif SC", "Source Han Serif SC", serif;
 
   --font-hand: "Zpix", "VT323", "Ma Shan Zheng", "LXGW WenKai", "STKaiti", "KaiTi", "楷体", cursive;
   --font-hand-title: "Zpix", "VT323", "Ma Shan Zheng", "LXGW WenKai", "STKaiti", "KaiTi", "楷体", cursive;
@@ -102,6 +109,62 @@
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-bounce: cubic-bezier(0.2, 0.9, 0.2, 1);
   --scrollbar-offset: 0px;
+}
+
+/* ================= 行楷 face (字体 toggle) =================
+   Titles take the brush 行楷, body copy takes 霞鹜文楷. Both families are already in
+   BaseLayout's <head>, so flipping html[data-font] costs no extra request.
+
+   The metrics are restated per breakpoint on purpose: `html[data-font="kai"]` outranks
+   `:root`, so :root's responsive --font-size-base rules would be silently dropped here
+   if this block didn't mirror them. */
+
+html[data-font="kai"] {
+  --font-hand: var(--font-kai-read);
+  --font-hand-title: var(--font-kai-brush);
+  --font-body: var(--font-kai-read);
+  --font-serif: var(--font-kai-read);
+  --font-mono:
+    "LXGW WenKai Mono", "JetBrains Mono", ui-monospace, "Cascadia Code", "Source Code Pro",
+    Menlo, monospace;
+
+  /* 楷体 reads optically smaller than Zpix at the same px and wants far less tracking;
+     the brush titles want the opposite, hence the wider --font-letter-title. */
+  --font-size-base: clamp(16px, 0.24vw + 15.1px, 17.5px);
+  --font-line-base: 1.9;
+  --font-letter-base: 0.006em;
+  --font-letter-title: 0.04em;
+}
+
+@media (max-width: 768px) {
+  html[data-font="kai"] {
+    --font-size-base: clamp(15.5px, 4.1vw, 16.5px);
+    --font-line-base: 1.88;
+  }
+}
+
+@media (min-width: 1024px) {
+  html[data-font="kai"] {
+    --font-size-base: clamp(16.5px, 0.2vw + 15.5px, 17.5px);
+    --font-line-base: 1.84;
+  }
+}
+
+/* The brush face has real ascenders and descenders where Zpix has none, so display
+   sizes need their leading back or the strokes collide. */
+html[data-font="kai"] .section-title,
+html[data-font="kai"] .home-hero-title,
+html[data-font="kai"] .post-title,
+html[data-font="kai"] .prose h1,
+html[data-font="kai"] .prose h2,
+html[data-font="kai"] .prose h3 {
+  line-height: 1.38;
+}
+
+/* Zpix is a bitmap face: pixel mode wants the grid, 行楷 wants smoothing back. */
+html[data-font="kai"] body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* ================= Dark Mode (deep ink night) ================= */
@@ -206,6 +269,63 @@
 }
 
 [data-theme="moss"] body {
+  background: var(--bg-base);
+}
+
+/* ================= Rice Mode (宣纸杏黄 — the reading theme) =================
+   Warm 米黄 paper under warm-brown ink: no pure white, no pure black and no blue-light
+   peak anywhere in the palette, which is what makes it sit still under long reading.
+   Body/paper measures ≈9.3:1 and every text token clears AA at its own size. */
+
+[data-theme="rice"] {
+  --bg-base: #F2E9D8;
+  --bg-soft: #EBE0CB;
+  --bg-elev: #F7F0E2;
+
+  --ink: #423A30;
+  --ink-strong: #2B241C;
+  --ink-mid: #6B5F50;
+  --ink-light: #857868;
+  --ink-wash: rgba(43, 36, 28, 0.4);
+  --ink-mist: rgba(43, 36, 28, 0.15);
+
+  --text: var(--ink);
+  --text-strong: var(--ink-strong);
+  --muted: var(--ink-light);
+  --muted-strong: var(--ink-mid);
+
+  --rule: rgba(92, 76, 55, 0.2);
+  --rule-strong: rgba(92, 76, 55, 0.38);
+  --rule-soft: rgba(92, 76, 55, 0.1);
+
+  --accent: #6B5B45;
+  --accent-strong: #4E4132;
+  --accent-deep: #2B241C;
+  --accent-soft: rgba(107, 91, 69, 0.16);
+  --accent-rgb: 107, 91, 69;
+
+  /* 老木色 seal accent — one step darker than the swatch so it stays legible as text */
+  --vermilion: #7D5C42;
+  --vermilion-strong: #5E4531;
+  --vermilion-soft: rgba(125, 92, 66, 0.15);
+  --vermilion-rgb: 125, 92, 66;
+
+  --pink: #6B5F50;
+  --pink-strong: #423A30;
+  --rose: #7D5C42;
+
+  --glass-bg: rgba(247, 240, 226, 0.9);
+  --glass-bg-strong: rgba(247, 240, 226, 0.96);
+  --glass-bg-soft: rgba(247, 240, 226, 0.6);
+  --glass-border: rgba(92, 76, 55, 0.18);
+  --glass-border-strong: rgba(92, 76, 55, 0.3);
+  --glass-shadow: 0 24px 64px rgba(92, 70, 44, 0.14);
+  --glass-shadow-lg: 0 40px 96px rgba(92, 70, 44, 0.2);
+  --glass-inner-top: inset 0 1px 0 rgba(255, 252, 244, 0.6);
+  --glass-inner-bottom: inset 0 -1px 0 rgba(92, 70, 44, 0.05);
+}
+
+[data-theme="rice"] body {
   background: var(--bg-base);
 }
 
@@ -373,6 +493,27 @@ body::after {
   opacity: 0.55;
 }
 
+/* Rice ambient: the washes stay warm and run *lighter* than the paper as well as darker,
+   so the field reads as uneven 宣纸 rather than as stains on a flat card. */
+[data-theme="rice"] body::before {
+  background:
+    radial-gradient(closest-side at 16% 22%, rgba(120, 92, 56, 0.12) 0%, transparent 56%),
+    radial-gradient(closest-side at 84% 18%, rgba(255, 250, 238, 0.5) 0%, transparent 62%),
+    radial-gradient(closest-side at 72% 78%, rgba(120, 92, 56, 0.1) 0%, transparent 58%),
+    radial-gradient(closest-side at 22% 82%, rgba(150, 112, 66, 0.09) 0%, transparent 60%);
+}
+
+[data-theme="rice"] body::after {
+  background-image:
+    repeating-linear-gradient(88deg, transparent 0, transparent 46px, rgba(120, 92, 56, 0.035) 46px, rgba(120, 92, 56, 0.035) 47px, transparent 47px, transparent 140px),
+    repeating-linear-gradient(176deg, transparent 0, transparent 72px, rgba(120, 92, 56, 0.028) 72px, rgba(120, 92, 56, 0.028) 73px, transparent 73px, transparent 220px),
+    radial-gradient(rgba(140, 107, 79, 0.1) 0.5px, transparent 0.5px),
+    radial-gradient(rgba(43, 36, 28, 0.05) 0.6px, transparent 0.6px);
+  background-size: auto, auto, 6px 6px, 22px 22px;
+  background-position: 0 0, 0 0, 0 0, 11px 11px;
+  opacity: 0.72;
+}
+
 @keyframes ambientDrift {
   0%   { transform: translate3d(0, 0, 0) scale(1); }
   50%  { transform: translate3d(2%, -3%, 0) scale(1.04); }
@@ -416,14 +557,18 @@ img {
 }
 
 ::selection {
-  background: var(--ink-strong);
-  color: var(--bg-elev);
+  background: rgba(0, 0, 0, 0.12);
+  color: inherit;
 }
 
-[data-theme="dark"] ::selection,
+[data-theme="dark"] ::selection {
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+}
+
 [data-theme="moss"] ::selection {
-  background: var(--ink-strong);
-  color: var(--bg-base);
+  background: rgba(120, 160, 120, 0.22);
+  color: inherit;
 }
 
 .site-shell {
@@ -1258,6 +1403,7 @@ html[data-cursor-trail="disabled"] .cursor-trail-toggle .icon-trail-on  { displa
 
 .theme-toggle .icon-moon { display: none; }
 .theme-toggle .icon-leaf { display: none; }
+.theme-toggle .icon-scroll { display: none; }
 .theme-toggle .icon-sun  { display: block; }
 
 [data-theme="dark"] .theme-toggle .icon-moon { display: block; }
@@ -1266,6 +1412,78 @@ html[data-cursor-trail="disabled"] .cursor-trail-toggle .icon-trail-on  { displa
 [data-theme="moss"] .theme-toggle .icon-leaf { display: block; }
 [data-theme="moss"] .theme-toggle .icon-sun  { display: none; }
 [data-theme="moss"] .theme-toggle { color: var(--accent); }
+
+[data-theme="rice"] .theme-toggle .icon-scroll { display: block; }
+[data-theme="rice"] .theme-toggle .icon-sun    { display: none; }
+[data-theme="rice"] .theme-toggle { color: var(--muted-strong); }
+[data-theme="rice"] .theme-toggle:hover { color: var(--vermilion); }
+[data-theme="rice"] .cursor-trail-toggle:hover { color: var(--vermilion); }
+
+/* The scroll unrolls rather than tilting — a rotate would read as a page skewing */
+.theme-toggle:hover .icon-scroll {
+  transform: rotate(0deg) scale(1.1);
+}
+
+/* ================= Font Toggle (像素体 ⇄ 行楷) ================= */
+
+.font-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: var(--muted-strong);
+  cursor: pointer;
+  transition: color 280ms var(--ease);
+}
+
+.font-toggle:hover {
+  color: var(--text-strong);
+}
+
+.font-toggle svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 400ms var(--ease);
+}
+
+/* The button shows the face you are *in*, so the two icons swap with data-font */
+.font-toggle .icon-font-kai { display: none; }
+.font-toggle .icon-font-pixel { display: block; }
+
+html[data-font="kai"] .font-toggle .icon-font-kai { display: block; }
+html[data-font="kai"] .font-toggle .icon-font-pixel { display: none; }
+
+/* Pixel glyph snaps a whole cell; the brush stroke sweeps, matching each face's idiom */
+.font-toggle:hover .icon-font-pixel {
+  transform: translate(1px, -1px);
+}
+
+.font-toggle:hover .icon-font-kai {
+  transform: rotate(-8deg) scale(1.08);
+}
+
+[data-theme="dark"] .font-toggle {
+  color: var(--muted-strong);
+}
+
+[data-theme="dark"] .font-toggle:hover {
+  color: var(--text-strong);
+}
+
+[data-theme="moss"] .font-toggle:hover {
+  color: var(--accent);
+}
+
+[data-theme="rice"] .font-toggle:hover {
+  color: var(--vermilion);
+}
 
 [data-theme="dark"] .theme-toggle {
   color: var(--muted-strong);
@@ -1410,6 +1628,7 @@ html.theme-switching .nav-link,
 html.theme-switching .nav-search-trigger,
 html.theme-switching .nav-search-kbd,
 html.theme-switching .theme-toggle,
+html.theme-switching .font-toggle,
 html.theme-switching .cursor-trail-toggle,
 html.theme-switching .btn-secondary,
 html.theme-switching .tag-chip,
@@ -1574,6 +1793,14 @@ html.theme-switching .prose blockquote {
   background: #3D6B48;
   color: #FBE3E9;
   border-color: rgba(255, 241, 244, 0.12);
+}
+
+/* The shared light-mode code block is a cool near-black; on warm paper that reads as a
+   hole punched in the page, so rice gets a warm-dark slab and off-white ink instead. */
+[data-theme="rice"] .prose pre {
+  background: #2C251D;
+  color: #EDE3D0;
+  border-color: rgba(237, 227, 208, 0.1);
 }
 
 .prose pre code {
@@ -1851,6 +2078,10 @@ html.theme-switching .prose blockquote {
   .nav-search-trigger {
     grid-column: 1 / 2 !important;
     width: 100% !important;
+    /* `1fr` floors at the trigger's min-content width ("Search" + the ⌘K cap), so with a
+       third action button beside it the row could out-measure a 360px column and spill.
+       Letting the track shrink below min-content keeps the overflow impossible. */
+    min-width: 0 !important;
     height: 2.1rem !important;
     padding: 0 0.75rem !important;
     margin: 0 !important;
@@ -1869,12 +2100,15 @@ html.theme-switching .prose blockquote {
     justify-self: end !important;
     display: inline-flex !important;
     align-items: center !important;
-    gap: 0.35rem !important;
+    /* Three buttons now, not two — let the gap tighten on a narrow phone before the
+       search field is the thing that gives way. */
+    gap: clamp(0.12rem, 1.4vw, 0.35rem) !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
   .theme-toggle,
+  .font-toggle,
   .cursor-trail-toggle {
     grid-row: auto !important;
     grid-column: auto !important;
@@ -3371,6 +3605,7 @@ body.preview-open .site-shell {
   html[data-cursor-trail="disabled"] [data-search-trigger],
   html[data-cursor-trail="disabled"] [data-search-result],
   html[data-cursor-trail="disabled"] .theme-toggle,
+  html[data-cursor-trail="disabled"] .font-toggle,
   html[data-cursor-trail="disabled"] .cursor-trail-toggle,
   html[data-cursor-trail="disabled"] .sidebar-collapse-btn,
   html[data-cursor-trail="disabled"] .sidebar-expand-btn {

@@ -4,7 +4,13 @@
       "Bash(npx astro:*)",
       "Read(//c/Users/win11/.claude/projects/c--Users-win11-Desktop-Web-AreSet01-github-io/memory/**)",
       "Bash(npm run *)",
-      "Bash(awk 'NR>=1 && NR<=200' src/layouts/PostLayout.astro)"
+      "Bash(awk 'NR>=1 && NR<=200' src/layouts/PostLayout.astro)",
+      "Bash(node --check server/ask.mjs)",
+      "Bash(git log *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git -c core.safecrlf=false commit -q -m \"feat\\(ask\\): 新增划词问答，在正文里选中一段即可由服务端调用 AI 流式解释\")",
+      "Bash(ssh *)"
     ]
   }
 }

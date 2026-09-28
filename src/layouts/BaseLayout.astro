@@ -52,22 +52,32 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           if (localStorage.getItem('cursor-trail') === 'disabled') {
             document.documentElement.setAttribute('data-cursor-trail', 'disabled');
           }
+          // Pre-paint so the 行楷 face is never a flash of pixel type on first load
+          if (localStorage.getItem('site-font') === 'kai') {
+            document.documentElement.setAttribute('data-font', 'kai');
+          }
         } catch (e) {}
 
+        var VALID_THEMES = ['dark', 'light', 'moss', 'rice'];
+        var LIGHT_THEMES = ['light', 'rice'];
         var runtimeKey = '__areSetThemeRuntimeBound__';
         var themeTransitionTimer = 0;
+
+        function isValidTheme(value) {
+          return VALID_THEMES.indexOf(value) !== -1;
+        }
 
         function getStoredTheme() {
           try {
             var stored = localStorage.getItem('theme');
-            return stored === 'dark' || stored === 'light' || stored === 'moss' ? stored : null;
+            return isValidTheme(stored) ? stored : null;
           } catch (error) {
             return null;
           }
         }
 
         function resolveTheme(explicitTheme) {
-          if (explicitTheme === 'dark' || explicitTheme === 'light' || explicitTheme === 'moss') return explicitTheme;
+          if (isValidTheme(explicitTheme)) return explicitTheme;
           var storedTheme = getStoredTheme();
           if (storedTheme) return storedTheme;
           return window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
@@ -75,12 +85,17 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
         function syncThemeColor(theme) {
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', theme === 'dark' ? '#0a0a0a' : theme === 'moss' ? '#62A06F' : '#ffffff');
-          document.documentElement.style.colorScheme = theme === 'light' ? 'light' : 'dark';
+          var barColor =
+            theme === 'dark' ? '#0a0a0a' :
+            theme === 'moss' ? '#62A06F' :
+            theme === 'rice' ? '#F2E9D8' : '#ffffff';
+          if (meta) meta.setAttribute('content', barColor);
+          document.documentElement.style.colorScheme =
+            LIGHT_THEMES.indexOf(theme) !== -1 ? 'light' : 'dark';
         }
 
         function syncGiscusTheme(theme) {
-          var giscusTheme = theme === 'light' ? 'light' : 'dark_dimmed';
+          var giscusTheme = LIGHT_THEMES.indexOf(theme) !== -1 ? 'light' : 'dark_dimmed';
           var script = document.querySelector('script[src="https://giscus.app/client.js"]');
           if (script) script.setAttribute('data-theme', giscusTheme);
 
@@ -110,6 +125,78 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           window.setTimeout(function() { syncGiscusTheme(nextTheme); }, 180);
           window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme: nextTheme } }));
           return nextTheme;
+        }
+
+        /* ---------- 字体：像素体 ⇄ 行楷 ---------- */
+
+        function getStoredFont() {
+          try {
+            var stored = localStorage.getItem('site-font');
+            return stored === 'kai' || stored === 'pixel' ? stored : null;
+          } catch (error) {
+            return null;
+          }
+        }
+
+        function applyFont(explicitFont) {
+          var nextFont = explicitFont === 'kai' || explicitFont === 'pixel'
+            ? explicitFont
+            : (getStoredFont() || 'pixel');
+
+          if (nextFont === 'kai') {
+            document.documentElement.setAttribute('data-font', 'kai');
+          } else {
+            document.documentElement.removeAttribute('data-font');
+          }
+          window.dispatchEvent(new CustomEvent('font-change', { detail: { font: nextFont } }));
+          return nextFont;
+        }
+
+        /* Swapping the face reflows every line on the page, and a hard reflow reads as a
+           snap. Wash it the way the theme switch is washed — the ink-bleed vocabulary the
+           rest of the site uses — rather than cross-fading the whole document. */
+        function transitionFont(nextFont, sourceEl) {
+          var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+          if (
+            prefersReducedMotion ||
+            !sourceEl ||
+            typeof document.startViewTransition !== 'function'
+          ) {
+            applyFont(nextFont);
+            return;
+          }
+
+          var rect = sourceEl.getBoundingClientRect();
+          var x = rect.left + rect.width / 2;
+          var y = rect.top + rect.height / 2;
+          var endRadius = Math.hypot(
+            Math.max(x, window.innerWidth - x),
+            Math.max(y, window.innerHeight - y)
+          );
+
+          var transition = document.startViewTransition(function() {
+            applyFont(nextFont);
+          });
+
+          transition.ready
+            .then(function() {
+              document.documentElement.animate(
+                {
+                  clipPath: [
+                    'circle(14px at ' + x + 'px ' + y + 'px)',
+                    'circle(' + endRadius + 'px at ' + x + 'px ' + y + 'px)',
+                  ],
+                  filter: ['blur(5px)', 'blur(0)'],
+                },
+                {
+                  duration: 760,
+                  easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                  pseudoElement: '::view-transition-new(root)',
+                }
+              );
+            })
+            .catch(function() {});
         }
 
         function transitionTheme(nextTheme, sourceEl) {
@@ -162,12 +249,16 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         window.__getPreferredTheme = resolveTheme;
         window.__applyTheme = applyTheme;
         window.__transitionTheme = transitionTheme;
+        window.__applyFont = applyFont;
+        window.__transitionFont = transitionFont;
         applyTheme();
+        applyFont();
 
         if (window[runtimeKey]) return;
 
         document.addEventListener('astro:after-swap', function() {
           applyTheme();
+          applyFont();
           try {
             if (localStorage.getItem('cursor-trail') === 'disabled') {
               document.documentElement.setAttribute('data-cursor-trail', 'disabled');
@@ -179,6 +270,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
         document.addEventListener('astro:page-load', function() {
           applyTheme();
+          applyFont();
         });
 
         var media = window.matchMedia('(prefers-color-scheme:dark)');
@@ -960,6 +1052,9 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           const sparkleColors = currentTheme === 'moss' ? [
             '#FFF1F4', '#FFC2D1', '#FBE3E9', '#FFD3DE',
             '#F0C4CF', '#FFE4EA', '#FFB6C8', '#FFF7F9'
+          ] : currentTheme === 'rice' ? [
+            '#2B241C', '#423A30', '#5E4531', '#6B5B45',
+            '#7D5C42', '#8C6B4F', '#4E4132', '#3A3128'
           ] : currentTheme === 'dark' ? [
             '#ffffff', '#f2f2f2', '#e6e6e6', '#d9d9d9',
             '#cccccc', '#bfbfbf', '#b3b3b3', '#a6a6a6'
@@ -2501,18 +2596,21 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
       })();
     </script>
     <script is:inline>
-      /* ========== 深色模式切换 ========== */
+      /* ========== 主题切换 ========== */
       (function() {
         var toggleKey = '__areSetThemeToggleBound__';
         if (window[toggleKey]) return;
+
+        // light → dark → moss → rice → light
+        var THEME_CYCLE = ['light', 'dark', 'moss', 'rice'];
 
         document.addEventListener('click', function(e) {
           var btn = e.target.closest('[data-theme-toggle]');
           if (!btn) return;
 
-          // light → dark → moss → light
           var current = document.documentElement.getAttribute('data-theme') || 'light';
-          var next = current === 'light' ? 'dark' : current === 'dark' ? 'moss' : 'light';
+          var index = THEME_CYCLE.indexOf(current);
+          var next = THEME_CYCLE[(index + 1) % THEME_CYCLE.length];
 
           try {
             localStorage.setItem('theme', next);
@@ -2524,6 +2622,37 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             window.__applyTheme(next);
           } else {
             document.documentElement.setAttribute('data-theme', next);
+          }
+        });
+
+        window[toggleKey] = true;
+      })();
+    </script>
+    <script is:inline>
+      /* ========== 字体切换：像素体 ⇄ 行楷 ========== */
+      (function() {
+        var toggleKey = '__areSetFontToggleBound__';
+        if (window[toggleKey]) return;
+
+        document.addEventListener('click', function(e) {
+          var btn = e.target.closest('[data-font-toggle]');
+          if (!btn) return;
+
+          var isKai = document.documentElement.getAttribute('data-font') === 'kai';
+          var next = isKai ? 'pixel' : 'kai';
+
+          try {
+            localStorage.setItem('site-font', next);
+          } catch (error) {}
+
+          if (typeof window.__transitionFont === 'function') {
+            window.__transitionFont(next, btn);
+          } else if (typeof window.__applyFont === 'function') {
+            window.__applyFont(next);
+          } else if (next === 'kai') {
+            document.documentElement.setAttribute('data-font', 'kai');
+          } else {
+            document.documentElement.removeAttribute('data-font');
           }
         });
 

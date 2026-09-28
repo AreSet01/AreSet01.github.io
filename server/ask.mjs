@@ -212,30 +212,51 @@ function contextFor(page, loc, selectionLength) {
   return { text, heading: blocks[loc.first].heading };
 }
 
+function contextForArticle(page) {
+  const headings = Array.from(new Set(page.blocks.map((b) => b.heading).filter(Boolean)));
+  const outline = headings.length ? `主要小节大纲：\n- ${headings.join('\n- ')}` : '';
+  const excerpt = page.blocks.slice(0, 12).map((b) => b.text).join('\n\n').slice(0, 1500);
+  return {
+    text: `${outline}\n\n文章正文内容精选：\n${excerpt}`,
+    heading: '',
+  };
+}
+
 // ---------- 提示词 ----------
 
-const SYSTEM_PROMPT = `你是技术博客「${config.siteName}」的阅读助手。读者在文章里选中了一段内容想弄明白，请结合文章上下文，用简体中文讲清楚。
-要求：
-1. 第一句直接说清它是什么、在这里是什么意思；需要时再补充原理、它在本文里起的作用、一个小例子。
-2. 紧扣本文语境：专有名词、宏、API 要按文章涉及的技术（例如 UE5）来解释，不要泛泛而谈。
-3. 简洁，一般不超过 300 字（代码除外）。可以用 Markdown 的列表、**加粗**、\`行内代码\` 和代码块，不要用标题。
-4. 上下文不足以确定含义时，说明最可能的几种解释。
-5. 只回答与所选内容和本文有关的问题，无关的请求礼貌拒绝。`;
+const SYSTEM_PROMPT = `你是技术博客「${config.siteName}」的专属伴读助手，像一位懂技术、热心且风趣的技术老朋友。
+读者正在阅读技术文章，请结合文章上下文，用通俗生动、接地气的大白话解答读者的疑问。
 
-function buildMessages({ title, context, selection, question, previous }) {
-  const base = [
-    `文章：《${title}》`,
-    context.heading && context.heading !== title ? `小节：${context.heading}` : '',
-    `上下文：\n"""\n${context.text}\n"""`,
-    `选中的内容：「${selection}」`,
-  ].filter(Boolean).join('\n');
+回答准则：
+1. 【深入浅出，通俗好懂】：拒绝干瘪冰冷的说教和生硬堆砌的专业术语。第一句话先用大白话或生动贴切的生活比喻点透本质（“它其实就像...”），让读者一秒抓住核心；然后再娓娓道来背后的原理。
+2. 【紧扣技术与文章场景】：紧密结合文章实际语境（如 UE5、C++ 游戏引擎底层等），讲清楚它在这里扮演什么角色、解决什么痛点、为什么要这么写。
+3. 【排版清晰有条理】：用精炼语言组织，善用加粗关键结论、\`行内代码\`、精简列表。严格遵守 Markdown 规范：加粗符号 ** 紧贴文字内容，内侧严禁带空格（例如 **结论**，勿写成 ** 结论 **）；反引号代码与加粗组合时写为 **\`Code\`**。
+4. 【亲切自然老友风】：语气真诚温和，不掉书袋，不讲官话。读者追问时直击要害，解答透彻。
+5. 【专注阅读】：紧扣所选内容与当前文章技术主题，礼貌拒绝完全无关的非技术闲聊。`;
+
+function buildMessages({ title, context, selection, question, previous, isArticleChat }) {
+  const base = isArticleChat
+    ? [
+        `文章：《${title}》`,
+        `文章核心大纲与内容精要：\n"""\n${context.text}\n"""`,
+      ].join('\n')
+    : [
+        `文章：《${title}》`,
+        context.heading && context.heading !== title ? `小节：${context.heading}` : '',
+        `上下文：\n"""\n${context.text}\n"""`,
+        `选中的内容：「${selection}」`,
+      ].filter(Boolean).join('\n');
+
+  const defaultPrompt = isArticleChat
+    ? '请用通俗生动的大白话概括本文的核心要点，讲讲它解决了什么核心问题。'
+    : '请用通俗生动的大白话解释选中的内容，讲清它在这里的作用和核心原理。';
 
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
   if (!question) {
-    messages.push({ role: 'user', content: `${base}\n请解释选中的内容。` });
+    messages.push({ role: 'user', content: `${base}\n${defaultPrompt}` });
   } else if (previous) {
     messages.push(
-      { role: 'user', content: `${base}\n请解释选中的内容。` },
+      { role: 'user', content: `${base}\n${defaultPrompt}` },
       { role: 'assistant', content: previous },
       { role: 'user', content: `追问：${question}` },
     );
@@ -459,22 +480,33 @@ async function handleAsk(req, res) {
     return sendJson(res, error.status || 400, { error: error.status === 413 ? '请求太大了' : '请求格式不对' });
   }
 
+  const isArticleChat = Boolean(input?.isArticle || (!input?.selection && input?.question));
   const selection = typeof input?.selection === 'string' ? tidy(input.selection) : '';
   const question = typeof input?.question === 'string' ? tidy(input.question) : '';
   const prefix = typeof input?.prefix === 'string' ? input.prefix.slice(-LIMITS.anchor) : '';
   const suffix = typeof input?.suffix === 'string' ? input.suffix.slice(0, LIMITS.anchor) : '';
-  if (!selection) return sendJson(res, 400, { error: '没有选中内容' });
-  if ([...selection].length > LIMITS.selection) return sendJson(res, 400, { error: `选中的内容太长了，请缩短到 ${LIMITS.selection} 字以内` });
-  if ([...question].length > LIMITS.question) return sendJson(res, 400, { error: `追问请控制在 ${LIMITS.question} 字以内` });
+  if (!isArticleChat && !selection) return sendJson(res, 400, { error: '没有选中内容' });
+  if (selection && [...selection].length > LIMITS.selection) return sendJson(res, 400, { error: `选中的内容太长了，请缩短到 ${LIMITS.selection} 字以内` });
+  if ([...question].length > LIMITS.question) return sendJson(res, 400, { error: `提问请控制在 ${LIMITS.question} 字以内` });
 
   const loaded = typeof input.path === 'string' ? await loadPage(input.path) : null;
   if (!loaded) return sendJson(res, 404, { error: '找不到这篇文章' });
-  const selectionNorm = normalize(selection);
-  const loc = locate(loaded.page, selectionNorm, prefix, suffix);
-  // 只回答文章里真实存在的文字，接口就没法被拿去当免费聊天机器人
-  if (!loc) return sendJson(res, 422, { error: '只能询问文章正文里的内容' });
 
-  const key = answerKey(loaded.key, loc.pos, selectionNorm, question);
+  let loc = null;
+  let context = null;
+  let selectionNorm = '';
+  if (isArticleChat) {
+    context = contextForArticle(loaded.page);
+    selectionNorm = '__ARTICLE__';
+  } else {
+    selectionNorm = normalize(selection);
+    loc = locate(loaded.page, selectionNorm, prefix, suffix);
+    // 只回答文章里真实存在的文字，接口就没法被拿去当免费聊天机器人
+    if (!loc) return sendJson(res, 422, { error: '只能询问文章正文里的内容' });
+    context = contextFor(loaded.page, loc, selection.length);
+  }
+
+  const key = answerKey(loaded.key, loc ? loc.pos : 0, selectionNorm, question);
   const cached = recall(key);
   if (cached === undefined) {
     const refusal = dailyRefusal(ip);
@@ -492,7 +524,7 @@ async function handleAsk(req, res) {
     if (!res.destroyed && !res.writableEnded) res.write(chunk);
   };
   const emit = (payload) => write(`data: ${JSON.stringify(payload)}\n\n`);
-  const summary = `${loaded.key} sel=${[...selection].length}${question ? ` q=${[...question].length}` : ''} ip=${ip}`;
+  const summary = `${loaded.key} ${isArticleChat ? 'article-chat' : `sel=${[...selection].length}`}${question ? ` q=${[...question].length}` : ''} ip=${ip}`;
 
   if (cached !== undefined) {
     emit({ d: cached });
@@ -523,13 +555,14 @@ async function handleAsk(req, res) {
   touch();
   const heartbeat = setInterval(() => write(': ping\n\n'), HEARTBEAT_MS);
 
-  const previous = question ? recall(answerKey(loaded.key, loc.pos, selectionNorm, '')) : undefined;
+  const previous = question ? recall(answerKey(loaded.key, loc ? loc.pos : 0, selectionNorm, '')) : undefined;
   const messages = buildMessages({
     title: loaded.page.title,
-    context: contextFor(loaded.page, loc, selection.length),
+    context,
     selection,
     question,
     previous,
+    isArticleChat,
   });
 
   let outcome;

@@ -131,9 +131,39 @@ sudo firewall-cmd --permanent --add-service=http --add-service=https && sudo fir
 
 **别忘了阿里云控制台的「安全组」**：那是服务器外面的另一层，80/443 不开的话本机怎么配都没用（控制台 → 实例 → 安全组 → 入方向加 80/443）。
 
-## 六、域名与备案
+## 六、域名与备案（大陆节点）
 
-服务器在中国大陆、要用域名访问的话，先做 ICP 备案；直接用 IP 访问不用。香港 / 海外地域不需要备案。`astro.config.mjs` 里的 `site` 记得改成新域名（评论是按下标匹配的，换域名不会丢评论）。
+**备案是硬门槛，配什么都没用。** 实测：大陆节点上未备案的域名访问 80/443 会被阿里云在网络层掐断——TCP 能连上、请求发得出去，然后连接被直接关闭：
+
+```
+$ curl -v -H "Host: 你的域名" http://8.148.214.66/
+> GET / HTTP/1.1
+* Request completely sent off
+* Empty reply from server          ← 不是 nginx 没配好，是中间被拦了
+```
+
+同一时刻用 IP 访问返回 200。**证书签发同理**：Let's Encrypt 的 HTTP-01 校验也要走 80 端口，没备案时报的是 `challenge failed`，别去改 nginx。
+
+**备案**：阿里云控制台 → ICP 备案 → 用这台 ECS 申请「备案服务号」→ 提交（域名、主体信息、幕布照片等）→ 阿里云初审 1–2 天 → 管局审核多数省份 1–20 个工作日。通过后域名才能访问。
+
+**备案下来之后，三步就够**（nginx 现在就是 `default_server`，域名一解析过来就能打开，不改 server_name 也能用；改它是为了让证书挂在正确的域名上）：
+
+```bash
+# 0. 本机：确认解析已生效（应返回 8.148.214.66）
+nslookup 你的域名
+
+# 1. 服务器：server_name 换成域名，然后签证书 + 配 http→https 跳转
+sudo nano /etc/nginx/conf.d/blog.conf   # server_name 8.148.214.66; → server_name 你的域名 www.你的域名;
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d 你的域名 -d www.你的域名   # 问是否跳转时选 2（Redirect）
+
+# 2. 本机：把 astro.config.mjs 的 site 改成新域名（现在是 https://AreSet01.github.io），重新部署
+npm run deploy -- root@8.148.214.66
+```
+
+**别忘了阿里云安全组放行 443**（控制台 → 实例 → 安全组 → 入方向加 443；80 之前已经开过）。certbot 包自带 `certbot-renew.timer` 自动续期，`certbot renew --dry-run` 可以演练。
+
+评论（Giscus）是按路径匹配的，换域名不会丢原有评论。
 
 ## 七、以后怎么更新
 
