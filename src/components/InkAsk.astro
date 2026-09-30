@@ -949,6 +949,32 @@
     else openSidebar();
   }
 
+  function openSidebarWithContext(snippet: string) {
+    ensureSidebar();
+    openSidebar();
+    const textarea = sidebarDrawer?.querySelector<HTMLTextAreaElement>('.ink-ask-drawer-input');
+    if (textarea && snippet) {
+      const cleanSnippet = snippet.trim();
+      const quoteLines = cleanSnippet.split('\n').map((l) => `> ${l}`).join('\n');
+      textarea.value = `针对这部分内容：\n${quoteLines}\n\n我想请教：`;
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    }
+  }
+
+  (window as any).__inkAsk = {
+    openSidebar,
+    closeSidebar,
+    toggleSidebar,
+    openSidebarWithContext,
+  };
+
+  window.addEventListener('inkask:open-with-context', (e: any) => {
+    const text = e.detail?.snippet || e.detail?.text || '';
+    openSidebarWithContext(text);
+  });
+
   // ---------- 全局监听 ----------
 
   function initInkAsk() {

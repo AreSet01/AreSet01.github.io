@@ -113,6 +113,13 @@ function remarkMermaid() {
       <button type="button" class="mermaid-action-btn mermaid-btn-source" aria-label="切换源码/图表视图" title="查看源码">
         <span>Code</span>
       </button>
+      <button type="button" class="mermaid-action-btn mermaid-btn-pin" data-pin-btn="true" aria-label="钉住图表对照" title="钉到分屏对照工作台">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="12" y1="17" x2="12" y2="22"></line>
+          <path d="M5 17h14v-2l-2-2V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v8l-2 2v2z"></path>
+        </svg>
+        <span>Pin</span>
+      </button>
       <button type="button" class="mermaid-action-btn mermaid-btn-expand" aria-label="全屏查看图表" title="全屏查看">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polyline points="15 3 21 3 21 9"></polyline>
