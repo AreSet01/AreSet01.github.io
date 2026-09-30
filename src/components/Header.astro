@@ -2,6 +2,7 @@
 const navItems = [
   { label: 'Home', labelZh: 'Main*', href: '/' },
   { label: 'Archive', labelZh: 'All Doc', href: '/archive' },
+  { label: 'Life', labelZh: 'Life / 拾光', href: '/life' },
   { label: 'Timeline', labelZh: 'Timeline', href: '/timeline' },
   { label: 'Tags', labelZh: 'Tags', href: '/tags' },
   { label: 'Stats', labelZh: 'Stats', href: '/stats' },
@@ -21,8 +22,8 @@ const year = new Date().getFullYear();
 ---
 
 <header class="glass-nav" data-enter="left" data-enter-once>
-  <div class="glass-nav-inner h-full flex flex-col justify-between">
-    <div class="flex flex-col gap-10 lg:gap-14 w-full">
+  <div class="glass-nav-inner min-h-full flex flex-col justify-between">
+    <div class="flex flex-col gap-5 lg:gap-6 w-full">
       <div class="flex items-center justify-between w-full">
         <a href="/" class="brand-mark">
           <span class="brand-seal" aria-hidden="true">汐</span>
@@ -83,6 +84,25 @@ const year = new Date().getFullYear();
             </svg>
           </button>
           <button
+            class="font-toggle"
+            type="button"
+            aria-label="切换字体"
+            title="切换字体：像素体 / 行楷"
+            data-font-toggle
+          >
+            <svg class="icon-font-pixel" viewBox="0 0 16 16" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true">
+              <rect x="5" y="1" width="6" height="2" />
+              <rect x="3" y="3" width="2" height="12" />
+              <rect x="11" y="3" width="2" height="12" />
+              <rect x="5" y="7" width="6" height="2" />
+            </svg>
+            <svg class="icon-font-kai" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M16.78 2.55a1.62 1.62 0 0 0-2.29 0l-1.9 1.9 2.96 2.96 1.9-1.9a1.62 1.62 0 0 0 0-2.29z" />
+              <path d="M11.66 5.51 6.1 11.07c-.47.47-.8 1.06-.96 1.7l-.83 3.28a.62.62 0 0 0 .75.75l3.28-.83c.64-.16 1.23-.49 1.7-.96l5.56-5.56-2.96-2.96z" />
+              <path d="M4.16 16.63c-.6.46-1.42.68-2.45.68.42-.96.72-1.83.83-2.6l1.62 1.92z" opacity="0.65" />
+            </svg>
+          </button>
+          <button
             class="theme-toggle"
             type="button"
             aria-label="切换主题"
@@ -97,15 +117,21 @@ const year = new Date().getFullYear();
             <svg class="icon-leaf" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path d="M17 3c-6.5 0-11 2.6-12.6 7.4-.9 2.7-.4 5.2.1 6.4l1.3-2.3c1.1-2 3.1-4.4 6.4-6.2-2.6 2.4-4.4 5-5.4 7.7 1.3.3 3.6.3 5.6-.7C16.2 13.4 17.3 8.3 17 3z" />
             </svg>
+            <svg class="icon-scroll" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M4.6 2.5h9.1c.83 0 1.5.67 1.5 1.5v11.2a2 2 0 0 0 .9-1.67V4.9h1.4v8.63a3.4 3.4 0 0 1-3.4 3.4H5.1a2.6 2.6 0 0 1-2.6-2.6V4.5c0-1.1.9-2 2.1-2zm-.7 2v9.83a1.2 1.2 0 0 0 1.2 1.2h8.9a2.56 2.56 0 0 1-.1-.73V4.5a.1.1 0 0 0-.1-.1H4.6a.7.7 0 0 0-.7.1z" />
+              <rect x="5.7" y="6.2" width="6.6" height="1.25" rx="0.6" />
+              <rect x="5.7" y="9" width="6.6" height="1.25" rx="0.6" />
+              <rect x="5.7" y="11.8" width="4.3" height="1.25" rx="0.6" />
+            </svg>
           </button>
         </div>
       </div>
     </div>
     
-    <div class="hidden lg:flex flex-col gap-4 mt-auto pt-10 text-[0.75rem] leading-relaxed text-[var(--muted)]" style="font-family: var(--font-serif); font-style: italic;">
-      <div class="w-8 h-[1px] bg-[var(--rule)] mb-2"></div>
-      <p>不持续且间断更新<br/>诶嘿？你怎么找到这里来的！！！</p>
-      <p class="font-mono not-italic tracking-[0.05em] uppercase text-[var(--text-strong)] mt-4">
+    <div class="sidebar-colophon hidden lg:flex flex-col gap-2 mt-auto pt-3 text-[0.75rem] leading-normal text-[var(--muted)]" style="font-family: var(--font-serif); font-style: italic;">
+      <div class="w-8 h-[1px] bg-[var(--rule)] mb-1"></div>
+      <p style="line-height: 1.55;">不持续且间断更新<br/>诶嘿？你怎么找到这里来的！！！</p>
+      <p class="font-mono not-italic tracking-[0.05em] uppercase text-[var(--text-strong)] mt-1.5">
         &copy; {year} &middot; 梦付千秋
       </p>
       <p class="not-italic">
@@ -115,8 +141,6 @@ const year = new Date().getFullYear();
     </div>
   </div>
 </header>
-
-<canvas id="inkCanvas" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 100005;"></canvas>
 
 <script>
 (function () {
@@ -176,7 +200,7 @@ const year = new Date().getFullYear();
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
     const theme = document.documentElement.getAttribute('data-theme') || 'light';
-    const color = theme === 'dark' ? '255,255,255' : theme === 'moss' ? '255,241,244' : '26,24,20';
+    const color = theme === 'dark' ? '255,255,255' : theme === 'moss' ? '255,241,244' : theme === 'rice' ? '43,36,28' : '26,24,20';
     const [baseR, baseG, baseB] = color.split(',').map(Number);
 
     // Spring physics
@@ -322,6 +346,8 @@ const year = new Date().getFullYear();
     if (canvas.parentElement !== document.body) {
       document.body.appendChild(canvas);
     }
+    canvas.style.zIndex = '100005';
+    canvas.style.pointerEvents = 'none';
 
     ctx = canvas.getContext('2d');
     brush.isVisible = false;
@@ -572,7 +598,9 @@ import gsap from 'gsap';
       width: clamp(14rem, 20vw, 18rem);
       min-width: clamp(14rem, 20vw, 18rem);
       flex-shrink: 0;
-      overflow: visible;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: none;
       perspective: 1400px;
       transition: width 820ms cubic-bezier(0.22, 1, 0.36, 1),
                   min-width 820ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -580,10 +608,15 @@ import gsap from 'gsap';
                   opacity 320ms ease !important;
     }
 
+    .glass-nav::-webkit-scrollbar {
+      display: none;
+    }
+
     /* GSAP owns transform/opacity here (the hinge fold) — no CSS transition to fight it */
     .glass-nav-inner {
       width: clamp(14rem, 20vw, 18rem) !important;
       min-width: clamp(14rem, 20vw, 18rem) !important;
+      min-height: 100% !important;
       transform-origin: left center;
       transform-style: preserve-3d;
       backface-visibility: hidden;
@@ -677,9 +710,9 @@ import gsap from 'gsap';
     html[data-sidebar-collapsed="true"] .site-shell > main.container-medium,
     html[data-sidebar-collapsed="true"] main.container-medium,
     html[data-sidebar-collapsed="true"] .container-medium {
-      max-width: 56rem !important;
-      margin-left: max(3rem, calc((100% - 56rem) / 2)) !important;
-      margin-right: max(3rem, calc((100% - 56rem) / 2)) !important;
+      max-width: 72rem !important;
+      margin-left: max(2rem, calc((100% - 72rem) / 2)) !important;
+      margin-right: max(2rem, calc((100% - 72rem) / 2)) !important;
       padding-left: clamp(1.5rem, 3.5vw, 3rem) !important;
       padding-right: clamp(1.5rem, 3.5vw, 3rem) !important;
     }
@@ -704,7 +737,7 @@ import gsap from 'gsap';
         0 1px 3px rgba(0, 0, 0, 0.04),
         inset 0 1px 0 rgba(255, 255, 255, 0.4);
       color: var(--text-strong);
-      font-family: var(--font-pixel);
+      font-family: var(--font-hand-title);
       font-size: 1.1rem;
       letter-spacing: 0.04em;
       cursor: pointer;

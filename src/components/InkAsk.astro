@@ -1,0 +1,1956 @@
+---
+// InkAsk.astro — 墨问 · AI 伴读与划词问答
+// 1. 在正文里选中一段 → 选区末尾钤出「问」→ 墨圈圈出，卡片流式写出通俗生动的解答，支持拖拽移动窗口。
+// 2. 右上角常驻「墨问 AI」伴读按钮 → 点击滑出右侧全文伴读侧边栏，支持多轮深入探讨。
+// 3. 服务端是 server/ask.mjs。
+---
+
+<script>
+  import { marked } from 'marked';
+
+  const ENDPOINT = '/api/ask';
+  const MAX_SELECTION = 400;
+  const ANCHOR_CHARS = 40;
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const LISTENER_KEY = '__areSetInkAskBound__';
+  const SKIP = '.code-block-toolbar, .mermaid-block-header, button, [aria-hidden="true"]';
+  const BLOCK = 'p, li, pre, td, th, blockquote, h1, h2, h3, h4, h5, h6, dt, dd, figcaption, .mermaid-block';
+
+  type Anchor = { text: string; prefix: string; suffix: string };
+  type Box = { left: number; top: number; right: number; bottom: number; width: number; height: number };
+  type Session = {
+    card: HTMLElement;
+    thread: HTMLElement;
+    form: HTMLFormElement;
+    input: HTMLInputElement;
+    ring: SVGSVGElement;
+    range: Range;
+    anchor: Anchor;
+    origin: { x: number; y: number };
+    controller: AbortController | null;
+    stop: AbortController;
+    userMoved?: boolean;
+  };
+
+  let available: Promise<boolean> | null = null;
+  let seal: HTMLButtonElement | null = null;
+  let sealRange: Range | null = null;
+  let session: Session | null = null;
+  let mouseDown = false;
+  let settleTimer = 0;
+
+  // 侧边栏状态
+  let sidebarBtn: HTMLButtonElement | null = null;
+  let sidebarDrawer: HTMLElement | null = null;
+  let sidebarOverlay: HTMLElement | null = null;
+  let sidebarController: AbortController | null = null;
+
+  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const useSheet = () => window.innerWidth < 768;
+  const prose = () => document.querySelector<HTMLElement>('[data-post-prose]');
+  const postTitle = () => document.querySelector<HTMLElement>('[data-post-title]')?.textContent?.trim() || document.title || '本文';
+
+  // 探测后端服务是否可用
+  function probe(): Promise<boolean> {
+    available ??= fetch(ENDPOINT, { cache: 'no-store', signal: AbortSignal.timeout(4000) })
+      .then(async (res) => res.ok && (await res.json())?.ok === true)
+      .catch(() => false);
+    return available;
+  }
+
+  // ---------- 选区 → 纯文字 ----------
+
+  function rangeText(range: Range): string {
+    const fragment = range.cloneContents();
+    fragment.querySelectorAll(SKIP).forEach((el) => el.remove());
+    fragment.querySelectorAll(BLOCK).forEach((el) => el.append('\n'));
+    return (fragment.textContent || '')
+      .replace(/[ \t\f\r ]+/g, ' ')
+      .replace(/ *\n */g, '\n')
+      .replace(/\n{2,}/g, '\n')
+      .trim();
+  }
+
+  function blockOf(node: Node, root: HTMLElement): Node {
+    const el = node instanceof Element ? node : node.parentElement;
+    const block = el?.closest(BLOCK);
+    return block && root.contains(block) ? block : root;
+  }
+
+  function anchorOf(range: Range, root: HTMLElement): Anchor {
+    const before = document.createRange();
+    before.setStart(blockOf(range.startContainer, root), 0);
+    before.setEnd(range.startContainer, range.startOffset);
+    const endBlock = blockOf(range.endContainer, root);
+    const after = document.createRange();
+    after.setStart(range.endContainer, range.endOffset);
+    after.setEnd(endBlock, endBlock.childNodes.length);
+    return {
+      text: rangeText(range),
+      prefix: rangeText(before).slice(-ANCHOR_CHARS),
+      suffix: rangeText(after).slice(0, ANCHOR_CHARS),
+    };
+  }
+
+  function lineRects(range: Range): DOMRect[] {
+    return Array.from(range.getClientRects()).filter((r) => r.width > 1 && r.height > 1);
+  }
+
+  function boxOf(rects: DOMRect[]): Box {
+    const left = Math.min(...rects.map((r) => r.left));
+    const top = Math.min(...rects.map((r) => r.top));
+    const right = Math.max(...rects.map((r) => r.right));
+    const bottom = Math.max(...rects.map((r) => r.bottom));
+    return { left, top, right, bottom, width: right - left, height: bottom - top };
+  }
+
+  // ---------- 「问」印 ----------
+
+  function ensureSeal(): HTMLButtonElement {
+    if (seal?.isConnected) return seal;
+    seal = document.createElement('button');
+    seal.type = 'button';
+    seal.className = 'ink-ask-seal';
+    seal.textContent = '问';
+    seal.title = '问问 AI（通俗解释）';
+    seal.setAttribute('aria-label', '问 AI：通俗解释选中的内容');
+    seal.addEventListener('pointerdown', (event) => event.preventDefault());
+    seal.addEventListener('click', () => {
+      const root = prose();
+      if (sealRange && root) open(sealRange, root);
+    });
+    seal.addEventListener('animationend', (event) => {
+      if (event.pseudoElement) seal?.classList.remove('is-stamping');
+    });
+    document.body.append(seal);
+    return seal;
+  }
+
+  function hideSeal() {
+    sealRange = null;
+    seal?.classList.remove('is-shown', 'is-stamping');
+  }
+
+  function showSeal(range: Range) {
+    const rects = lineRects(range);
+    if (!rects.length) return hideSeal();
+    const last = rects[rects.length - 1];
+    const button = ensureSeal();
+    const size = 34;
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const x = coarse ? last.right - size / 2 : last.right + 6;
+    const y = coarse ? last.bottom + 22 : last.top + last.height / 2 - size / 2;
+    button.style.left = `${Math.round(Math.min(Math.max(x, 8), window.innerWidth - size - 8) + window.scrollX)}px`;
+    button.style.top = `${Math.round(y + window.scrollY)}px`;
+    const wasShown = button.classList.contains('is-shown');
+    sealRange = range.cloneRange();
+    button.classList.add('is-shown');
+    if (!wasShown && !reduceMotion()) {
+      button.classList.remove('is-stamping');
+      void button.offsetWidth;
+      button.classList.add('is-stamping');
+    }
+  }
+
+  function checkSelection() {
+    const root = prose();
+    const selection = window.getSelection();
+    if (!root || !selection || selection.rangeCount === 0 || selection.isCollapsed) return hideSeal();
+    const range = selection.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) return hideSeal();
+    if ([...selection.toString().trim()].length < 2) return hideSeal();
+    probe().then((ok) => {
+      const now = window.getSelection();
+      if (ok && now && now.rangeCount && !now.isCollapsed && now.getRangeAt(0) === range) showSeal(range);
+    });
+  }
+
+  function settleSoon(delay: number) {
+    window.clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(checkSelection, delay);
+  }
+
+  // ---------- 墨圈 ----------
+
+  function seeded(seed: number) {
+    return () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function strokePoints(box: Box, seed: number): Array<[number, number]> {
+    const rand = seeded(seed);
+    const points: Array<[number, number]> = [];
+    if (box.height > 220) {
+      const x = box.left - 14;
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24;
+        const hook = Math.sin(t * Math.PI);
+        points.push([x - hook * 5 + (rand() - 0.5) * 1.2, box.top - 4 + (box.height + 8) * t]);
+      }
+      return points;
+    }
+    const cx = box.left + box.width / 2;
+    const cy = box.top + box.height / 2;
+    const rx = box.width / 2 + 10 + Math.min(box.width * 0.06, 18);
+    const ry = box.height / 2 + 8;
+    const start = Math.PI * (1.08 + rand() * 0.14);
+    const phase = rand() * Math.PI * 2;
+    const steps = 64;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const angle = start + Math.PI * 2 * 1.1 * t;
+      const grow = 1 + 0.07 * t;
+      const wobble = 1 + 0.03 * Math.sin(angle * 3 + phase) + 0.018 * Math.sin(angle * 5 + phase * 2);
+      points.push([cx + rx * grow * wobble * Math.cos(angle), cy + ry * grow * wobble * Math.sin(angle) - 2.5 * t]);
+    }
+    return points;
+  }
+
+  function drawRing(range: Range, ring?: SVGSVGElement): SVGSVGElement | null {
+    const rects = lineRects(range);
+    if (!rects.length) return null;
+    const box = boxOf(rects);
+    const seed = Math.round(box.left * 7 + box.top * 13);
+    const strokes = [strokePoints(box, seed), strokePoints(box, seed + 1)];
+    const all = strokes.flat();
+    const minX = Math.min(...all.map((p) => p[0])) - 4;
+    const minY = Math.min(...all.map((p) => p[1])) - 4;
+    const width = Math.max(...all.map((p) => p[0])) - minX + 4;
+    const height = Math.max(...all.map((p) => p[1])) - minY + 4;
+
+    const svg = ring ?? (document.createElementNS(SVG_NS, 'svg') as SVGSVGElement);
+    svg.setAttribute('class', svg.getAttribute('class') || 'ink-ask-ring');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('width', String(Math.ceil(width)));
+    svg.setAttribute('height', String(Math.ceil(height)));
+    svg.setAttribute('viewBox', `0 0 ${Math.ceil(width)} ${Math.ceil(height)}`);
+    svg.style.left = `${Math.round(minX + window.scrollX)}px`;
+    svg.style.top = `${Math.round(minY + window.scrollY)}px`;
+    svg.replaceChildren(
+      ...strokes.map((points, i) => {
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('class', i ? 'ink-ask-ring-echo' : 'ink-ask-ring-main');
+        path.setAttribute('pathLength', '1');
+        path.setAttribute('d', points.map(([x, y], j) => `${j ? 'L' : 'M'}${(x - minX).toFixed(1)} ${(y - minY).toFixed(1)}`).join(''));
+        return path;
+      }),
+    );
+    return svg;
+  }
+
+  // ---------- 回答里的 Markdown 解析与容错预处理 ----------
+
+  const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const renderer = new marked.Renderer();
+  renderer.link = ({ href, text }) => `<a href="${href}" target="_blank" rel="noopener noreferrer nofollow">${text}</a>`;
+  renderer.heading = ({ text }) => `<p class="ink-ask-h">${text}</p>`;
+
+  marked.setOptions({
+    gfm: true,
+    breaks: true,
+    renderer,
+  });
+
+  function preprocessMarkdown(src: string): string {
+    if (!src) return '';
+    let text = src.replace(/\r\n?/g, '\n');
+
+    // 1. 将中文圆点列表符 • / · 转换为标准 markdown 列表符 -
+    text = text.replace(/^[ \t]*[•·][ \t]+/gm, '- ');
+
+    // 2. 修复孤立未闭合粗体：如果在非代码块的某一行有奇数个 **，自动在行末补上闭合
+    const lines = text.split('\n');
+    let inCodeFence = false;
+    text = lines.map((line) => {
+      if (/^\s*```/.test(line)) {
+        inCodeFence = !inCodeFence;
+        return line;
+      }
+      if (inCodeFence) return line;
+      const stars = (line.match(/\*\*/g) || []).length;
+      if (stars % 2 === 1) {
+        return line + '**';
+      }
+      return line;
+    }).join('\n');
+
+    // 3. 解决 ** 内部空格导致的解析失效以及中文词内强调误伤：
+    // 如 ** `FField` 压根没有继承...！ ** ->  **`FField` 压根没有继承...！** 
+    text = text.replace(/\*\*([\s\S]+?)\*\*/g, (match, inner) => {
+      const trimmed = inner.trim();
+      if (!trimmed) return match;
+      return ` **${trimmed}** `;
+    });
+
+    // 4. 清理连续重复空格（但保留换行）
+    text = text.replace(/[ \t]{2,}/g, ' ');
+
+    return text;
+  }
+
+  function renderMarkdown(src: string): string {
+    try {
+      const sanitized = preprocessMarkdown(src);
+      const parsed = marked.parse(sanitized);
+      return typeof parsed === 'string' ? parsed : '';
+    } catch {
+      return src.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+    }
+  }
+
+  function placeCaret(answer: HTMLElement) {
+    let host: Element | null = answer.lastElementChild;
+    while (host && /^(UL|OL|BLOCKQUOTE|DIV|TABLE|TBODY|TR|PRE)$/.test(host.tagName) && host.lastElementChild) host = host.lastElementChild;
+    const caret = document.createElement('span');
+    caret.className = 'ink-ask-caret';
+    (host ?? answer).append(caret);
+  }
+
+  // ---------- 拖拽支持 ----------
+
+  function enableDrag(card: HTMLElement, handle: HTMLElement, onMoved: () => void) {
+    let startX = 0;
+    let startY = 0;
+    let initialLeft = 0;
+    let initialTop = 0;
+    let isDragging = false;
+
+    handle.addEventListener('pointerdown', (e: PointerEvent) => {
+      if ((e.target as HTMLElement).closest('button, input, textarea, a')) return;
+      if (e.button !== 0) return;
+      if (useSheet()) return; // 移动端底部抽屉不拖拽
+
+      e.preventDefault();
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = card.getBoundingClientRect();
+      initialLeft = rect.left + window.scrollX;
+      initialTop = rect.top + window.scrollY;
+
+      card.classList.add('is-dragging');
+      handle.setPointerCapture(e.pointerId);
+
+      const onPointerMove = (ev: PointerEvent) => {
+        if (!isDragging) return;
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+
+        const width = card.offsetWidth;
+        const height = card.offsetHeight;
+        const minX = 8 + window.scrollX;
+        const maxX = window.innerWidth - width - 8 + window.scrollX;
+        const minY = 8 + window.scrollY;
+        const maxY = window.innerHeight - height - 8 + window.scrollY;
+
+        const nextLeft = Math.max(minX, Math.min(maxX, initialLeft + dx));
+        const nextTop = Math.max(minY, Math.min(maxY, initialTop + dy));
+
+        card.style.left = `${Math.round(nextLeft)}px`;
+        card.style.top = `${Math.round(nextTop)}px`;
+        card.classList.remove('is-above'); // 拖拽后清除 transform 偏移
+
+        onMoved();
+      };
+
+      const onPointerUp = (ev: PointerEvent) => {
+        if (!isDragging) return;
+        isDragging = false;
+        card.classList.remove('is-dragging');
+        try {
+          handle.releasePointerCapture(ev.pointerId);
+        } catch {}
+        handle.removeEventListener('pointermove', onPointerMove);
+        handle.removeEventListener('pointerup', onPointerUp);
+        handle.removeEventListener('pointercancel', onPointerUp);
+      };
+
+      handle.addEventListener('pointermove', onPointerMove);
+      handle.addEventListener('pointerup', onPointerUp);
+      handle.addEventListener('pointercancel', onPointerUp);
+    });
+  }
+
+  // ---------- 划词卡片 ----------
+
+  const CLOSE_ICON =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+
+  const DRAG_ICON =
+    '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><circle cx="4" cy="4" r="1.4"/><circle cx="12" cy="4" r="1.4"/><circle cx="4" cy="8" r="1.4"/><circle cx="12" cy="8" r="1.4"/><circle cx="4" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/></svg>';
+
+  function buildCard(anchor: Anchor): HTMLElement {
+    const card = document.createElement('div');
+    card.className = 'ink-ask-card';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', '墨问：AI 解释选中的内容');
+    card.tabIndex = -1;
+    card.innerHTML = `
+      <div class="ink-ask-head" title="按住可拖动窗口">
+        <div class="ink-ask-head-main">
+          <span class="ink-ask-drag-handle" aria-hidden="true">${DRAG_ICON}</span>
+          <p class="ink-ask-heading">
+            <span class="ink-ask-kicker">Ask</span>
+            <span class="ink-ask-sep">/</span>
+            <span class="ink-ask-title">墨问</span>
+          </p>
+        </div>
+        <button type="button" class="ink-ask-close" aria-label="关闭" title="关闭 (Esc)">${CLOSE_ICON}</button>
+      </div>
+      <div class="ink-ask-quote-wrap">
+        <p class="ink-ask-quote"></p>
+      </div>
+      <div class="ink-ask-thread" data-lenis-prevent></div>
+      <div class="ink-ask-quick-prompts">
+        <button type="button" class="ink-ask-pill" data-ask="能用通俗生动的大白话讲讲这段是什么意思吗？">💡 通俗讲讲</button>
+        <button type="button" class="ink-ask-pill" data-ask="能就这段内容举一个生动形象的例子吗？">🌰 举个例子</button>
+        <button type="button" class="ink-ask-pill" data-ask="它在文章和工程技术实现里起什么作用？">🎯 有何作用</button>
+        <button type="button" class="ink-ask-pill" data-ask="为什么要这样设计或书写，有没有易踩坑点？">⚡ 为什么这样写</button>
+      </div>
+      <form class="ink-ask-form" autocomplete="off">
+        <input class="ink-ask-input" name="question" maxlength="120" placeholder="不懂就问，比如：举个例子、为什么这么写…" enterkeyhint="send" />
+        <button type="submit" class="ink-ask-send" aria-label="追问">问</button>
+      </form>
+      <p class="ink-ask-foot">AI 伴读 · 按住头部可拖拽窗口</p>`;
+    card.querySelector('.ink-ask-quote')!.textContent = anchor.text;
+    return card;
+  }
+
+  let ringKey = '';
+
+  function place(s: Session) {
+    const rects = lineRects(s.range);
+    if (!rects.length) return;
+    const box = boxOf(rects);
+    const key = [box.left + window.scrollX, box.top + window.scrollY, box.width, box.height].map(Math.round).join();
+    if (key !== ringKey) {
+      ringKey = key;
+      drawRing(s.range, s.ring);
+    }
+
+    const { card } = s;
+    const sheet = useSheet();
+    card.classList.toggle('is-sheet', sheet);
+    if (sheet) {
+      card.style.left = card.style.top = card.style.width = '';
+      return;
+    }
+
+    // 用户手动拖拽过后，保持用户自选的位置
+    if (s.userMoved) return;
+
+    const last = rects[rects.length - 1];
+    const width = Math.min(560, window.innerWidth - 32);
+    const spaceBelow = window.innerHeight - last.bottom;
+    const above = spaceBelow < 300 && box.top > spaceBelow;
+    card.classList.toggle('is-above', above);
+    card.style.width = `${width}px`;
+    card.style.left = `${Math.round(Math.min(Math.max(box.left - 12, 16), window.innerWidth - width - 16) + window.scrollX)}px`;
+    card.style.top = `${Math.round((above ? box.top - 16 : last.bottom + 16) + window.scrollY)}px`;
+  }
+
+  function inkCircle(s: Session) {
+    const rect = s.card.getBoundingClientRect();
+    const x = s.origin.x - window.scrollX - rect.left;
+    const y = s.origin.y - window.scrollY - rect.top;
+    const height = Math.max(rect.height, window.innerHeight * 0.72);
+    const r = Math.hypot(Math.max(x, rect.width - x), Math.max(y, height - y)) + 24;
+    return { x, y, r };
+  }
+
+  function afterTransition(el: HTMLElement, ms: number, fn: () => void) {
+    let fired = false;
+    const run = () => {
+      if (fired) return;
+      fired = true;
+      fn();
+    };
+    el.addEventListener('transitionend', (event) => event.target === el && run(), { once: true });
+    window.setTimeout(run, ms);
+  }
+
+  function reveal(s: Session) {
+    if (reduceMotion()) return;
+    const { card } = s;
+    const { x, y, r } = inkCircle(s);
+    card.style.clipPath = `circle(0px at ${x}px ${y}px)`;
+    void card.offsetWidth;
+    card.classList.add('is-opening');
+    card.style.clipPath = `circle(${r}px at ${x}px ${y}px)`;
+    afterTransition(card, 900, () => {
+      card.classList.remove('is-opening');
+      card.style.clipPath = '';
+    });
+  }
+
+  function close(instant = false) {
+    const s = session;
+    if (!s) return;
+    session = null;
+    ringKey = '';
+    s.controller?.abort();
+    s.stop.abort();
+    if (instant || reduceMotion()) {
+      s.card.remove();
+      s.ring.remove();
+      return;
+    }
+    s.ring.classList.add('is-drying');
+    window.setTimeout(() => s.ring.remove(), 600);
+    const { x, y, r } = inkCircle(s);
+    s.card.style.clipPath = `circle(${r}px at ${x}px ${y}px)`;
+    void s.card.offsetWidth;
+    s.card.classList.add('is-closing');
+    s.card.style.clipPath = `circle(0px at ${x}px ${y}px)`;
+    afterTransition(s.card, 600, () => s.card.remove());
+  }
+
+  // ---------- 一问一答 ----------
+
+  const nearEnd = (el: HTMLElement) => el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+
+  function addTurn(thread: HTMLElement, question: string) {
+    const turn = document.createElement('section');
+    turn.className = 'ink-ask-turn';
+    if (question) {
+      const q = document.createElement('div');
+      q.className = 'ink-ask-q';
+      q.innerHTML = `<span class="ink-ask-q-tag">追问</span><span class="ink-ask-q-text">${escapeHtml(question)}</span>`;
+      turn.append(q);
+    }
+    const answer = document.createElement('div');
+    answer.className = 'ink-ask-answer';
+    const status = document.createElement('p');
+    status.className = 'ink-ask-status';
+    status.setAttribute('role', 'status');
+    status.innerHTML = '<span class="ink-ask-status-text">梳理思路中</span><span class="ink-ask-dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+    turn.append(answer, status);
+    thread.append(turn);
+    thread.scrollTop = thread.scrollHeight;
+    return { turn, answer, status };
+  }
+
+  function note(turn: HTMLElement, text: string) {
+    const p = document.createElement('p');
+    p.className = 'ink-ask-note';
+    p.textContent = text;
+    turn.append(p);
+  }
+
+  async function ask(s: Session, question = '') {
+    if (s.controller) return;
+    const controller = new AbortController();
+    s.controller = controller;
+    s.form.classList.add('is-busy');
+    const { turn, answer, status } = addTurn(s.thread, question);
+    let text = '';
+    let frame = 0;
+    const paint = () => {
+      frame = 0;
+      const stick = nearEnd(s.thread);
+      answer.innerHTML = renderMarkdown(text);
+      if (turn.classList.contains('is-streaming')) placeCaret(answer);
+      if (stick) s.thread.scrollTop = s.thread.scrollHeight;
+    };
+
+    try {
+      if ([...s.anchor.text].length > MAX_SELECTION) throw new Error(`选中的内容太长了（最多 ${MAX_SELECTION} 字），缩短一点再问`);
+      const response = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: location.pathname,
+          selection: s.anchor.text,
+          prefix: s.anchor.prefix,
+          suffix: s.anchor.suffix,
+          question,
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || `请求失败（${response.status}）`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finish: { cached?: boolean; truncated?: boolean } | null = null;
+      while (!finish) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        for (let cut; (cut = buffer.indexOf('\n\n')) !== -1; ) {
+          const line = buffer.slice(0, cut).split('\n').find((l) => l.startsWith('data:'));
+          buffer = buffer.slice(cut + 2);
+          if (!line) continue;
+          const message = JSON.parse(line.slice(5));
+          if (message.error) throw new Error(message.error);
+          if (message.t && !text) status.querySelector('.ink-ask-status-text')!.textContent = '深入思考中';
+          if (message.d) {
+            if (!text) {
+              status.hidden = true;
+              turn.classList.add('is-streaming');
+            }
+            text += message.d;
+            frame ||= requestAnimationFrame(paint);
+          }
+          if (message.done) finish = message;
+        }
+      }
+      if (!text.trim()) throw new Error('没有收到回答，稍后再试');
+      if (frame) cancelAnimationFrame(frame);
+      turn.classList.remove('is-streaming');
+      turn.classList.toggle('is-cached', Boolean(finish?.cached));
+      paint();
+      if (finish?.truncated) note(turn, '回答太长，后面被截断了');
+      else if (!finish) note(turn, '连接断了，回答可能不完整');
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      if (frame) cancelAnimationFrame(frame);
+      turn.classList.remove('is-streaming');
+      if (text) paint();
+      status.hidden = false;
+      status.classList.add('is-error');
+      status.textContent = error instanceof TypeError ? '网络好像断了，稍后再试' : (error as Error).message || '出错了，稍后再试';
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'ink-ask-retry';
+      retry.textContent = '再试一次';
+      retry.addEventListener('click', () => {
+        turn.remove();
+        ask(s, question);
+      });
+      status.append(retry);
+    } finally {
+      if (s.controller === controller) {
+        s.controller = null;
+        s.form.classList.remove('is-busy');
+      }
+    }
+  }
+
+  function open(range: Range, root: HTMLElement) {
+    close(true);
+    const anchor = anchorOf(range, root);
+    const sealRect = seal?.classList.contains('is-shown') ? seal.getBoundingClientRect() : null;
+    hideSeal();
+    const ring = anchor.text ? drawRing(range) : null;
+    if (!ring) return;
+    const last = lineRects(range).at(-1)!;
+    const origin = sealRect
+      ? { x: sealRect.left + sealRect.width / 2, y: sealRect.top + sealRect.height / 2 }
+      : { x: last.right, y: last.bottom };
+    window.getSelection()?.removeAllRanges();
+
+    const card = buildCard(anchor);
+    const s: Session = {
+      card,
+      ring,
+      range: range.cloneRange(),
+      anchor,
+      origin: { x: origin.x + window.scrollX, y: origin.y + window.scrollY },
+      controller: null,
+      stop: new AbortController(),
+      thread: card.querySelector<HTMLElement>('.ink-ask-thread')!,
+      form: card.querySelector<HTMLFormElement>('.ink-ask-form')!,
+      input: card.querySelector<HTMLInputElement>('.ink-ask-input')!,
+      userMoved: false,
+    };
+    session = s;
+    document.body.append(ring, card);
+    place(s);
+    void ring.getBoundingClientRect();
+    ring.classList.add('is-drawn');
+    reveal(s);
+
+    // 绑定拖拽
+    const head = card.querySelector<HTMLElement>('.ink-ask-head')!;
+    enableDrag(card, head, () => {
+      s.userMoved = true;
+    });
+
+    // 快捷预设词
+    card.querySelectorAll<HTMLButtonElement>('.ink-ask-pill').forEach((pill) => {
+      pill.addEventListener('click', () => {
+        const q = pill.dataset.ask || pill.textContent?.trim() || '';
+        if (q && !s.controller) ask(s, q);
+      });
+    });
+
+    const closeBtn = card.querySelector('.ink-ask-close')!;
+    closeBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    closeBtn.addEventListener('click', () => close());
+
+    s.form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const question = s.input.value.trim();
+      if (!question || s.controller) return;
+      s.input.value = '';
+      ask(s, question);
+    });
+
+    const ro = new ResizeObserver(() => requestAnimationFrame(() => session === s && place(s)));
+    ro.observe(root);
+    s.stop.signal.addEventListener('abort', () => ro.disconnect());
+
+    card.focus({ preventScroll: true });
+    ask(s);
+  }
+
+  // ---------- 右上角 AI 伴读侧边栏 ----------
+
+  function ensureSidebar() {
+    if (sidebarBtn?.isConnected && sidebarDrawer?.isConnected) return;
+
+    // 1. 右上角常驻按钮
+    if (!sidebarBtn?.isConnected) {
+      sidebarBtn = document.createElement('button');
+      sidebarBtn.type = 'button';
+      sidebarBtn.className = 'ink-ask-sidebar-trigger';
+      sidebarBtn.setAttribute('aria-label', '打开 AI 伴读侧边栏');
+      sidebarBtn.title = '打开 AI 伴读侧边栏';
+      sidebarBtn.innerHTML = `
+        <span class="ink-ask-sidebar-icon" aria-hidden="true">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </span>
+        <span class="ink-ask-sidebar-label">墨问 AI</span>`;
+      sidebarBtn.addEventListener('click', toggleSidebar);
+      document.body.append(sidebarBtn);
+    }
+
+    // 2. 侧边栏遮罩与抽屉
+    if (!sidebarOverlay?.isConnected) {
+      sidebarOverlay = document.createElement('div');
+      sidebarOverlay.className = 'ink-ask-drawer-overlay';
+      sidebarOverlay.addEventListener('click', closeSidebar);
+      document.body.append(sidebarOverlay);
+    }
+
+    if (!sidebarDrawer?.isConnected) {
+      sidebarDrawer = document.createElement('aside');
+      sidebarDrawer.className = 'ink-ask-drawer';
+      sidebarDrawer.setAttribute('role', 'dialog');
+      sidebarDrawer.setAttribute('aria-label', '墨问 · AI 伴读');
+      sidebarDrawer.innerHTML = `
+        <div class="ink-ask-drawer-head">
+          <div class="ink-ask-drawer-title-area">
+            <span class="ink-ask-kicker">Companion</span>
+            <h2 class="ink-ask-drawer-title">墨问 · 伴读</h2>
+          </div>
+          <button type="button" class="ink-ask-drawer-close" aria-label="关闭侧边栏" title="关闭 (Esc)">${CLOSE_ICON}</button>
+        </div>
+        <div class="ink-ask-drawer-meta">
+          <span class="ink-ask-drawer-badge" title="当前阅读文章">《${escapeHtml(postTitle())}》</span>
+        </div>
+        <div class="ink-ask-drawer-body" data-lenis-prevent>
+          <div class="ink-ask-drawer-welcome">
+            <p class="ink-ask-welcome-desc">我是本文的 AI 伴读老友。阅读中有任何生涩难懂之处，随时向我提问～</p>
+            <div class="ink-ask-drawer-cards">
+              <button type="button" class="ink-ask-quick-card" data-ask="请用通俗生动的大白话，帮我概括一下这篇文章的核心要点和主旨。">
+                <span class="quick-card-icon">💡</span>
+                <span class="quick-card-text">通俗总结本文要点</span>
+              </button>
+              <button type="button" class="ink-ask-quick-card" data-ask="这篇文章主要解决了什么核心问题或痛点？为什么需要这套方案？">
+                <span class="quick-card-icon">🔍</span>
+                <span class="quick-card-text">解决了什么核心痛点</span>
+              </button>
+              <button type="button" class="ink-ask-quick-card" data-ask="请帮我用简单易懂的语言梳理一下文中的核心实现逻辑和技术亮点。">
+                <span class="quick-card-icon">🛠️</span>
+                <span class="quick-card-text">核心实现与技术亮点</span>
+              </button>
+              <button type="button" class="ink-ask-quick-card" data-ask="读懂这篇文章需要什么前置知识？有哪些容易忽略的关键细节？">
+                <span class="quick-card-icon">🎯</span>
+                <span class="quick-card-text">前置知识与避坑细节</span>
+              </button>
+            </div>
+          </div>
+          <div class="ink-ask-drawer-thread"></div>
+        </div>
+        <form class="ink-ask-drawer-form" autocomplete="off">
+          <div class="ink-ask-drawer-input-wrap">
+            <textarea class="ink-ask-drawer-input" rows="1" maxlength="300" placeholder="向 AI 伴读提问本文…" enterkeyhint="send"></textarea>
+            <button type="submit" class="ink-ask-drawer-send" aria-label="发送">问</button>
+          </div>
+          <div class="ink-ask-drawer-foot-row">
+            <span class="ink-ask-drawer-tip">Enter 发送 · Shift+Enter 换行</span>
+            <span class="ink-ask-drawer-foot">AI 伴读 · 紧扣本文</span>
+          </div>
+        </form>`;
+
+      document.body.append(sidebarDrawer);
+
+      const closeBtn = sidebarDrawer.querySelector('.ink-ask-drawer-close')!;
+      closeBtn.addEventListener('click', closeSidebar);
+
+      const thread = sidebarDrawer.querySelector<HTMLElement>('.ink-ask-drawer-thread')!;
+      const welcome = sidebarDrawer.querySelector<HTMLElement>('.ink-ask-drawer-welcome')!;
+      const form = sidebarDrawer.querySelector<HTMLFormElement>('.ink-ask-drawer-form')!;
+      const textarea = sidebarDrawer.querySelector<HTMLTextAreaElement>('.ink-ask-drawer-input')!;
+
+      // 预设卡片点击
+      sidebarDrawer.querySelectorAll<HTMLButtonElement>('.ink-ask-quick-card').forEach((card) => {
+        card.addEventListener('click', () => {
+          const q = card.dataset.ask || card.textContent?.trim() || '';
+          if (q) askDrawer(q);
+        });
+      });
+
+      // 自动撑高 textarea
+      function adjustTextareaHeight() {
+        textarea.style.height = 'auto';
+        const scrollH = textarea.scrollHeight;
+        if (scrollH > 120) {
+          textarea.style.height = '120px';
+          textarea.style.overflowY = 'auto';
+        } else {
+          textarea.style.height = `${Math.max(24, scrollH)}px`;
+          textarea.style.overflowY = 'hidden';
+        }
+      }
+
+      textarea.addEventListener('input', adjustTextareaHeight);
+
+      // 输入框快捷按键
+      textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          form.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+      });
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const q = textarea.value.trim();
+        if (!q) return;
+        textarea.value = '';
+        textarea.style.height = '24px';
+        textarea.style.overflowY = 'hidden';
+        askDrawer(q);
+      });
+
+      async function askDrawer(question: string) {
+        if (sidebarController) return;
+        welcome.style.display = 'none'; // 提问后收起欢迎引导
+        const controller = new AbortController();
+        sidebarController = controller;
+        form.classList.add('is-busy');
+
+        const { turn, answer, status } = addTurn(thread, question);
+        let text = '';
+        let frame = 0;
+        const paint = () => {
+          frame = 0;
+          const stick = nearEnd(thread);
+          answer.innerHTML = renderMarkdown(text);
+          if (turn.classList.contains('is-streaming')) placeCaret(answer);
+          if (stick) thread.scrollTop = thread.scrollHeight;
+        };
+
+        try {
+          const response = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              path: location.pathname,
+              isArticle: true,
+              question,
+            }),
+            signal: controller.signal,
+          });
+
+          if (!response.ok || !response.body) {
+            const data = await response.json().catch(() => null);
+            throw new Error(data?.error || `请求失败（${response.status}）`);
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let finish: { cached?: boolean; truncated?: boolean } | null = null;
+          while (!finish) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            for (let cut; (cut = buffer.indexOf('\n\n')) !== -1; ) {
+              const line = buffer.slice(0, cut).split('\n').find((l) => l.startsWith('data:'));
+              buffer = buffer.slice(cut + 2);
+              if (!line) continue;
+              const message = JSON.parse(line.slice(5));
+              if (message.error) throw new Error(message.error);
+              if (message.t && !text) status.querySelector('.ink-ask-status-text')!.textContent = '深入思考中';
+              if (message.d) {
+                if (!text) {
+                  status.hidden = true;
+                  turn.classList.add('is-streaming');
+                }
+                text += message.d;
+                frame ||= requestAnimationFrame(paint);
+              }
+              if (message.done) finish = message;
+            }
+          }
+          if (!text.trim()) throw new Error('没有收到回答，稍后再试');
+          if (frame) cancelAnimationFrame(frame);
+          turn.classList.remove('is-streaming');
+          turn.classList.toggle('is-cached', Boolean(finish?.cached));
+          paint();
+          if (finish?.truncated) note(turn, '回答太长，后面被截断了');
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          if (frame) cancelAnimationFrame(frame);
+          turn.classList.remove('is-streaming');
+          if (text) paint();
+          status.hidden = false;
+          status.classList.add('is-error');
+          status.textContent = error instanceof TypeError ? '网络好像断了，稍后再试' : (error as Error).message || '出错了，稍后再试';
+          const retry = document.createElement('button');
+          retry.type = 'button';
+          retry.className = 'ink-ask-retry';
+          retry.textContent = '再试一次';
+          retry.addEventListener('click', () => {
+            turn.remove();
+            askDrawer(question);
+          });
+          status.append(retry);
+        } finally {
+          if (sidebarController === controller) {
+            sidebarController = null;
+            form.classList.remove('is-busy');
+          }
+        }
+      }
+    }
+  }
+
+  function openSidebar() {
+    ensureSidebar();
+    sidebarOverlay?.classList.add('is-open');
+    sidebarDrawer?.classList.add('is-open');
+    sidebarDrawer?.querySelector<HTMLTextAreaElement>('.ink-ask-drawer-input')?.focus();
+  }
+
+  function closeSidebar() {
+    sidebarOverlay?.classList.remove('is-open');
+    sidebarDrawer?.classList.remove('is-open');
+    sidebarController?.abort();
+  }
+
+  function toggleSidebar() {
+    if (sidebarDrawer?.classList.contains('is-open')) closeSidebar();
+    else openSidebar();
+  }
+
+  function openSidebarWithContext(snippet: string) {
+    ensureSidebar();
+    openSidebar();
+    const textarea = sidebarDrawer?.querySelector<HTMLTextAreaElement>('.ink-ask-drawer-input');
+    if (textarea && snippet) {
+      const cleanSnippet = snippet.trim();
+      const quoteLines = cleanSnippet.split('\n').map((l) => `> ${l}`).join('\n');
+      textarea.value = `针对这部分内容：\n${quoteLines}\n\n我想请教：`;
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    }
+  }
+
+  (window as any).__inkAsk = {
+    openSidebar,
+    closeSidebar,
+    toggleSidebar,
+    openSidebarWithContext,
+  };
+
+  window.addEventListener('inkask:open-with-context', (e: any) => {
+    const text = e.detail?.snippet || e.detail?.text || '';
+    openSidebarWithContext(text);
+  });
+
+  // ---------- 全局监听 ----------
+
+  function initInkAsk() {
+    if (!prose()) return;
+    probe().then((ok) => {
+      if (ok) ensureSidebar();
+    });
+  }
+
+  initInkAsk();
+
+  if (!(window as any)[LISTENER_KEY]) {
+    (window as any)[LISTENER_KEY] = true;
+
+    document.addEventListener(
+      'pointerdown',
+      (event) => {
+        const target = event.target as Element | null;
+        if (target?.closest?.('.ink-ask-seal, .ink-ask-card, .ink-ask-sidebar-trigger, .ink-ask-drawer')) return;
+        if (session) close();
+        if (event.pointerType === 'mouse' && event.button === 0) {
+          mouseDown = true;
+          hideSeal();
+        }
+      },
+      true,
+    );
+
+    document.addEventListener(
+      'pointerup',
+      () => {
+        if (!mouseDown) return;
+        mouseDown = false;
+        settleSoon(20);
+      },
+      true,
+    );
+
+    document.addEventListener('selectionchange', () => {
+      if (!mouseDown) settleSoon(280);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (sidebarDrawer?.classList.contains('is-open')) closeSidebar();
+      else if (session) close();
+      else hideSeal();
+    });
+
+    let resizeFrame = 0;
+    window.addEventListener('resize', () => {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        hideSeal();
+        if (session) place(session);
+      });
+    });
+
+    document.addEventListener('astro:page-load', () => {
+      initInkAsk();
+    });
+
+    document.addEventListener('astro:before-swap', () => {
+      close(true);
+      closeSidebar();
+      hideSeal();
+      seal?.remove();
+      seal = null;
+      sidebarBtn?.remove();
+      sidebarBtn = null;
+      sidebarOverlay?.remove();
+      sidebarOverlay = null;
+      sidebarDrawer?.remove();
+      sidebarDrawer = null;
+    });
+  }
+</script>
+
+<style is:global>
+  /* ---------- 「问」印 ---------- */
+  .ink-ask-seal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 46;
+    display: none;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 2px solid var(--vermilion);
+    border-radius: 4px;
+    background: var(--bg-elev);
+    color: var(--vermilion);
+    font-family: var(--font-hand-title);
+    font-size: 1.05rem;
+    line-height: 1;
+    box-shadow: inset 0 0 6px var(--vermilion-soft), 0 6px 18px var(--ink-mist);
+    transform: rotate(-4deg);
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: transform 260ms var(--ease-bounce), box-shadow 260ms var(--ease);
+  }
+  .ink-ask-seal.is-shown {
+    display: grid;
+  }
+  .ink-ask-seal:hover,
+  .ink-ask-seal:focus-visible {
+    outline: none;
+    transform: rotate(0deg) scale(1.08);
+    box-shadow: inset 0 0 8px var(--vermilion-soft), 0 8px 24px var(--ink-mist);
+  }
+  .ink-ask-seal.is-stamping {
+    animation: ink-ask-stamp 480ms var(--ease-bounce) backwards;
+  }
+  .ink-ask-seal::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border: 1px solid var(--vermilion);
+    border-radius: 6px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .ink-ask-seal.is-stamping::after {
+    animation: ink-ask-splash 620ms var(--ease) 180ms both;
+  }
+
+  /* ---------- 墨圈 ---------- */
+  .ink-ask-ring {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 44;
+    overflow: visible;
+    pointer-events: none;
+    color: var(--vermilion);
+  }
+  .ink-ask-ring path {
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  .ink-ask-ring-main {
+    stroke-width: 2.4;
+    opacity: 0.9;
+    transition: stroke-dashoffset 780ms cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  .ink-ask-ring-echo {
+    stroke-width: 1.1;
+    opacity: 0.32;
+    transition: stroke-dashoffset 860ms cubic-bezier(0.65, 0, 0.35, 1) 90ms;
+  }
+  .ink-ask-ring.is-drawn path {
+    stroke-dashoffset: 0;
+  }
+  .ink-ask-ring.is-drying {
+    opacity: 0;
+    transition: opacity 520ms var(--ease);
+  }
+
+  /* ---------- 划词卡片 ---------- */
+  .ink-ask-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+    width: min(35rem, calc(100vw - 2rem));
+    max-height: min(78vh, 44rem);
+    overflow: hidden;
+    color: var(--text);
+    background: var(--bg-elev);
+    border: 1px solid var(--rule-strong);
+    border-radius: 8px;
+    box-shadow: var(--glass-shadow-lg);
+    font-family: var(--font-hand);
+    letter-spacing: var(--font-letter-base);
+    outline: none;
+  }
+  .ink-ask-card.is-above {
+    transform: translateY(-100%);
+  }
+  .ink-ask-card.is-dragging {
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22);
+    user-select: none;
+  }
+  .ink-ask-card.is-sheet {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 60;
+    width: auto;
+    max-height: 76vh;
+    max-height: 76dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-width: 1px 0 0;
+    border-radius: 16px 16px 0 0;
+    transform: none;
+  }
+  .ink-ask-card.is-opening {
+    transition: clip-path 640ms var(--ease);
+  }
+  .ink-ask-card.is-closing {
+    pointer-events: none;
+    transition: clip-path 380ms cubic-bezier(0.55, 0, 0.8, 0.3);
+  }
+
+  /* 卡片头部（可拖拽） */
+  .ink-ask-head {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 0.85rem 0.5rem 1rem;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .ink-ask-card.is-dragging .ink-ask-head {
+    cursor: grabbing;
+  }
+  .ink-ask-head-main {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .ink-ask-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    color: var(--muted);
+    opacity: 0.65;
+    transition: opacity 180ms ease;
+  }
+  .ink-ask-head:hover .ink-ask-drag-handle {
+    opacity: 1;
+    color: var(--text-strong);
+  }
+  .ink-ask-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin: 0;
+  }
+  .ink-ask-kicker {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .ink-ask-sep {
+    color: var(--muted);
+    opacity: 0.4;
+  }
+  .ink-ask-title {
+    font-size: 1.12rem;
+    font-weight: 700;
+    color: var(--text-strong);
+  }
+  .ink-ask-close {
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--muted-strong);
+    cursor: pointer;
+    transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
+  }
+  .ink-ask-close:hover,
+  .ink-ask-close:focus-visible {
+    outline: none;
+    color: var(--text-strong);
+    border-color: var(--rule);
+    background: var(--accent-soft);
+  }
+
+  /* 原选区引用（固定高度弹性，防挤压） */
+  .ink-ask-quote-wrap {
+    flex-shrink: 0;
+    padding: 0.65rem 1.15rem 0.45rem;
+  }
+  .ink-ask-quote {
+    display: -webkit-box;
+    margin: 0;
+    padding: 0.4rem 0.75rem 0.4rem 0.85rem;
+    border-left: 3px solid var(--vermilion);
+    border-radius: 0 4px 4px 0;
+    background: rgba(var(--vermilion-rgb), 0.04);
+    color: var(--muted-strong);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+
+  /* 对话流区（可自适应滚动） */
+  .ink-ask-thread {
+    flex: 1 1 0%;
+    min-height: 0;
+    padding: 0.75rem 1.1rem 1rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-top: 1px dashed var(--rule);
+    scrollbar-width: thin;
+  }
+  .ink-ask-turn + .ink-ask-turn {
+    margin-top: 1.1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--rule-soft);
+  }
+
+  /* 追问样式强化（独立气泡签，高区分度） */
+  .ink-ask-q {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    margin: 0 0 0.75rem;
+    padding: 0.55rem 0.8rem;
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--vermilion);
+    border-radius: 6px;
+    background: var(--bg-soft);
+    color: var(--text-strong);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+  }
+  .ink-ask-q-tag {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    margin-top: 0.1rem;
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--vermilion);
+    border-radius: 999px;
+    background: var(--vermilion-soft);
+    color: var(--vermilion);
+    font-family: var(--font-hand-title);
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.06em;
+  }
+  .ink-ask-q-text {
+    flex: 1;
+    font-weight: 600;
+    word-break: break-word;
+  }
+
+  /* 快捷预设提问标签（平易近人、口语通俗） */
+  .ink-ask-quick-prompts {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.45rem 1.1rem 0.2rem;
+  }
+  .ink-ask-pill {
+    padding: 0.22rem 0.6rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: var(--bg-soft);
+    color: var(--text);
+    font-size: 0.76rem;
+    line-height: 1.3;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 180ms ease;
+  }
+  .ink-ask-pill:hover {
+    border-color: var(--vermilion);
+    color: var(--vermilion);
+    background: var(--vermilion-soft);
+    transform: translateY(-1px);
+  }
+
+  /* 回答正文 */
+  .ink-ask-answer {
+    font-size: 0.95rem;
+    line-height: 1.82;
+    overflow-wrap: anywhere;
+  }
+  .ink-ask-answer > * {
+    margin: 0 0 0.65em;
+  }
+  .ink-ask-answer > :last-child {
+    margin-bottom: 0;
+  }
+  .ink-ask-answer ul {
+    padding-left: 1.3em;
+    list-style: disc;
+  }
+  .ink-ask-answer ol {
+    padding-left: 1.4em;
+    list-style: decimal;
+  }
+  .ink-ask-answer li {
+    margin-bottom: 0.25em;
+  }
+  .ink-ask-answer li::marker {
+    color: var(--ink-strong);
+  }
+  .ink-ask-answer strong,
+  .ink-ask-answer .ink-ask-h {
+    color: var(--text-strong);
+    font-weight: 700;
+  }
+  .ink-ask-answer em {
+    font-style: italic;
+  }
+  .ink-ask-answer a {
+    color: var(--ink-strong);
+    border-bottom: 1px solid currentColor;
+  }
+  .ink-ask-answer code {
+    padding: 0.08em 0.36em;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--bg-soft);
+    color: var(--ink-strong);
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+  }
+  .ink-ask-answer pre {
+    padding: 0.7rem 0.85rem;
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--bg-soft);
+    font-size: 0.82rem;
+    line-height: 1.6;
+  }
+  .ink-ask-answer pre code {
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: inherit;
+    white-space: pre;
+    overflow-wrap: normal;
+  }
+  .ink-ask-answer blockquote {
+    padding-left: 0.75rem;
+    border-left: 2.5px solid var(--rule-strong);
+    color: var(--muted-strong);
+  }
+  .ink-ask-table {
+    overflow-x: auto;
+  }
+  .ink-ask-table table {
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  .ink-ask-table th,
+  .ink-ask-table td {
+    padding: 0.3rem 0.55rem;
+    border: 1px solid var(--rule);
+    text-align: left;
+    vertical-align: top;
+  }
+  .ink-ask-table th {
+    background: var(--bg-soft);
+    color: var(--text-strong);
+  }
+  .ink-ask-turn.is-cached .ink-ask-answer {
+    animation: ink-ask-surface 520ms var(--ease) both;
+  }
+
+  .ink-ask-caret {
+    display: inline-block;
+    width: 0.45em;
+    height: 0.45em;
+    margin-left: 0.2em;
+    border-radius: 50%;
+    background: var(--ink-strong);
+    vertical-align: 0.1em;
+    animation: ink-ask-breathe 1.1s ease-in-out infinite;
+  }
+  .ink-ask-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.35rem 0 0;
+    color: var(--muted);
+    font-size: 0.86rem;
+  }
+  .ink-ask-status[hidden] {
+    display: none;
+  }
+  .ink-ask-status.is-error {
+    color: var(--text-strong);
+  }
+  .ink-ask-dots {
+    display: inline-flex;
+    gap: 0.28rem;
+  }
+  .ink-ask-dots i {
+    width: 0.34rem;
+    height: 0.34rem;
+    border-radius: 50%;
+    background: var(--ink-strong);
+    animation: ink-ask-breathe 1.2s ease-in-out infinite;
+  }
+  .ink-ask-dots i:nth-child(2) {
+    animation-delay: 0.18s;
+  }
+  .ink-ask-dots i:nth-child(3) {
+    animation-delay: 0.36s;
+  }
+  .ink-ask-retry {
+    padding: 0.1rem 0.6rem;
+    border: 1px solid var(--rule-strong);
+    border-radius: 999px;
+    color: var(--text-strong);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: background 180ms ease;
+  }
+  .ink-ask-retry:hover {
+    background: var(--accent-soft);
+  }
+  .ink-ask-note {
+    margin: 0.5rem 0 0;
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+
+  /* 输入框与底栏 */
+  .ink-ask-form {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.85rem 0.4rem 1rem;
+    border-top: 1px solid var(--rule-soft);
+    background: var(--bg-soft);
+  }
+  .ink-ask-input {
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+    padding: 0 0.75rem;
+    border: 1.5px solid var(--rule);
+    border-radius: 6px;
+    outline: none;
+    background: var(--bg-elev);
+    color: var(--text-strong);
+    font: inherit;
+    font-size: 0.88rem;
+    line-height: 36px;
+    transition: border-color 180ms ease, box-shadow 180ms ease;
+  }
+  .ink-ask-input::placeholder {
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+  .ink-ask-input:focus {
+    border-color: var(--vermilion);
+    box-shadow: 0 0 0 2.5px var(--vermilion-soft);
+  }
+  .ink-ask-send {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 1.5px solid var(--vermilion);
+    border-radius: 6px;
+    background: var(--bg-elev);
+    color: var(--vermilion);
+    font-family: var(--font-hand-title);
+    font-size: 1rem;
+    font-weight: 700;
+    box-shadow: inset 0 0 5px var(--vermilion-soft);
+    transform: rotate(-3deg);
+    cursor: pointer;
+    transition: transform 180ms var(--ease-bounce), opacity 180ms ease, background 180ms ease, color 180ms ease;
+  }
+  .ink-ask-send:hover,
+  .ink-ask-send:focus-visible {
+    outline: none;
+    transform: rotate(0deg) scale(1.05);
+    background: var(--vermilion);
+    color: #fff;
+  }
+  .ink-ask-form.is-busy .ink-ask-send {
+    opacity: 0.35;
+    pointer-events: none;
+    transform: none;
+  }
+  .ink-ask-foot {
+    margin: 0;
+    flex-shrink: 0;
+    padding: 0.35rem 1.1rem 0.7rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+    text-align: right;
+  }
+
+  /* ---------- 右上角 AI 伴读常驻按钮 ---------- */
+  .ink-ask-sidebar-trigger {
+    position: fixed;
+    top: 1.5rem;
+    right: 1.5rem;
+    z-index: 99;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.95rem 0.45rem 0.75rem;
+    border-radius: 6px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(14px) saturate(120%);
+    -webkit-backdrop-filter: blur(14px) saturate(120%);
+    border: 1px solid var(--rule-strong);
+    box-shadow:
+      0 6px 24px rgba(0, 0, 0, 0.08),
+      0 1px 3px rgba(0, 0, 0, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    color: var(--text-strong);
+    font-family: var(--font-hand-title);
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: color 240ms ease,
+                border-color 240ms ease,
+                background 240ms ease,
+                transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 240ms ease;
+  }
+  [data-theme="dark"] .ink-ask-sidebar-trigger {
+    background: var(--glass-bg-strong);
+    box-shadow:
+      0 6px 24px rgba(0, 0, 0, 0.45),
+      0 1px 3px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  .ink-ask-sidebar-trigger:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    transform: scale(1.06) translateX(-3px);
+    box-shadow:
+      0 10px 32px rgba(0, 0, 0, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+  .ink-ask-sidebar-icon {
+    display: inline-flex;
+    align-items: center;
+    color: var(--vermilion);
+  }
+  .ink-ask-sidebar-label {
+    line-height: 1;
+  }
+
+  /* ---------- 右侧 AI 聊天抽屉 (Drawer) ---------- */
+  .ink-ask-drawer-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100010;
+    background: rgba(0, 0, 0, 0.38);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 280ms ease;
+  }
+  .ink-ask-drawer-overlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .ink-ask-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100011;
+    display: flex;
+    flex-direction: column;
+    width: min(580px, 100vw);
+    background: var(--bg-elev);
+    border-left: 1px solid var(--rule-strong);
+    box-shadow: var(--glass-shadow-lg);
+    transform: translateX(100%);
+    transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+    font-family: var(--font-hand);
+  }
+  @media (min-width: 1440px) {
+    .ink-ask-drawer {
+      width: min(640px, 45vw);
+    }
+  }
+  .ink-ask-drawer.is-open {
+    transform: translateX(0);
+  }
+
+  .ink-ask-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.1rem 1.4rem 0.8rem;
+    border-bottom: 1px solid var(--rule-soft);
+    background: var(--bg-soft);
+  }
+  .ink-ask-drawer-title-area {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  .ink-ask-drawer-title {
+    margin: 0;
+    font-family: var(--font-hand-title);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-strong);
+  }
+  .ink-ask-drawer-close {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--muted-strong);
+    cursor: pointer;
+    transition: all 180ms ease;
+  }
+  .ink-ask-drawer-close:hover {
+    color: var(--text-strong);
+    border-color: var(--rule);
+    background: var(--accent-soft);
+  }
+
+  .ink-ask-drawer-meta {
+    padding: 0.55rem 1.4rem;
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .ink-ask-drawer-badge {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0.2rem 0.75rem;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--bg-elev);
+    color: var(--muted-strong);
+    font-size: 0.82rem;
+    line-height: 1.5;
+  }
+
+  .ink-ask-drawer-body {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 1.15rem 1.5rem;
+    scrollbar-width: thin;
+  }
+
+  .ink-ask-drawer-welcome {
+    margin-bottom: 1.2rem;
+  }
+  .ink-ask-welcome-desc {
+    margin: 0 0 1rem;
+    color: var(--muted-strong);
+    font-size: 0.92rem;
+    line-height: 1.6;
+  }
+  .ink-ask-drawer-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .ink-ask-quick-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    background: var(--bg-soft);
+    color: var(--text-strong);
+    font-size: 0.88rem;
+    text-align: left;
+    cursor: pointer;
+    transition: all 200ms ease;
+  }
+  .ink-ask-quick-card:hover {
+    border-color: var(--vermilion);
+    background: var(--vermilion-soft);
+    transform: translateX(4px);
+  }
+  .quick-card-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .quick-card-text {
+    flex: 1;
+    font-weight: 500;
+  }
+
+  .ink-ask-drawer-thread .ink-ask-turn + .ink-ask-turn {
+    margin-top: 1.3rem;
+    padding-top: 1.2rem;
+    border-top: 1px dashed var(--rule-soft);
+  }
+
+  .ink-ask-drawer-form {
+    flex-shrink: 0;
+    padding: 0.85rem 1.15rem max(0.85rem, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--rule-soft);
+    background: var(--bg-soft);
+  }
+  .ink-ask-drawer-input-wrap {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    padding: 0.35rem 0.4rem 0.35rem 0.8rem;
+    border: 1.5px solid var(--rule-strong);
+    border-radius: 8px;
+    background: var(--bg-elev);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(0, 0, 0, 0.02);
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+  }
+  .ink-ask-drawer-input-wrap:focus-within {
+    border-color: var(--vermilion);
+    box-shadow: 0 0 0 3px var(--vermilion-soft);
+  }
+  .ink-ask-drawer-input {
+    flex: 1;
+    min-width: 0;
+    height: 24px;
+    min-height: 24px;
+    max-height: 120px;
+    margin: 0.25rem 0;
+    padding: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text-strong);
+    font: inherit;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    resize: none;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .ink-ask-drawer-input::-webkit-scrollbar {
+    display: none;
+  }
+  .ink-ask-drawer-input::placeholder {
+    color: var(--muted);
+    font-size: 0.88rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ink-ask-drawer-send {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 1.5px solid var(--vermilion);
+    border-radius: 6px;
+    background: var(--vermilion-soft);
+    color: var(--vermilion);
+    font-family: var(--font-hand-title);
+    font-size: 0.95rem;
+    font-weight: 700;
+    box-shadow: inset 0 0 4px var(--vermilion-soft);
+    cursor: pointer;
+    transition: transform 180ms var(--ease-bounce), opacity 180ms ease, background 180ms ease, color 180ms ease;
+  }
+  .ink-ask-drawer-send:hover,
+  .ink-ask-drawer-send:focus-visible {
+    outline: none;
+    transform: scale(1.06);
+    background: var(--vermilion);
+    color: #fff;
+  }
+  .ink-ask-drawer-form.is-busy .ink-ask-drawer-send {
+    opacity: 0.35;
+    pointer-events: none;
+    transform: none;
+  }
+  .ink-ask-drawer-foot-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.45rem;
+    padding: 0 0.15rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--muted);
+  }
+  .ink-ask-drawer-tip {
+    opacity: 0.75;
+  }
+  .ink-ask-drawer-foot {
+    margin: 0;
+    opacity: 0.75;
+    text-align: right;
+  }
+
+  @keyframes ink-ask-stamp {
+    0% { opacity: 0; transform: scale(1.7) rotate(-16deg); }
+    55% { opacity: 1; transform: scale(0.92) rotate(1deg); }
+    100% { opacity: 1; transform: scale(1) rotate(-4deg); }
+  }
+  @keyframes ink-ask-splash {
+    0% { opacity: 0.55; transform: scale(0.9); }
+    100% { opacity: 0; transform: scale(1.9); }
+  }
+  @keyframes ink-ask-breathe {
+    0%, 100% { opacity: 0.25; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes ink-ask-surface {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @media (max-width: 767.98px) {
+    .ink-ask-input,
+    .ink-ask-drawer-input {
+      font-size: 16px;
+    }
+    .ink-ask-sidebar-trigger {
+      top: 1rem;
+      right: 1rem;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.95rem;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ink-ask-ring path {
+      transition: none !important;
+    }
+    .ink-ask-caret,
+    .ink-ask-dots i {
+      animation: none;
+      opacity: 0.7;
+    }
+    .ink-ask-turn.is-cached .ink-ask-answer {
+      animation: none;
+    }
+    .ink-ask-drawer {
+      transition: none;
+    }
+  }
+  @media print {
+    .ink-ask-seal,
+    .ink-ask-ring,
+    .ink-ask-card,
+    .ink-ask-sidebar-trigger,
+    .ink-ask-drawer,
+    .ink-ask-drawer-overlay {
+      display: none !important;
+    }
+  }
+</style>

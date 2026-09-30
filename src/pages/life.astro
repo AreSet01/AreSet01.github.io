@@ -1,0 +1,1366 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import {
+  LIFE_CATEGORIES,
+  LIFE_ITEMS,
+} from '../data/life';
+
+const allItems = LIFE_ITEMS;
+const categories = LIFE_CATEGORIES;
+
+// 统计各分类数目
+const countByCategory = {
+  all: allItems.length,
+  places: allItems.filter((i) => i.category === 'places').length,
+  activities: allItems.filter((i) => i.category === 'activities').length,
+  items: allItems.filter((i) => i.category === 'items').length,
+};
+---
+
+<BaseLayout
+  title="拾光 · 生活漫游 - 梦付千秋"
+  description="记录吹过晚风的山海、静谧的小馆，以及给生活带来光亮的心头好。"
+>
+  <Header />
+
+  <main class="container-wide flex-1 pt-14 pb-20 md:pt-20">
+    <!-- 顶部标题与介绍 -->
+    <section class="panel pb-10 border-b border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule-strong) 50%, transparent 95%) 1;">
+      <p class="eyebrow" data-enter="top">Life / 拾光</p>
+
+      <div class="mt-6 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div class="max-w-2xl">
+          <h1 class="section-title" data-enter="left">生活漫游与私藏心选</h1>
+          <p
+            class="mt-4 text-[1.02rem] leading-[1.8] text-[var(--muted-strong)]"
+            style="font-family: var(--font-serif); font-style: italic;"
+            data-enter="left"
+          >
+            写代码之余，也要去吹吹山海晚风。这里记录去过的好地方、值得一试的日常玩乐，以及每日相伴的心选物件。
+          </p>
+        </div>
+
+        <!-- 顶部互动快捷栏：随机抽签 + 统计指标（防换行排版） -->
+        <div class="life-actions-cluster" data-enter="stamp">
+          <button
+            type="button"
+            class="life-random-btn btn-secondary"
+            id="life-random-btn"
+            title="纠结去哪或做点啥？点此随机摇出灵感"
+          >
+            <span class="life-random-dice" id="life-dice-icon" aria-hidden="true">🎲</span>
+            <span class="life-random-label">灵感抽签</span>
+          </button>
+
+          <div class="life-quick-stats">
+            <span class="life-stat-pill">
+              <b data-count={allItems.length}>{allItems.length}</b> 处拾光
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 搜索栏 -->
+      <div class="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4" data-enter="bottom">
+        <div class="life-search-wrapper flex-1">
+          <svg class="life-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            type="text"
+            id="life-search-input"
+            class="life-search-input"
+            placeholder="搜索地点、玩法、标签或心得内容..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button
+            type="button"
+            id="life-search-clear"
+            class="life-search-clear hidden"
+            aria-label="清空搜索"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 一级分类切换 Tab -->
+    <div class="life-category-tabs" data-enter="bottom">
+      {categories.map((cat) => (
+        <button
+          type="button"
+          class={`life-cat-tab ${cat.id === 'all' ? 'is-active' : ''}`}
+          data-category-tab={cat.id}
+        >
+          <span class="cat-icon">{cat.icon}</span>
+          <span class="cat-name">{cat.name}</span>
+          <i class="cat-count">{countByCategory[cat.id as keyof typeof countByCategory]}</i>
+        </button>
+      ))}
+    </div>
+
+    <!-- 卡片展示列表 -->
+    <div class="life-grid mt-8" id="life-cards-container">
+      {allItems.map((item, index) => {
+        const enterFrom = (['left', 'bottom', 'right'] as const)[index % 3];
+        return (
+          <article
+            class="life-card"
+            data-enter={enterFrom}
+            data-life-id={item.id}
+            data-category={item.category}
+            data-city={item.city}
+            data-tags={item.tags.join(',')}
+            data-search-text={`${item.title} ${item.city} ${item.categoryLabel} ${item.tags.join(' ')} ${item.summary} ${(item.tips || []).join(' ')}`.toLowerCase()}
+          >
+            <!-- 卡片顶栏 -->
+            <div class="life-card-header">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="life-card-category-badge">
+                  {item.category === 'places' ? '📍 去处' : item.category === 'activities' ? '🎈 玩乐' : '☕ 好物'}
+                </span>
+                <span class="life-card-city">
+                  {item.city}
+                </span>
+              </div>
+              {item.badge && (
+                <span class="life-card-badge-highlight">
+                  {item.badge}
+                </span>
+              )}
+            </div>
+
+            <!-- 卡片主标题与星级 -->
+            <div class="life-card-title-group">
+              <h2 class="life-card-title">{item.title}</h2>
+              <div class="life-card-rating" title={`推荐星级：${item.rating} 星`}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <span class={i < item.rating ? 'star-filled' : 'star-empty'}>★</span>
+                ))}
+              </div>
+            </div>
+
+            <!-- 推荐短评 -->
+            <blockquote class="life-card-summary">
+              “{item.summary}”
+            </blockquote>
+
+            <!-- 避坑与打卡建议 -->
+            {item.tips && item.tips.length > 0 && (
+              <div class="life-card-tips-box">
+                <div class="life-card-tips-header">
+                  <span class="life-card-tips-icon">💡</span>
+                  <span>打卡 / 避坑建议</span>
+                </div>
+                <ul class="life-card-tips-list">
+                  {item.tips.map((tip) => (
+                    <li>{tip}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <!-- 最佳时机 -->
+            {item.bestTime && (
+              <div class="life-card-best-time">
+                <span class="best-time-icon">⏱</span>
+                <span>适宜：{item.bestTime}</span>
+              </div>
+            )}
+
+            <!-- 底部标签与导航链接 -->
+            <div class="life-card-footer">
+              <div class="life-card-tags">
+                {item.tags.map((tag) => (
+                  <button type="button" class="life-chip" data-click-tag={tag} title="按此标签搜索">
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+
+              {item.locationUrl && (
+                <a
+                  href={item.locationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="life-map-link"
+                  title="打开地图导航"
+                >
+                  <span>地图</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                </a>
+              )}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+
+    <!-- 搜索/过滤无结果空状态 -->
+    <div id="life-empty-state" class="life-empty-state hidden" data-lenis-prevent>
+      <div class="empty-ink-circle">空</div>
+      <h3 class="empty-title">空山不见人，但闻人语响</h3>
+      <p class="empty-desc">没有找到符合条件的推荐，换个关键词或重置筛选试试吧。</p>
+      <button type="button" id="life-reset-filters-btn" class="life-reset-btn btn-secondary">
+        重置所有筛选
+      </button>
+    </div>
+
+    <!-- 灵感抽签弹窗 Modal -->
+    <div
+      id="life-lottery-modal"
+      class="life-modal-backdrop hidden"
+      aria-modal="true"
+      role="dialog"
+      aria-labelledby="modal-life-title"
+      data-lenis-prevent
+    >
+      <div class="life-modal-dialog" data-lenis-prevent>
+        <button type="button" class="life-modal-close" id="life-modal-close" aria-label="关闭弹窗">✕</button>
+        <div class="life-modal-header">
+          <span class="modal-seal">抽签</span>
+          <h3 class="modal-title" id="modal-life-title">🎲 今日灵感签</h3>
+          <p class="modal-subtitle">既然犹豫不决，不妨把脚步交给机缘~</p>
+        </div>
+
+        <div id="life-modal-content" class="life-modal-body">
+          <!-- 动态注入抽签卡片内容 -->
+        </div>
+
+        <div class="life-modal-actions">
+          <button type="button" id="life-modal-reroll" class="btn-primary life-modal-reroll-btn">
+            再摇一次 🎲
+          </button>
+          <button type="button" id="life-modal-locate" class="btn-secondary life-modal-locate-btn">
+            定位到卡片 📍
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+</BaseLayout>
+
+<style>
+  /* =========================================================
+     Life Page Styles (Editorial Minimal & Ink Glassmorphism)
+     ========================================================= */
+
+  .life-actions-cluster {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: nowrap;
+    user-select: none;
+  }
+
+  .life-random-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 1.15rem;
+    font-size: 0.85rem;
+    font-family: var(--font-body);
+    font-weight: 500;
+    color: var(--text-strong);
+    background: var(--bg-soft);
+    border: 1px solid var(--rule-strong);
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 260ms cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    white-space: nowrap !important;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .life-random-btn:hover {
+    background: var(--text-strong);
+    color: var(--bg-base);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  }
+
+  .life-random-btn:active {
+    transform: translateY(1px) scale(0.98);
+  }
+
+  .life-random-dice {
+    display: inline-block;
+    font-size: 1.05rem;
+    line-height: 1;
+    transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .life-random-label {
+    display: inline-block;
+    white-space: nowrap !important;
+    line-height: 1;
+  }
+
+  .life-random-btn:hover .life-random-dice {
+    transform: rotate(25deg) scale(1.18);
+  }
+
+  .life-quick-stats {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .life-stat-pill {
+    padding: 0.45rem 0.85rem;
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    color: var(--muted-strong);
+    background: var(--bg-soft);
+    border: 1px solid var(--rule-soft);
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+    white-space: nowrap;
+  }
+
+  .life-stat-pill b {
+    color: var(--text-strong);
+    font-weight: 600;
+  }
+
+  /* 搜索框 */
+  .life-search-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    max-width: 480px;
+  }
+
+  .life-search-icon {
+    position: absolute;
+    left: 1rem;
+    color: var(--muted);
+    pointer-events: none;
+    transition: color 200ms ease;
+  }
+
+  .life-search-wrapper:focus-within .life-search-icon {
+    color: var(--text-strong);
+  }
+
+  .life-search-input {
+    width: 100%;
+    padding: 0.65rem 2.2rem 0.65rem 2.6rem;
+    font-size: 0.88rem;
+    color: var(--text-strong);
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
+  }
+
+  .life-search-input:focus {
+    border-color: var(--text-strong);
+    background: var(--bg-base);
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+  }
+
+  [data-theme="dark"] .life-search-input:focus {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+  }
+
+  .life-search-clear {
+    position: absolute;
+    right: 0.75rem;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 180ms ease, transform 180ms ease;
+  }
+
+  .life-search-clear:hover {
+    color: var(--text-strong);
+    transform: scale(1.15);
+  }
+
+  /* 一级分类 Tab */
+  .life-category-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 1.75rem;
+  }
+
+  .life-cat-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 1.1rem;
+    font-size: 0.86rem;
+    font-family: var(--font-body);
+    color: var(--muted-strong);
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 220ms cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
+  }
+
+  .life-cat-tab:hover {
+    color: var(--text-strong);
+    border-color: var(--rule-strong);
+    transform: translateY(-1px);
+  }
+
+  .life-cat-tab.is-active {
+    color: var(--bg-base);
+    background: var(--text-strong);
+    border-color: var(--text-strong);
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .life-cat-tab .cat-count {
+    display: inline-block;
+    padding: 0.05rem 0.4rem;
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    font-style: normal;
+    border-radius: 9999px;
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  .life-cat-tab.is-active .cat-count {
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+  }
+
+  [data-theme="dark"] .life-cat-tab.is-active .cat-count {
+    background: rgba(0, 0, 0, 0.45);
+    color: var(--text-strong);
+  }
+
+  /* 卡片网格 */
+  .life-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+    position: relative;
+    min-height: 200px;
+  }
+
+  @media (max-width: 640px) {
+    .life-grid {
+      grid-template-columns: 1fr;
+      gap: 1.25rem;
+    }
+  }
+
+  /* 卡片本体 */
+  .life-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+    background: var(--bg-base);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    transition: transform 260ms var(--ease), box-shadow 260ms var(--ease), border-color 260ms var(--ease);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    will-change: transform, opacity;
+  }
+
+  .life-card.is-filtered-out {
+    display: none !important;
+  }
+
+  .life-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--rule-strong);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  }
+
+  /* 抽签选中的聚焦动画 */
+  .life-card.is-spotlight {
+    border-color: var(--text-strong) !important;
+    animation: life-card-pulse 1.8s cubic-bezier(0.22, 1, 0.36, 1) 2;
+    box-shadow: 0 0 0 3px var(--text-strong), 0 16px 40px rgba(0, 0, 0, 0.16) !important;
+    z-index: 2;
+  }
+
+  @keyframes life-card-pulse {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.03); }
+    100% { transform: scale(1); }
+  }
+
+  /* 卡片内部元素 */
+  .life-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .life-card-category-badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-strong);
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+  }
+
+  .life-card-city {
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+  }
+
+  .life-card-badge-highlight {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    background: var(--text-strong);
+    color: var(--bg-base);
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+  }
+
+  .life-card-title-group {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .life-card-title {
+    font-family: var(--font-hand);
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--text-strong);
+    line-height: 1.3;
+    transition: color 200ms ease;
+  }
+
+  .life-card:hover .life-card-title {
+    color: var(--accent);
+  }
+
+  .life-card-rating {
+    display: inline-flex;
+    gap: 0.1rem;
+    font-size: 0.85rem;
+    color: var(--text-strong);
+    user-select: none;
+    transition: transform 200ms ease;
+  }
+
+  .life-card:hover .life-card-rating {
+    transform: scale(1.08);
+  }
+
+  .star-filled {
+    color: var(--text-strong);
+    opacity: 0.92;
+  }
+
+  .star-empty {
+    opacity: 0.2;
+  }
+
+  .life-card-summary {
+    margin: 0.25rem 0 1rem;
+    padding-left: 0.75rem;
+    border-left: 2px solid var(--rule-strong);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.92rem;
+    line-height: 1.68;
+    color: var(--muted-strong);
+  }
+
+  .life-card-tips-box {
+    margin-top: auto;
+    margin-bottom: 0.85rem;
+    padding: 0.75rem 0.85rem;
+    background: var(--bg-soft);
+    border: 1px solid var(--rule-soft);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    transition: background 200ms ease;
+  }
+
+  .life-card:hover .life-card-tips-box {
+    background: var(--bg-base);
+    border-color: var(--rule);
+  }
+
+  .life-card-tips-header {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 600;
+    color: var(--text-strong);
+    margin-bottom: 0.4rem;
+  }
+
+  .life-card-tips-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .life-card-tips-list li {
+    position: relative;
+    padding-left: 1rem;
+    line-height: 1.5;
+    color: var(--muted-strong);
+  }
+
+  .life-card-tips-list li::before {
+    content: '•';
+    position: absolute;
+    left: 0.2rem;
+    top: -0.05rem;
+    color: var(--text-strong);
+  }
+
+  .life-card-best-time {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    margin-bottom: 0.85rem;
+  }
+
+  .best-time-icon {
+    font-size: 0.85rem;
+  }
+
+  .life-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--rule-soft);
+  }
+
+  .life-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .life-chip {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    padding: 0.15rem 0.45rem;
+    background: transparent;
+    border: 1px solid var(--rule-soft);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 180ms ease;
+  }
+
+  .life-chip:hover {
+    color: var(--text-strong);
+    border-color: var(--rule-strong);
+    background: var(--bg-soft);
+    transform: translateY(-1px);
+  }
+
+  .life-map-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.55rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-strong);
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    text-decoration: none;
+    transition: all 200ms ease;
+  }
+
+  .life-map-link:hover {
+    background: var(--text-strong);
+    color: var(--bg-base);
+    transform: translateY(-1px);
+  }
+
+  /* 空状态 */
+  .life-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 5rem 1rem;
+    text-align: center;
+    animation: fade-in-scale 320ms ease;
+  }
+
+  @keyframes fade-in-scale {
+    0% { opacity: 0; transform: scale(0.96); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  .empty-ink-circle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 1px solid var(--rule-strong);
+    font-family: var(--font-hand);
+    font-size: 1.5rem;
+    color: var(--muted);
+    margin-bottom: 1.2rem;
+  }
+
+  .empty-title {
+    font-family: var(--font-hand);
+    font-size: 1.25rem;
+    color: var(--text-strong);
+    margin-bottom: 0.5rem;
+  }
+
+  .empty-desc {
+    font-size: 0.88rem;
+    color: var(--muted);
+    max-width: 320px;
+    margin-bottom: 1.5rem;
+  }
+
+  .life-reset-btn {
+    padding: 0.5rem 1.2rem;
+    font-size: 0.82rem;
+    color: var(--text-strong);
+    background: var(--bg-soft);
+    border: 1px solid var(--rule-strong);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 220ms ease;
+  }
+
+  .life-reset-btn:hover {
+    background: var(--text-strong);
+    color: var(--bg-base);
+    transform: translateY(-1px);
+  }
+
+  :global(body.life-modal-open) {
+    overflow: hidden !important;
+    overscroll-behavior: none !important;
+  }
+
+  /* 抽签 Modal */
+  .life-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: rgba(0, 0, 0, 0.52);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .life-modal-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .life-modal-backdrop:not(.is-open) * {
+    pointer-events: none !important;
+  }
+
+  .life-modal-dialog {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    max-height: min(90vh, 640px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    background: var(--bg-base);
+    border: 1px solid var(--rule-strong);
+    border-radius: 14px;
+    padding: 2rem;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
+    transform: scale(0.92) translateY(12px);
+    opacity: 0;
+    transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1), opacity 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .life-modal-backdrop.is-open .life-modal-dialog {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+
+  .life-modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1.2rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 1.1rem;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: color 180ms ease, transform 180ms ease;
+  }
+
+  .life-modal-close:hover {
+    color: var(--text-strong);
+    transform: scale(1.15);
+  }
+
+  .life-modal-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .modal-seal {
+    display: inline-block;
+    font-size: 0.72rem;
+    padding: 0.15rem 0.45rem;
+    border: 1px solid var(--text-strong);
+    border-radius: 3px;
+    color: var(--text-strong);
+    margin-bottom: 0.5rem;
+  }
+
+  .modal-title {
+    font-family: var(--font-hand);
+    font-size: 1.45rem;
+    color: var(--text-strong);
+    margin-bottom: 0.35rem;
+  }
+
+  .modal-subtitle {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .life-modal-body {
+    min-height: 160px;
+    margin-bottom: 1.5rem;
+  }
+
+  .life-modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+  }
+
+  .life-modal-reroll-btn,
+  .life-modal-locate-btn {
+    padding: 0.55rem 1.2rem;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 180ms ease;
+  }
+
+  .life-modal-reroll-btn:hover {
+    opacity: 0.92;
+    transform: translateY(-1px);
+  }
+
+  .life-modal-locate-btn:hover {
+    transform: translateY(-1px);
+  }
+</style>
+
+<script>
+  import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+  import CustomEase from 'gsap/CustomEase';
+
+  gsap.registerPlugin(ScrollTrigger, CustomEase);
+  CustomEase.create('enter', 'M0,0 C0.06,0.62 0.16,0.9 0.42,0.975 0.62,1.005 0.8,1 1,1');
+  CustomEase.create('ink', '0.25, 1, 0.5, 1');
+
+  const CLEANUP_KEY = '__areSetLifePageCleanup__';
+  const LISTENER_KEY = '__areSetLifePageBound__';
+
+  function initLifePage() {
+    // 若之前已存在清理函数，先执行清理
+    const previousCleanup = (window as any)[CLEANUP_KEY];
+    if (typeof previousCleanup === 'function') {
+      previousCleanup();
+    }
+
+    const container = document.getElementById('life-cards-container');
+    if (!container) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let currentCategory = 'all';
+    let searchQuery = '';
+    let currentLotteryCard: HTMLElement | null = null;
+    let filterTimeline: gsap.core.Timeline | null = null;
+
+    const cards = Array.from(container.querySelectorAll<HTMLElement>('.life-card'));
+    const searchInput = document.getElementById('life-search-input') as HTMLInputElement | null;
+    const searchClear = document.getElementById('life-search-clear');
+    const emptyState = document.getElementById('life-empty-state');
+    const resetBtn = document.getElementById('life-reset-filters-btn');
+    const catTabs = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-category-tab]'));
+    const diceIcon = document.getElementById('life-dice-icon');
+
+    // 抽签 Modal 相关
+    const randomBtn = document.getElementById('life-random-btn');
+    const modal = document.getElementById('life-lottery-modal');
+    const modalClose = document.getElementById('life-modal-close');
+    const modalContent = document.getElementById('life-modal-content');
+    const modalReroll = document.getElementById('life-modal-reroll');
+    const modalLocate = document.getElementById('life-modal-locate');
+
+    /**
+     * 将卡片状态从动画或隐藏完全交付给页面，确保在动画结束后不受任何行内样式干扰
+     */
+    function settleCard(el: HTMLElement) {
+      gsap.killTweensOf(el);
+      el.classList.remove('is-entering');
+      el.classList.add('is-entered');
+      el.dataset.enterState = 'in';
+      gsap.set(el, { clearProps: 'opacity,transform,scale' });
+    }
+
+    /**
+     * 刷新滚动容器与触发器尺寸，防止卡顿与 Lenis 高度不一致
+     */
+    function refreshScroll() {
+      if (typeof ScrollTrigger !== 'undefined') {
+        ScrollTrigger.refresh();
+      }
+      try {
+        (window as any).lenis?.resize();
+      } catch {}
+    }
+
+    /**
+     * 核心过滤算法：分类 + 关键词组合筛选，带流畅的 GSAP 动效与自适应高度更新
+     */
+    function applyFilters(animate = true) {
+      if (filterTimeline) {
+        filterTimeline.kill();
+        filterTimeline = null;
+      }
+
+      const q = searchQuery.toLowerCase().trim();
+      const matchCard = (card: HTMLElement) => {
+        const itemCategory = card.getAttribute('data-category') || '';
+        const searchText = card.getAttribute('data-search-text') || '';
+
+        const matchesCategory = currentCategory === 'all' || itemCategory === currentCategory;
+        const matchesSearch = !q || searchText.includes(q);
+        return matchesCategory && matchesSearch;
+      };
+
+      const toShow: HTMLElement[] = [];
+      const toHide: HTMLElement[] = [];
+
+      cards.forEach((card) => {
+        if (matchCard(card)) {
+          toShow.push(card);
+        } else {
+          toHide.push(card);
+        }
+      });
+
+      // 处理空状态展示
+      if (emptyState) {
+        if (toShow.length === 0) {
+          emptyState.classList.remove('hidden');
+          if (animate && !reduceMotion) {
+            gsap.fromTo(emptyState, { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'power2.out' });
+          }
+        } else {
+          emptyState.classList.add('hidden');
+        }
+      }
+
+      if (!animate || reduceMotion) {
+        toHide.forEach((card) => {
+          card.classList.add('is-filtered-out');
+        });
+        toShow.forEach((card) => {
+          card.classList.remove('is-filtered-out');
+          settleCard(card);
+        });
+        refreshScroll();
+        return;
+      }
+
+      // 带有墨韵交错动效的卡片展示切换
+      const tl = gsap.timeline({
+        onComplete: () => {
+          toShow.forEach((card) => settleCard(card));
+          refreshScroll();
+          filterTimeline = null;
+        },
+      });
+      filterTimeline = tl;
+
+      // 1. 先快速渐隐退场卡片
+      if (toHide.length > 0) {
+        tl.to(toHide, {
+          opacity: 0,
+          scale: 0.95,
+          duration: 0.22,
+          ease: 'power2.in',
+          stagger: 0.015,
+          onComplete: () => {
+            toHide.forEach((card) => {
+              card.classList.add('is-filtered-out');
+            });
+          },
+        }, 0);
+      }
+
+      // 2. 显示新卡片并交错淡入展开
+      if (toShow.length > 0) {
+        toShow.forEach((card) => {
+          card.classList.remove('is-filtered-out');
+          gsap.set(card, { opacity: 0, scale: 0.94, y: 14 });
+        });
+
+        tl.to(toShow, {
+          opacity: 1,
+          scale: 1,
+          y: 0,
+          duration: 0.45,
+          ease: 'enter',
+          stagger: 0.035,
+        }, toHide.length > 0 ? 0.14 : 0);
+      }
+    }
+
+    // 分类 Tab 切换
+    catTabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        catTabs.forEach((t) => t.classList.remove('is-active'));
+        tab.classList.add('is-active');
+        currentCategory = tab.getAttribute('data-category-tab') || 'all';
+
+        const rect = tab.getBoundingClientRect();
+        (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+
+        applyFilters();
+      }, { signal });
+    });
+
+    // 卡片内小标签点击直接填入搜索框并即时过滤
+    cards.forEach((card) => {
+      const chips = card.querySelectorAll<HTMLElement>('[data-click-tag]');
+      chips.forEach((chip) => {
+        chip.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const tag = chip.getAttribute('data-click-tag');
+          if (!tag) return;
+
+          if (searchInput) {
+            searchInput.value = tag;
+            searchQuery = tag;
+            if (searchClear) searchClear.classList.remove('hidden');
+            applyFilters();
+            searchInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+
+          const rect = chip.getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+        }, { signal });
+      });
+    });
+
+    // 实时搜索防抖处理
+    let searchTimer = 0;
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        searchQuery = searchInput.value;
+        if (searchClear) {
+          if (searchQuery) {
+            searchClear.classList.remove('hidden');
+          } else {
+            searchClear.classList.add('hidden');
+          }
+        }
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(() => {
+          applyFilters();
+        }, 120);
+      }, { signal });
+    }
+
+    // 清空搜索
+    if (searchClear && searchInput) {
+      searchClear.addEventListener('click', () => {
+        searchInput.value = '';
+        searchQuery = '';
+        searchClear.classList.add('hidden');
+        applyFilters();
+        searchInput.focus();
+      }, { signal });
+    }
+
+    // 重置所有筛选
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        currentCategory = 'all';
+        searchQuery = '';
+        if (searchInput) searchInput.value = '';
+        if (searchClear) searchClear.classList.add('hidden');
+
+        catTabs.forEach((t) => t.classList.remove('is-active'));
+        catTabs[0]?.classList.add('is-active');
+
+        const rect = resetBtn.getBoundingClientRect();
+        (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 14);
+
+        applyFilters();
+      }, { signal });
+    }
+
+    // =========================================================
+    // 灵感抽签 Modal 与交互动效
+    // =========================================================
+    let isModalOpen = false;
+
+    function openModal() {
+      if (!modal) return;
+      isModalOpen = true;
+
+      // 避免 Lenis 与弹窗内滚动打架
+      if ((window as any).lenis) {
+        (window as any).lenis.stop();
+      }
+
+      modal.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        modal.classList.add('is-open');
+      });
+      document.body.classList.add('life-modal-open');
+
+      // 掷骰子动画与水墨飞溅
+      if (diceIcon && !reduceMotion) {
+        gsap.fromTo(diceIcon, { rotation: 0, scale: 1 }, { rotation: 720, scale: 1.35, duration: 0.65, ease: 'back.out(2)', clearProps: 'scale' });
+      }
+
+      const btnRect = randomBtn?.getBoundingClientRect();
+      if (btnRect) {
+        (window as any).__inkSplash?.(btnRect.left + btnRect.width / 2, btnRect.top + btnRect.height / 2, 16);
+      }
+    }
+
+    function closeModal() {
+      if (!modal || !isModalOpen) return;
+      isModalOpen = false;
+
+      modal.classList.remove('is-open');
+      document.body.classList.remove('life-modal-open');
+
+      if ((window as any).lenis) {
+        (window as any).lenis.start();
+      }
+
+      window.setTimeout(() => {
+        if (!isModalOpen) {
+          modal.classList.add('hidden');
+        }
+      }, 300);
+    }
+
+    let lastPickedId = '';
+    function rollLottery() {
+      // 优先从当前未被过滤的卡片抽选，若均被过滤则从全部卡片抽选
+      const pool = cards.filter((c) => !c.classList.contains('is-filtered-out'));
+      const candidates = pool.length > 0 ? pool : cards;
+      if (candidates.length === 0) return;
+
+      // 尽量避免连续抽中同一个
+      let poolToPick = candidates;
+      if (candidates.length > 1 && lastPickedId) {
+        const filtered = candidates.filter((c) => c.getAttribute('data-life-id') !== lastPickedId);
+        if (filtered.length > 0) poolToPick = filtered;
+      }
+
+      const pickedCard = poolToPick[Math.floor(Math.random() * poolToPick.length)];
+      currentLotteryCard = pickedCard;
+      lastPickedId = pickedCard.getAttribute('data-life-id') || '';
+
+      const title = pickedCard.querySelector('.life-card-title')?.textContent || '';
+      const categoryBadge = pickedCard.querySelector('.life-card-category-badge')?.textContent || '';
+      const city = pickedCard.querySelector('.life-card-city')?.textContent || '';
+      const summary = pickedCard.querySelector('.life-card-summary')?.textContent || '';
+      const bestTime = pickedCard.querySelector('.life-card-best-time')?.textContent || '';
+
+      if (modalContent) {
+        modalContent.innerHTML = `
+          <div class="p-4 rounded-lg bg-[var(--bg-soft)] border border-[var(--rule)]">
+            <div class="flex items-center justify-between text-xs mb-2">
+              <span class="px-2 py-0.5 rounded border border-[var(--rule)] bg-[var(--bg-base)] font-medium text-[var(--text-strong)]">${categoryBadge}</span>
+              <span class="font-mono text-[var(--muted)]">${city}</span>
+            </div>
+            <h4 class="text-xl font-bold text-[var(--text-strong)] mb-2" style="font-family: var(--font-hand);">${title}</h4>
+            <p class="text-sm italic text-[var(--muted-strong)] mb-3" style="font-family: var(--font-serif);">${summary}</p>
+            ${bestTime ? `<p class="text-xs font-mono text-[var(--muted)]">${bestTime}</p>` : ''}
+          </div>
+        `;
+
+        if (!reduceMotion) {
+          gsap.fromTo(modalContent, { opacity: 0, y: 12, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.38, ease: 'ink' });
+        }
+      }
+
+      openModal();
+    }
+
+    if (randomBtn) {
+      randomBtn.addEventListener('click', rollLottery, { signal });
+    }
+
+    if (modalReroll) {
+      modalReroll.addEventListener('click', () => {
+        const rerollBtnRect = modalReroll.getBoundingClientRect();
+        (window as any).__inkSplash?.(rerollBtnRect.left + rerollBtnRect.width / 2, rerollBtnRect.top + rerollBtnRect.height / 2, 12);
+        rollLottery();
+      }, { signal });
+    }
+
+    if (modalClose && modal) {
+      modalClose.addEventListener('click', closeModal, { signal });
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          closeModal();
+        }
+      }, { signal });
+    }
+
+    // 支持按下 Esc 键关闭弹窗
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isModalOpen) {
+        closeModal();
+      }
+    }, { signal });
+
+    // 定位到选中的卡片
+    if (modalLocate) {
+      modalLocate.addEventListener('click', () => {
+        if (!currentLotteryCard) return;
+        const target = currentLotteryCard;
+
+        // 若当前处于过滤状态导致该卡片不可见，则自动重置过滤条件使卡片可见
+        if (target.classList.contains('is-filtered-out')) {
+          currentCategory = 'all';
+          searchQuery = '';
+          if (searchInput) searchInput.value = '';
+          if (searchClear) searchClear.classList.add('hidden');
+          catTabs.forEach((t) => t.classList.remove('is-active'));
+          catTabs[0]?.classList.add('is-active');
+          applyFilters(false);
+        }
+
+        closeModal();
+
+        // 统一使用 Lenis 平滑滚动，严防原生 smooth scroll 与 Lenis 冲突导致卡住
+        window.setTimeout(() => {
+          if ((window as any).lenis) {
+            (window as any).lenis.scrollTo(target, {
+              offset: -100,
+              duration: 1.1,
+              easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+            });
+          } else {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+
+          // 施加聚焦高光动画与水墨飞溅
+          target.classList.add('is-spotlight');
+          window.setTimeout(() => {
+            const rect = target.getBoundingClientRect();
+            (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 20);
+          }, 550);
+
+          window.setTimeout(() => {
+            target.classList.remove('is-spotlight');
+          }, 3200);
+        }, 150);
+      }, { signal });
+    }
+
+    // 页面卸载或重新载入时的清理函数
+    (window as any)[CLEANUP_KEY] = () => {
+      controller.abort();
+      window.clearTimeout(searchTimer);
+      if (filterTimeline) {
+        filterTimeline.kill();
+        filterTimeline = null;
+      }
+      if (isModalOpen) {
+        if ((window as any).lenis) {
+          (window as any).lenis.start();
+        }
+        document.body.classList.remove('life-modal-open');
+        isModalOpen = false;
+      }
+      cards.forEach((card) => {
+        if (!card.classList.contains('is-filtered-out')) {
+          settleCard(card);
+        }
+        card.classList.remove('is-spotlight');
+      });
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+  }
+
+  // 初始化并在每次 View Transition 后重新挂载
+  initLifePage();
+
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', initLifePage);
+    document.addEventListener('astro:before-swap', () => {
+      const previousCleanup = (window as any)[CLEANUP_KEY];
+      if (typeof previousCleanup === 'function') previousCleanup();
+    });
+    (window as any)[LISTENER_KEY] = true;
+  }
+</script>

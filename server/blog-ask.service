@@ -1,0 +1,48 @@
+# 划词问答服务的 systemd 单元。
+# 安装步骤见 server/README.md，简版：
+#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin blogask
+#   sudo cp server/blog-ask.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now blog-ask
+
+[Unit]
+Description=Blog ask proxy (划词问答)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 专用账号：key 在它的环境里，别的服务（包括 nginx）读不到
+User=blogask
+Group=blogask
+
+# 这个文件由 systemd（root）读取后再把变量交给进程，所以文件本身可以是 600 root:root。
+# 注意：进程自己的 /proc/<pid>/environ 对该进程的用户可读，这是用专用账号的另一个理由。
+EnvironmentFile=/etc/blog-ask.env
+
+WorkingDirectory=/opt/blog/server
+ExecStart=/usr/bin/node /opt/blog/server/ask.mjs
+Restart=always
+RestartSec=3
+
+# 500MB 的机器上给它一道硬顶：越界就重启，重启后答案缓存从磁盘读回来（cgroup v2 才生效）
+MemoryHigh=140M
+MemoryMax=180M
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/var/www/blog
+ReadWritePaths=/var/lib/blog-ask
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=blog-ask
+
+[Install]
+WantedBy=multi-user.target

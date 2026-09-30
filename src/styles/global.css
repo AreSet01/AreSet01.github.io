@@ -78,8 +78,15 @@
   --border: var(--rule);
   --border-strong: var(--rule-strong);
 
-  /* ---------- Type system ---------- */
+  /* ---------- Type system ----------
+     Two faces ship side by side; the 字体 toggle swaps them by setting html[data-font]:
+     "pixel" (the default below) and "kai" (see the html[data-font="kai"] block). Nothing
+     outside those two places names a family directly — every rule reads a role token. */
   --font-pixel: "Zpix", "VT323", "Press Start 2P", monospace;
+  /* 毛笔行楷 for display sizes; 华文行楷 first so a machine that has it gets the real cut */
+  --font-kai-brush: "STXingkai", "华文行楷", "Ma Shan Zheng", "LXGW WenKai", "STKaiti", "KaiTi", "楷体", cursive;
+  /* 霞鹜文楷 — a 楷体 cut made for long-form reading, which the brush face is not at body size */
+  --font-kai-read: "LXGW WenKai", "STKaiti", "KaiTi", "楷体", "Noto Serif SC", "Source Han Serif SC", serif;
 
   --font-hand: "Zpix", "VT323", "Ma Shan Zheng", "LXGW WenKai", "STKaiti", "KaiTi", "楷体", cursive;
   --font-hand-title: "Zpix", "VT323", "Ma Shan Zheng", "LXGW WenKai", "STKaiti", "KaiTi", "楷体", cursive;
@@ -102,6 +109,62 @@
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-bounce: cubic-bezier(0.2, 0.9, 0.2, 1);
   --scrollbar-offset: 0px;
+}
+
+/* ================= 行楷 face (字体 toggle) =================
+   Titles take the brush 行楷, body copy takes 霞鹜文楷. Both families are already in
+   BaseLayout's <head>, so flipping html[data-font] costs no extra request.
+
+   The metrics are restated per breakpoint on purpose: `html[data-font="kai"]` outranks
+   `:root`, so :root's responsive --font-size-base rules would be silently dropped here
+   if this block didn't mirror them. */
+
+html[data-font="kai"] {
+  --font-hand: var(--font-kai-read);
+  --font-hand-title: var(--font-kai-brush);
+  --font-body: var(--font-kai-read);
+  --font-serif: var(--font-kai-read);
+  --font-mono:
+    "LXGW WenKai Mono", "JetBrains Mono", ui-monospace, "Cascadia Code", "Source Code Pro",
+    Menlo, monospace;
+
+  /* 楷体 reads optically smaller than Zpix at the same px and wants far less tracking;
+     the brush titles want the opposite, hence the wider --font-letter-title. */
+  --font-size-base: clamp(16px, 0.24vw + 15.1px, 17.5px);
+  --font-line-base: 1.9;
+  --font-letter-base: 0.006em;
+  --font-letter-title: 0.04em;
+}
+
+@media (max-width: 768px) {
+  html[data-font="kai"] {
+    --font-size-base: clamp(15.5px, 4.1vw, 16.5px);
+    --font-line-base: 1.88;
+  }
+}
+
+@media (min-width: 1024px) {
+  html[data-font="kai"] {
+    --font-size-base: clamp(16.5px, 0.2vw + 15.5px, 17.5px);
+    --font-line-base: 1.84;
+  }
+}
+
+/* The brush face has real ascenders and descenders where Zpix has none, so display
+   sizes need their leading back or the strokes collide. */
+html[data-font="kai"] .section-title,
+html[data-font="kai"] .home-hero-title,
+html[data-font="kai"] .post-title,
+html[data-font="kai"] .prose h1,
+html[data-font="kai"] .prose h2,
+html[data-font="kai"] .prose h3 {
+  line-height: 1.38;
+}
+
+/* Zpix is a bitmap face: pixel mode wants the grid, 行楷 wants smoothing back. */
+html[data-font="kai"] body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* ================= Dark Mode (deep ink night) ================= */
@@ -206,6 +269,63 @@
 }
 
 [data-theme="moss"] body {
+  background: var(--bg-base);
+}
+
+/* ================= Rice Mode (宣纸杏黄 — the reading theme) =================
+   Warm 米黄 paper under warm-brown ink: no pure white, no pure black and no blue-light
+   peak anywhere in the palette, which is what makes it sit still under long reading.
+   Body/paper measures ≈9.3:1 and every text token clears AA at its own size. */
+
+[data-theme="rice"] {
+  --bg-base: #F2E9D8;
+  --bg-soft: #EBE0CB;
+  --bg-elev: #F7F0E2;
+
+  --ink: #423A30;
+  --ink-strong: #2B241C;
+  --ink-mid: #6B5F50;
+  --ink-light: #857868;
+  --ink-wash: rgba(43, 36, 28, 0.4);
+  --ink-mist: rgba(43, 36, 28, 0.15);
+
+  --text: var(--ink);
+  --text-strong: var(--ink-strong);
+  --muted: var(--ink-light);
+  --muted-strong: var(--ink-mid);
+
+  --rule: rgba(92, 76, 55, 0.2);
+  --rule-strong: rgba(92, 76, 55, 0.38);
+  --rule-soft: rgba(92, 76, 55, 0.1);
+
+  --accent: #6B5B45;
+  --accent-strong: #4E4132;
+  --accent-deep: #2B241C;
+  --accent-soft: rgba(107, 91, 69, 0.16);
+  --accent-rgb: 107, 91, 69;
+
+  /* 老木色 seal accent — one step darker than the swatch so it stays legible as text */
+  --vermilion: #7D5C42;
+  --vermilion-strong: #5E4531;
+  --vermilion-soft: rgba(125, 92, 66, 0.15);
+  --vermilion-rgb: 125, 92, 66;
+
+  --pink: #6B5F50;
+  --pink-strong: #423A30;
+  --rose: #7D5C42;
+
+  --glass-bg: rgba(247, 240, 226, 0.9);
+  --glass-bg-strong: rgba(247, 240, 226, 0.96);
+  --glass-bg-soft: rgba(247, 240, 226, 0.6);
+  --glass-border: rgba(92, 76, 55, 0.18);
+  --glass-border-strong: rgba(92, 76, 55, 0.3);
+  --glass-shadow: 0 24px 64px rgba(92, 70, 44, 0.14);
+  --glass-shadow-lg: 0 40px 96px rgba(92, 70, 44, 0.2);
+  --glass-inner-top: inset 0 1px 0 rgba(255, 252, 244, 0.6);
+  --glass-inner-bottom: inset 0 -1px 0 rgba(92, 70, 44, 0.05);
+}
+
+[data-theme="rice"] body {
   background: var(--bg-base);
 }
 
@@ -373,6 +493,27 @@ body::after {
   opacity: 0.55;
 }
 
+/* Rice ambient: the washes stay warm and run *lighter* than the paper as well as darker,
+   so the field reads as uneven 宣纸 rather than as stains on a flat card. */
+[data-theme="rice"] body::before {
+  background:
+    radial-gradient(closest-side at 16% 22%, rgba(120, 92, 56, 0.12) 0%, transparent 56%),
+    radial-gradient(closest-side at 84% 18%, rgba(255, 250, 238, 0.5) 0%, transparent 62%),
+    radial-gradient(closest-side at 72% 78%, rgba(120, 92, 56, 0.1) 0%, transparent 58%),
+    radial-gradient(closest-side at 22% 82%, rgba(150, 112, 66, 0.09) 0%, transparent 60%);
+}
+
+[data-theme="rice"] body::after {
+  background-image:
+    repeating-linear-gradient(88deg, transparent 0, transparent 46px, rgba(120, 92, 56, 0.035) 46px, rgba(120, 92, 56, 0.035) 47px, transparent 47px, transparent 140px),
+    repeating-linear-gradient(176deg, transparent 0, transparent 72px, rgba(120, 92, 56, 0.028) 72px, rgba(120, 92, 56, 0.028) 73px, transparent 73px, transparent 220px),
+    radial-gradient(rgba(140, 107, 79, 0.1) 0.5px, transparent 0.5px),
+    radial-gradient(rgba(43, 36, 28, 0.05) 0.6px, transparent 0.6px);
+  background-size: auto, auto, 6px 6px, 22px 22px;
+  background-position: 0 0, 0 0, 0 0, 11px 11px;
+  opacity: 0.72;
+}
+
 @keyframes ambientDrift {
   0%   { transform: translate3d(0, 0, 0) scale(1); }
   50%  { transform: translate3d(2%, -3%, 0) scale(1.04); }
@@ -416,14 +557,18 @@ img {
 }
 
 ::selection {
-  background: var(--ink-strong);
-  color: var(--bg-elev);
+  background: rgba(0, 0, 0, 0.12);
+  color: inherit;
 }
 
-[data-theme="dark"] ::selection,
+[data-theme="dark"] ::selection {
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+}
+
 [data-theme="moss"] ::selection {
-  background: var(--ink-strong);
-  color: var(--bg-base);
+  background: rgba(120, 160, 120, 0.22);
+  color: inherit;
 }
 
 .site-shell {
@@ -904,8 +1049,14 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
     border-image: linear-gradient(to bottom, transparent 5%, var(--rule) 50%, transparent 95%) 1;
     display: flex;
     flex-direction: column;
-    padding: 3.5rem 0;
+    padding: clamp(1.25rem, 2.5vh, 2rem) 0;
     overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+  }
+
+  .glass-nav::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -928,8 +1079,8 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
   .glass-nav-inner {
     flex-direction: column;
     align-items: flex-start;
-    padding: 0 2rem;
-    gap: 3rem;
+    padding: 0 clamp(1.25rem, 2vw, 2rem);
+    gap: 1.5rem;
   }
 }
 
@@ -1258,6 +1409,7 @@ html[data-cursor-trail="disabled"] .cursor-trail-toggle .icon-trail-on  { displa
 
 .theme-toggle .icon-moon { display: none; }
 .theme-toggle .icon-leaf { display: none; }
+.theme-toggle .icon-scroll { display: none; }
 .theme-toggle .icon-sun  { display: block; }
 
 [data-theme="dark"] .theme-toggle .icon-moon { display: block; }
@@ -1266,6 +1418,78 @@ html[data-cursor-trail="disabled"] .cursor-trail-toggle .icon-trail-on  { displa
 [data-theme="moss"] .theme-toggle .icon-leaf { display: block; }
 [data-theme="moss"] .theme-toggle .icon-sun  { display: none; }
 [data-theme="moss"] .theme-toggle { color: var(--accent); }
+
+[data-theme="rice"] .theme-toggle .icon-scroll { display: block; }
+[data-theme="rice"] .theme-toggle .icon-sun    { display: none; }
+[data-theme="rice"] .theme-toggle { color: var(--muted-strong); }
+[data-theme="rice"] .theme-toggle:hover { color: var(--vermilion); }
+[data-theme="rice"] .cursor-trail-toggle:hover { color: var(--vermilion); }
+
+/* The scroll unrolls rather than tilting — a rotate would read as a page skewing */
+.theme-toggle:hover .icon-scroll {
+  transform: rotate(0deg) scale(1.1);
+}
+
+/* ================= Font Toggle (像素体 ⇄ 行楷) ================= */
+
+.font-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: var(--muted-strong);
+  cursor: pointer;
+  transition: color 280ms var(--ease);
+}
+
+.font-toggle:hover {
+  color: var(--text-strong);
+}
+
+.font-toggle svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 400ms var(--ease);
+}
+
+/* The button shows the face you are *in*, so the two icons swap with data-font */
+.font-toggle .icon-font-kai { display: none; }
+.font-toggle .icon-font-pixel { display: block; }
+
+html[data-font="kai"] .font-toggle .icon-font-kai { display: block; }
+html[data-font="kai"] .font-toggle .icon-font-pixel { display: none; }
+
+/* Pixel glyph snaps a whole cell; the brush stroke sweeps, matching each face's idiom */
+.font-toggle:hover .icon-font-pixel {
+  transform: translate(1px, -1px);
+}
+
+.font-toggle:hover .icon-font-kai {
+  transform: rotate(-8deg) scale(1.08);
+}
+
+[data-theme="dark"] .font-toggle {
+  color: var(--muted-strong);
+}
+
+[data-theme="dark"] .font-toggle:hover {
+  color: var(--text-strong);
+}
+
+[data-theme="moss"] .font-toggle:hover {
+  color: var(--accent);
+}
+
+[data-theme="rice"] .font-toggle:hover {
+  color: var(--vermilion);
+}
 
 [data-theme="dark"] .theme-toggle {
   color: var(--muted-strong);
@@ -1410,6 +1634,7 @@ html.theme-switching .nav-link,
 html.theme-switching .nav-search-trigger,
 html.theme-switching .nav-search-kbd,
 html.theme-switching .theme-toggle,
+html.theme-switching .font-toggle,
 html.theme-switching .cursor-trail-toggle,
 html.theme-switching .btn-secondary,
 html.theme-switching .tag-chip,
@@ -1574,6 +1799,14 @@ html.theme-switching .prose blockquote {
   background: #3D6B48;
   color: #FBE3E9;
   border-color: rgba(255, 241, 244, 0.12);
+}
+
+/* The shared light-mode code block is a cool near-black; on warm paper that reads as a
+   hole punched in the page, so rice gets a warm-dark slab and off-white ink instead. */
+[data-theme="rice"] .prose pre {
+  background: #2C251D;
+  color: #EDE3D0;
+  border-color: rgba(237, 227, 208, 0.1);
 }
 
 .prose pre code {
@@ -1851,6 +2084,10 @@ html.theme-switching .prose blockquote {
   .nav-search-trigger {
     grid-column: 1 / 2 !important;
     width: 100% !important;
+    /* `1fr` floors at the trigger's min-content width ("Search" + the ⌘K cap), so with a
+       third action button beside it the row could out-measure a 360px column and spill.
+       Letting the track shrink below min-content keeps the overflow impossible. */
+    min-width: 0 !important;
     height: 2.1rem !important;
     padding: 0 0.75rem !important;
     margin: 0 !important;
@@ -1869,12 +2106,15 @@ html.theme-switching .prose blockquote {
     justify-self: end !important;
     display: inline-flex !important;
     align-items: center !important;
-    gap: 0.35rem !important;
+    /* Three buttons now, not two — let the gap tighten on a narrow phone before the
+       search field is the thing that gives way. */
+    gap: clamp(0.12rem, 1.4vw, 0.35rem) !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
   .theme-toggle,
+  .font-toggle,
   .cursor-trail-toggle {
     grid-row: auto !important;
     grid-column: auto !important;
@@ -3371,6 +3611,7 @@ body.preview-open .site-shell {
   html[data-cursor-trail="disabled"] [data-search-trigger],
   html[data-cursor-trail="disabled"] [data-search-result],
   html[data-cursor-trail="disabled"] .theme-toggle,
+  html[data-cursor-trail="disabled"] .font-toggle,
   html[data-cursor-trail="disabled"] .cursor-trail-toggle,
   html[data-cursor-trail="disabled"] .sidebar-collapse-btn,
   html[data-cursor-trail="disabled"] .sidebar-expand-btn {
@@ -3393,8 +3634,48 @@ body.preview-open .site-shell {
     cursor: grabbing !important;
   }
 
+  #inkCanvas {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    pointer-events: none !important;
+    z-index: 100005 !important;
+  }
+
   html[data-cursor-trail="disabled"] #inkCanvas {
     display: none !important;
+  }
+}
+
+/* ================= Floating Article Action Pills ================= */
+.article-floating-actions {
+  position: fixed;
+  bottom: 26px;
+  right: 26px;
+  z-index: 68;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.article-floating-actions > * {
+  position: static !important;
+  bottom: auto !important;
+  right: auto !important;
+  left: auto !important;
+  top: auto !important;
+  margin: 0 !important;
+  pointer-events: auto;
+}
+
+@media (max-width: 640px) {
+  .article-floating-actions {
+    bottom: max(16px, env(safe-area-inset-bottom, 16px));
+    right: 16px;
+    gap: 8px;
   }
 }
 
@@ -6471,7 +6752,8 @@ a.chart-bar-name:hover {
   image-rendering: -webkit-optimize-contrast;
 }
 
-body.mermaid-modal-open {
+body.mermaid-modal-open,
+body.life-modal-open {
   overflow: hidden !important;
   overscroll-behavior: none !important;
 }
@@ -6625,3 +6907,932 @@ body.mermaid-modal-open {
     padding-inline: 0.9rem;
   }
 }
+
+/* ================= Base resets & safeguards ================= */
+[hidden] {
+  display: none !important;
+}
+
+/* ================= Pin Workbench — Split Reading & Pinned Content ================= */
+
+/* Button styling in code blocks and mermaid headers */
+.code-pin-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.12em 0.6em;
+  border: 1px solid rgba(232, 227, 213, 0.22);
+  border-radius: 3px;
+  background: transparent;
+  color: rgba(232, 227, 213, 0.72);
+  font-family: inherit;
+  font-size: 0.86em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 200ms var(--ease), border-color 200ms var(--ease), background 200ms var(--ease), transform 200ms var(--ease);
+}
+
+.code-pin-button:hover {
+  color: #fff;
+  border-color: var(--accent);
+  background: rgba(212, 115, 60, 0.12);
+  transform: translateY(-1px);
+}
+
+.code-pin-button.is-pinned {
+  color: var(--bg-base) !important;
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  font-weight: 600;
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.35);
+}
+
+.mermaid-action-btn.mermaid-btn-pin.is-pinned {
+  color: var(--bg-base) !important;
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  font-weight: 600;
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.35);
+}
+
+[data-theme="dark"] .code-pin-button.is-pinned,
+[data-theme="dark"] .mermaid-action-btn.mermaid-btn-pin.is-pinned {
+  color: #0d1117 !important;
+  background: #ffffff !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+}
+
+[data-theme="moss"] .code-pin-button.is-pinned,
+[data-theme="moss"] .mermaid-action-btn.mermaid-btn-pin.is-pinned {
+  color: #1F3A24 !important;
+  background: #FFC2D1 !important;
+  border-color: #FFC2D1 !important;
+}
+
+[data-theme="rice"] .code-pin-button.is-pinned,
+[data-theme="rice"] .mermaid-action-btn.mermaid-btn-pin.is-pinned {
+  color: #F7F0E2 !important;
+  background: #6B5B45 !important;
+  border-color: #6B5B45 !important;
+}
+
+/* Source Radar & Ink Ripple Animation */
+@keyframes pinSourceRadar {
+  0% {
+    box-shadow: 0 0 0 0 rgba(212, 115, 60, 0.8), 0 0 0 0 rgba(212, 115, 60, 0.4);
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+  35% {
+    box-shadow: 0 0 0 10px rgba(212, 115, 60, 0.35), 0 0 0 22px rgba(212, 115, 60, 0.18);
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+  100% {
+    box-shadow: 0 0 0 28px rgba(212, 115, 60, 0), 0 0 0 46px rgba(212, 115, 60, 0);
+    outline: 2px solid transparent;
+    outline-offset: 3px;
+  }
+}
+
+.pin-source-pulse {
+  animation: pinSourceRadar 2.0s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  position: relative;
+  z-index: 20;
+}
+
+/* Flying ghost tag animation pill */
+.pin-fly-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg-base) !important;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgba(var(--accent-rgb), 0.5), 0 0 16px rgba(var(--accent-rgb), 0.8);
+  will-change: transform, opacity, filter;
+}
+
+[data-theme="dark"] .pin-fly-ghost {
+  background: #ffffff !important;
+  color: #0d1117 !important;
+  box-shadow: 0 8px 24px rgba(255, 255, 255, 0.4), 0 0 16px rgba(255, 255, 255, 0.7);
+}
+
+/* Desktop Split Layout removed - Article remains in natural reading width */
+
+/* ================= Pin Workbench — Draggable Floating Overlay & Edge Dock Tab ================= */
+
+/* Right Edge Dock Tab (粘在屏幕右侧边缘的竖排标签) */
+.pin-edge-tab {
+  --tab-base-y: -50%;
+  position: fixed;
+  right: 0;
+  top: 40%;
+  transform: translateY(var(--tab-base-y)) translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.85rem 0.45rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--rule);
+  border-right: none;
+  border-radius: 9px 0 0 9px;
+  box-shadow: -4px 4px 18px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  transition: transform 720ms cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 620ms cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 720ms,
+              background 260ms ease,
+              border-color 260ms ease,
+              box-shadow 320ms ease;
+  user-select: none;
+  font-family: var(--font-hand-title);
+  will-change: transform, opacity;
+}
+
+.pin-edge-tab.is-visible {
+  transform: translateY(var(--tab-base-y)) translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.pin-edge-tab.is-entering {
+  animation: pinEdgeTabStampIn 740ms cubic-bezier(0.34, 1.25, 0.64, 1) both;
+}
+
+.pin-edge-tab:hover {
+  transform: translateY(var(--tab-base-y)) translateX(-5px);
+  border-color: var(--accent);
+  background: var(--bg-base);
+  box-shadow: -6px 6px 24px rgba(212, 115, 60, 0.28);
+}
+
+.pin-edge-tab.is-open {
+  border-color: var(--accent);
+  box-shadow: -4px 0 20px rgba(212, 115, 60, 0.38);
+}
+
+.pin-edge-tab.is-absorbing {
+  animation: pinTabAbsorb 680ms cubic-bezier(0.34, 1.3, 0.64, 1) !important;
+}
+
+@keyframes pinTabAbsorb {
+  0% {
+    transform: translateY(var(--tab-base-y, -50%)) translateX(0) scale(1);
+  }
+  35% {
+    transform: translateY(var(--tab-base-y, -50%)) translateX(-7px) scale(1.1);
+    border-color: var(--accent);
+    box-shadow: -8px 0 28px rgba(212, 115, 60, 0.48);
+  }
+  70% {
+    transform: translateY(var(--tab-base-y, -50%)) translateX(2px) scale(0.98);
+  }
+  100% {
+    transform: translateY(var(--tab-base-y, -50%)) translateX(0) scale(1);
+  }
+}
+
+@keyframes pinEdgeTabStampIn {
+  0% {
+    opacity: 0;
+    transform: translateY(var(--tab-base-y, -50%)) translateX(100%) scale(0.9);
+    filter: blur(4px);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(var(--tab-base-y, -50%)) translateX(-5px) scale(1.03);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(var(--tab-base-y, -50%)) translateX(0) scale(1);
+  }
+}
+
+.pin-edge-tab-icon {
+  color: var(--accent);
+  display: inline-flex;
+}
+
+.pin-edge-tab-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  font-family: var(--font-hand-title);
+  font-size: 0.85rem;
+  font-weight: normal;
+  line-height: 1.15;
+  color: var(--text-strong);
+  letter-spacing: 0;
+  user-select: none;
+}
+
+.pin-edge-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg-base) !important;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+[data-theme="dark"] .pin-edge-tab-count {
+  background: #ffffff !important;
+  color: #0d1117 !important;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="moss"] .pin-edge-tab-count {
+  background: #FFC2D1 !important;
+  color: #1F3A24 !important;
+}
+
+[data-theme="rice"] .pin-edge-tab-count {
+  background: #6B5B45 !important;
+  color: #F7F0E2 !important;
+}
+
+/* Draggable Floating Window (浮动覆盖在文章上方) */
+.pin-float-window {
+  position: fixed;
+  z-index: 75;
+  width: clamp(360px, 36vw, 540px);
+  max-height: min(80vh, 760px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border: 1px solid var(--rule-strong);
+  border-radius: 16px;
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  box-shadow: 0 24px 60px -10px rgba(0, 0, 0, 0.45), 0 0 1px 1px var(--rule);
+  overflow: hidden;
+  font-family: var(--font-body);
+
+  /* 默认隐藏/折叠状态 (从右侧收敛，绝无 clip-path 裁切阴影) */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate3d(50px, 0, 0) scale(0.94);
+  filter: blur(5px);
+  transform-origin: center right;
+  transition: transform 750ms cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 680ms cubic-bezier(0.16, 1, 0.3, 1),
+              filter 600ms ease,
+              visibility 750ms,
+              box-shadow 650ms ease;
+  will-change: transform, opacity, filter;
+}
+
+/* 擦拭光束扫掠层 (Wipe Scanline Beam Sweep) */
+.pin-float-window::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+  z-index: 100;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(212, 115, 60, 0.12) 30%,
+    rgba(255, 255, 255, 0.45) 50%,
+    rgba(212, 115, 60, 0.12) 70%,
+    transparent 100%
+  );
+  opacity: 0;
+  transform: translateX(110%);
+  transition: transform 850ms cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 700ms ease;
+}
+
+/* 展开状态 (is-open)：100% 完整圆润无裁切的深色弥散阴影，去掉 !important 避免锁死 WAAPI 动画 */
+.pin-float-window.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: blur(0);
+  box-shadow: 0 28px 70px -12px rgba(0, 0, 0, 0.52), 0 0 0 1px var(--rule-strong), 0 0 28px rgba(212, 115, 60, 0.18);
+}
+
+.pin-float-window.is-open::before {
+  opacity: 1;
+  transform: translateX(-110%);
+  transition: transform 900ms cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 900ms ease;
+}
+
+.pin-float-window.is-docking,
+.pin-float-window.is-flying-away,
+.pin-float-window.is-clearing,
+#pin-float-window.is-docking,
+#pin-float-window.is-flying-away,
+#pin-float-window.is-clearing {
+  pointer-events: none !important;
+  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+}
+
+.pin-float-window.is-docking *,
+.pin-float-window.is-flying-away *,
+.pin-float-window.is-clearing *,
+#pin-float-window.is-docking *,
+#pin-float-window.is-flying-away *,
+#pin-float-window.is-clearing * {
+  scrollbar-width: none !important;
+}
+
+.pin-float-window.is-docking *::-webkit-scrollbar,
+.pin-float-window.is-flying-away *::-webkit-scrollbar,
+.pin-float-window.is-clearing *::-webkit-scrollbar,
+#pin-float-window.is-docking *::-webkit-scrollbar,
+#pin-float-window.is-flying-away *::-webkit-scrollbar,
+#pin-float-window.is-clearing *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.pin-float-window.is-docking .pin-window-body,
+.pin-float-window.is-flying-away .pin-window-body,
+.pin-float-window.is-clearing .pin-window-body,
+.pin-float-window.is-docking .pin-window-content,
+.pin-float-window.is-flying-away .pin-window-content,
+.pin-float-window.is-clearing .pin-window-content,
+.pin-float-window.is-docking .pin-cards-container,
+.pin-float-window.is-flying-away .pin-cards-container,
+.pin-float-window.is-clearing .pin-cards-container,
+.pin-float-window.is-docking .pinned-card,
+.pin-float-window.is-flying-away .pinned-card,
+.pin-float-window.is-clearing .pinned-card,
+.pin-float-window.is-docking .pinned-card-body,
+.pin-float-window.is-flying-away .pinned-card-body,
+.pin-float-window.is-clearing .pinned-card-body {
+  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+}
+
+.pin-float-window.is-dragging {
+  transition: none !important;
+  user-select: none;
+  transform: scale(1.02);
+  box-shadow: 0 34px 76px -10px rgba(0, 0, 0, 0.62), 0 0 0 2px var(--accent);
+  cursor: grabbing !important;
+}
+
+/* Window Header / Drag Handle */
+.pin-window-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg-soft);
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+  font-family: var(--font-hand-title);
+}
+
+.pin-float-window.is-dragging .pin-window-header {
+  cursor: grabbing;
+}
+
+.pin-drag-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  cursor: grab;
+  padding: 0.15rem;
+  transition: color 180ms ease;
+}
+
+.pin-window-header:hover .pin-drag-grip {
+  color: var(--accent);
+}
+
+.pin-window-lead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: auto;
+}
+
+.pin-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg-base) !important;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+[data-theme="dark"] .pin-count-badge {
+  background: #ffffff !important;
+  color: #0d1117 !important;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="moss"] .pin-count-badge {
+  background: #FFC2D1 !important;
+  color: #1F3A24 !important;
+}
+
+[data-theme="rice"] .pin-count-badge {
+  background: #6B5B45 !important;
+  color: #F7F0E2 !important;
+}
+
+.pin-window-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pin-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--bg-elev);
+  color: var(--muted-strong);
+  font-family: var(--font-hand-title);
+  font-size: 0.85rem;
+  font-weight: normal;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.pin-action-btn:hover {
+  color: var(--text-strong);
+  border-color: var(--accent);
+  background: var(--bg-base);
+}
+
+.pin-action-clear:hover {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.pin-action-dock:hover {
+  color: var(--accent);
+}
+
+/* Window Body */
+.pin-window-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+
+.pin-window-body::-webkit-scrollbar {
+  width: 5px;
+}
+.pin-window-body::-webkit-scrollbar-thumb {
+  background: var(--rule);
+  border-radius: 4px;
+}
+
+@keyframes pinCardStampIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.9);
+    filter: blur(6px);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(4px) scale(1.02);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pinCardSweepOut {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+    max-height: 500px;
+    margin-bottom: 0.85rem;
+  }
+  45% {
+    opacity: 0.72;
+    transform: translate3d(36px, -3px, 0) scale(0.98);
+    filter: blur(0.5px);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(85px, -8px, 0) scale(0.90);
+    filter: blur(3px);
+    max-height: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-color: transparent;
+  }
+}
+
+/* Stacked Pinned Card */
+.pinned-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-soft);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+  will-change: transform, opacity, max-height;
+  font-family: var(--font-body);
+}
+
+.pinned-card:hover {
+  border-color: rgba(212, 115, 60, 0.45);
+}
+
+.pinned-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.8rem;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--rule);
+  user-select: none;
+  font-family: var(--font-hand-title);
+}
+
+.pinned-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.pinned-card-badge {
+  flex-shrink: 0;
+  padding: 0.12rem 0.45rem;
+  border-radius: 3px;
+  background: rgba(212, 115, 60, 0.15);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: normal;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid rgba(212, 115, 60, 0.3);
+}
+
+.pinned-card-title {
+  font-family: var(--font-hand-title);
+  font-size: 0.88rem;
+  font-weight: normal;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pinned-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.pinned-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.24rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--bg-soft);
+  color: var(--muted-strong);
+  font-family: var(--font-hand-title);
+  font-size: 0.8rem;
+  font-weight: normal;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.pinned-btn:hover {
+  color: var(--text-strong);
+  border-color: var(--accent);
+  background: var(--bg-base);
+}
+
+.pinned-btn-jump:hover {
+  color: var(--accent);
+}
+
+.pinned-btn-copy {
+  min-width: 58px;
+  justify-content: center;
+  text-align: center;
+}
+
+.pinned-btn-remove:hover {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.pinned-btn-collapse {
+  position: relative;
+  overflow: hidden;
+}
+
+.pinned-btn-collapse .icon-chevron {
+  transition: transform 650ms cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+.pinned-card.is-collapsed .pinned-btn-collapse .icon-chevron {
+  transform: rotate(-90deg);
+}
+
+/* Card Drawer (Collapsible Grid container for 100% smooth non-linear height animation) */
+.pinned-card-drawer {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 720ms cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.pinned-card.is-collapsed .pinned-card-drawer {
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Card Body: Crisp font display without scaleY distortion */
+.pinned-card-body {
+  min-height: 0;
+  max-height: 480px;
+  overflow-y: auto;
+  overflow-x: auto;
+  background: #0d1117;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+  transform-origin: top center;
+  transition: opacity 620ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
+
+.pinned-card:not(.is-collapsed) .pinned-card-body {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.pinned-card.is-collapsed .pinned-card-body {
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+
+.pinned-card-body pre {
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  font-size: 0.8rem !important;
+  line-height: 1.55 !important;
+  padding: 0.75rem 0.95rem !important;
+}
+
+.pinned-mermaid-stage {
+  padding: 1rem;
+  background: var(--bg-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+
+.pinned-mermaid-stage svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.pinned-quote-body {
+  padding: 0.85rem 1.05rem;
+  background: var(--bg-soft);
+  border-left: 3px solid rgba(215, 150, 20, 0.85);
+  font-family: var(--font-serif);
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--text-strong);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.pinned-empty-msg {
+  padding: 1.5rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+/* Mobile Fallback (< 768px) */
+@media (max-width: 767px) {
+  .pin-float-window {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  .pin-edge-tab {
+    --tab-base-y: 0;
+    top: auto;
+    bottom: 2rem;
+    transform: translateY(var(--tab-base-y)) translateX(100%);
+    border-radius: 999px 0 0 999px;
+    padding: 0.65rem 0.85rem;
+    gap: 0.35rem;
+  }
+  .pin-edge-tab-label {
+    flex-direction: row !important;
+    gap: 0.1rem;
+  }
+  .pin-edge-tab.is-visible {
+    transform: translateY(var(--tab-base-y)) translateX(0);
+  }
+  .pin-edge-tab:hover {
+    transform: translateY(var(--tab-base-y)) translateX(-3px);
+  }
+}
+
+/* Desktop Protection (>= 768px): Strictly eliminate mobile bottom sheet & backdrop */
+@media (min-width: 768px) {
+  .pin-sheet-backdrop,
+  .pin-sheet-drawer {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+  }
+}
+
+/* Mobile Bottom Sheet Drawer */
+.pin-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 80;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 680ms ease, visibility 720ms;
+}
+
+.pin-sheet-backdrop.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.pin-sheet-drawer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border-top: 1px solid var(--rule);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.4);
+  z-index: 85;
+  transform: translateY(100%);
+  transition: transform 720ms cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  font-family: var(--font-body);
+}
+
+.pin-sheet-drawer.is-open {
+  transform: translateY(0);
+}
+
+.pin-sheet-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--rule);
+  margin: 0.6rem auto 0.2rem;
+  flex-shrink: 0;
+}
+
+.pin-workbench-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-hand-title);
+  font-size: 1.05rem;
+  font-weight: normal;
+  color: var(--text-strong);
+}
+
+.pin-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+  font-family: var(--font-hand-title);
+}
+
+.pin-sheet-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .pin-edge-tab,
+  .pin-float-window,
+  .pinned-card,
+  .pinned-card-drawer,
+  .pinned-card-body,
+  .pin-sheet-drawer,
+  .pin-sheet-backdrop,
+  .pin-fly-ghost {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+
+

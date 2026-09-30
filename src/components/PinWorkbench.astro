@@ -1,0 +1,1344 @@
+---
+// PinWorkbench.astro — 丝滑、稳定、无抽搐的浮动对照工作台
+---
+
+<!-- Right Edge Dock Tab (粘在屏幕右侧边框的标签，默认 hidden，刷新绝对不闪现) -->
+<button
+  type="button"
+  class="pin-edge-tab"
+  id="pin-edge-tab"
+  hidden
+  style="display: none;"
+  aria-label="打开/收起对照工作台"
+  title="对照工作台（点击展开/贴边收起）"
+>
+  <span class="pin-edge-tab-icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="17" x2="12" y2="22"></line>
+      <path d="M5 17h14v-2l-2-2V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v8l-2 2v2z"></path>
+    </svg>
+  </span>
+  <span class="pin-edge-tab-label">
+    <span>对</span><span>照</span><span>工</span><span>作</span><span>台</span>
+  </span>
+  <span class="pin-edge-tab-count" data-pin-count>0</span>
+</button>
+
+<!-- Draggable Floating Window (可随意挪动、覆盖在文章上方的浮动卡片，默认 hidden) -->
+<div class="pin-float-window" id="pin-float-window" hidden style="display: none;" role="dialog" aria-label="对照工作台" data-lenis-prevent>
+  <div class="pin-window-header" id="pin-window-drag-handle">
+    <div class="pin-window-lead">
+      <div class="pin-drag-grip" title="按住拖拽挪动窗口" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="6" r="1.5" fill="currentColor"></circle>
+          <circle cx="16" cy="6" r="1.5" fill="currentColor"></circle>
+          <circle cx="8" cy="12" r="1.5" fill="currentColor"></circle>
+          <circle cx="16" cy="12" r="1.5" fill="currentColor"></circle>
+          <circle cx="8" cy="18" r="1.5" fill="currentColor"></circle>
+          <circle cx="16" cy="18" r="1.5" fill="currentColor"></circle>
+        </svg>
+      </div>
+      <span class="pin-count-badge" data-pin-count title="已钉住项数">0</span>
+    </div>
+    <div class="pin-window-actions">
+      <button type="button" class="pin-action-btn" id="pin-toggle-all-btn" title="全部折叠/展开">
+        <span id="pin-toggle-all-text">折叠</span>
+      </button>
+      <button type="button" class="pin-action-btn pin-action-clear" id="pin-clear-all-btn" title="清空全部对照">
+        <span>清空</span>
+      </button>
+      <button type="button" class="pin-action-btn pin-action-dock" id="pin-dock-btn" title="贴边收纳到右侧标签">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="13 17 18 12 13 7"></polyline>
+          <polyline points="6 17 11 12 6 7"></polyline>
+        </svg>
+        <span>贴边</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="pin-window-body pin-window-content pin-cards-container" id="pin-window-list" data-lenis-prevent>
+    <!-- Dynamic cards rendered here -->
+  </div>
+</div>
+
+<!-- Mobile Bottom Sheet (仅移动端启用，默认 hidden，绝对不影响桌面端) -->
+<div class="pin-sheet-backdrop" id="pin-sheet-backdrop" hidden style="display: none;"></div>
+<div class="pin-sheet-drawer" id="pin-sheet-drawer" hidden style="display: none;" data-lenis-prevent>
+  <div class="pin-sheet-handle" aria-hidden="true"></div>
+  <div class="pin-sheet-header">
+    <div class="pin-workbench-title">
+      <span class="pin-workbench-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="17" x2="12" y2="22"></line>
+          <path d="M5 17h14v-2l-2-2V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v8l-2 2v2z"></path>
+        </svg>
+      </span>
+      <span>对照工作台</span>
+      <span class="pin-count-badge" data-pin-count>0</span>
+    </div>
+    <div class="pin-workbench-actions">
+      <button type="button" class="pin-action-btn pin-action-clear" id="pin-sheet-clear-btn" title="清空全部">清空</button>
+      <button type="button" class="pin-action-btn" id="pin-sheet-close-btn" aria-label="关闭" title="关闭">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="pin-sheet-content" id="pin-sheet-list" data-lenis-prevent>
+    <!-- Cards rendered here on mobile -->
+  </div>
+</div>
+
+<script>
+  interface PinnedItem {
+    id: string;
+    type: 'code' | 'mermaid' | 'quote';
+    title: string;
+    badge: string;
+    sourceEl?: HTMLElement | null;
+    htmlContent: string;
+    rawText: string;
+    collapsed: boolean;
+  }
+
+  (() => {
+    let pinnedItems: PinnedItem[] = [];
+    let isAllCollapsed = false;
+    let isWindowOpen = false;
+    let isClearing = false;
+    let isExiting = false;
+    let bound = false;
+    let userPos: { left: number; top: number } | null = null;
+
+    function isMobile() {
+      return window.innerWidth < 768;
+    }
+
+    function initPinWorkbench() {
+      pinnedItems = [];
+      isAllCollapsed = false;
+      isWindowOpen = false;
+      isClearing = false;
+      isExiting = false;
+      userPos = null;
+
+      const windowList = document.getElementById('pin-window-list');
+      const sheetList = document.getElementById('pin-sheet-list');
+      if (windowList) windowList.innerHTML = '';
+      if (sheetList) sheetList.innerHTML = '';
+
+      const edgeTab = document.getElementById('pin-edge-tab');
+      const floatWindow = document.getElementById('pin-float-window');
+      const sheet = document.getElementById('pin-sheet-drawer');
+      const backdrop = document.getElementById('pin-sheet-backdrop');
+
+      if (edgeTab) {
+        edgeTab.hidden = true;
+        edgeTab.style.display = 'none';
+        edgeTab.classList.remove('is-visible', 'is-open');
+      }
+      if (floatWindow) {
+        floatWindow.hidden = true;
+        floatWindow.style.display = 'none';
+        floatWindow.classList.remove('is-open');
+      }
+      if (sheet) {
+        sheet.hidden = true;
+        sheet.style.display = 'none';
+        sheet.classList.remove('is-open');
+      }
+      if (backdrop) {
+        backdrop.hidden = true;
+        backdrop.style.display = 'none';
+        backdrop.classList.remove('is-open');
+      }
+      document.body.classList.remove('pin-sheet-open');
+
+      syncUIState();
+      bindEvents();
+    }
+
+    function syncUIState() {
+      const edgeTab = document.getElementById('pin-edge-tab');
+      const floatWindow = document.getElementById('pin-float-window');
+      const sheet = document.getElementById('pin-sheet-drawer');
+      const backdrop = document.getElementById('pin-sheet-backdrop');
+      const countBadges = document.querySelectorAll<HTMLElement>('[data-pin-count]');
+      const toggleAllText = document.getElementById('pin-toggle-all-text');
+
+      const count = pinnedItems.length;
+      countBadges.forEach((b) => {
+        b.textContent = String(count);
+      });
+
+      if (toggleAllText) {
+        toggleAllText.textContent = isAllCollapsed ? '展开' : '折叠';
+      }
+
+      if (count > 0) {
+        if (edgeTab) {
+          const wasHidden = edgeTab.hidden || edgeTab.style.display === 'none' || !edgeTab.classList.contains('is-visible');
+          edgeTab.hidden = false;
+          edgeTab.style.display = '';
+          if (wasHidden) {
+            edgeTab.classList.add('is-visible', 'is-entering');
+            setTimeout(() => edgeTab.classList.remove('is-entering'), 740);
+          } else {
+            edgeTab.classList.add('is-visible');
+          }
+        }
+        if (isMobile()) {
+          if (floatWindow) {
+            floatWindow.classList.remove('is-open', 'is-docking');
+            floatWindow.hidden = true;
+            floatWindow.style.display = 'none';
+          }
+        } else {
+          if (isWindowOpen && floatWindow) {
+            floatWindow.classList.remove('is-docking');
+            floatWindow.hidden = false;
+            floatWindow.style.display = '';
+            ensureWindowPosition();
+            requestAnimationFrame(() => {
+              floatWindow.classList.add('is-open');
+              edgeTab?.classList.add('is-open');
+            });
+          } else if (floatWindow && !floatWindow.classList.contains('is-docking')) {
+            floatWindow.classList.remove('is-open');
+            edgeTab?.classList.remove('is-open');
+            floatWindow.hidden = true;
+            floatWindow.style.display = 'none';
+          }
+        }
+      } else {
+        // count === 0
+        if (isClearing || isExiting) return;
+
+        if (floatWindow && !isWindowOpen) {
+          floatWindow.classList.remove('is-open');
+          floatWindow.hidden = true;
+          floatWindow.style.display = 'none';
+        }
+        if (edgeTab && !edgeTab.classList.contains('is-absorbing')) {
+          edgeTab.classList.remove('is-visible', 'is-open');
+          edgeTab.hidden = true;
+          edgeTab.style.display = 'none';
+        }
+        if (sheet) {
+          sheet.classList.remove('is-open');
+          sheet.hidden = true;
+          sheet.style.display = 'none';
+        }
+        if (backdrop) {
+          backdrop.classList.remove('is-open');
+          backdrop.hidden = true;
+          backdrop.style.display = 'none';
+        }
+        document.body.classList.remove('pin-sheet-open');
+      }
+
+      // Sync button states in prose
+      document.querySelectorAll<HTMLElement>('[data-pin-btn]').forEach((btn) => {
+        const id = btn.getAttribute('data-pin-id');
+        const isPinned = pinnedItems.some((item) => item.id === id);
+        const span = btn.querySelector('span');
+        if (isPinned) {
+          btn.classList.add('is-pinned');
+          if (span) span.textContent = 'Pinned';
+        } else {
+          btn.classList.remove('is-pinned');
+          if (span) span.textContent = 'Pin';
+        }
+      });
+    }
+
+    function ensureWindowPosition() {
+      const floatWindow = document.getElementById('pin-float-window');
+      if (!floatWindow || isMobile()) return;
+
+      const winWidth = floatWindow.offsetWidth || 440;
+      const winHeight = floatWindow.offsetHeight || 380;
+
+      if (userPos) {
+        const minX = 12;
+        const maxX = Math.max(minX, window.innerWidth - winWidth - 12);
+        const minY = 12;
+        const maxY = Math.max(minY, window.innerHeight - winHeight - 12);
+
+        const left = Math.max(minX, Math.min(maxX, userPos.left));
+        const top = Math.max(minY, Math.min(maxY, userPos.top));
+
+        floatWindow.style.left = `${Math.round(left)}px`;
+        floatWindow.style.top = `${Math.round(top)}px`;
+      } else {
+        // Default: right-aligned floating overlay
+        const defaultLeft = Math.max(16, window.innerWidth - winWidth - 28);
+        const defaultTop = Math.min(110, Math.max(16, (window.innerHeight - winHeight) / 2));
+        floatWindow.style.left = `${Math.round(defaultLeft)}px`;
+        floatWindow.style.top = `${Math.round(defaultTop)}px`;
+      }
+    }
+
+    function createCard(item: PinnedItem): HTMLElement {
+      const card = document.createElement('article');
+      card.className = `pinned-card ${item.collapsed ? 'is-collapsed' : ''}`;
+      card.setAttribute('data-card-id', item.id);
+
+      const header = document.createElement('div');
+      header.className = 'pinned-card-header';
+
+      const meta = document.createElement('div');
+      meta.className = 'pinned-card-meta';
+
+      const badge = document.createElement('span');
+      badge.className = 'pinned-card-badge';
+      badge.textContent = item.badge;
+
+      const title = document.createElement('span');
+      title.className = 'pinned-card-title';
+      title.textContent = item.title;
+      title.title = item.title;
+
+      meta.append(badge, title);
+
+      const actions = document.createElement('div');
+      actions.className = 'pinned-card-actions';
+
+      // 1. Jump button with radar feedback
+      const jumpBtn = document.createElement('button');
+      jumpBtn.type = 'button';
+      jumpBtn.className = 'pinned-btn pinned-btn-jump';
+      jumpBtn.title = '定位到正文原位置';
+      jumpBtn.setAttribute('aria-label', '定位到正文原位置');
+      jumpBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span>定位</span>
+      `;
+      jumpBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        jumpToSource(item.id);
+      });
+
+      // 2. Copy button with fixed-width prevention of jitter
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'pinned-btn pinned-btn-copy';
+      copyBtn.title = '复制代码或图表内容';
+      copyBtn.setAttribute('aria-label', '复制代码或图表内容');
+      copyBtn.innerHTML = `<span>Copy</span>`;
+      copyBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(item.rawText);
+          const span = copyBtn.querySelector('span') || copyBtn;
+          span.textContent = 'Copied!';
+          setTimeout(() => { span.textContent = 'Copy'; }, 1400);
+        } catch {}
+      });
+
+      // 3. Collapse/Expand button with single rotating chevron
+      const collapseBtn = document.createElement('button');
+      collapseBtn.type = 'button';
+      collapseBtn.className = 'pinned-btn pinned-btn-collapse';
+      collapseBtn.title = item.collapsed ? '展开代码' : '折叠代码';
+      collapseBtn.setAttribute('aria-label', item.collapsed ? '展开代码' : '折叠代码');
+      collapseBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="icon-chevron" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      `;
+      collapseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        item.collapsed = !item.collapsed;
+        collapseBtn.title = item.collapsed ? '展开代码' : '折叠代码';
+        collapseBtn.setAttribute('aria-label', item.collapsed ? '展开代码' : '折叠代码');
+        document.querySelectorAll(`[data-card-id="${item.id}"]`).forEach((c) => {
+          c.classList.toggle('is-collapsed', item.collapsed);
+        });
+      });
+
+      // 4. Remove button
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'pinned-btn pinned-btn-remove';
+      removeBtn.title = '移除对照';
+      removeBtn.setAttribute('aria-label', '移除对照');
+      removeBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      `;
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removePin(item.id);
+      });
+
+      actions.append(jumpBtn, copyBtn, collapseBtn, removeBtn);
+      header.append(meta, actions);
+
+      const drawer = document.createElement('div');
+      drawer.className = 'pinned-card-drawer';
+
+      const body = document.createElement('div');
+      body.className = 'pinned-card-body';
+      body.setAttribute('data-lenis-prevent', '');
+
+      if (item.type === 'code') {
+        body.innerHTML = item.htmlContent;
+      } else if (item.type === 'mermaid') {
+        const stage = document.createElement('div');
+        stage.className = 'pinned-mermaid-stage';
+        stage.innerHTML = item.htmlContent;
+        body.appendChild(stage);
+      } else {
+        const quoteEl = document.createElement('div');
+        quoteEl.className = 'pinned-quote-body';
+        quoteEl.innerHTML = item.htmlContent;
+        body.appendChild(quoteEl);
+      }
+
+      drawer.appendChild(body);
+      card.append(header, drawer);
+      return card;
+    }
+
+    function jumpToSource(id: string) {
+      const item = pinnedItems.find((p) => p.id === id);
+      const sourceEl = item?.sourceEl || document.getElementById(id) || document.querySelector(`[data-highlight-id="${id}"]`);
+      if (!sourceEl) return;
+
+      closeMobileSheet();
+
+      const playPulse = () => {
+        sourceEl.classList.remove('pin-source-pulse');
+        void sourceEl.offsetWidth; // force reflow
+        sourceEl.classList.add('pin-source-pulse');
+        setTimeout(() => {
+          sourceEl.classList.remove('pin-source-pulse');
+        }, 2200);
+      };
+
+      if ((window as any).lenis) {
+        (window as any).lenis.scrollTo(sourceEl, {
+          offset: -90,
+          onComplete: () => {
+            playPulse();
+          }
+        });
+      } else {
+        sourceEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(playPulse, 420);
+      }
+    }
+
+    // 幽灵飞行药丸动画（起点精确指向终点，0点坐标回退保护）
+    function spawnFlyGhost(startEl: HTMLElement, targetEl?: HTMLElement | null) {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const startRect = startEl.getBoundingClientRect();
+      if (startRect.width === 0 && startRect.height === 0) return;
+
+      const startCenterX = startRect.left + startRect.width / 2;
+      const startCenterY = startRect.top + startRect.height / 2;
+
+      let targetCenterX: number;
+      let targetCenterY: number;
+
+      if (targetEl && targetEl.offsetWidth > 0 && targetEl.offsetHeight > 0) {
+        const targetRect = targetEl.getBoundingClientRect();
+        targetCenterX = targetRect.left + targetRect.width / 2;
+        targetCenterY = targetRect.top + targetRect.height / 2;
+      } else {
+        targetCenterX = window.innerWidth - 28;
+        targetCenterY = window.innerHeight * 0.40;
+      }
+
+      const ghost = document.createElement('div');
+      ghost.className = 'pin-fly-ghost';
+      ghost.innerHTML = `
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="12" y1="17" x2="12" y2="22"></line>
+          <path d="M5 17h14v-2l-2-2V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v8l-2 2v2z"></path>
+        </svg>
+        <span>PINNED</span>
+      `;
+      ghost.style.left = `${Math.round(startCenterX)}px`;
+      ghost.style.top = `${Math.round(startCenterY)}px`;
+      ghost.style.transform = 'translate(-50%, -50%)';
+      document.body.appendChild(ghost);
+
+      const deltaX = targetCenterX - startCenterX;
+      const deltaY = targetCenterY - startCenterY;
+      const arcElevationY = Math.min(-45, -Math.abs(deltaX) * 0.08);
+
+      const anim = ghost.animate([
+        {
+          transform: 'translate(-50%, -50%) scale(0.92)',
+          opacity: 0.95,
+        },
+        {
+          transform: `translate(calc(-50% + ${deltaX * 0.46}px), calc(-50% + ${deltaY * 0.46 + arcElevationY}px)) scale(1.12)`,
+          opacity: 1,
+          offset: 0.46,
+        },
+        {
+          transform: `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px)) scale(0.42)`,
+          opacity: 0.2,
+          offset: 1,
+        }
+      ], {
+        duration: 800,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        fill: 'forwards'
+      });
+
+      anim.onfinish = () => {
+        ghost.remove();
+        const edgeTab = document.getElementById('pin-edge-tab');
+        if (edgeTab && edgeTab.classList.contains('is-visible')) {
+          const badge = edgeTab.querySelector<HTMLElement>('.pin-edge-tab-count');
+          badge?.animate([
+            { transform: 'scale(1)' },
+            { transform: 'scale(1.36)' },
+            { transform: 'scale(1)' }
+          ], { duration: 500, easing: 'cubic-bezier(0.34, 1.35, 0.64, 1)' });
+        }
+      };
+    }
+
+    // FLIP 卡片顺滑插入（原有卡片丝滑下移，彻底消除顿挫突兀感）
+    function prependCardWithFLIP(container: HTMLElement, card: HTMLElement) {
+      const existingCards = Array.from(container.querySelectorAll<HTMLElement>('.pinned-card'));
+      const oldTops = new Map<HTMLElement, number>();
+      existingCards.forEach((c) => {
+        oldTops.set(c, c.getBoundingClientRect().top);
+      });
+
+      container.prepend(card);
+
+      // 1. 新卡片入场动画 (优雅降落，740ms 柔和沉稳)
+      card.animate([
+        { opacity: 0, transform: 'translate3d(0, -22px, 0) scale(0.97)', filter: 'blur(3px)' },
+        { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)', filter: 'blur(0)' }
+      ], {
+        duration: 740,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
+      });
+
+      // 2. 原有卡片 FLIP 平滑下移 (如流水让位，740ms 丝滑沉稳)
+      existingCards.forEach((c) => {
+        const oldTop = oldTops.get(c);
+        if (oldTop !== undefined) {
+          const newTop = c.getBoundingClientRect().top;
+          const deltaY = oldTop - newTop;
+          if (Math.abs(deltaY) > 0.5) {
+            c.animate([
+              { transform: `translate3d(0, ${deltaY}px, 0)` },
+              { transform: 'translate3d(0, 0, 0)' }
+            ], {
+              duration: 740,
+              easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
+            });
+          }
+        }
+      });
+    }
+
+    // 吞并 flex 间隙的丝滑卡片移除动画（下方卡片如流水般平滑上移）
+    function smoothRemoveCard(card: HTMLElement, onComplete: () => void) {
+      card.style.pointerEvents = 'none';
+      const startHeight = card.offsetHeight;
+      const anim = card.animate([
+        {
+          opacity: 1,
+          transform: 'translate3d(0, 0, 0) scale(1)',
+          maxHeight: `${startHeight}px`,
+          marginBottom: '0.85rem',
+          paddingTop: '',
+          paddingBottom: '',
+        },
+        {
+          opacity: 0.72,
+          transform: 'translate3d(36px, -2px, 0) scale(0.98)',
+          maxHeight: `${Math.round(startHeight * 0.65)}px`,
+          marginBottom: '0.45rem',
+          offset: 0.44,
+        },
+        {
+          opacity: 0,
+          transform: 'translate3d(85px, -6px, 0) scale(0.90)',
+          maxHeight: '0px',
+          marginBottom: '-0.85rem',
+          paddingTop: '0px',
+          paddingBottom: '0px',
+          borderWidth: '0px',
+          offset: 1,
+        }
+      ], {
+        duration: 720,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        fill: 'forwards'
+      });
+
+      anim.onfinish = () => {
+        card.remove();
+        onComplete();
+      };
+    }
+
+    // 彻底优雅退出工作台（浮动窗口与边缘标签同频向右飞出，同步率 100%，绝无时差脱节或残存 0 角标）
+    function exitWorkbenchCompletely(onFinish?: () => void) {
+      if (isExiting) return;
+      isExiting = true;
+
+      const edgeTab = document.getElementById('pin-edge-tab');
+      const floatWindow = document.getElementById('pin-float-window');
+
+      const finishAll = () => {
+        if (floatWindow) {
+          floatWindow.classList.remove('is-docking', 'is-flying-away', 'is-clearing', 'is-open');
+          floatWindow.hidden = true;
+          floatWindow.style.display = 'none';
+          floatWindow.style.pointerEvents = '';
+        }
+        if (edgeTab) {
+          edgeTab.classList.remove('is-visible', 'is-open', 'is-absorbing');
+          edgeTab.hidden = true;
+          edgeTab.style.display = 'none';
+        }
+        isWindowOpen = false;
+        isExiting = false;
+        if (onFinish) onFinish();
+        syncUIState();
+      };
+
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        finishAll();
+        return;
+      }
+
+      if (isMobile()) {
+        closeMobileSheet();
+        if (edgeTab && edgeTab.classList.contains('is-visible')) {
+          const tabAnim = edgeTab.animate([
+            { transform: 'translateY(var(--tab-base-y, 0)) translateX(0)', opacity: 1 },
+            { transform: 'translateY(var(--tab-base-y, 0)) translateX(35%)', opacity: 0.85, offset: 0.45 },
+            { transform: 'translateY(var(--tab-base-y, 0)) translateX(120%)', opacity: 0, offset: 1 }
+          ], {
+            duration: 720,
+            easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+            fill: 'both'
+          });
+          tabAnim.onfinish = () => {
+            finishAll();
+            try { tabAnim.cancel(); } catch {}
+          };
+        } else {
+          setTimeout(finishAll, 720);
+        }
+        return;
+      }
+
+      // Desktop: floating window and right edge tab move with synchronized choreography
+      const hasWindowToExit = isWindowOpen && floatWindow && !floatWindow.hidden;
+      const hasTabToExit = edgeTab && (edgeTab.classList.contains('is-visible') || !edgeTab.hidden);
+
+      if (!hasWindowToExit && !hasTabToExit) {
+        finishAll();
+        return;
+      }
+
+      const rect = floatWindow ? floatWindow.getBoundingClientRect() : null;
+      const targetDistanceX = rect ? Math.max(160, window.innerWidth - rect.left + 36) : 520;
+
+      // 基础时长 740ms，若用户拖拽至屏幕极左侧则自适应延长至最高 860ms，确保速度始终稳重优雅
+      const baseDuration = 740;
+      const exitDuration = (rect && rect.left < window.innerWidth * 0.45)
+        ? Math.min(860, Math.round(baseDuration + (window.innerWidth * 0.45 - rect.left) * 0.16))
+        : baseDuration;
+      const exitEasing = 'cubic-bezier(0.16, 1, 0.3, 1)';
+
+      let completedCount = 0;
+      const totalToComplete = (hasWindowToExit ? 1 : 0) + (hasTabToExit ? 1 : 0);
+      let winAnim: Animation | null = null;
+      let tabAnim: Animation | null = null;
+
+      const checkAllDone = () => {
+        completedCount++;
+        if (completedCount >= totalToComplete) {
+          finishAll();
+          try {
+            winAnim?.cancel();
+            tabAnim?.cancel();
+          } catch {}
+        }
+      };
+
+      // 1. Floating Window Synchronous Flight (高对比度、清晰明确的整体飞走轨迹，保持卡片内容清晰，绝不中途蒸发)
+      if (hasWindowToExit && floatWindow) {
+        floatWindow.style.pointerEvents = 'none';
+        floatWindow.classList.add('is-docking', 'is-flying-away');
+        floatWindow.classList.remove('is-open');
+
+        winAnim = floatWindow.animate([
+          {
+            opacity: 1,
+            transform: 'translate3d(0, 0, 0) scale(1)',
+            filter: 'blur(0px)',
+          },
+          {
+            opacity: 0.96,
+            transform: `translate3d(${Math.round(targetDistanceX * 0.36)}px, 0, 0) scale(0.99)`,
+            filter: 'blur(0px)',
+            offset: 0.4,
+          },
+          {
+            opacity: 0.88,
+            transform: `translate3d(${Math.round(targetDistanceX * 0.72)}px, 0, 0) scale(0.97)`,
+            filter: 'blur(0.5px)',
+            offset: 0.72,
+          },
+          {
+            opacity: 0,
+            transform: `translate3d(${Math.round(targetDistanceX)}px, 0, 0) scale(0.94)`,
+            filter: 'blur(2px)',
+            offset: 1,
+          }
+        ], {
+          duration: exitDuration,
+          easing: exitEasing,
+          fill: 'both'
+        });
+
+        winAnim.onfinish = () => {
+          checkAllDone();
+        };
+      }
+
+      // 2. Right Edge Tab Synchronous Exit:
+      // 当弹窗向右扫过屏幕边缘时，右侧边栏与之同频、同速顺畅收纳至侧边（时机与速度完美吻合，绝不拖泥带水或过早/过慢消失）
+      if (hasTabToExit && edgeTab) {
+        edgeTab.classList.remove('is-open', 'is-absorbing');
+        // 当浮窗同时退出时，右侧边栏在弹窗推向边缘瞬间（约 240ms）协调启动滑出，二者在 exitDuration 毫秒整同刻抵达并完成收尾
+        const tabDelay = hasWindowToExit ? Math.round(exitDuration * 0.32) : 0;
+        const tabDuration = exitDuration - tabDelay;
+
+        tabAnim = edgeTab.animate([
+          {
+            transform: 'translateY(var(--tab-base-y, -50%)) translateX(0)',
+            opacity: 1,
+          },
+          {
+            transform: 'translateY(var(--tab-base-y, -50%)) translateX(40%)',
+            opacity: 0.85,
+            offset: 0.45,
+          },
+          {
+            transform: 'translateY(var(--tab-base-y, -50%)) translateX(125%)',
+            opacity: 0,
+            offset: 1,
+          }
+        ], {
+          duration: tabDuration,
+          delay: tabDelay,
+          easing: exitEasing,
+          fill: 'both'
+        });
+
+        tabAnim.onfinish = () => {
+          checkAllDone();
+        };
+      }
+    }
+
+    function togglePin(targetEl: HTMLElement, type: 'code' | 'mermaid', triggerBtn?: HTMLElement) {
+      const id = targetEl.id || `${type}-block-${Math.random().toString(36).slice(2, 9)}`;
+      targetEl.id = id;
+
+      const existingIndex = pinnedItems.findIndex((item) => item.id === id);
+      if (existingIndex !== -1) {
+        removePin(id);
+        return;
+      }
+
+      let title = '';
+      let badge = '';
+      let htmlContent = '';
+      let rawText = '';
+
+      if (type === 'code') {
+        const titleAttr = targetEl.getAttribute('data-title');
+        const langEl = targetEl.querySelector('.code-block-language');
+        const lang = langEl?.textContent?.trim().toUpperCase() || 'CODE';
+        badge = lang;
+        title = titleAttr || `${lang} 源码片段`;
+
+        const codeClone = targetEl.cloneNode(true) as HTMLElement;
+        codeClone.querySelector('.code-block-toolbar')?.remove();
+        htmlContent = codeClone.outerHTML;
+        rawText = targetEl.querySelector('code')?.textContent || '';
+      } else {
+        const titleAttr = targetEl.getAttribute('data-title');
+        const titleEl = targetEl.querySelector('.mermaid-block-title-text');
+        badge = 'MERMAID';
+        title = titleAttr ? decodeURIComponent(titleAttr) : (titleEl?.textContent?.trim() || 'Mermaid 架构图');
+
+        const renderedSvg = targetEl.querySelector('.mermaid-render svg');
+        if (renderedSvg) {
+          const svgClone = renderedSvg.cloneNode(true) as SVGSVGElement;
+          svgClone.style.maxWidth = '100%';
+          svgClone.style.height = 'auto';
+          svgClone.style.display = 'block';
+          htmlContent = svgClone.outerHTML;
+        } else {
+          htmlContent = '<div class="pinned-empty-msg">图表渲染中或暂未加载</div>';
+        }
+
+        const encodedCode = targetEl.getAttribute('data-mermaid-code') || '';
+        rawText = decodeURIComponent(encodedCode);
+      }
+
+      const newItem: PinnedItem = {
+        id,
+        type,
+        title,
+        badge,
+        sourceEl: targetEl,
+        htmlContent,
+        rawText,
+        collapsed: false,
+      };
+
+      pinnedItems.unshift(newItem);
+
+      // 幽灵飞行药丸向右侧目标飞行
+      const targetWindow = document.getElementById('pin-float-window');
+      const targetTab = document.getElementById('pin-edge-tab');
+      const targetDest = (isWindowOpen && targetWindow && !targetWindow.hidden) ? targetWindow : targetTab;
+      if (triggerBtn) {
+        spawnFlyGhost(triggerBtn, targetDest);
+      }
+
+      if (!isWindowOpen) {
+        openWindow();
+      }
+
+      // Prepend with FLIP smooth push-down
+      const windowList = document.getElementById('pin-window-list');
+      const sheetList = document.getElementById('pin-sheet-list');
+
+      if (windowList) {
+        const cardDesktop = createCard(newItem);
+        prependCardWithFLIP(windowList, cardDesktop);
+        windowList.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      if (sheetList) {
+        const cardMobile = createCard(newItem);
+        prependCardWithFLIP(sheetList, cardMobile);
+      }
+
+      // Fast UI updates for button and badge
+      if (triggerBtn) {
+        triggerBtn.classList.add('is-pinned');
+        const span = triggerBtn.querySelector('span');
+        if (span) span.textContent = 'Pinned';
+      }
+      document.querySelectorAll('[data-pin-count]').forEach((b) => {
+        b.textContent = String(pinnedItems.length);
+      });
+
+      // Edge tab tactile entrance/pulse
+      const edgeTab = document.getElementById('pin-edge-tab');
+      if (edgeTab) {
+        edgeTab.hidden = false;
+        edgeTab.style.display = '';
+        edgeTab.classList.add('is-visible');
+      }
+    }
+
+    function pinExcerpt(options: {
+      id?: string;
+      title: string;
+      badge?: string;
+      text: string;
+      html?: string;
+      sourceEl?: HTMLElement | null;
+      triggerBtn?: HTMLElement;
+    }) {
+      const id = options.id || `quote-${Math.random().toString(36).slice(2, 9)}`;
+      const existingIndex = pinnedItems.findIndex((item) => item.id === id);
+      if (existingIndex !== -1) {
+        if (!isWindowOpen) openWindow();
+        jumpToSource(id);
+        return;
+      }
+
+      const escaped = options.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const newItem: PinnedItem = {
+        id,
+        type: 'quote',
+        title: options.title || '引文片段',
+        badge: options.badge || '引文',
+        sourceEl: options.sourceEl || null,
+        htmlContent: options.html || `<div class="pinned-quote-body">${escaped}</div>`,
+        rawText: options.text,
+        collapsed: false,
+      };
+
+      pinnedItems.unshift(newItem);
+
+      const targetWindow = document.getElementById('pin-float-window');
+      const targetTab = document.getElementById('pin-edge-tab');
+      const targetDest = (isWindowOpen && targetWindow && !targetWindow.hidden) ? targetWindow : targetTab;
+      if (options.triggerBtn) {
+        spawnFlyGhost(options.triggerBtn, targetDest);
+      }
+
+      if (!isWindowOpen) {
+        openWindow();
+      }
+
+      const windowList = document.getElementById('pin-window-list');
+      const sheetList = document.getElementById('pin-sheet-list');
+
+      if (windowList) {
+        const cardDesktop = createCard(newItem);
+        prependCardWithFLIP(windowList, cardDesktop);
+        windowList.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      if (sheetList) {
+        const cardMobile = createCard(newItem);
+        prependCardWithFLIP(sheetList, cardMobile);
+      }
+
+      document.querySelectorAll('[data-pin-count]').forEach((b) => {
+        b.textContent = String(pinnedItems.length);
+      });
+
+      const edgeTab = document.getElementById('pin-edge-tab');
+      if (edgeTab) {
+        edgeTab.hidden = false;
+        edgeTab.style.display = '';
+        edgeTab.classList.add('is-visible');
+      }
+    }
+
+    function removePin(id: string) {
+      const cardEls = document.querySelectorAll<HTMLElement>(`[data-card-id="${id}"]`);
+      pinnedItems = pinnedItems.filter((item) => item.id !== id);
+
+      // Immediate feedback on prose button and badges
+      document.querySelectorAll<HTMLElement>(`[data-pin-id="${id}"]`).forEach((btn) => {
+        btn.classList.remove('is-pinned');
+        const span = btn.querySelector('span');
+        if (span) span.textContent = 'Pin';
+      });
+      document.querySelectorAll('[data-pin-count]').forEach((b) => {
+        b.textContent = String(pinnedItems.length);
+      });
+
+      if (cardEls.length === 0) {
+        if (pinnedItems.length === 0) {
+          exitWorkbenchCompletely();
+        } else {
+          syncUIState();
+        }
+        return;
+      }
+
+      let finished = 0;
+      const total = cardEls.length;
+      cardEls.forEach((card) => {
+        smoothRemoveCard(card, () => {
+          finished++;
+          if (finished === total) {
+            if (pinnedItems.length === 0) {
+              exitWorkbenchCompletely();
+            } else {
+              syncUIState();
+            }
+          }
+        });
+      });
+    }
+
+    function clearAllPins() {
+      if (isClearing || isExiting || pinnedItems.length === 0) return;
+      isClearing = true;
+
+      const floatWindow = document.getElementById('pin-float-window');
+      if (floatWindow) {
+        floatWindow.classList.add('is-clearing', 'is-flying-away', 'is-docking');
+      }
+
+      // 1. Immediate visual feedback: reset buttons in prose & all badge counters
+      document.querySelectorAll<HTMLElement>('[data-pin-btn]').forEach((btn) => {
+        btn.classList.remove('is-pinned');
+        const span = btn.querySelector('span');
+        if (span) span.textContent = 'Pin';
+      });
+      document.querySelectorAll('[data-pin-count]').forEach((b) => {
+        b.textContent = '0';
+      });
+
+      // 2. Trigger synchronized flight of floating window & edge tab
+      // 注意：卡片保持在窗口内完整呈现，随同窗口一并飞走，展现出稳重、厚实而明显的整体移动质感
+      exitWorkbenchCompletely(() => {
+        pinnedItems = [];
+        const windowList = document.getElementById('pin-window-list');
+        const sheetList = document.getElementById('pin-sheet-list');
+        if (windowList) windowList.innerHTML = '';
+        if (sheetList) sheetList.innerHTML = '';
+        isClearing = false;
+      });
+    }
+
+    function toggleAllCollapse() {
+      isAllCollapsed = !isAllCollapsed;
+      pinnedItems.forEach((item) => {
+        item.collapsed = isAllCollapsed;
+      });
+      const cards = Array.from(document.querySelectorAll<HTMLElement>('.pinned-card'));
+      cards.forEach((card, idx) => {
+        setTimeout(() => {
+          card.classList.toggle('is-collapsed', isAllCollapsed);
+          const collapseBtn = card.querySelector<HTMLElement>('.pinned-btn-collapse');
+          if (collapseBtn) {
+            collapseBtn.title = isAllCollapsed ? '展开代码' : '折叠代码';
+            collapseBtn.setAttribute('aria-label', isAllCollapsed ? '展开代码' : '折叠代码');
+          }
+        }, idx * 55);
+      });
+      syncUIState();
+    }
+
+    function openWindow() {
+      if (isMobile()) {
+        openMobileSheet();
+        return;
+      }
+      isWindowOpen = true;
+      const floatWindow = document.getElementById('pin-float-window');
+      const edgeTab = document.getElementById('pin-edge-tab');
+      if (floatWindow) {
+        floatWindow.classList.remove('is-docking', 'is-flying-away', 'is-clearing');
+        floatWindow.hidden = false;
+        floatWindow.style.display = '';
+        ensureWindowPosition();
+
+        requestAnimationFrame(() => {
+          floatWindow.classList.add('is-open');
+          edgeTab?.classList.add('is-open');
+        });
+      }
+      syncUIState();
+    }
+
+    function dockWindow(onFinish?: () => void) {
+      if (isMobile()) {
+        closeMobileSheet();
+        if (onFinish) onFinish();
+        return;
+      }
+      const floatWindow = document.getElementById('pin-float-window');
+      const edgeTab = document.getElementById('pin-edge-tab');
+      if (!floatWindow || !isWindowOpen) {
+        if (onFinish) onFinish();
+        return;
+      }
+
+      isWindowOpen = false;
+      floatWindow.style.pointerEvents = 'none';
+      floatWindow.classList.add('is-docking', 'is-flying-away');
+      // 立即移除 is-open 避免 CSS 权重阻碍 WAAPI transform 与 opacity 动画
+      floatWindow.classList.remove('is-open');
+      edgeTab?.classList.remove('is-open');
+
+      const rect = floatWindow.getBoundingClientRect();
+      const targetDistanceX = Math.max(140, window.innerWidth - rect.left + 32);
+      const dockDuration = (rect.left < window.innerWidth * 0.45)
+        ? Math.min(840, Math.round(740 + (window.innerWidth * 0.45 - rect.left) * 0.14))
+        : 740;
+
+      // 1. WAAPI 贴边滑行动画 (740ms 沉稳优雅入边，保持清晰饱满度，贴边时温润淡出)
+      const anim = floatWindow.animate([
+        {
+          opacity: 1,
+          transform: 'translate3d(0, 0, 0) scale(1)',
+          filter: 'blur(0px)',
+        },
+        {
+          opacity: 0.95,
+          transform: `translate3d(${Math.round(targetDistanceX * 0.40)}px, 0, 0) scale(0.98)`,
+          filter: 'blur(0px)',
+          offset: 0.45,
+        },
+        {
+          opacity: 0.85,
+          transform: `translate3d(${Math.round(targetDistanceX * 0.75)}px, 0, 0) scale(0.95)`,
+          filter: 'blur(0.5px)',
+          offset: 0.75,
+        },
+        {
+          opacity: 0,
+          transform: `translate3d(${Math.round(targetDistanceX)}px, 0, 0) scale(0.92)`,
+          filter: 'blur(2px)',
+          offset: 1,
+        }
+      ], {
+        duration: dockDuration,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        fill: 'both'
+      });
+
+      // 2. 边缘标签在窗口贴合瞬间触发弹性吸收 (在第 460ms 优雅承接)
+      setTimeout(() => {
+        if (edgeTab && edgeTab.classList.contains('is-visible')) {
+          edgeTab.classList.remove('is-absorbing');
+          void edgeTab.offsetWidth; // force reflow
+          edgeTab.classList.add('is-absorbing');
+          setTimeout(() => {
+            edgeTab.classList.remove('is-absorbing');
+          }, 680);
+        }
+      }, Math.round(dockDuration * 0.62));
+
+      anim.onfinish = () => {
+        floatWindow.classList.remove('is-docking', 'is-flying-away', 'is-clearing');
+        floatWindow.hidden = true;
+        floatWindow.style.display = 'none';
+        floatWindow.style.pointerEvents = '';
+        try { anim.cancel(); } catch {}
+        if (onFinish) {
+          onFinish();
+        } else {
+          syncUIState();
+        }
+      };
+    }
+
+    function toggleWindow() {
+      if (isMobile()) {
+        const sheet = document.getElementById('pin-sheet-drawer');
+        if (sheet?.classList.contains('is-open')) closeMobileSheet();
+        else openMobileSheet();
+        return;
+      }
+      if (isWindowOpen) {
+        dockWindow();
+      } else {
+        openWindow();
+      }
+    }
+
+    function openMobileSheet() {
+      if (!isMobile()) return;
+      const sheet = document.getElementById('pin-sheet-drawer');
+      const backdrop = document.getElementById('pin-sheet-backdrop');
+      if (sheet && backdrop) {
+        sheet.hidden = false;
+        sheet.style.display = '';
+        backdrop.hidden = false;
+        backdrop.style.display = '';
+        requestAnimationFrame(() => {
+          sheet.classList.add('is-open');
+          backdrop.classList.add('is-open');
+          document.body.classList.add('pin-sheet-open');
+        });
+      }
+    }
+
+    function closeMobileSheet() {
+      const sheet = document.getElementById('pin-sheet-drawer');
+      const backdrop = document.getElementById('pin-sheet-backdrop');
+      if (sheet && backdrop) {
+        sheet.classList.remove('is-open');
+        backdrop.classList.remove('is-open');
+        document.body.classList.remove('pin-sheet-open');
+        setTimeout(() => {
+          sheet.hidden = true;
+          sheet.style.display = 'none';
+          backdrop.hidden = true;
+          backdrop.style.display = 'none';
+        }, 720);
+      }
+    }
+
+    // ---------- 拖拽移动逻辑 (Zero-Jitter Smooth Drag) ----------
+    function bindDrag() {
+      const floatWindow = document.getElementById('pin-float-window');
+      const dragHandle = document.getElementById('pin-window-drag-handle');
+      if (!floatWindow || !dragHandle) return;
+
+      let isDragging = false;
+      let startX = 0;
+      let startY = 0;
+      let initialLeft = 0;
+      let initialTop = 0;
+
+      dragHandle.addEventListener('pointerdown', (e: PointerEvent) => {
+        if ((e.target as HTMLElement).closest('button, a, input')) return;
+        if (e.button !== 0) return;
+        if (isMobile()) return;
+
+        e.preventDefault();
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        const rect = floatWindow.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        floatWindow.classList.add('is-dragging');
+        dragHandle.setPointerCapture(e.pointerId);
+
+        const onPointerMove = (ev: PointerEvent) => {
+          if (!isDragging) return;
+          const dx = ev.clientX - startX;
+          const dy = ev.clientY - startY;
+
+          const winWidth = floatWindow.offsetWidth;
+          const winHeight = floatWindow.offsetHeight;
+          const minX = 8;
+          const maxX = Math.max(minX, window.innerWidth - winWidth - 8);
+          const minY = 8;
+          const maxY = Math.max(minY, window.innerHeight - winHeight - 8);
+
+          const nextLeft = Math.max(minX, Math.min(maxX, initialLeft + dx));
+          const nextTop = Math.max(minY, Math.min(maxY, initialTop + dy));
+
+          floatWindow.style.left = `${Math.round(nextLeft)}px`;
+          floatWindow.style.top = `${Math.round(nextTop)}px`;
+
+          userPos = { left: nextLeft, top: nextTop };
+        };
+
+        const onPointerUp = (ev: PointerEvent) => {
+          if (!isDragging) return;
+          isDragging = false;
+          floatWindow.classList.remove('is-dragging');
+          try {
+            dragHandle.releasePointerCapture(ev.pointerId);
+          } catch {}
+          dragHandle.removeEventListener('pointermove', onPointerMove);
+          dragHandle.removeEventListener('pointerup', onPointerUp);
+          dragHandle.removeEventListener('pointercancel', onPointerUp);
+        };
+
+        dragHandle.addEventListener('pointermove', onPointerMove);
+        dragHandle.addEventListener('pointerup', onPointerUp);
+        dragHandle.addEventListener('pointercancel', onPointerUp);
+      });
+    }
+
+    function bindEvents() {
+      if (bound) return;
+      bound = true;
+
+      bindDrag();
+
+      // Click delegation
+      document.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+
+        // Code block pin button
+        const codePinBtn = target.closest<HTMLElement>('.code-pin-button');
+        if (codePinBtn) {
+          const pre = codePinBtn.closest<HTMLElement>('pre');
+          if (pre) {
+            if (!pre.id) pre.id = `code-${Math.random().toString(36).slice(2, 8)}`;
+            codePinBtn.setAttribute('data-pin-btn', 'true');
+            codePinBtn.setAttribute('data-pin-id', pre.id);
+            togglePin(pre, 'code', codePinBtn);
+          }
+          return;
+        }
+
+        // Mermaid block pin button
+        const mermaidPinBtn = target.closest<HTMLElement>('.mermaid-btn-pin');
+        if (mermaidPinBtn) {
+          const block = mermaidPinBtn.closest<HTMLElement>('.mermaid-block');
+          if (block) {
+            if (!block.id) block.id = `mermaid-${Math.random().toString(36).slice(2, 8)}`;
+            mermaidPinBtn.setAttribute('data-pin-btn', 'true');
+            mermaidPinBtn.setAttribute('data-pin-id', block.id);
+            togglePin(block, 'mermaid', mermaidPinBtn);
+          }
+          return;
+        }
+
+        // Right edge tab
+        if (target.closest('#pin-edge-tab')) {
+          toggleWindow();
+          return;
+        }
+
+        // Dock button (贴边收起)
+        if (target.closest('#pin-dock-btn')) {
+          dockWindow();
+          return;
+        }
+
+        // Clear all pins
+        if (target.closest('#pin-clear-all-btn') || target.closest('#pin-sheet-clear-btn')) {
+          clearAllPins();
+          return;
+        }
+
+        // Toggle all collapse
+        if (target.closest('#pin-toggle-all-btn')) {
+          toggleAllCollapse();
+          return;
+        }
+
+        // Mobile sheet close
+        if (target.closest('#pin-sheet-close-btn') || target.closest('#pin-sheet-backdrop')) {
+          closeMobileSheet();
+          return;
+        }
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (isMobile()) closeMobileSheet();
+          else dockWindow();
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        if (isWindowOpen && !isMobile()) {
+          ensureWindowPosition();
+        }
+      });
+
+      window.addEventListener('pin-workbench:add-excerpt', (e: any) => {
+        if (e.detail) pinExcerpt(e.detail);
+      });
+    }
+
+    (window as any).__pinWorkbench = {
+      togglePin,
+      removePin,
+      clearAllPins,
+      openWindow,
+      dockWindow,
+      toggleWindow,
+      pinExcerpt,
+    };
+
+    document.addEventListener('astro:page-load', () => {
+      initPinWorkbench();
+    });
+
+    initPinWorkbench();
+  })();
+</script>

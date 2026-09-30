@@ -5,6 +5,10 @@ import Header from '../components/Header.astro';
 import TagList from '../components/TagList.astro';
 import Giscus from '../components/Giscus.astro';
 import MermaidRenderer from '../components/MermaidRenderer.astro';
+import InkAsk from '../components/InkAsk.astro';
+import PinWorkbench from '../components/PinWorkbench.astro';
+import ArticleSearch from '../components/ArticleSearch.astro';
+import ArticleSelectionDock from '../components/ArticleSelectionDock.astro';
 import { formatDate } from '../utils/date';
 
 interface SeriesLink {
@@ -180,25 +184,63 @@ const hasToc = tocHeadings.length > 1;
           <details class="post-toc panel" open aria-labelledby="post-toc-title" data-enter="bottom" data-no-replay data-lenis-prevent>
             <summary class="post-toc-summary" data-lenis-prevent>
               <div class="flex items-center gap-2">
+                <span class="post-toc-caret" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </span>
                 <span class="post-toc-kicker">Navigation</span>
                 <span class="opacity-30">/</span>
                 <span id="post-toc-title" class="post-toc-title">文章目录</span>
               </div>
-              <span class="post-toc-badge">{tocHeadings.length} 节</span>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="post-toc-search-btn"
+                  data-article-search-trigger
+                  aria-label="搜索本文 (⌘F 或 /)"
+                  title="搜索本文 (⌘F 或 /)"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                  <span>搜本文</span>
+                  <kbd class="post-toc-search-kbd">⌘F</kbd>
+                </button>
+                <button
+                  type="button"
+                  class="post-toc-search-btn"
+                  data-article-notes-trigger
+                  aria-label="查看文章高亮笔记"
+                  title="查看高亮笔记"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="m9 11-6 6v3h3l6-6"></path>
+                    <path d="m22 2-2.5 2.5a2.12 2.12 0 0 1-3 0l-1-1a2.12 2.12 0 0 1 0-3L18 0z"></path>
+                    <path d="M14.5 5.5 18.5 9.5"></path>
+                  </svg>
+                  <span>笔记</span>
+                  <span class="post-toc-search-kbd" data-notes-count>0</span>
+                </button>
+                <span class="post-toc-badge">{tocHeadings.length} 节</span>
+              </div>
             </summary>
-            <div class="post-toc-inner" data-lenis-prevent>
-              <nav class="post-toc-nav" aria-label="文章目录" data-lenis-prevent>
-                {tocHeadings.map((heading) => (
-                  <a
-                    href={`#${heading.slug}`}
-                    class={`post-toc-link depth-${heading.depth}`}
-                    data-toc-link={heading.slug}
-                  >
-                    <span class="toc-bullet" />
-                    <span class="toc-text">{heading.text}</span>
-                  </a>
-                ))}
-              </nav>
+            <div class="post-toc-expander">
+              <div class="post-toc-inner" data-lenis-prevent>
+                <nav class="post-toc-nav" aria-label="文章目录" data-lenis-prevent>
+                  {tocHeadings.map((heading) => (
+                    <a
+                      href={`#${heading.slug}`}
+                      class={`post-toc-link depth-${heading.depth}`}
+                      data-toc-link={heading.slug}
+                    >
+                      <span class="toc-bullet" />
+                      <span class="toc-text">{heading.text}</span>
+                    </a>
+                  ))}
+                </nav>
+              </div>
             </div>
           </details>
         )}
@@ -241,6 +283,23 @@ const hasToc = tocHeadings.length > 1;
   </main>
 
   <MermaidRenderer />
+  <InkAsk />
+  <PinWorkbench />
+  <ArticleSearch />
+  <ArticleSelectionDock />
+  <div class="article-floating-actions" id="article-floating-actions">
+    <script is:inline data-astro-rerun>
+      (() => {
+        const container = document.getElementById('article-floating-actions');
+        const notesPill = document.getElementById('article-highlights-floating-pill');
+        const searchPill = document.getElementById('article-search-floating-pill');
+        if (container && notesPill && searchPill) {
+          if (notesPill.parentElement !== container) container.appendChild(notesPill);
+          if (searchPill.parentElement !== container) container.appendChild(searchPill);
+        }
+      })();
+    </script>
+  </div>
 
   {isLocked && (
     <script is:inline data-astro-rerun>
@@ -745,6 +804,143 @@ const hasToc = tocHeadings.length > 1;
           }, { signal });
         });
 
+        // 文章目录展开/收起平滑水墨缓动动画 (Water-ink Easing)
+        const summary = toc.querySelector('.post-toc-summary');
+        const expander = toc.querySelector('.post-toc-expander') as HTMLElement | null;
+        const inner = toc.querySelector('.post-toc-inner') as HTMLElement | null;
+        let isOpening = false;
+        let isClosing = false;
+        let tocAnim: Animation | null = null;
+
+        if (summary && expander && inner) {
+          summary.addEventListener('click', (event) => {
+            const target = event.target as HTMLElement | null;
+            if (target && target.closest('button, a, input')) return;
+
+            event.preventDefault();
+
+            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reduceMotion) {
+              if (tocAnim) {
+                tocAnim.cancel();
+                tocAnim = null;
+              }
+              isOpening = false;
+              isClosing = false;
+              toc.open = !toc.open;
+              toc.classList.toggle('is-collapsed', !toc.open);
+              expander.style.height = '';
+              expander.style.overflow = '';
+              try { (window as any).lenis?.resize(); } catch {}
+              try { (window as any).ScrollTrigger?.refresh(); } catch {}
+              toc.dispatchEvent(new Event('toggle'));
+              return;
+            }
+
+            const shouldOpen = isClosing || (!isOpening && !toc.open);
+
+            if (shouldOpen) {
+              // ----- EXPAND -----
+              isClosing = false;
+              isOpening = true;
+
+              let currentHeight = 0;
+              let currentOpacity = 0;
+              if (tocAnim) {
+                currentHeight = expander.getBoundingClientRect().height;
+                const style = window.getComputedStyle(expander);
+                currentOpacity = parseFloat(style.opacity) || 0;
+                tocAnim.cancel();
+                tocAnim = null;
+              }
+
+              toc.open = true;
+              toc.classList.remove('is-collapsed');
+              expander.style.overflow = 'hidden';
+
+              const targetHeight = inner.offsetHeight || inner.scrollHeight;
+              const remainingFraction = targetHeight > 0 ? (targetHeight - currentHeight) / targetHeight : 1;
+              const duration = Math.max(160, Math.round(450 * Math.min(1, Math.max(0.2, remainingFraction))));
+
+              tocAnim = expander.animate([
+                {
+                  height: `${currentHeight}px`,
+                  opacity: currentOpacity,
+                  transform: `translate3d(0, ${-6 * (1 - (currentHeight / (targetHeight || 1)))}px, 0)`,
+                },
+                {
+                  height: `${targetHeight}px`,
+                  opacity: 1,
+                  transform: 'translate3d(0, 0, 0)',
+                }
+              ], {
+                duration,
+                easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                fill: 'forwards'
+              });
+
+              tocAnim.onfinish = () => {
+                expander.style.height = '';
+                expander.style.overflow = '';
+                tocAnim = null;
+                isOpening = false;
+                try { (window as any).lenis?.resize(); } catch {}
+                try { (window as any).ScrollTrigger?.refresh(); } catch {}
+                toc.dispatchEvent(new Event('toggle'));
+              };
+            } else {
+              // ----- COLLAPSE -----
+              isOpening = false;
+              isClosing = true;
+
+              let currentHeight = expander.offsetHeight;
+              let currentOpacity = 1;
+              if (tocAnim) {
+                currentHeight = expander.getBoundingClientRect().height;
+                const style = window.getComputedStyle(expander);
+                currentOpacity = parseFloat(style.opacity) || 1;
+                tocAnim.cancel();
+                tocAnim = null;
+              }
+
+              toc.classList.add('is-collapsed');
+              expander.style.overflow = 'hidden';
+              const totalHeight = inner.offsetHeight || inner.scrollHeight || currentHeight;
+
+              const remainingFraction = totalHeight > 0 ? currentHeight / totalHeight : 1;
+              const duration = Math.max(160, Math.round(420 * Math.min(1, Math.max(0.2, remainingFraction))));
+
+              tocAnim = expander.animate([
+                {
+                  height: `${currentHeight}px`,
+                  opacity: currentOpacity,
+                  transform: 'translate3d(0, 0, 0)',
+                },
+                {
+                  height: '0px',
+                  opacity: 0,
+                  transform: 'translate3d(0, -6px, 0)',
+                }
+              ], {
+                duration,
+                easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                fill: 'forwards'
+              });
+
+              tocAnim.onfinish = () => {
+                toc.open = false;
+                expander.style.height = '';
+                expander.style.overflow = '';
+                tocAnim = null;
+                isClosing = false;
+                try { (window as any).lenis?.resize(); } catch {}
+                try { (window as any).ScrollTrigger?.refresh(); } catch {}
+                toc.dispatchEvent(new Event('toggle'));
+              };
+            }
+          }, { signal });
+        }
+
         if (!headings.length || !('IntersectionObserver' in window)) {
           const firstId = links[0]?.getAttribute('data-toc-link');
           if (firstId) setActive(firstId);
@@ -878,7 +1074,26 @@ const hasToc = tocHeadings.length > 1;
               }
             }, { signal });
 
-            toolbar.append(label, copyButton);
+            if (!pre.id) {
+              pre.id = `code-${Math.random().toString(36).slice(2, 9)}`;
+            }
+
+            const pinButton = document.createElement('button');
+            pinButton.className = 'code-pin-button';
+            pinButton.type = 'button';
+            pinButton.setAttribute('aria-label', '钉住对照');
+            pinButton.title = '钉到分屏工作台对照';
+            pinButton.setAttribute('data-pin-btn', 'true');
+            pinButton.setAttribute('data-pin-id', pre.id);
+            pinButton.innerHTML = `
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="12" y1="17" x2="12" y2="22"></line>
+                <path d="M5 17h14v-2l-2-2V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v8l-2 2v2z"></path>
+              </svg>
+              <span>Pin</span>
+            `;
+
+            toolbar.append(label, copyButton, pinButton);
             pre.prepend(toolbar);
           });
         }
@@ -932,6 +1147,10 @@ const hasToc = tocHeadings.length > 1;
   </script>
 
   <style is:global>
+    html[data-sidebar-collapsed="true"] [data-post-header] h1,
+    html[data-sidebar-collapsed="true"] [data-post-header] p {
+      max-width: none !important;
+    }
     .post-toc {
       border-radius: 18px !important;
       padding: 1.1rem 1.4rem !important;
@@ -955,6 +1174,27 @@ const hasToc = tocHeadings.length > 1;
     .post-toc-summary::-webkit-details-marker {
       display: none;
     }
+    .post-toc-caret {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      transition: transform 380ms cubic-bezier(0.16, 1, 0.3, 1), color 200ms ease;
+    }
+    .post-toc:not([open]) .post-toc-caret,
+    .post-toc.is-collapsed .post-toc-caret {
+      transform: rotate(-90deg);
+    }
+    .post-toc[open] .post-toc-caret {
+      transform: rotate(0deg);
+    }
+    .post-toc-summary:hover .post-toc-caret {
+      color: var(--text-strong);
+    }
+    .post-toc-expander {
+      overflow: hidden;
+      will-change: height, opacity, transform;
+    }
     .post-toc-kicker {
       font-family: var(--font-mono);
       font-size: 0.72rem;
@@ -976,6 +1216,43 @@ const hasToc = tocHeadings.length > 1;
       padding: 0.15rem 0.55rem;
       border-radius: 9999px;
       border: 1px solid var(--rule-soft);
+    }
+    .post-toc-search-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--muted-strong);
+      background: rgba(0, 0, 0, 0.04);
+      padding: 0.15rem 0.6rem;
+      border-radius: 9999px;
+      border: 1px solid var(--rule-soft);
+      cursor: pointer;
+      transition: all 0.2s var(--ease);
+      user-select: none;
+    }
+    .post-toc-search-btn:hover {
+      color: var(--text-strong);
+      border-color: var(--rule-strong);
+      background: rgba(0, 0, 0, 0.08);
+      transform: translateY(-1px);
+    }
+    .post-toc-search-kbd {
+      display: inline-block;
+      font-size: 0.62rem;
+      padding: 0.05rem 0.28rem;
+      border-radius: 3px;
+      background: var(--bg-base);
+      border: 1px solid var(--rule-soft);
+      opacity: 0.8;
+    }
+    [data-theme="dark"] .post-toc-search-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: var(--rule-soft);
+    }
+    [data-theme="dark"] .post-toc-search-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
     }
     .post-toc-inner {
       margin-top: 0.85rem;
