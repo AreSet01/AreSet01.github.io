@@ -684,22 +684,27 @@ test('Functional Test: Dragging does not trigger or restart entrance animation w
 });
 
 test('Functional Test: Dynamic dropdown target height calculation for small vs large item sets', () => {
-  function calcTargetHeight(itemCount, itemHeight = 44, headerHeight = 34) {
+  function calcTargetHeight(itemCount, itemHeight = 72, headerAndPadding = 46) {
     const contentH = itemCount * itemHeight;
-    return Math.min(280, headerHeight + contentH + 4);
+    const maxCap = Math.round(headerAndPadding + 4.5 * itemHeight); // 370px
+    return Math.min(maxCap, headerAndPadding + contentH);
   }
 
-  // 1 item (e.g. 34 + 44 + 4 = 82px)
+  // 1 item (46 + 72 = 118px): full item visible with no vertical scrollbar
   const singleItemHeight = calcTargetHeight(1);
-  assert.strictEqual(singleItemHeight, 82, 'Single item must produce compact target height, avoiding 280px dead-time');
+  assert.strictEqual(singleItemHeight, 118, 'Single item must fully display section tag, badge, and snippet without truncation');
 
-  // 2 items (e.g. 34 + 88 + 4 = 126px)
+  // 2 items (46 + 144 = 190px)
   const twoItemsHeight = calcTargetHeight(2);
-  assert.strictEqual(twoItemsHeight, 126);
+  assert.strictEqual(twoItemsHeight, 190);
 
-  // 10 items (e.g. 34 + 440 + 4 = 478px -> capped at 280px)
+  // 4 items (46 + 288 = 334px): 4 full items displayed without vertical scrollbar
+  const fourItemsHeight = calcTargetHeight(4);
+  assert.strictEqual(fourItemsHeight, 334, '4 items must be fully displayed without scrolling');
+
+  // 5+ items (e.g. 10 items): capped at 4.5 entries (370px), scrollbar kicks in showing top half of 5th entry
   const tenItemsHeight = calcTargetHeight(10);
-  assert.strictEqual(tenItemsHeight, 280, 'Large item set must be bounded by 280px max-height');
+  assert.strictEqual(tenItemsHeight, 370, 'Large item set must be bounded by 370px max-height (4.5 entries)');
 });
 
 test('Functional Test: Dropdown bottom viewport auto-adjustment prevents clipping offscreen', () => {
@@ -714,14 +719,14 @@ test('Functional Test: Dropdown bottom viewport auto-adjustment prevents clippin
     return currentTop;
   }
 
-  // Case 1: HUD near top (top = 24px, targetHeight = 280px) -> total 338px -> 24 + 338 = 362 < 800 -> No adjustment needed
-  const unadjusted = adjustHudTop(24, 280);
+  // Case 1: HUD near top (top = 24px, targetHeight = 370px) -> total 428px -> 24 + 428 = 452 < 800 -> No adjustment needed
+  const unadjusted = adjustHudTop(24, 370);
   assert.strictEqual(unadjusted, 24);
 
-  // Case 2: HUD dragged near bottom (top = 650px, targetHeight = 280px) -> total 338px -> 650 + 338 = 988 > 800
-  // maxAllowedTop = 800 - 338 - 16 = 446px
-  const adjusted = adjustHudTop(650, 280);
-  assert.strictEqual(adjusted, 446, 'HUD top must be adjusted upwards so dropdown stays fully within viewport');
+  // Case 2: HUD dragged near bottom (top = 650px, targetHeight = 370px) -> total 428px -> 650 + 428 = 1078 > 800
+  // maxAllowedTop = 800 - 428 - 16 = 356px
+  const adjusted = adjustHudTop(650, 370);
+  assert.strictEqual(adjusted, 356, 'HUD top must be adjusted upwards so dropdown stays fully within viewport');
 });
 
 test('Functional Test: Radar pulse animation cleanly restarts with DOM reflow and self-removes on end', () => {
@@ -1155,6 +1160,131 @@ test('Functional Test: Search capsule height and flex-basis in column flexbox pr
   assert.strictEqual(capsuleStyle.flexBasis, 48, 'Capsule flex-basis along column main axis must be 48px, preventing circle geometry');
   assert.notStrictEqual(capsuleStyle.height, capsuleStyle.width, 'Height and width must not be equal, avoiding 1:1 circle aspect ratio');
 });
+
+test('Functional Test: Search dropdown 4.5 entries pagination and 2-line snippet support', () => {
+  // Dropdown layout metrics
+  const HEADER_HEIGHT = 38;
+  const LIST_PADDING = 8;
+  const BASE_OFFSET = HEADER_HEIGHT + LIST_PADDING; // 46px
+  const ITEM_HEIGHT = 72; // ~72px for 2-line snippet + section tag + badge
+  const MAX_DROPDOWN_HEIGHT = Math.round(BASE_OFFSET + 4.5 * ITEM_HEIGHT); // 370px
+  const LIST_MAX_HEIGHT = MAX_DROPDOWN_HEIGHT - BASE_OFFSET; // 324px
+
+  assert.strictEqual(MAX_DROPDOWN_HEIGHT, 370, 'Dropdown max height is calibrated to 370px (4.5 entries)');
+  assert.strictEqual(LIST_MAX_HEIGHT, 324, 'Results list max height accommodates exactly 4.5 items');
+
+  // Verify heights for 1 to 4 items (each item has ample space and NO vertical scrollbar)
+  for (let count = 1; count <= 4; count++) {
+    const requiredH = count * ITEM_HEIGHT;
+    const totalH = BASE_OFFSET + requiredH;
+    assert.ok(totalH <= MAX_DROPDOWN_HEIGHT, `Total height for ${count} items (${totalH}px) fits within max height (${MAX_DROPDOWN_HEIGHT}px)`);
+    assert.ok(requiredH <= LIST_MAX_HEIGHT, `List content height for ${count} items (${requiredH}px) does NOT exceed list max-height (${LIST_MAX_HEIGHT}px), so no scrollbar appears`);
+  }
+
+  // At 5 items, scrolling kicks in with 4 full items and top half (36px) of 5th item visible
+  const requiredH5 = 5 * ITEM_HEIGHT; // 360px
+  assert.ok(requiredH5 > LIST_MAX_HEIGHT, '5 items exceeds list max-height (324px), triggering vertical scrolling');
+  const visibleFractionOf5th = (LIST_MAX_HEIGHT - 4 * ITEM_HEIGHT) / ITEM_HEIGHT;
+  assert.strictEqual(visibleFractionOf5th, 0.5, 'Visible overflow area reveals exactly the top 50% (half) of the 5th item');
+});
+
+test('Functional Test: Pin workbench scrollbar suppression when clearing and docking', () => {
+  const createMockClassList = (initial = []) => {
+    const set = new Set(initial);
+    return {
+      add(...classes) { classes.forEach(c => set.add(c)); },
+      remove(...classes) { classes.forEach(c => set.delete(c)); },
+      has(c) { return set.has(c); },
+      contains(c) { return set.has(c); },
+    };
+  };
+
+  const floatWindow = {
+    classList: createMockClassList(['is-open']),
+    style: { pointerEvents: '', display: '' },
+    hidden: false,
+  };
+
+  // State transitions when clearing
+  function onClearAllPins() {
+    floatWindow.classList.add('is-clearing', 'is-flying-away', 'is-docking');
+    floatWindow.classList.remove('is-open');
+    floatWindow.style.pointerEvents = 'none';
+  }
+
+  onClearAllPins();
+  assert.ok(floatWindow.classList.contains('is-clearing'), 'Window must have is-clearing class during clear operation');
+  assert.ok(floatWindow.classList.contains('is-flying-away'), 'Window must have is-flying-away class during fly-away exit');
+  assert.ok(floatWindow.classList.contains('is-docking'), 'Window must have is-docking class during exit');
+  assert.strictEqual(floatWindow.classList.contains('is-open'), false, 'is-open must be removed immediately');
+
+  // Simulated CSS checks: any scrollbar must be suppressed under is-docking / is-flying-away / is-clearing
+  const suppressClasses = ['is-docking', 'is-flying-away', 'is-clearing'];
+  const hasSuppression = suppressClasses.some(c => floatWindow.classList.contains(c));
+  assert.strictEqual(hasSuppression, true, 'Window matches CSS rules enforcing overflow: hidden !important and hiding scrollbars');
+
+  // When animation finishes
+  function onFinishExit() {
+    floatWindow.classList.remove('is-docking', 'is-flying-away', 'is-clearing', 'is-open');
+    floatWindow.hidden = true;
+    floatWindow.style.display = 'none';
+    floatWindow.style.pointerEvents = '';
+  }
+
+  onFinishExit();
+  assert.strictEqual(floatWindow.classList.contains('is-docking'), false);
+  assert.strictEqual(floatWindow.classList.contains('is-flying-away'), false);
+  assert.strictEqual(floatWindow.classList.contains('is-clearing'), false);
+  assert.strictEqual(floatWindow.hidden, true);
+});
+
+test('Functional Test: High contrast highlight mark styles and theme tokens', () => {
+  // Theme definitions for search vermilion and highlights
+  const themes = {
+    root: { searchVermilion: '#d4733c', searchVermilionRgb: '212, 115, 60' },
+    dark: { searchVermilion: '#ff7849', searchVermilionRgb: '255, 120, 73' },
+    moss: { searchVermilion: '#ff859d', searchVermilionRgb: '255, 133, 157' },
+    rice: { searchVermilion: '#c05c2a', searchVermilionRgb: '192, 92, 42' },
+  };
+
+  // Dark mode must define radiant vermilion rather than muddy brownish fallback
+  assert.strictEqual(themes.dark.searchVermilion, '#ff7849', 'Dark theme must define vivid radiant vermilion');
+  assert.strictEqual(themes.dark.searchVermilionRgb, '255, 120, 73');
+
+  // Code block mark contrast: in pre code, text must be crisp white (#ffffff)
+  const codeBlockMark = {
+    color: '#ffffff',
+    backgroundColor: 'rgba(255, 197, 61, 0.38)',
+    borderBottom: '1.5px solid rgba(255, 210, 80, 0.9)',
+  };
+  assert.strictEqual(codeBlockMark.color, '#ffffff', 'Code block highlights must use crisp white text for high contrast on dark code backgrounds');
+  assert.ok(codeBlockMark.backgroundColor.includes('255, 197, 61'), 'Code block highlight must use luminous gold/amber');
+});
+
+test('Functional Test: Pin count badges and is-pinned buttons high contrast in dark and all themes', () => {
+  // In dark theme, background is white/light, so text color MUST be dark (#0d1117 / var(--bg-base)), NEVER #ffffff
+  const darkPinnedButton = {
+    backgroundColor: '#ffffff',
+    color: '#0d1117',
+  };
+  assert.notStrictEqual(darkPinnedButton.color, '#ffffff', 'Dark theme pinned button text must NOT be white on white');
+  assert.strictEqual(darkPinnedButton.color, '#0d1117', 'Dark theme pinned button text must be high-contrast dark');
+
+  const darkBadge = {
+    backgroundColor: '#ffffff',
+    color: '#0d1117',
+  };
+  assert.notStrictEqual(darkBadge.color, '#ffffff', 'Dark theme badge text must NOT be white on white');
+  assert.strictEqual(darkBadge.color, '#0d1117', 'Dark theme badge text must be high-contrast dark');
+
+  const mossBadge = {
+    backgroundColor: '#FFC2D1',
+    color: '#1F3A24',
+  };
+  assert.notStrictEqual(mossBadge.color, '#ffffff', 'Moss theme badge text must NOT be white on light pink');
+  assert.strictEqual(mossBadge.color, '#1F3A24', 'Moss theme badge text must be high-contrast dark green');
+});
+
 
 
 

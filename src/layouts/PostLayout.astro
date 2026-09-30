@@ -184,6 +184,11 @@ const hasToc = tocHeadings.length > 1;
           <details class="post-toc panel" open aria-labelledby="post-toc-title" data-enter="bottom" data-no-replay data-lenis-prevent>
             <summary class="post-toc-summary" data-lenis-prevent>
               <div class="flex items-center gap-2">
+                <span class="post-toc-caret" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </span>
                 <span class="post-toc-kicker">Navigation</span>
                 <span class="opacity-30">/</span>
                 <span id="post-toc-title" class="post-toc-title">文章目录</span>
@@ -221,19 +226,21 @@ const hasToc = tocHeadings.length > 1;
                 <span class="post-toc-badge">{tocHeadings.length} 节</span>
               </div>
             </summary>
-            <div class="post-toc-inner" data-lenis-prevent>
-              <nav class="post-toc-nav" aria-label="文章目录" data-lenis-prevent>
-                {tocHeadings.map((heading) => (
-                  <a
-                    href={`#${heading.slug}`}
-                    class={`post-toc-link depth-${heading.depth}`}
-                    data-toc-link={heading.slug}
-                  >
-                    <span class="toc-bullet" />
-                    <span class="toc-text">{heading.text}</span>
-                  </a>
-                ))}
-              </nav>
+            <div class="post-toc-expander">
+              <div class="post-toc-inner" data-lenis-prevent>
+                <nav class="post-toc-nav" aria-label="文章目录" data-lenis-prevent>
+                  {tocHeadings.map((heading) => (
+                    <a
+                      href={`#${heading.slug}`}
+                      class={`post-toc-link depth-${heading.depth}`}
+                      data-toc-link={heading.slug}
+                    >
+                      <span class="toc-bullet" />
+                      <span class="toc-text">{heading.text}</span>
+                    </a>
+                  ))}
+                </nav>
+              </div>
             </div>
           </details>
         )}
@@ -280,6 +287,19 @@ const hasToc = tocHeadings.length > 1;
   <PinWorkbench />
   <ArticleSearch />
   <ArticleSelectionDock />
+  <div class="article-floating-actions" id="article-floating-actions">
+    <script is:inline data-astro-rerun>
+      (() => {
+        const container = document.getElementById('article-floating-actions');
+        const notesPill = document.getElementById('article-highlights-floating-pill');
+        const searchPill = document.getElementById('article-search-floating-pill');
+        if (container && notesPill && searchPill) {
+          if (notesPill.parentElement !== container) container.appendChild(notesPill);
+          if (searchPill.parentElement !== container) container.appendChild(searchPill);
+        }
+      })();
+    </script>
+  </div>
 
   {isLocked && (
     <script is:inline data-astro-rerun>
@@ -784,6 +804,143 @@ const hasToc = tocHeadings.length > 1;
           }, { signal });
         });
 
+        // 文章目录展开/收起平滑水墨缓动动画 (Water-ink Easing)
+        const summary = toc.querySelector('.post-toc-summary');
+        const expander = toc.querySelector('.post-toc-expander') as HTMLElement | null;
+        const inner = toc.querySelector('.post-toc-inner') as HTMLElement | null;
+        let isOpening = false;
+        let isClosing = false;
+        let tocAnim: Animation | null = null;
+
+        if (summary && expander && inner) {
+          summary.addEventListener('click', (event) => {
+            const target = event.target as HTMLElement | null;
+            if (target && target.closest('button, a, input')) return;
+
+            event.preventDefault();
+
+            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reduceMotion) {
+              if (tocAnim) {
+                tocAnim.cancel();
+                tocAnim = null;
+              }
+              isOpening = false;
+              isClosing = false;
+              toc.open = !toc.open;
+              toc.classList.toggle('is-collapsed', !toc.open);
+              expander.style.height = '';
+              expander.style.overflow = '';
+              try { (window as any).lenis?.resize(); } catch {}
+              try { (window as any).ScrollTrigger?.refresh(); } catch {}
+              toc.dispatchEvent(new Event('toggle'));
+              return;
+            }
+
+            const shouldOpen = isClosing || (!isOpening && !toc.open);
+
+            if (shouldOpen) {
+              // ----- EXPAND -----
+              isClosing = false;
+              isOpening = true;
+
+              let currentHeight = 0;
+              let currentOpacity = 0;
+              if (tocAnim) {
+                currentHeight = expander.getBoundingClientRect().height;
+                const style = window.getComputedStyle(expander);
+                currentOpacity = parseFloat(style.opacity) || 0;
+                tocAnim.cancel();
+                tocAnim = null;
+              }
+
+              toc.open = true;
+              toc.classList.remove('is-collapsed');
+              expander.style.overflow = 'hidden';
+
+              const targetHeight = inner.offsetHeight || inner.scrollHeight;
+              const remainingFraction = targetHeight > 0 ? (targetHeight - currentHeight) / targetHeight : 1;
+              const duration = Math.max(160, Math.round(450 * Math.min(1, Math.max(0.2, remainingFraction))));
+
+              tocAnim = expander.animate([
+                {
+                  height: `${currentHeight}px`,
+                  opacity: currentOpacity,
+                  transform: `translate3d(0, ${-6 * (1 - (currentHeight / (targetHeight || 1)))}px, 0)`,
+                },
+                {
+                  height: `${targetHeight}px`,
+                  opacity: 1,
+                  transform: 'translate3d(0, 0, 0)',
+                }
+              ], {
+                duration,
+                easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                fill: 'forwards'
+              });
+
+              tocAnim.onfinish = () => {
+                expander.style.height = '';
+                expander.style.overflow = '';
+                tocAnim = null;
+                isOpening = false;
+                try { (window as any).lenis?.resize(); } catch {}
+                try { (window as any).ScrollTrigger?.refresh(); } catch {}
+                toc.dispatchEvent(new Event('toggle'));
+              };
+            } else {
+              // ----- COLLAPSE -----
+              isOpening = false;
+              isClosing = true;
+
+              let currentHeight = expander.offsetHeight;
+              let currentOpacity = 1;
+              if (tocAnim) {
+                currentHeight = expander.getBoundingClientRect().height;
+                const style = window.getComputedStyle(expander);
+                currentOpacity = parseFloat(style.opacity) || 1;
+                tocAnim.cancel();
+                tocAnim = null;
+              }
+
+              toc.classList.add('is-collapsed');
+              expander.style.overflow = 'hidden';
+              const totalHeight = inner.offsetHeight || inner.scrollHeight || currentHeight;
+
+              const remainingFraction = totalHeight > 0 ? currentHeight / totalHeight : 1;
+              const duration = Math.max(160, Math.round(420 * Math.min(1, Math.max(0.2, remainingFraction))));
+
+              tocAnim = expander.animate([
+                {
+                  height: `${currentHeight}px`,
+                  opacity: currentOpacity,
+                  transform: 'translate3d(0, 0, 0)',
+                },
+                {
+                  height: '0px',
+                  opacity: 0,
+                  transform: 'translate3d(0, -6px, 0)',
+                }
+              ], {
+                duration,
+                easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                fill: 'forwards'
+              });
+
+              tocAnim.onfinish = () => {
+                toc.open = false;
+                expander.style.height = '';
+                expander.style.overflow = '';
+                tocAnim = null;
+                isClosing = false;
+                try { (window as any).lenis?.resize(); } catch {}
+                try { (window as any).ScrollTrigger?.refresh(); } catch {}
+                toc.dispatchEvent(new Event('toggle'));
+              };
+            }
+          }, { signal });
+        }
+
         if (!headings.length || !('IntersectionObserver' in window)) {
           const firstId = links[0]?.getAttribute('data-toc-link');
           if (firstId) setActive(firstId);
@@ -1016,6 +1173,27 @@ const hasToc = tocHeadings.length > 1;
     }
     .post-toc-summary::-webkit-details-marker {
       display: none;
+    }
+    .post-toc-caret {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      transition: transform 380ms cubic-bezier(0.16, 1, 0.3, 1), color 200ms ease;
+    }
+    .post-toc:not([open]) .post-toc-caret,
+    .post-toc.is-collapsed .post-toc-caret {
+      transform: rotate(-90deg);
+    }
+    .post-toc[open] .post-toc-caret {
+      transform: rotate(0deg);
+    }
+    .post-toc-summary:hover .post-toc-caret {
+      color: var(--text-strong);
+    }
+    .post-toc-expander {
+      overflow: hidden;
+      will-change: height, opacity, transform;
     }
     .post-toc-kicker {
       font-family: var(--font-mono);

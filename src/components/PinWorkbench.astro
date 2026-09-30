@@ -57,7 +57,7 @@
     </div>
   </div>
 
-  <div class="pin-window-body" id="pin-window-list" data-lenis-prevent>
+  <div class="pin-window-body pin-window-content pin-cards-container" id="pin-window-list" data-lenis-prevent>
     <!-- Dynamic cards rendered here -->
   </div>
 </div>
@@ -603,7 +603,7 @@
 
       const finishAll = () => {
         if (floatWindow) {
-          floatWindow.classList.remove('is-docking', 'is-open');
+          floatWindow.classList.remove('is-docking', 'is-flying-away', 'is-clearing', 'is-open');
           floatWindow.hidden = true;
           floatWindow.style.display = 'none';
           floatWindow.style.pointerEvents = '';
@@ -684,7 +684,7 @@
       // 1. Floating Window Synchronous Flight (高对比度、清晰明确的整体飞走轨迹，保持卡片内容清晰，绝不中途蒸发)
       if (hasWindowToExit && floatWindow) {
         floatWindow.style.pointerEvents = 'none';
-        floatWindow.classList.add('is-docking');
+        floatWindow.classList.add('is-docking', 'is-flying-away');
         floatWindow.classList.remove('is-open');
 
         winAnim = floatWindow.animate([
@@ -973,6 +973,11 @@
       if (isClearing || isExiting || pinnedItems.length === 0) return;
       isClearing = true;
 
+      const floatWindow = document.getElementById('pin-float-window');
+      if (floatWindow) {
+        floatWindow.classList.add('is-clearing', 'is-flying-away', 'is-docking');
+      }
+
       // 1. Immediate visual feedback: reset buttons in prose & all badge counters
       document.querySelectorAll<HTMLElement>('[data-pin-btn]').forEach((btn) => {
         btn.classList.remove('is-pinned');
@@ -1023,7 +1028,7 @@
       const floatWindow = document.getElementById('pin-float-window');
       const edgeTab = document.getElementById('pin-edge-tab');
       if (floatWindow) {
-        floatWindow.classList.remove('is-docking');
+        floatWindow.classList.remove('is-docking', 'is-flying-away', 'is-clearing');
         floatWindow.hidden = false;
         floatWindow.style.display = '';
         ensureWindowPosition();
@@ -1051,7 +1056,7 @@
 
       isWindowOpen = false;
       floatWindow.style.pointerEvents = 'none';
-      floatWindow.classList.add('is-docking');
+      floatWindow.classList.add('is-docking', 'is-flying-away');
       // 立即移除 is-open 避免 CSS 权重阻碍 WAAPI transform 与 opacity 动画
       floatWindow.classList.remove('is-open');
       edgeTab?.classList.remove('is-open');
@@ -1106,7 +1111,7 @@
       }, Math.round(dockDuration * 0.62));
 
       anim.onfinish = () => {
-        floatWindow.classList.remove('is-docking');
+        floatWindow.classList.remove('is-docking', 'is-flying-away', 'is-clearing');
         floatWindow.hidden = true;
         floatWindow.style.display = 'none';
         floatWindow.style.pointerEvents = '';

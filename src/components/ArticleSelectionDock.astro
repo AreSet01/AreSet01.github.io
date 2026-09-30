@@ -668,7 +668,7 @@
     }
 
     // 6. 🗑️ 取消划线
-    function triggerDeleteHighlight(targetId?: string) {
+    function triggerDeleteHighlight(targetId?: string, skipDrawerSync = false) {
       const id = targetId || activeHighlightId;
       if (!id) return;
 
@@ -678,11 +678,64 @@
       updateBadges();
 
       if (drawer?.classList.contains('is-open')) {
-        renderDrawerNotes();
+        if (!skipDrawerSync || storedRecords.length === 0) {
+          renderDrawerNotes();
+        }
       }
 
       showStamp('已取消划线');
       hideDock();
+    }
+
+    // 7. 优雅卡片退出动画（向右轻盈滑出并折叠高度，与 Pin 工作台卡片保持一致的物理质感）
+    function smoothRemoveNoteCard(targetEl: HTMLElement, isGroup: boolean, onComplete: () => void) {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        targetEl.remove();
+        onComplete();
+        return;
+      }
+      targetEl.style.pointerEvents = 'none';
+      const startHeight = targetEl.offsetHeight;
+      const marginAbsorb = isGroup ? '-1.2rem' : '-0.65rem';
+
+      const anim = targetEl.animate([
+        {
+          opacity: 1,
+          transform: 'translate3d(0, 0, 0) scale(1)',
+          maxHeight: `${startHeight}px`,
+          marginBottom: '0px',
+          paddingTop: '',
+          paddingBottom: '',
+          overflow: 'hidden',
+        },
+        {
+          opacity: 0.65,
+          transform: 'translate3d(28px, -2px, 0) scale(0.98)',
+          maxHeight: `${Math.round(startHeight * 0.65)}px`,
+          marginBottom: '0px',
+          offset: 0.44,
+        },
+        {
+          opacity: 0,
+          transform: 'translate3d(56px, -4px, 0) scale(0.92)',
+          maxHeight: '0px',
+          marginBottom: marginAbsorb,
+          paddingTop: '0px',
+          paddingBottom: '0px',
+          borderWidth: '0px',
+          overflow: 'hidden',
+          offset: 1,
+        }
+      ], {
+        duration: 380,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        fill: 'forwards'
+      });
+
+      anim.onfinish = () => {
+        targetEl.remove();
+        onComplete();
+      };
     }
 
     // ---------- Dock 按钮事件绑定 ----------
@@ -863,7 +916,18 @@
           `;
           delBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            triggerDeleteHighlight(item.id);
+            if (card.dataset.deleting === 'true') return;
+            card.dataset.deleting = 'true';
+
+            const isSoleCard = (secEl.querySelectorAll('.notes-item-card').length <= 1);
+            const targetEl = isSoleCard ? secEl : card;
+
+            smoothRemoveNoteCard(targetEl, isSoleCard, () => {
+              if (!isSoleCard && secEl.querySelectorAll('.notes-item-card').length === 0) {
+                secEl.remove();
+              }
+              triggerDeleteHighlight(item.id, true);
+            });
           });
 
           actGroup.append(jumpBtn, pinBtn, copyBtn, delBtn);
@@ -1060,8 +1124,8 @@
      划线高亮样式规范 (Gold Water-Ink Wash & Soft Underline)
      ========================================================= */
   mark.article-highlight-mark {
-    background-color: rgba(245, 185, 30, 0.28) !important;
-    border-bottom: 1.5px solid rgba(215, 150, 20, 0.65) !important;
+    background-color: rgba(255, 197, 61, 0.35) !important;
+    border-bottom: 1.5px solid rgba(225, 150, 10, 0.75) !important;
     color: inherit !important;
     border-radius: 2px;
     padding: 0.05em 0.15em;
@@ -1072,19 +1136,57 @@
     transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
+  /* Code blocks: ensure radiant amber contrast and crisp white text */
+  pre code mark.article-highlight-mark {
+    background-color: rgba(255, 197, 61, 0.38) !important;
+    border-bottom: 1.5px solid rgba(255, 210, 80, 0.9) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 6px rgba(255, 197, 61, 0.22);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    padding: 0 1px;
+    margin: 0;
+  }
+
+  pre code mark.article-highlight-mark:hover {
+    background-color: rgba(255, 197, 61, 0.55) !important;
+    border-bottom-color: #ffd04b !important;
+    box-shadow: 0 0 10px rgba(255, 197, 61, 0.4);
+  }
+
   [data-theme="dark"] mark.article-highlight-mark {
-    background-color: rgba(245, 190, 40, 0.32) !important;
-    border-bottom: 1.5px solid rgba(235, 170, 30, 0.72) !important;
+    background-color: rgba(255, 197, 61, 0.35) !important;
+    border-bottom: 1.5px solid rgba(255, 205, 70, 0.85) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 8px rgba(255, 197, 61, 0.25);
+  }
+
+  [data-theme="moss"] mark.article-highlight-mark {
+    background-color: rgba(255, 215, 95, 0.35) !important;
+    border-bottom: 1.5px solid rgba(255, 220, 110, 0.85) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 6px rgba(255, 215, 95, 0.2);
+  }
+
+  [data-theme="rice"] mark.article-highlight-mark {
+    background-color: rgba(235, 160, 20, 0.34) !important;
+    border-bottom: 1.5px solid rgba(195, 120, 10, 0.75) !important;
+    color: #2B241C !important;
   }
 
   mark.article-highlight-mark:hover {
-    background-color: rgba(245, 185, 30, 0.44) !important;
-    border-bottom-color: rgba(215, 150, 20, 0.95) !important;
+    background-color: rgba(255, 197, 61, 0.52) !important;
+    border-bottom-color: rgba(215, 140, 10, 0.95) !important;
   }
 
   [data-theme="dark"] mark.article-highlight-mark:hover {
-    background-color: rgba(245, 190, 40, 0.50) !important;
-    border-bottom-color: rgba(245, 185, 30, 0.95) !important;
+    background-color: rgba(255, 197, 61, 0.52) !important;
+    border-bottom-color: rgba(255, 215, 80, 0.95) !important;
+    box-shadow: 0 0 12px rgba(255, 197, 61, 0.35);
+  }
+
+  [data-theme="moss"] mark.article-highlight-mark:hover {
+    background-color: rgba(255, 215, 95, 0.52) !important;
+    border-bottom-color: rgba(255, 230, 120, 0.95) !important;
   }
 
   /* 导航定位脉冲动效 */
@@ -1094,15 +1196,15 @@
 
   @keyframes article-highlight-pulse {
     0% {
-      box-shadow: 0 0 0 0 rgba(245, 185, 30, 0.8);
-      background-color: rgba(245, 185, 30, 0.70) !important;
+      box-shadow: 0 0 0 0 rgba(255, 197, 61, 0.85);
+      background-color: rgba(255, 197, 61, 0.75) !important;
     }
     45% {
-      box-shadow: 0 0 0 10px rgba(245, 185, 30, 0);
-      background-color: rgba(245, 185, 30, 0.48) !important;
+      box-shadow: 0 0 0 10px rgba(255, 197, 61, 0);
+      background-color: rgba(255, 197, 61, 0.48) !important;
     }
     100% {
-      box-shadow: 0 0 0 0 rgba(245, 185, 30, 0);
+      box-shadow: 0 0 0 0 rgba(255, 197, 61, 0);
     }
   }
 
@@ -1365,7 +1467,7 @@
   .article-highlights-floating-pill {
     position: fixed;
     bottom: 26px;
-    right: 148px;
+    right: 196px;
     z-index: 68;
     display: inline-flex;
     align-items: center;
@@ -1478,7 +1580,7 @@
     }
 
     .article-highlights-floating-pill {
-      right: 110px;
+      right: 156px;
       bottom: max(16px, env(safe-area-inset-bottom, 16px));
       padding: 7px 11px;
     }
