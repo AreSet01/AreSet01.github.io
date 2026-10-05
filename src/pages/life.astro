@@ -24,10 +24,10 @@ const countByCategory = {
 >
   <Header />
 
-  <main class="container-wide flex-1 pt-14 pb-20 md:pt-20">
+  <main class="container-wide flex-1 pt-6 pb-20 lg:pt-8">
     <!-- 顶部标题与介绍 -->
     <section class="panel pb-10 border-b border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule-strong) 50%, transparent 95%) 1;">
-      <p class="eyebrow" data-enter="top">Life / 拾光</p>
+      <p class="eyebrow" data-enter="top">Life</p>
 
       <div class="mt-6 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div class="max-w-2xl">
@@ -62,7 +62,7 @@ const countByCategory = {
       </div>
 
       <!-- 搜索栏 -->
-      <div class="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4" data-enter="bottom">
+      <div class="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4" data-enter="bottom" data-enter-once>
         <div class="life-search-wrapper flex-1">
           <svg class="life-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"></circle>
@@ -89,7 +89,7 @@ const countByCategory = {
     </section>
 
     <!-- 一级分类切换 Tab -->
-    <div class="life-category-tabs" data-enter="bottom">
+    <div class="life-category-tabs" data-enter="bottom" data-enter-once>
       {categories.map((cat) => (
         <button
           type="button"
@@ -123,15 +123,11 @@ const countByCategory = {
                 <span class="life-card-category-badge">
                   {item.category === 'places' ? '📍 去处' : item.category === 'activities' ? '🎈 玩乐' : '☕ 好物'}
                 </span>
+                <span class="life-card-divider" aria-hidden="true">·</span>
                 <span class="life-card-city">
                   {item.city}
                 </span>
               </div>
-              {item.badge && (
-                <span class="life-card-badge-highlight">
-                  {item.badge}
-                </span>
-              )}
             </div>
 
             <!-- 卡片主标题与星级 -->
@@ -149,12 +145,12 @@ const countByCategory = {
               “{item.summary}”
             </blockquote>
 
-            <!-- 避坑与打卡建议 -->
+            <!-- 避坑与打卡建议（古籍批注式排版） -->
             {item.tips && item.tips.length > 0 && (
               <div class="life-card-tips-box">
                 <div class="life-card-tips-header">
-                  <span class="life-card-tips-icon">💡</span>
-                  <span>打卡 / 避坑建议</span>
+                  <span class="tips-pillar-mark" aria-hidden="true">▍</span>
+                  <span>游历小笺 · 避坑备忘</span>
                 </div>
                 <ul class="life-card-tips-list">
                   {item.tips.map((tip) => (
@@ -190,7 +186,7 @@ const countByCategory = {
                   class="life-map-link"
                   title="打开地图导航"
                 >
-                  <span>地图</span>
+                  <span>地图导航</span>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                     <polyline points="15 3 21 3 21 9"></polyline>
@@ -205,7 +201,7 @@ const countByCategory = {
     </div>
 
     <!-- 搜索/过滤无结果空状态 -->
-    <div id="life-empty-state" class="life-empty-state hidden" data-lenis-prevent>
+    <div id="life-empty-state" class="life-empty-state hidden">
       <div class="empty-ink-circle">空</div>
       <h3 class="empty-title">空山不见人，但闻人语响</h3>
       <p class="empty-desc">没有找到符合条件的推荐，换个关键词或重置筛选试试吧。</p>
@@ -281,6 +277,13 @@ const countByCategory = {
     line-height: 1;
   }
 
+  /* .btn-secondary 的 ::after 下划线是给纯文字按钮准备的：带背景和边框的胶囊/方框按钮
+     叠加它会在底边多出一条横穿的杂线，这里把本页这类按钮统一禁用 */
+  .life-random-btn::after,
+  .life-reset-btn::after {
+    display: none;
+  }
+
   .life-random-btn:hover {
     background: var(--text-strong);
     color: var(--bg-base);
@@ -339,6 +342,21 @@ const countByCategory = {
     display: flex;
     align-items: center;
     max-width: 480px;
+    border-radius: 8px;
+    border: 1px solid var(--rule);
+    background: var(--bg-soft);
+    cursor: default;
+    transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
+  }
+
+  .life-search-wrapper:focus-within {
+    border-color: var(--text-strong);
+    background: var(--bg-base);
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+  }
+
+  [data-theme="dark"] .life-search-wrapper:focus-within {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
   }
 
   .life-search-icon {
@@ -358,21 +376,11 @@ const countByCategory = {
     padding: 0.65rem 2.2rem 0.65rem 2.6rem;
     font-size: 0.88rem;
     color: var(--text-strong);
-    background: var(--bg-soft);
-    border: 1px solid var(--rule);
+    background: transparent;
+    border: none;
     border-radius: 8px;
+    clip-path: inset(0 round 8px);
     outline: none;
-    transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
-  }
-
-  .life-search-input:focus {
-    border-color: var(--text-strong);
-    background: var(--bg-base);
-    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
-  }
-
-  [data-theme="dark"] .life-search-input:focus {
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
   }
 
   .life-search-clear {
@@ -398,110 +406,154 @@ const countByCategory = {
     display: flex;
     flex-wrap: wrap;
     gap: 0.6rem;
-    margin-top: 1.75rem;
+    padding: 4px 2px;
+    margin-top: calc(1.75rem - 4px);
   }
 
   .life-cat-tab {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
-    padding: 0.5rem 1.1rem;
-    font-size: 0.86rem;
+    gap: 0.55rem;
+    padding: 0.5rem 0.65rem 0.5rem 0.95rem;
+    font-size: 0.84rem;
     font-family: var(--font-body);
     color: var(--muted-strong);
-    background: var(--bg-soft);
-    border: 1px solid var(--rule);
-    border-radius: 6px;
+    background: transparent;
+    border: 1px solid var(--rule-strong);
+    border-radius: 4px;
     cursor: pointer;
-    transition: all 220ms cubic-bezier(0.16, 1, 0.3, 1);
     user-select: none;
+    box-sizing: border-box;
+    transition:
+      color 420ms var(--ease),
+      border-color 320ms var(--ease),
+      transform 320ms var(--ease-bounce);
+  }
+
+  .life-cat-tab::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--ink-strong);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 520ms var(--ease);
+  }
+
+  .life-cat-tab.is-active::before {
+    transform: scaleX(1);
   }
 
   .life-cat-tab:hover {
     color: var(--text-strong);
-    border-color: var(--rule-strong);
+    border-color: var(--accent);
     transform: translateY(-1px);
   }
 
+  .life-cat-tab:hover .cat-count {
+    color: var(--text-strong);
+    border-color: var(--accent);
+  }
+
   .life-cat-tab.is-active {
+    background: transparent;
     color: var(--bg-base);
-    background: var(--text-strong);
-    border-color: var(--text-strong);
+    border-color: var(--ink-strong);
     font-weight: 500;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: none;
   }
 
   .life-cat-tab .cat-count {
-    display: inline-block;
-    padding: 0.05rem 0.4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.45rem;
+    height: 1.45rem;
+    padding-inline: 0.35rem;
+    border-radius: 3px;
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
     font-size: 0.68rem;
     font-family: var(--font-mono);
     font-style: normal;
-    border-radius: 9999px;
-    background: rgba(0, 0, 0, 0.08);
+    color: var(--muted);
+    transition: background 240ms var(--ease), color 240ms var(--ease), border-color 240ms var(--ease);
   }
 
   .life-cat-tab.is-active .cat-count {
-    background: rgba(255, 255, 255, 0.25);
-    color: #fff;
+    background: color-mix(in srgb, currentColor 16%, transparent);
+    border-color: transparent;
+    color: inherit;
   }
 
-  [data-theme="dark"] .life-cat-tab.is-active .cat-count {
-    background: rgba(0, 0, 0, 0.45);
-    color: var(--text-strong);
-  }
-
-  /* 卡片网格 */
+  /* 卡片网格（无框手札布局） */
   .life-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 3.5rem 2.8rem;
     position: relative;
     min-height: 200px;
+    overflow-x: clip;
   }
 
   @media (max-width: 640px) {
     .life-grid {
       grid-template-columns: 1fr;
-      gap: 1.25rem;
+      gap: 2.75rem;
     }
   }
 
-  /* 卡片本体 */
+  /* 卡片本体（纯粹无框文人手札） */
   .life-card {
     position: relative;
     display: flex;
     flex-direction: column;
-    padding: 1.5rem;
-    background: var(--bg-base);
-    border: 1px solid var(--rule);
-    border-radius: 12px;
-    transition: transform 260ms var(--ease), box-shadow 260ms var(--ease), border-color 260ms var(--ease);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
-    will-change: transform, opacity;
+    padding: 0 0 2.2rem 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    border-bottom: 1px solid transparent;
+    border-image: linear-gradient(to right, transparent 3%, var(--rule) 20%, var(--rule) 80%, transparent 97%) 1;
+    will-change: transform, opacity, clip-path;
+    clip-path: inset(0 0% 0 0);
   }
 
   .life-card.is-filtered-out {
     display: none !important;
   }
 
-  .life-card:hover {
-    transform: translateY(-4px);
-    border-color: var(--rule-strong);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  /* 仅在卡片完全落定且不在动画中时开启 hover 过渡，杜绝 CSS 过渡与 GSAP 逐帧抢控制权 */
+  .life-card.is-entered:not(.is-reflowing):not(.is-entering) {
+    transition: transform 240ms var(--ease);
+  }
+
+  .life-card.is-entered:not(.is-reflowing):not(.is-entering):hover {
+    transform: translateY(-2px);
+  }
+
+  .life-card.is-reflowing,
+  .life-card.is-entering {
+    transition: none !important;
   }
 
   /* 抽签选中的聚焦动画 */
   .life-card.is-spotlight {
-    border-color: var(--text-strong) !important;
     animation: life-card-pulse 1.8s cubic-bezier(0.22, 1, 0.36, 1) 2;
-    box-shadow: 0 0 0 3px var(--text-strong), 0 16px 40px rgba(0, 0, 0, 0.16) !important;
     z-index: 2;
+  }
+  .life-card.is-spotlight .life-card-title {
+    color: var(--vermilion) !important;
+    text-shadow: 0 0 14px var(--vermilion-soft);
   }
 
   @keyframes life-card-pulse {
     0% { transform: scale(1); }
-    40% { transform: scale(1.03); }
+    40% { transform: scale(1.02); }
     100% { transform: scale(1); }
   }
 
@@ -511,51 +563,50 @@ const countByCategory = {
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.6rem;
   }
 
   .life-card-category-badge {
-    display: inline-block;
-    padding: 0.15rem 0.5rem;
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: var(--text-strong);
-    background: var(--bg-soft);
-    border: 1px solid var(--rule);
-    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: transparent;
+    border: none;
+    letter-spacing: 0.06em;
+  }
+
+  .life-card-divider {
+    font-size: 0.75rem;
+    color: var(--rule-strong);
+    user-select: none;
   }
 
   .life-card-city {
-    font-size: 0.75rem;
+    font-size: 0.76rem;
     font-family: var(--font-mono);
     color: var(--muted);
   }
 
-  .life-card-badge-highlight {
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 0.15rem 0.5rem;
-    background: var(--text-strong);
-    color: var(--bg-base);
-    border-radius: 4px;
-    letter-spacing: 0.04em;
-  }
 
   .life-card-title-group {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: 0.6rem;
     margin-bottom: 0.75rem;
   }
 
   .life-card-title {
-    font-family: var(--font-hand);
-    font-size: 1.35rem;
+    font-family: var(--font-hand-title);
+    font-size: 1.42rem;
     font-weight: 600;
     color: var(--text-strong);
-    line-height: 1.3;
-    transition: color 200ms ease;
+    line-height: 1.35;
+    letter-spacing: 0.02em;
+    transition: color 240ms ease;
   }
 
   .life-card:hover .life-card-title {
@@ -564,9 +615,9 @@ const countByCategory = {
 
   .life-card-rating {
     display: inline-flex;
-    gap: 0.1rem;
+    gap: 0.12rem;
     font-size: 0.85rem;
-    color: var(--text-strong);
+    color: var(--vermilion);
     user-select: none;
     transition: transform 200ms ease;
   }
@@ -576,142 +627,155 @@ const countByCategory = {
   }
 
   .star-filled {
-    color: var(--text-strong);
-    opacity: 0.92;
+    color: var(--vermilion);
+    opacity: 0.95;
   }
 
   .star-empty {
-    opacity: 0.2;
+    color: var(--muted);
+    opacity: 0.22;
   }
 
   .life-card-summary {
-    margin: 0.25rem 0 1rem;
-    padding-left: 0.75rem;
-    border-left: 2px solid var(--rule-strong);
+    margin: 0.35rem 0 1.1rem;
+    padding-left: 0.85rem;
+    border-left: 2px solid var(--accent);
     font-family: var(--font-serif);
     font-style: italic;
-    font-size: 0.92rem;
-    line-height: 1.68;
+    font-size: 0.94rem;
+    line-height: 1.72;
     color: var(--muted-strong);
   }
 
+  /* 避坑建议（古籍眉批式排版，彻底消灭灰底方盒） */
   .life-card-tips-box {
     margin-top: auto;
     margin-bottom: 0.85rem;
-    padding: 0.75rem 0.85rem;
-    background: var(--bg-soft);
-    border: 1px solid var(--rule-soft);
-    border-radius: 6px;
-    font-size: 0.8rem;
-    transition: background 200ms ease;
-  }
-
-  .life-card:hover .life-card-tips-box {
-    background: var(--bg-base);
-    border-color: var(--rule);
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
   }
 
   .life-card-tips-header {
     display: flex;
     align-items: center;
     gap: 0.35rem;
+    font-size: 0.78rem;
+    font-family: var(--font-serif);
     font-weight: 600;
-    color: var(--text-strong);
-    margin-bottom: 0.4rem;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 0.45rem;
+  }
+
+  .tips-pillar-mark {
+    color: var(--vermilion);
+    font-size: 0.85rem;
+    line-height: 1;
   }
 
   .life-card-tips-list {
     list-style: none;
-    padding: 0;
+    padding: 0.1rem 0 0.1rem 0.85rem;
     margin: 0;
+    border-left: 1px solid var(--rule-strong);
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.4rem;
   }
 
   .life-card-tips-list li {
     position: relative;
-    padding-left: 1rem;
-    line-height: 1.5;
+    padding-left: 0.85rem;
+    line-height: 1.6;
+    font-size: 0.82rem;
     color: var(--muted-strong);
   }
 
   .life-card-tips-list li::before {
     content: '•';
     position: absolute;
-    left: 0.2rem;
+    left: 0.1rem;
     top: -0.05rem;
-    color: var(--text-strong);
+    color: var(--accent);
+    opacity: 0.7;
   }
 
   .life-card-best-time {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.4rem;
     font-size: 0.75rem;
     font-family: var(--font-mono);
     color: var(--muted);
-    margin-bottom: 0.85rem;
+    margin: 0.6rem 0 0.85rem;
   }
 
   .best-time-icon {
     font-size: 0.85rem;
+    opacity: 0.8;
   }
 
   .life-card-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
-    padding-top: 0.75rem;
-    border-top: 1px dashed var(--rule-soft);
+    gap: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: none;
   }
 
   .life-card-tags {
     display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: 0.45rem 0.8rem;
   }
 
+  /* 标签：纯文字排印，消灭灰底方块 */
   .life-chip {
     display: inline-block;
-    font-size: 0.7rem;
-    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    font-family: var(--font-body);
     color: var(--muted);
-    padding: 0.15rem 0.45rem;
+    padding: 0;
     background: transparent;
-    border: 1px solid var(--rule-soft);
-    border-radius: 4px;
+    border: none;
     cursor: pointer;
-    transition: all 180ms ease;
+    transition: color 180ms ease, transform 180ms ease;
   }
 
   .life-chip:hover {
-    color: var(--text-strong);
-    border-color: var(--rule-strong);
-    background: var(--bg-soft);
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
     transform: translateY(-1px);
   }
 
+  /* 地图：纯文字外链，消灭按钮方块 */
   .life-map-link {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    padding: 0.25rem 0.55rem;
-    font-size: 0.75rem;
+    flex: 0 0 auto;
+    padding: 0;
+    font-size: 0.76rem;
     font-weight: 500;
-    color: var(--text-strong);
-    background: var(--bg-soft);
-    border: 1px solid var(--rule);
-    border-radius: 4px;
+    color: var(--accent);
+    background: transparent;
+    border: none;
     text-decoration: none;
-    transition: all 200ms ease;
+    white-space: nowrap;
+    transition: color 180ms ease, transform 180ms ease;
   }
 
   .life-map-link:hover {
-    background: var(--text-strong);
-    color: var(--bg-base);
+    color: var(--text-strong);
     transform: translateY(-1px);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 
   /* 空状态 */
@@ -723,6 +787,11 @@ const countByCategory = {
     padding: 5rem 1rem;
     text-align: center;
     animation: fade-in-scale 320ms ease;
+  }
+
+  .life-empty-state.hidden,
+  .life-modal-backdrop.hidden {
+    display: none !important;
   }
 
   @keyframes fade-in-scale {
@@ -913,7 +982,7 @@ const countByCategory = {
   import CustomEase from 'gsap/CustomEase';
 
   gsap.registerPlugin(ScrollTrigger, CustomEase);
-  CustomEase.create('enter', 'M0,0 C0.06,0.62 0.16,0.9 0.42,0.975 0.62,1.005 0.8,1 1,1');
+  CustomEase.create('enter', 'M0,0 C0.16,1 0.3,1 1,1');
   CustomEase.create('ink', '0.25, 1, 0.5, 1');
 
   const CLEANUP_KEY = '__areSetLifePageCleanup__';
@@ -939,6 +1008,43 @@ const countByCategory = {
     let filterTimeline: gsap.core.Timeline | null = null;
 
     const cards = Array.from(container.querySelectorAll<HTMLElement>('.life-card'));
+
+    /**
+     * 把网格高度钉在「全部拾光」时的高度。
+     *
+     * 筛选会让网格变矮，页面总高随之变化；一旦用户已经滚到底部，浏览器会在下一次布局里
+     * 把滚动位置钳到新上限 —— 页签切换时整页被「拉回」一截就是这么来的。这是本页独有的，
+     * 因为只有这里有会改变页面高度的筛选。
+     *
+     * 钉住之后网格高度恒定：行高本来就取本行最高卡片，min-height 只是把它锁在初始值，
+     * 卡片在筛选后依旧等高，页面总高不再变化，钳制也就无从发生。
+     */
+    let maxContainerHeight = 0;
+    const syncGridBaseline = () => {
+      const hidden = cards.filter((card) => card.classList.contains('is-filtered-out'));
+      if (hidden.length === 0) {
+        const full = container.offsetHeight;
+        if (full > 0) {
+          maxContainerHeight = Math.max(maxContainerHeight, full);
+          container.style.minHeight = `${maxContainerHeight}px`;
+        }
+        return;
+      }
+      if (maxContainerHeight > 0) {
+        container.style.minHeight = `${maxContainerHeight}px`;
+      }
+    };
+    syncGridBaseline();
+
+    // 卡片文字换行随视口宽度变化，基线要跟着重量
+    let baselineTimer = 0;
+    window.addEventListener('resize', () => {
+      window.clearTimeout(baselineTimer);
+      baselineTimer = window.setTimeout(() => {
+        maxContainerHeight = 0;
+        syncGridBaseline();
+      }, 180);
+    }, { signal });
     const searchInput = document.getElementById('life-search-input') as HTMLInputElement | null;
     const searchClear = document.getElementById('life-search-clear');
     const emptyState = document.getElementById('life-empty-state');
@@ -958,11 +1064,11 @@ const countByCategory = {
      * 将卡片状态从动画或隐藏完全交付给页面，确保在动画结束后不受任何行内样式干扰
      */
     function settleCard(el: HTMLElement) {
-      gsap.killTweensOf(el);
-      el.classList.remove('is-entering');
+      el.classList.remove('is-entering', 'is-reflowing');
       el.classList.add('is-entered');
       el.dataset.enterState = 'in';
-      gsap.set(el, { clearProps: 'opacity,transform,scale' });
+      gsap.killTweensOf(el);
+      gsap.set(el, { clearProps: 'clipPath,opacity,transform,scale,x,y' });
     }
 
     /**
@@ -978,13 +1084,22 @@ const countByCategory = {
     }
 
     /**
-     * 核心过滤算法：分类 + 关键词组合筛选，带流畅的 GSAP 动效与自适应高度更新
+     * 方案 B：【书法卷轴徐展】
+     * 1. 卷轴卷收 (Roll-up): 退场卡片从右向左如古卷合拢 (clip-path: inset(0 100% 0 0), 0.3s)
+     * 2. 换骨就位 (DOM Swap): 在全遮蔽状态下完成网格 DOM 批量切换，预置入场卷轴初态
+     * 3. 卷轴徐展 (Scroll Unfurling): 入场卡片如素笺宣纸从左向右徐徐舒展 (clip-path: inset(0 0% 0 0), 0.72s, ease: 'enter')
+     * 
+     * 全流程基于纯 GPU 硬件合成层 (clip-path / transform / opacity)，零重排无碰撞，120 FPS 满帧丝滑。
      */
     function applyFilters(animate = true) {
       if (filterTimeline) {
         filterTimeline.kill();
         filterTimeline = null;
       }
+      cards.forEach((card) => {
+        gsap.killTweensOf(card);
+        card.classList.remove('is-reflowing', 'is-entering');
+      });
 
       const q = searchQuery.toLowerCase().trim();
       const matchCard = (card: HTMLElement) => {
@@ -1012,7 +1127,7 @@ const countByCategory = {
         if (toShow.length === 0) {
           emptyState.classList.remove('hidden');
           if (animate && !reduceMotion) {
-            gsap.fromTo(emptyState, { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'power2.out' });
+            gsap.fromTo(emptyState, { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 0.28, ease: 'power2.out' });
           }
         } else {
           emptyState.classList.add('hidden');
@@ -1031,7 +1146,19 @@ const countByCategory = {
         return;
       }
 
-      // 带有墨韵交错动效的卡片展示切换
+      const currentlyVisible = cards.filter((card) => !card.classList.contains('is-filtered-out'));
+
+      // 若当前集合与目标集合完全相同且均已落定，直接退出
+      if (
+        currentlyVisible.length === toShow.length &&
+        currentlyVisible.every((c, i) => c === toShow[i])
+      ) {
+        return;
+      }
+
+      const exitingCards = currentlyVisible;
+      const enteringCards = toShow;
+
       const tl = gsap.timeline({
         onComplete: () => {
           toShow.forEach((card) => settleCard(card));
@@ -1041,49 +1168,77 @@ const countByCategory = {
       });
       filterTimeline = tl;
 
-      // 1. 先快速渐隐退场卡片
-      if (toHide.length > 0) {
-        tl.to(toHide, {
+      // 阶段 1：卷轴卷收 (Roll-up) —— 0.3s 从右向左优雅收卷入纸端，零布局重排
+      if (exitingCards.length > 0) {
+        exitingCards.forEach((c) => {
+          c.classList.add('is-reflowing');
+          c.classList.remove('is-entered');
+        });
+        gsap.set(exitingCards, { clipPath: 'inset(0 0% 0 0)' });
+        tl.to(exitingCards, {
+          clipPath: 'inset(0 100% 0 0)',
           opacity: 0,
-          scale: 0.95,
-          duration: 0.22,
-          ease: 'power2.in',
-          stagger: 0.015,
-          onComplete: () => {
-            toHide.forEach((card) => {
-              card.classList.add('is-filtered-out');
-            });
-          },
+          scale: 0.98,
+          duration: 0.3,
+          ease: 'power2.inOut',
+          stagger: 0.02,
         }, 0);
       }
 
-      // 2. 显示新卡片并交错淡入展开
-      if (toShow.length > 0) {
+      const exitStaggerTotal = exitingCards.length > 0 ? Math.min(exitingCards.length - 1, 6) * 0.02 : 0;
+      const switchTime = exitingCards.length > 0 ? (0.3 + exitStaggerTotal) : 0;
+
+      // 阶段 2：换骨就位 (DOM 批切换与入场状态预置)
+      tl.add(() => {
+        toHide.forEach((card) => {
+          card.classList.add('is-filtered-out');
+          card.classList.remove('is-reflowing');
+          settleCard(card);
+        });
         toShow.forEach((card) => {
           card.classList.remove('is-filtered-out');
-          gsap.set(card, { opacity: 0, scale: 0.94, y: 14 });
+          card.classList.add('is-reflowing');
+          card.dataset.enterState = 'in';
         });
 
-        tl.to(toShow, {
+        // 预置入场卡片卷轴初态
+        gsap.set(enteringCards, {
+          clipPath: 'inset(0 100% 0 0)',
+          opacity: 0,
+          x: -16,
+          scale: 0.98,
+        });
+      }, switchTime);
+
+      // 阶段 3：卷轴徐展 (Scroll Unfurling from left to right)
+      if (enteringCards.length > 0) {
+        tl.to(enteringCards, {
+          clipPath: 'inset(0 0% 0 0)',
           opacity: 1,
+          x: 0,
           scale: 1,
-          y: 0,
-          duration: 0.45,
+          duration: 0.72,
           ease: 'enter',
-          stagger: 0.035,
-        }, toHide.length > 0 ? 0.14 : 0);
+          stagger: 0.07,
+        }, switchTime);
       }
     }
 
     // 分类 Tab 切换
     catTabs.forEach((tab) => {
-      tab.addEventListener('click', () => {
+      tab.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const newCat = tab.getAttribute('data-category-tab') || 'all';
+        if (newCat === currentCategory && !searchQuery) return; // 避免重复点击相同激活项
+
         catTabs.forEach((t) => t.classList.remove('is-active'));
         tab.classList.add('is-active');
-        currentCategory = tab.getAttribute('data-category-tab') || 'all';
+        currentCategory = newCat;
 
         const rect = tab.getBoundingClientRect();
-        (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+        if (rect.width > 0 && rect.height > 0) {
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 6);
+        }
 
         applyFilters();
       }, { signal });
@@ -1133,7 +1288,8 @@ const countByCategory = {
 
     // 清空搜索
     if (searchClear && searchInput) {
-      searchClear.addEventListener('click', () => {
+      searchClear.addEventListener('click', (e) => {
+        e.stopPropagation();
         searchInput.value = '';
         searchQuery = '';
         searchClear.classList.add('hidden');
@@ -1144,7 +1300,8 @@ const countByCategory = {
 
     // 重置所有筛选
     if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
+      resetBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
         currentCategory = 'all';
         searchQuery = '';
         if (searchInput) searchInput.value = '';

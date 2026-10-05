@@ -1,0 +1,2214 @@
+---
+// src/pages/gallery.astro — 【拾影 · 山海留痕】个人相册系统
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import {
+  PHOTO_CATEGORIES,
+  GALLERY_PHOTOS,
+  getAllPhotoLocations,
+} from '../data/gallery';
+
+const allPhotos = GALLERY_PHOTOS;
+const categories = PHOTO_CATEGORIES;
+const allLocations = getAllPhotoLocations();
+
+// 统计各分类数目
+const countByCategory = {
+  all: allPhotos.length,
+  nature: allPhotos.filter((p) => p.category === 'nature').length,
+  urban: allPhotos.filter((p) => p.category === 'urban').length,
+  daily: allPhotos.filter((p) => p.category === 'daily').length,
+  humanities: allPhotos.filter((p) => p.category === 'humanities').length,
+};
+---
+
+<BaseLayout
+  title="拾影 · 山海留痕 - 梦付千秋"
+  description="写代码之余，也要去吹吹山海晚风。用快门定格光影交错间的山川、草木、街角与静默时刻。"
+>
+  <Header />
+
+  <main class="container-wide flex-1 pt-6 pb-24 lg:pt-8">
+    <!-- 顶部标题与诗意介绍 -->
+    <section class="panel pb-10 border-b border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule-strong) 50%, transparent 95%) 1;">
+      <p class="eyebrow" data-enter="top">Gallery</p>
+
+      <div class="mt-6 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div class="max-w-2xl">
+          <h1 class="section-title" data-enter="left">山海留痕 · 个人光影图卷</h1>
+          <p
+            class="mt-4 text-[1.02rem] leading-[1.8] text-[var(--muted-strong)]"
+            style="font-family: var(--font-serif); font-style: italic;"
+            data-enter="left"
+          >
+            写代码之余，也要去吹吹山海晚风。在这里用快门留下行经的山川暮色、古道松风、老街雨夜，以及生活中的一米阳光与静默时刻。
+          </p>
+        </div>
+
+        <!-- 顶部统计指标与互动 -->
+        <div class="gallery-actions-cluster" data-enter="stamp">
+          <div class="gallery-quick-stats">
+            <span class="gallery-stat-pill">
+              <b data-count={allPhotos.length}>{allPhotos.length}</b> 幅影痕
+            </span>
+            <span class="gallery-stat-pill">
+              <b data-count={allLocations.length}>{allLocations.length}</b> 处行迹
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 搜索栏 -->
+      <div class="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4" data-enter="bottom" data-enter-once>
+        <div class="gallery-search-wrapper flex-1">
+          <svg class="gallery-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            type="text"
+            id="gallery-search-input"
+            class="gallery-search-input"
+            placeholder="搜索照片标题、地点、相机参数或手记故事..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button
+            type="button"
+            id="gallery-search-clear"
+            class="gallery-search-clear hidden"
+            aria-label="清空搜索"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 一级分类切换 Tab (雅致水墨硬折角) -->
+    <div class="gallery-category-tabs mt-8" data-enter="bottom" data-enter-once role="tablist" aria-label="照片分类">
+      {categories.map((cat) => (
+        <button
+          type="button"
+          class={`gallery-cat-tab ${cat.id === 'all' ? 'is-active' : ''}`}
+          data-category-tab={cat.id}
+          role="tab"
+          aria-selected={cat.id === 'all' ? 'true' : 'false'}
+        >
+          <span class="cat-icon">{cat.icon}</span>
+          <span class="cat-name">{cat.name}</span>
+          <i class="cat-count">{countByCategory[cat.id as keyof typeof countByCategory]}</i>
+        </button>
+      ))}
+    </div>
+
+    <!-- 艺术馆装裱留白照片网格 (Museum White-Mat Mount Grid) -->
+    <div class="gallery-grid mt-10" id="gallery-cards-container">
+      {allPhotos.map((photo, index) => {
+        const enterFrom = (['left', 'bottom', 'right'] as const)[index % 3];
+
+        return (
+          <article
+            class="gallery-mat-card group"
+            data-enter={enterFrom}
+            data-photo-id={photo.id}
+            data-category={photo.category}
+            data-location={photo.location}
+            data-tags={photo.tags.join(',')}
+            data-search-text={`${photo.title} ${photo.location} ${photo.categoryLabel} ${photo.tags.join(' ')} ${photo.story} ${photo.exifDisplay}`.toLowerCase()}
+            tabindex="0"
+            role="button"
+            aria-label={`查看照片与手记详情：${photo.title}`}
+          >
+            <!-- 艺术装裱外衬 (White-mat Passe-partout) -->
+            <div class="mat-frame">
+              <!-- 图片窗口与悬浮参数 -->
+              <div class="mat-image-window" data-open-lightbox={photo.id} aria-label={`查看全屏大图：${photo.title}`}>
+                <img
+                  src={photo.url}
+                  alt={photo.title}
+                  class="mat-photo-img"
+                  loading="lazy"
+                  decoding="async"
+                  width="1200"
+                  height="800"
+                />
+                <div class="mat-image-overlay">
+                  <span class="mat-zoom-badge">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                      <line x1="11" y1="8" x2="11" y2="14"></line>
+                      <line x1="8" y1="11" x2="14" y2="11"></line>
+                    </svg>
+                    <span>鉴赏</span>
+                  </span>
+                  <div class="mat-exif-pill">
+                    {photo.exif.camera} · {photo.exif.aperture} · {photo.exif.shutter}
+                  </div>
+                </div>
+              </div>
+
+              <!-- 留白展签信息 (Gallery Artwork Plaque) -->
+              <div class="mat-plaque">
+                <div class="mat-plaque-header">
+                  <div class="flex items-center gap-2">
+                    <span class="mat-location-icon">📍</span>
+                    <span class="mat-location-text">{photo.location}</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="mat-date-text">{photo.date}</span>
+                  </div>
+                </div>
+
+                <h2 class="mat-photo-title" data-open-lightbox={photo.id}>{photo.title}</h2>
+
+                <p class="mat-photo-story">“{photo.story}”</p>
+
+                <!-- EXIF 详细指标与标签栏 -->
+                <div class="mat-plaque-footer">
+                  <span class="mat-exif-tag" title={photo.exifDisplay}>
+                    📷 {photo.exif.lens}
+                  </span>
+                  <div class="mat-tags-list">
+                    {photo.tags.slice(0, 3).map((tag) => (
+                      <button type="button" class="mat-tag-chip" data-click-tag={tag} title="按此标签搜索">
+                        #{tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+
+    <!-- 空搜索提示 -->
+    <div id="gallery-empty-state" class="gallery-empty-state hidden mt-16 text-center py-16 panel" data-lenis-prevent>
+      <div class="text-4xl mb-3">🖼️</div>
+      <h3 class="text-lg font-semibold text-[var(--text-strong)]">未寻得相应影痕</h3>
+      <p class="text-sm text-[var(--muted)] mt-2 max-w-md mx-auto">
+        未匹配到符合当前分类与搜索词的照片。不妨清空搜索词，或切换至「全部影痕」阅览。
+      </p>
+      <button type="button" id="gallery-reset-filter" class="btn-secondary mt-6">
+        重置筛选与搜索
+      </button>
+    </div>
+  </main>
+
+  <!-- 全屏水墨暗房看图器 (Ink Darkroom Lightbox) -->
+  <div
+    id="gallery-lightbox"
+    class="gallery-lightbox hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-label="全屏水墨暗房看图器"
+    data-lenis-prevent
+  >
+    <div class="lightbox-backdrop" data-lightbox-close></div>
+
+    <div class="lightbox-container" role="document">
+      <!-- 顶部控制栏 -->
+      <div class="lightbox-top-bar">
+        <div class="lightbox-brand">
+          <span class="lightbox-title-text" data-lightbox-title>拾影暗房</span>
+          <span class="lightbox-counter">
+            <span data-lightbox-current>1</span> / <span data-lightbox-total>{allPhotos.length}</span>
+          </span>
+        </div>
+        <div class="lightbox-actions">
+          <button
+            type="button"
+            class="lightbox-btn lightbox-close-btn"
+            data-lightbox-close
+            aria-label="关闭暗房 (Esc)"
+            title="关闭暗房 (Esc)"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 中间图像主舞台 -->
+      <div class="lightbox-stage">
+        <button
+          type="button"
+          class="lightbox-nav-arrow arrow-left"
+          data-lightbox-prev
+          aria-label="上一张照片"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+
+        <div class="lightbox-img-wrapper" data-lightbox-img-wrapper>
+          <img
+            src=""
+            alt=""
+            id="lightbox-main-img"
+            class="lightbox-main-img"
+            loading="eager"
+            decoding="async"
+          />
+        </div>
+
+        <button
+          type="button"
+          class="lightbox-nav-arrow arrow-right"
+          data-lightbox-next
+          aria-label="下一张照片"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <!-- 底部暗房展签与 EXIF 参数板 -->
+      <div class="lightbox-info-drawer">
+        <div class="lightbox-info-main">
+          <div class="lightbox-info-header">
+            <h2 id="lightbox-info-title" class="lightbox-info-title">照片标题</h2>
+            <div class="lightbox-meta-pills">
+              <span class="meta-pill" id="lightbox-info-location">📍 拍摄地点</span>
+              <span class="meta-pill" id="lightbox-info-date">📅 拍摄日期</span>
+            </div>
+          </div>
+          <p id="lightbox-info-story" class="lightbox-info-story">拍摄手记</p>
+        </div>
+
+        <!-- EXIF 摄影参数矩阵 -->
+        <div class="lightbox-exif-grid">
+          <div class="exif-slot">
+            <span class="exif-slot-label">相 机</span>
+            <span class="exif-slot-val" id="lightbox-exif-camera">Sony A7M4</span>
+          </div>
+          <div class="exif-slot">
+            <span class="exif-slot-label">镜 头</span>
+            <span class="exif-slot-val" id="lightbox-exif-lens">FE 35mm F1.4 GM</span>
+          </div>
+          <div class="exif-slot">
+            <span class="exif-slot-label">光 圈</span>
+            <span class="exif-slot-val" id="lightbox-exif-aperture">f/1.8</span>
+          </div>
+          <div class="exif-slot">
+            <span class="exif-slot-label">快 门</span>
+            <span class="exif-slot-val" id="lightbox-exif-shutter">1/500s</span>
+          </div>
+          <div class="exif-slot">
+            <span class="exif-slot-label">感光度</span>
+            <span class="exif-slot-val" id="lightbox-exif-iso">ISO 100</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  /* 顶部指标 */
+  .gallery-actions-cluster {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .gallery-quick-stats {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .gallery-stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    font-size: 0.8rem;
+    color: var(--muted-strong);
+  }
+
+  .gallery-stat-pill b {
+    color: var(--accent);
+    font-family: var(--font-mono);
+  }
+
+  /* 搜索框 */
+  .gallery-search-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    border-radius: 10px;
+    border: 1px solid var(--rule);
+    background: var(--bg-soft);
+    cursor: default;
+    transition: border-color 200ms ease, box-shadow 200ms ease, background 200ms ease;
+  }
+
+  .gallery-search-wrapper:focus-within {
+    border-color: var(--accent);
+    background: var(--bg-elev);
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb, 194, 65, 12), 0.15);
+  }
+
+  .gallery-search-icon {
+    position: absolute;
+    left: 0.95rem;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  .gallery-search-input {
+    width: 100%;
+    padding: 0.65rem 2.6rem 0.65rem 2.5rem;
+    border-radius: 10px;
+    clip-path: inset(0 round 10px);
+    border: none;
+    background: transparent;
+    color: var(--text-strong);
+    font-size: 0.9rem;
+    outline: none;
+  }
+
+  .gallery-search-clear {
+    position: absolute;
+    right: 0.8rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: color 180ms ease;
+  }
+
+  .gallery-search-clear:hover {
+    color: var(--text-strong);
+  }
+
+  /* 分类 Tab */
+  .gallery-category-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 6px 4px 6px;
+    margin-top: calc(2rem - 6px);
+  }
+
+  .gallery-category-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .gallery-cat-tab {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.5rem 0.65rem 0.5rem 0.95rem;
+    border-radius: 4px;
+    border: 1px solid var(--rule-strong);
+    background: transparent;
+    color: var(--muted-strong);
+    font-size: 0.84rem;
+    font-family: var(--font-body);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+    box-sizing: border-box;
+    transition:
+      color 420ms var(--ease),
+      border-color 320ms var(--ease),
+      transform 320ms var(--ease-bounce);
+  }
+
+  .gallery-cat-tab::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--ink-strong);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 520ms var(--ease);
+  }
+
+  .gallery-cat-tab.is-active::before {
+    transform: scaleX(1);
+  }
+
+  .gallery-cat-tab:hover {
+    color: var(--text-strong);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    background: transparent;
+  }
+
+  .gallery-cat-tab:hover .cat-count {
+    color: var(--text-strong);
+    border-color: var(--accent);
+  }
+
+  .gallery-cat-tab.is-active {
+    background: transparent;
+    color: var(--bg-base);
+    border-color: var(--ink-strong);
+    box-shadow: none;
+  }
+
+  .gallery-cat-tab .cat-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.45rem;
+    height: 1.45rem;
+    padding-inline: 0.35rem;
+    border-radius: 3px;
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    font-style: normal;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--muted);
+    transition: background 240ms var(--ease), color 240ms var(--ease), border-color 240ms var(--ease);
+  }
+
+  .gallery-cat-tab.is-active .cat-count {
+    background: color-mix(in srgb, currentColor 16%, transparent);
+    border-color: transparent;
+    color: inherit;
+  }
+
+  /* ================= 现代艺术影集无框照片网格 ================= */
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(1, 1fr);
+    gap: 3.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .gallery-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 3.5rem 3rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .gallery-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4rem 3.5rem;
+    }
+  }
+
+  /* 无框艺术卡片 (Frameless Fine-Art Card) */
+  .gallery-mat-card {
+    display: flex;
+    flex-direction: column;
+    border-radius: 0;
+    padding-bottom: 2.2rem;
+    cursor: pointer;
+    outline: none;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid transparent;
+    border-image: linear-gradient(to right, transparent 3%, var(--rule) 20%, var(--rule) 80%, transparent 97%) 1;
+    will-change: transform, opacity, clip-path;
+    clip-path: inset(0 0% 0 0);
+  }
+
+  .gallery-mat-card.is-filtered-out {
+    display: none !important;
+  }
+
+  /* 仅在卡片完全落定且不在动画中时开启 hover 过渡，杜绝 CSS 过渡与 GSAP 逐帧抢控制权 */
+  .gallery-mat-card.is-entered:not(.is-reflowing):not(.is-entering) {
+    transition: transform 260ms var(--ease);
+  }
+
+  .gallery-mat-card.is-entered:not(.is-reflowing):not(.is-entering):hover {
+    transform: translateY(-3px);
+  }
+
+  .gallery-mat-card.is-reflowing,
+  .gallery-mat-card.is-entering {
+    transition: none !important;
+  }
+
+  .mat-frame {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  .gallery-mat-card:hover .mat-frame,
+  .gallery-mat-card:focus-visible .mat-frame,
+  [data-theme="dark"] .mat-frame,
+  [data-theme="dark"] .gallery-mat-card:hover .mat-frame,
+  [data-theme="dark"] .gallery-mat-card:focus-visible .mat-frame {
+    border: none;
+    box-shadow: none;
+  }
+
+  /* 图像窗口：纯净微圆角与通透浮光 */
+  .mat-image-window {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    overflow: hidden;
+    border-radius: 6px;
+    background: #000000;
+    cursor: zoom-in;
+    border: none;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 300ms ease, transform 300ms ease;
+  }
+
+  [data-theme="dark"] .mat-image-window {
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  }
+
+  .gallery-mat-card:hover .mat-image-window {
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+  }
+
+  [data-theme="dark"] .gallery-mat-card:hover .mat-image-window {
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65);
+  }
+
+  .mat-photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 550ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .mat-image-window:hover .mat-photo-img,
+  .gallery-mat-card:hover .mat-photo-img,
+  .gallery-mat-card:focus-visible .mat-photo-img {
+    transform: scale(1.035);
+  }
+
+  .mat-image-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.65) 0%, rgba(0, 0, 0, 0) 55%);
+    opacity: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 0.85rem;
+    transition: opacity 280ms ease;
+  }
+
+  .mat-image-window:hover .mat-image-overlay {
+    opacity: 1;
+  }
+
+  .mat-zoom-badge {
+    align-self: flex-end;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.55rem;
+    border-radius: 9999px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(8px);
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 500;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+
+  .mat-exif-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(8px);
+    color: #ffffff;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    align-self: flex-start;
+  }
+
+  /* 纯净展签信息 (Artwork Plaque) */
+  .mat-plaque {
+    padding-top: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .mat-plaque-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.76rem;
+    color: var(--muted);
+  }
+
+  .mat-location-text {
+    font-weight: 500;
+    color: var(--muted-strong);
+    letter-spacing: 0.02em;
+  }
+
+  .mat-date-text {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+  }
+
+  .mat-photo-title {
+    font-family: var(--font-hand-title);
+    font-size: 1.28rem;
+    font-weight: 600;
+    color: var(--text-strong);
+    letter-spacing: 0.02em;
+    line-height: 1.35;
+    cursor: pointer;
+    transition: color 240ms ease;
+  }
+
+  .mat-photo-title:hover,
+  .gallery-mat-card:hover .mat-photo-title {
+    color: var(--accent);
+  }
+
+  .mat-photo-story {
+    font-size: 0.88rem;
+    color: var(--muted-strong);
+    line-height: 1.7;
+    font-family: var(--font-serif);
+    font-style: italic;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .mat-plaque-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.4rem;
+    border-top: none;
+    font-size: 0.74rem;
+    color: var(--muted);
+  }
+
+  .mat-exif-tag {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    max-width: 60%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mat-tags-list {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .mat-tag-chip {
+    font-size: 0.74rem;
+    font-family: var(--font-body);
+    color: var(--muted);
+    opacity: 0.9;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: color 180ms ease, transform 180ms ease;
+  }
+
+  .mat-tag-chip:hover {
+    color: var(--accent);
+    opacity: 1;
+    transform: translateY(-1px);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* ================= 全屏水墨暗房看图器 (Ink Darkroom Lightbox) ================= */
+  .gallery-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .gallery-lightbox.is-open {
+    pointer-events: auto;
+  }
+
+  .gallery-lightbox.hidden {
+    display: none !important;
+  }
+
+  .gallery-lightbox:not(.is-open) * {
+    pointer-events: none !important;
+  }
+
+  .lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 12, 16, 0.92);
+    backdrop-filter: blur(24px) saturate(120%);
+    -webkit-backdrop-filter: blur(24px) saturate(120%);
+    cursor: zoom-out;
+    will-change: opacity;
+  }
+
+  .lightbox-container {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    max-width: 100vw;
+    max-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 1.2rem 1.5rem;
+    box-sizing: border-box;
+    color: #ffffff;
+    will-change: transform, opacity;
+  }
+
+  /* 顶部控制栏 */
+  .lightbox-top-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    padding-bottom: 0.8rem;
+  }
+
+  .lightbox-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .lightbox-title-text {
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #ffffff;
+  }
+
+  .lightbox-counter {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .lightbox-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .lightbox-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    cursor: pointer;
+    transition: background 200ms ease, border-color 200ms ease, transform 160ms ease;
+  }
+
+  .lightbox-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.35);
+    transform: scale(1.05);
+  }
+
+  .lightbox-close-btn:hover {
+    background: rgba(220, 53, 69, 0.4);
+    border-color: rgba(220, 53, 69, 0.7);
+  }
+
+  /* 图像主舞台 */
+  .lightbox-stage {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    cursor: zoom-out;
+  }
+
+  .lightbox-img-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: min(1120px, calc(100% - 6.5rem));
+    max-height: 100%;
+    aspect-ratio: var(--lightbox-aspect, 3 / 2);
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.15);
+    overflow: hidden;
+    background: #05070a;
+    cursor: default;
+    transform-origin: center center;
+    will-change: transform, opacity, border-radius;
+  }
+
+  .lightbox-main-img {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
+    border-radius: 6px;
+    transition: opacity 200ms ease;
+  }
+
+  .lightbox-nav-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    color: #ffffff;
+    cursor: pointer;
+    z-index: 5;
+    transition: background 200ms ease, transform 200ms ease, border-color 200ms ease;
+  }
+
+  .lightbox-nav-arrow:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-50%) scale(1.1);
+  }
+
+  .lightbox-nav-arrow.arrow-left {
+    left: 0.5rem;
+  }
+
+  .lightbox-nav-arrow.arrow-right {
+    right: 0.5rem;
+  }
+
+  /* 底部展签与 EXIF */
+  .lightbox-info-drawer {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  @media (max-width: 639px) {
+    .lightbox-container {
+      padding: 0.8rem 0.9rem;
+    }
+
+    .lightbox-img-wrapper {
+      max-width: 100%;
+    }
+
+    .lightbox-nav-arrow {
+      width: 2.2rem;
+      height: 2.2rem;
+      opacity: 0.75;
+    }
+
+    .lightbox-info-drawer {
+      max-height: 38vh;
+      overflow-y: auto;
+    }
+  }
+
+  @media (min-width: 900px) {
+    .lightbox-info-drawer {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+  }
+
+  .lightbox-info-main {
+    max-width: 600px;
+  }
+
+  .lightbox-info-header {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .lightbox-info-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ffffff;
+    margin: 0;
+  }
+
+  .lightbox-meta-pills {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .meta-pill {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.75);
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .lightbox-info-story {
+    margin: 0.35rem 0 0;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.75);
+    font-family: var(--font-serif);
+    font-style: italic;
+    line-height: 1.5;
+  }
+
+  /* EXIF 参数矩阵 */
+  .lightbox-exif-grid {
+    display: grid;
+    grid-template-columns: repeat(5, auto);
+    gap: 0.8rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .lightbox-exif-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (max-width: 639px) {
+    .lightbox-exif-grid {
+      grid-template-columns: repeat(auto-fit, minmax(75px, 1fr));
+      gap: 0.5rem 0.6rem;
+      padding: 0.45rem 0.65rem;
+    }
+  }
+
+  .exif-slot {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+  }
+
+  .exif-slot-label {
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+  }
+
+  .exif-slot-val {
+    font-size: 0.78rem;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: #ffffff;
+    white-space: nowrap;
+  }
+</style>
+
+<script>
+  import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+  import CustomEase from 'gsap/CustomEase';
+  import { GALLERY_PHOTOS } from '../data/gallery';
+
+  gsap.registerPlugin(ScrollTrigger, CustomEase);
+  CustomEase.create('enter', 'M0,0 C0.16,1 0.3,1 1,1');
+  CustomEase.create('ink', '0.25, 1, 0.5, 1');
+
+  const CLEANUP_KEY = '__galleryCleanup';
+  const LISTENER_KEY = '__galleryPageLoadBound';
+
+  function initGalleryPage() {
+    const container = document.getElementById('gallery-cards-container');
+    if (!container) return; // Not on gallery page
+
+    if ((window as any)[CLEANUP_KEY]) {
+      (window as any)[CLEANUP_KEY]();
+    }
+
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let currentCategory = 'all';
+    let searchQuery = '';
+    let currentPhotoIndex = 0;
+    let isLightboxOpen = false;
+    let lastFocusedElement: HTMLElement | null = null;
+    let filterTimeline: gsap.core.Timeline | null = null;
+
+    // DOM 元素缓存
+    const catTabs = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-category-tab]'));
+    const searchInput = document.getElementById('gallery-search-input') as HTMLInputElement | null;
+    const searchClear = document.getElementById('gallery-search-clear');
+    const cards = Array.from(container.querySelectorAll<HTMLElement>('.gallery-mat-card'));
+    const emptyState = document.getElementById('gallery-empty-state');
+    const resetBtn = document.getElementById('gallery-reset-filter');
+
+    // Lightbox 元素缓存
+    const lightbox = document.getElementById('gallery-lightbox');
+    const lightboxImg = document.getElementById('lightbox-main-img') as HTMLImageElement | null;
+    const lightboxImgWrapper = document.querySelector('[data-lightbox-img-wrapper]') as HTMLElement | null;
+    const lightboxTitle = document.getElementById('lightbox-info-title');
+    const lightboxLocation = document.getElementById('lightbox-info-location');
+    const lightboxDate = document.getElementById('lightbox-info-date');
+    const lightboxStory = document.getElementById('lightbox-info-story');
+    const lightboxCounterCurrent = document.querySelector('[data-lightbox-current]');
+    const lightboxCounterTotal = document.querySelector('[data-lightbox-total]');
+    const lightboxExifCamera = document.getElementById('lightbox-exif-camera');
+    const lightboxExifLens = document.getElementById('lightbox-exif-lens');
+    const lightboxExifAperture = document.getElementById('lightbox-exif-aperture');
+    const lightboxExifShutter = document.getElementById('lightbox-exif-shutter');
+    const lightboxExifIso = document.getElementById('lightbox-exif-iso');
+
+    /**
+     * 把网格高度钉在「全部影痕」时的高度，防止筛选导致页面跳动与滚动位置钳制
+     */
+    let maxContainerHeight = 0;
+    const syncGridBaseline = () => {
+      const hidden = cards.filter((card) => card.classList.contains('is-filtered-out'));
+      if (hidden.length === 0) {
+        const full = container.offsetHeight;
+        if (full > 0) {
+          maxContainerHeight = Math.max(maxContainerHeight, full);
+          container.style.minHeight = `${maxContainerHeight}px`;
+        }
+        return;
+      }
+      if (maxContainerHeight > 0) {
+        container.style.minHeight = `${maxContainerHeight}px`;
+      }
+    };
+    syncGridBaseline();
+
+    let baselineTimer = 0;
+    window.addEventListener('resize', () => {
+      window.clearTimeout(baselineTimer);
+      baselineTimer = window.setTimeout(() => {
+        maxContainerHeight = 0;
+        syncGridBaseline();
+      }, 180);
+    }, { signal });
+
+    /**
+     * 将卡片状态从动画或隐藏完全交付给页面，确保在动画结束后不受任何行内样式干扰
+     */
+    function settleCard(el: HTMLElement) {
+      el.classList.remove('is-entering', 'is-reflowing');
+      el.classList.add('is-entered');
+      el.dataset.enterState = 'in';
+      gsap.killTweensOf(el);
+      gsap.set(el, { clearProps: 'clipPath,opacity,transform,scale,x,y' });
+    }
+
+    function refreshScroll() {
+      if (typeof ScrollTrigger !== 'undefined') {
+        ScrollTrigger.refresh();
+      }
+      try {
+        (window as any).lenis?.resize();
+      } catch {}
+    }
+
+    /**
+     * 方案 B：【书法卷轴徐展】
+     * 1. 卷轴卷收 (Roll-up): 退场卡片从右向左古卷合拢 (clip-path: inset(0 100% 0 0), 0.3s)
+     * 2. 换骨就位 (DOM Swap): 批量切换过滤状态并预置入场卡片初态
+     * 3. 卷轴徐展 (Scroll Unfurling): 入场卡片如素笺宣纸从左向右徐徐舒展 (clip-path: inset(0 0% 0 0), 0.72s, ease: 'enter')
+     */
+    function applyFilters(animate = true, shouldScroll = false) {
+      if (filterTimeline) {
+        filterTimeline.kill();
+        filterTimeline = null;
+      }
+      cards.forEach((card) => {
+        gsap.killTweensOf(card);
+        card.classList.remove('is-reflowing', 'is-entering');
+        card.classList.add('is-entered');
+        card.dataset.enterState = 'in';
+        gsap.set(card, { clearProps: 'clipPath,opacity,transform,scale,x,y' });
+      });
+
+      const q = searchQuery.toLowerCase().trim();
+      const matchCard = (card: HTMLElement) => {
+        const cat = card.getAttribute('data-category') || '';
+        const searchText = card.getAttribute('data-search-text') || '';
+
+        const matchesCat = currentCategory === 'all' || cat === currentCategory;
+        const matchesSearch = !q || searchText.includes(q);
+        return matchesCat && matchesSearch;
+      };
+
+      const toShow: HTMLElement[] = [];
+      const toHide: HTMLElement[] = [];
+
+      cards.forEach((card) => {
+        if (matchCard(card)) {
+          toShow.push(card);
+        } else {
+          toHide.push(card);
+        }
+      });
+
+      // 切换分类或标签时，若已下滚超出视野，平滑引导回网格顶部
+      const tabsEl = document.querySelector('.gallery-category-tabs');
+      if (tabsEl && animate && shouldScroll) {
+        const tabsRect = tabsEl.getBoundingClientRect();
+        if (tabsRect.top < 60) {
+          if ((window as any).lenis) {
+            (window as any).lenis.scrollTo(tabsEl, { offset: -80, duration: 0.6 });
+          } else {
+            tabsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+      }
+
+      const currentlyVisible = cards.filter((card) => !card.classList.contains('is-filtered-out'));
+
+      if (
+        currentlyVisible.length === toShow.length &&
+        currentlyVisible.every((c, i) => c === toShow[i])
+      ) {
+        toShow.forEach((card) => settleCard(card));
+        toHide.forEach((card) => {
+          card.classList.add('is-filtered-out');
+          settleCard(card);
+        });
+        if (emptyState) {
+          emptyState.classList.toggle('hidden', toShow.length > 0);
+        }
+        return;
+      }
+
+      if (!animate || reduceMotion) {
+        toHide.forEach((card) => {
+          card.classList.add('is-filtered-out');
+          settleCard(card);
+        });
+        toShow.forEach((card) => {
+          card.classList.remove('is-filtered-out');
+          settleCard(card);
+        });
+        if (emptyState) {
+          emptyState.classList.toggle('hidden', toShow.length > 0);
+        }
+        container.style.minHeight = '0px';
+        refreshScroll();
+        return;
+      }
+
+      const currentH = container.offsetHeight;
+
+      // ========================================================
+      // 场景 A：搜索无结果（空状态），页面变短时平滑过渡
+      // ========================================================
+      if (toShow.length === 0) {
+        if (currentH > 0) {
+          container.style.minHeight = `${currentH}px`;
+        }
+
+        // 若用户已向下滚动，调用 Lenis 平滑引导视口回至搜索栏，彻底杜绝单帧瞬变回弹
+        const searchWrapper = document.querySelector('.gallery-search-wrapper') || tabsEl;
+        if (searchWrapper && window.scrollY > 80) {
+          if ((window as any).lenis) {
+            (window as any).lenis.scrollTo(searchWrapper, {
+              offset: -90,
+              duration: 0.65,
+              easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+            });
+          } else {
+            searchWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+
+        const exitingCards = currentlyVisible;
+        const tl = gsap.timeline({
+          onComplete: () => {
+            exitingCards.forEach((c) => {
+              c.classList.add('is-filtered-out');
+              c.classList.remove('is-reflowing');
+              settleCard(c);
+            });
+
+            if (emptyState) {
+              emptyState.classList.remove('hidden');
+              gsap.fromTo(
+                emptyState,
+                { opacity: 0, y: 16, scale: 0.98 },
+                { opacity: 1, y: 0, scale: 1, duration: 0.42, ease: 'power2.out' }
+              );
+            }
+
+            // 平滑收缩网格容器高度至 0，杜绝顿变
+            gsap.to(container, {
+              minHeight: 0,
+              duration: 0.55,
+              ease: 'power2.inOut',
+              onUpdate: () => refreshScroll(),
+              onComplete: () => {
+                container.style.minHeight = '0px';
+                refreshScroll();
+                filterTimeline = null;
+              },
+            });
+          },
+        });
+        filterTimeline = tl;
+
+        if (exitingCards.length > 0) {
+          exitingCards.forEach((c) => {
+            c.classList.add('is-reflowing');
+            c.classList.remove('is-entered');
+          });
+          gsap.set(exitingCards, { clipPath: 'inset(0 0% 0 0)' });
+          tl.to(exitingCards, {
+            clipPath: 'inset(0 100% 0 0)',
+            opacity: 0,
+            scale: 0.98,
+            duration: 0.28,
+            ease: 'power2.inOut',
+            stagger: 0.02,
+          });
+        }
+        return;
+      }
+
+      // ========================================================
+      // 场景 B：正常过滤有结果呈现
+      // ========================================================
+      if (emptyState) {
+        emptyState.classList.add('hidden');
+      }
+
+      // 动画期间将高度锁定在当前高度，彻底杜绝切换中的布局抖动
+      if (currentH > 0) {
+        container.style.minHeight = `${currentH}px`;
+      }
+
+      // 若卡片数量减少导致页面变短且用户滚在非常靠下的位置，平滑引导视口
+      const searchWrapper = document.querySelector('.gallery-search-wrapper') || tabsEl;
+      if (searchWrapper && window.scrollY > 300 && toShow.length <= 3) {
+        if ((window as any).lenis) {
+          (window as any).lenis.scrollTo(searchWrapper, { offset: -90, duration: 0.6 });
+        }
+      }
+
+      const exitingCards = currentlyVisible;
+      const enteringCards = toShow;
+
+      const tl = gsap.timeline({
+        onComplete: () => {
+          toShow.forEach((card) => settleCard(card));
+          toHide.forEach((card) => {
+            card.classList.add('is-filtered-out');
+            settleCard(card);
+          });
+          gsap.to(container, {
+            minHeight: 0,
+            duration: 0.35,
+            ease: 'power2.out',
+            onComplete: () => {
+              container.style.minHeight = '0px';
+              refreshScroll();
+              filterTimeline = null;
+            },
+          });
+        },
+      });
+      filterTimeline = tl;
+
+      // 阶段 1：需退场的卡片卷轴卷收 (Roll-up)
+      if (exitingCards.length > 0) {
+        exitingCards.forEach((c) => {
+          c.classList.add('is-reflowing');
+          c.classList.remove('is-entered');
+        });
+        gsap.set(exitingCards, { clipPath: 'inset(0 0% 0 0)' });
+        tl.to(exitingCards, {
+          clipPath: 'inset(0 100% 0 0)',
+          opacity: 0,
+          scale: 0.98,
+          duration: 0.28,
+          ease: 'power2.inOut',
+          stagger: 0.02,
+        }, 0);
+      }
+
+      const exitStaggerTotal = exitingCards.length > 0 ? Math.min(exitingCards.length - 1, 6) * 0.02 : 0;
+      const switchTime = exitingCards.length > 0 ? (0.28 + exitStaggerTotal) : 0;
+
+      // 阶段 2：换骨就位 (DOM 批切换与入场状态预置)
+      tl.add(() => {
+        toHide.forEach((card) => {
+          card.classList.add('is-filtered-out');
+          card.classList.remove('is-reflowing');
+          settleCard(card);
+        });
+        enteringCards.forEach((card) => {
+          card.classList.remove('is-filtered-out');
+          card.classList.add('is-reflowing');
+          card.dataset.enterState = 'in';
+        });
+
+        // 预置入场卡片卷轴初态
+        if (enteringCards.length > 0) {
+          gsap.set(enteringCards, {
+            clipPath: 'inset(0 100% 0 0)',
+            opacity: 0,
+            x: -16,
+            scale: 0.98,
+          });
+        }
+      }, switchTime);
+
+      // 阶段 3：卷轴徐展 (Scroll Unfurling from left to right)
+      if (enteringCards.length > 0) {
+        tl.to(enteringCards, {
+          clipPath: 'inset(0 0% 0 0)',
+          opacity: 1,
+          x: 0,
+          scale: 1,
+          duration: 0.68,
+          ease: 'enter',
+          stagger: 0.06,
+        }, switchTime);
+      }
+    }
+
+    // 分类 Tab 切换
+    catTabs.forEach((tab) => {
+      tab.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const catId = tab.dataset.categoryTab;
+        if (!catId) return;
+        if (catId === currentCategory && !searchQuery) return;
+
+        currentCategory = catId;
+        catTabs.forEach((t) => {
+          t.classList.remove('is-active');
+          t.setAttribute('aria-selected', 'false');
+        });
+        tab.classList.add('is-active');
+        tab.setAttribute('aria-selected', 'true');
+
+        // Ink splash
+        const rect = tab.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+        }
+
+        applyFilters(true, true);
+      }, { signal });
+    });
+
+    // 卡片内小标签点击直接填入搜索框并即时过滤
+    cards.forEach((card) => {
+      const chips = card.querySelectorAll<HTMLElement>('[data-click-tag]');
+      chips.forEach((chip) => {
+        chip.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const tag = chip.getAttribute('data-click-tag');
+          if (!tag) return;
+
+          // 重置分类至「全部影痕」，以保证全库检索该标签
+          currentCategory = 'all';
+          catTabs.forEach((t, i) => {
+            if (i === 0) {
+              t.classList.add('is-active');
+              t.setAttribute('aria-selected', 'true');
+            } else {
+              t.classList.remove('is-active');
+              t.setAttribute('aria-selected', 'false');
+            }
+          });
+
+          if (searchInput) {
+            searchInput.value = tag;
+            searchQuery = tag;
+            if (searchClear) searchClear.classList.remove('hidden');
+            applyFilters();
+            searchInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+
+          const rect = chip.getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+        }, { signal });
+      });
+    });
+
+    // 搜索输入防抖与 IME 输入法合成锁
+    let searchTimer = 0;
+    let isComposing = false;
+    if (searchInput) {
+      searchInput.addEventListener('compositionstart', () => {
+        isComposing = true;
+      }, { signal });
+
+      searchInput.addEventListener('compositionend', () => {
+        isComposing = false;
+        searchQuery = searchInput.value;
+        if (searchClear) {
+          searchClear.classList.toggle('hidden', searchQuery.length === 0);
+        }
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(() => {
+          applyFilters();
+        }, 80);
+      }, { signal });
+
+      searchInput.addEventListener('input', () => {
+        if (isComposing) return;
+        searchQuery = searchInput.value;
+        if (searchClear) {
+          searchClear.classList.toggle('hidden', searchQuery.length === 0);
+        }
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(() => {
+          applyFilters();
+        }, 120);
+      }, { signal });
+    }
+
+    searchClear?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (searchInput) searchInput.value = '';
+      searchQuery = '';
+      searchClear.classList.add('hidden');
+      applyFilters();
+      searchInput?.focus();
+    }, { signal });
+
+    resetBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentCategory = 'all';
+      searchQuery = '';
+      if (searchInput) searchInput.value = '';
+      searchClear?.classList.add('hidden');
+      catTabs.forEach((t, i) => {
+        if (i === 0) {
+          t.classList.add('is-active');
+          t.setAttribute('aria-selected', 'true');
+        } else {
+          t.classList.remove('is-active');
+          t.setAttribute('aria-selected', 'false');
+        }
+      });
+      const rect = resetBtn.getBoundingClientRect();
+      (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 14);
+      applyFilters(true, true);
+    }, { signal });
+
+    // =========================================================
+    // 水墨暗房看图器逻辑 (Ink Darkroom Lightbox)
+    // =========================================================
+    function getActivePhotoList() {
+      const visibleCards = cards.filter((c) => !c.classList.contains('is-filtered-out'));
+      const visibleIds = visibleCards.map((c) => c.dataset.photoId);
+      const filtered = GALLERY_PHOTOS.filter((p) => visibleIds.includes(p.id));
+      return filtered.length > 0 ? filtered : GALLERY_PHOTOS;
+    }
+
+    function computeTargetLightboxRect(photo: any) {
+      const stage = lightbox?.querySelector<HTMLElement>('.lightbox-stage');
+      const stageRect = stage ? stage.getBoundingClientRect() : {
+        left: 0,
+        top: 60,
+        width: window.innerWidth,
+        height: window.innerHeight - 180,
+      };
+
+      const [aspectW, aspectH] = (photo.aspectRatio || '3:2').split(':').map(Number);
+      const aspect = (aspectW && aspectH) ? aspectW / aspectH : 1.5;
+
+      const isMobile = window.innerWidth < 640;
+      const paddingH = isMobile ? 32 : 108;
+      const paddingV = 20;
+
+      const stageW = stageRect.width > 0 ? stageRect.width : window.innerWidth;
+      const stageH = stageRect.height > 0 ? stageRect.height : window.innerHeight - 180;
+
+      const availableW = Math.max(260, stageW - paddingH);
+      const availableH = Math.max(200, stageH - paddingV);
+
+      let targetW = Math.min(1120, availableW);
+      let targetH = targetW / aspect;
+
+      if (targetH > availableH) {
+        targetH = availableH;
+        targetW = targetH * aspect;
+      }
+
+      targetW = Math.max(200, Math.round(targetW));
+      targetH = Math.max(140, Math.round(targetH));
+
+      const targetCenterX = stageRect.left + stageW / 2;
+      const targetCenterY = stageRect.top + stageH / 2;
+
+      return {
+        width: targetW,
+        height: targetH,
+        centerX: targetCenterX,
+        centerY: targetCenterY,
+      };
+    }
+
+    function renderLightboxPhoto(index: number, isInitialOpen = false) {
+      const list = getActivePhotoList();
+      if (list.length === 0) return;
+      currentPhotoIndex = (index + list.length) % list.length;
+      const photo = list[currentPhotoIndex];
+      if (!photo) return;
+
+      if (lightboxImg) {
+        lightboxImg.src = photo.url;
+        lightboxImg.alt = photo.title;
+        const [w, h] = photo.aspectRatio.split(':').map(Number);
+        if (w && h) {
+          lightboxImg.style.aspectRatio = `${w} / ${h}`;
+        }
+      }
+      if (lightboxImgWrapper) {
+        const targetDims = computeTargetLightboxRect(photo);
+        lightboxImgWrapper.style.width = `${targetDims.width}px`;
+        lightboxImgWrapper.style.height = `${targetDims.height}px`;
+        const [w, h] = photo.aspectRatio.split(':').map(Number);
+        if (w && h) {
+          lightboxImgWrapper.style.setProperty('--lightbox-aspect', `${w} / ${h}`);
+        }
+      }
+      if (lightboxTitle) lightboxTitle.textContent = photo.title;
+      if (lightboxLocation) lightboxLocation.textContent = `📍 ${photo.location}`;
+      if (lightboxDate) lightboxDate.textContent = `📅 ${photo.date}`;
+      if (lightboxStory) lightboxStory.textContent = `“${photo.story}”`;
+
+      if (lightboxCounterCurrent) lightboxCounterCurrent.textContent = String(currentPhotoIndex + 1);
+      if (lightboxCounterTotal) lightboxCounterTotal.textContent = String(list.length);
+
+      if (lightboxExifCamera) lightboxExifCamera.textContent = photo.exif.camera;
+      if (lightboxExifLens) lightboxExifLens.textContent = photo.exif.lens;
+      if (lightboxExifAperture) lightboxExifAperture.textContent = photo.exif.aperture;
+      if (lightboxExifShutter) lightboxExifShutter.textContent = photo.exif.shutter;
+      if (lightboxExifIso) lightboxExifIso.textContent = photo.exif.iso;
+
+      // Only animate crossfade when switching photos, not during initial openLightbox choreography
+      if (!isInitialOpen && lightboxImgWrapper && !reduceMotion) {
+        gsap.fromTo(lightboxImgWrapper,
+          { opacity: 0.5, scale: 0.97 },
+          { opacity: 1, scale: 1, duration: 0.28, ease: 'power2.out', clearProps: 'scale' }
+        );
+      }
+
+      // 切换照片时，恢复原先打开时可能被暂隐的初始卡片
+      if (!isInitialOpen && activeSourceImgEl) {
+        activeSourceImgEl.style.opacity = '';
+        activeSourceImgEl.style.pointerEvents = '';
+        activeSourceImgEl = null;
+      }
+    }
+
+    let lightboxTimeline: gsap.core.Timeline | null = null;
+    let activeSourceImgEl: HTMLElement | null = null;
+
+    function openLightbox(photoId: string, originEl?: HTMLElement) {
+      if (!lightbox) return;
+      isLightboxOpen = true;
+      if (originEl) lastFocusedElement = originEl;
+
+      const list = getActivePhotoList();
+      const idx = list.findIndex((p) => p.id === photoId);
+      const photo = list[idx >= 0 ? idx : 0] || GALLERY_PHOTOS[0];
+
+      // Lenis 协调：暂停页面滚动
+      if ((window as any).lenis) {
+        (window as any).lenis.stop();
+      }
+      document.body.classList.add('gallery-lightbox-open');
+
+      if (lightboxTimeline) {
+        lightboxTimeline.kill();
+        lightboxTimeline = null;
+      }
+
+      // 清除可能残留的暂隐卡片
+      if (activeSourceImgEl) {
+        activeSourceImgEl.style.opacity = '';
+        activeSourceImgEl.style.pointerEvents = '';
+        activeSourceImgEl = null;
+      }
+
+      // 查找对应卡片与相框元素
+      const sourceCard = cards.find((c) => c.dataset.photoId === photoId);
+      const sourceImgEl = sourceCard?.querySelector<HTMLElement>('.mat-image-window');
+
+      lightbox.classList.remove('hidden');
+      lightbox.classList.add('is-open');
+
+      renderLightboxPhoto(idx >= 0 ? idx : 0, true);
+
+      const backdrop = lightbox.querySelector<HTMLElement>('.lightbox-backdrop');
+      const containerEl = lightbox.querySelector<HTMLElement>('.lightbox-container');
+      const topBar = lightbox.querySelector<HTMLElement>('.lightbox-top-bar');
+      const drawer = lightbox.querySelector<HTMLElement>('.lightbox-info-drawer');
+      const closeBtn = lightbox.querySelector<HTMLElement>('.lightbox-close-btn');
+      const navArrows = lightbox.querySelectorAll<HTMLElement>('.lightbox-nav-arrow');
+
+      if (!reduceMotion && backdrop && containerEl && lightboxImgWrapper) {
+        const targetDims = computeTargetLightboxRect(photo);
+        const sourceRect = sourceImgEl?.getBoundingClientRect();
+
+        const isValidSource = Boolean(
+          sourceImgEl &&
+          sourceRect &&
+          sourceRect.width > 20 &&
+          sourceRect.height > 20 &&
+          sourceRect.bottom > 0 &&
+          sourceRect.top < window.innerHeight &&
+          sourceRect.right > 0 &&
+          sourceRect.left < window.innerWidth
+        );
+
+        const tl = gsap.timeline({
+          onComplete: () => {
+            closeBtn?.focus?.();
+            lightboxTimeline = null;
+            // 展开完全落定后，静默恢复卡片在暗色幕布下方的正常显示，为后续无缝飞回做好平滑承接
+            if (activeSourceImgEl) {
+              activeSourceImgEl.style.opacity = '';
+              activeSourceImgEl.style.pointerEvents = '';
+              activeSourceImgEl = null;
+            }
+          }
+        });
+        lightboxTimeline = tl;
+
+        // 重设周边元素基础初始态
+        gsap.set(backdrop, { opacity: 0 });
+        if (topBar) gsap.set(topBar, { opacity: 0, y: -12 });
+        if (drawer) gsap.set(drawer, { opacity: 0, y: 14 });
+        if (navArrows.length > 0) gsap.set(navArrows, { opacity: 0, scale: 0.88 });
+
+        if (isValidSource && sourceImgEl && sourceRect) {
+          activeSourceImgEl = sourceImgEl;
+          activeSourceImgEl.style.opacity = '0';
+          activeSourceImgEl.style.pointerEvents = 'none';
+
+          const sourceCenterX = sourceRect.left + sourceRect.width / 2;
+          const sourceCenterY = sourceRect.top + sourceRect.height / 2;
+          const deltaX = sourceCenterX - targetDims.centerX;
+          const deltaY = sourceCenterY - targetDims.centerY;
+          const scaleX = Math.max(0.08, Math.min(1.0, sourceRect.width / targetDims.width));
+          const scaleY = Math.max(0.08, Math.min(1.0, sourceRect.height / targetDims.height));
+
+          gsap.set(containerEl, { opacity: 1, scale: 1, y: 0 });
+
+          // 核心照片对齐卡片实际屏幕物理坐标 (严格安全的 0.08~1.0 比例缩放)
+          gsap.set(lightboxImgWrapper, {
+            x: deltaX,
+            y: deltaY,
+            scaleX: scaleX,
+            scaleY: scaleY,
+            borderRadius: '6px',
+            opacity: 1,
+            transformOrigin: 'center center',
+          });
+
+          // 1. 暗幕淡入
+          tl.to(backdrop, {
+            opacity: 1,
+            duration: 0.38,
+            ease: 'power2.out',
+          }, 0);
+
+          // 2. 核心照片原位平滑放大并飞至全屏居中 (约 420ms，舒展物理缓动)
+          tl.to(lightboxImgWrapper, {
+            x: 0,
+            y: 0,
+            scaleX: 1,
+            scaleY: 1,
+            borderRadius: '8px',
+            duration: 0.42,
+            ease: 'power3.out',
+            clearProps: 'transform,borderRadius',
+          }, 0);
+
+          // 3. 周边展签、顶栏与箭头分层交错浮现
+          if (topBar) {
+            tl.to(topBar, {
+              opacity: 1,
+              y: 0,
+              duration: 0.3,
+              ease: 'power2.out',
+              clearProps: 'transform,opacity',
+            }, 0.16);
+          }
+          if (drawer) {
+            tl.to(drawer, {
+              opacity: 1,
+              y: 0,
+              duration: 0.3,
+              ease: 'power2.out',
+              clearProps: 'transform,opacity',
+            }, 0.16);
+          }
+          if (navArrows.length > 0) {
+            tl.to(navArrows, {
+              opacity: 1,
+              scale: 1,
+              duration: 0.28,
+              ease: 'power2.out',
+              clearProps: 'transform,opacity',
+            }, 0.18);
+          }
+        } else {
+          // 容错兜底：屏幕外或无原位卡片时，使用经典水墨淡入与弹性升入
+          gsap.set(containerEl, { opacity: 0, scale: 0.92, y: 18 });
+          gsap.set(lightboxImgWrapper, { opacity: 0, scale: 0.90, filter: 'blur(10px)' });
+
+          tl.to(backdrop, {
+            opacity: 1,
+            duration: 0.38,
+            ease: 'power2.out',
+          }, 0);
+
+          tl.to(containerEl, {
+            opacity: 1,
+            scale: 1,
+            y: 0,
+            duration: 0.46,
+            ease: 'back.out(1.4)',
+          }, 0.02);
+
+          tl.to(lightboxImgWrapper, {
+            opacity: 1,
+            scale: 1,
+            filter: 'blur(0px)',
+            duration: 0.5,
+            ease: 'power3.out',
+            clearProps: 'filter,transform',
+          }, 0.04);
+
+          if (topBar) {
+            tl.to(topBar, {
+              opacity: 1,
+              y: 0,
+              duration: 0.36,
+              ease: 'power2.out',
+              clearProps: 'transform,opacity',
+            }, 0.08);
+          }
+          if (drawer) {
+            tl.to(drawer, {
+              opacity: 1,
+              y: 0,
+              duration: 0.36,
+              ease: 'power2.out',
+              clearProps: 'transform,opacity',
+            }, 0.1);
+          }
+          if (navArrows.length > 0) {
+            tl.to(navArrows, {
+              opacity: 1,
+              scale: 1,
+              duration: 0.3,
+              ease: 'power2.out',
+              clearProps: 'transform,opacity',
+            }, 0.1);
+          }
+        }
+      } else {
+        closeBtn?.focus?.();
+      }
+
+      // 笔墨点染印章水花
+      (window as any).__inkSplash?.(window.innerWidth / 2, window.innerHeight / 2, 16);
+    }
+
+    function closeLightbox() {
+      if (!lightbox || !isLightboxOpen) return;
+      isLightboxOpen = false;
+
+      // Lenis 协调：恢复页面滚动
+      if ((window as any).lenis) {
+        (window as any).lenis.start();
+      }
+
+      if (lightboxTimeline) {
+        lightboxTimeline.kill();
+        lightboxTimeline = null;
+      }
+
+      const backdrop = lightbox.querySelector<HTMLElement>('.lightbox-backdrop');
+      const containerEl = lightbox.querySelector<HTMLElement>('.lightbox-container');
+      const topBar = lightbox.querySelector<HTMLElement>('.lightbox-top-bar');
+      const drawer = lightbox.querySelector<HTMLElement>('.lightbox-info-drawer');
+      const navArrows = lightbox.querySelectorAll<HTMLElement>('.lightbox-nav-arrow');
+
+      // 智能寻找当前正在浏览的照片对应卡片
+      const list = getActivePhotoList();
+      const currentPhoto = list[currentPhotoIndex] || GALLERY_PHOTOS[0];
+      let targetImgEl: HTMLElement | null = null;
+      let targetRect: DOMRect | null = null;
+      let inViewport = false;
+
+      if (currentPhoto) {
+        const targetCard = cards.find(
+          (c) => c.dataset.photoId === currentPhoto.id && !c.classList.contains('is-filtered-out')
+        );
+        if (targetCard) {
+          targetImgEl = targetCard.querySelector<HTMLElement>('.mat-image-window');
+          if (targetImgEl) {
+            const r = targetImgEl.getBoundingClientRect();
+            if (r.width > 20 && r.height > 20 && r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth) {
+              targetRect = r;
+              inViewport = true;
+            }
+          }
+        }
+      }
+
+      // 确保原底层卡片处于正常可见状态以迎接飞回
+      if (activeSourceImgEl) {
+        activeSourceImgEl.style.opacity = '';
+        activeSourceImgEl.style.pointerEvents = '';
+        activeSourceImgEl = null;
+      }
+      if (targetImgEl) {
+        targetImgEl.style.opacity = '';
+        targetImgEl.style.pointerEvents = '';
+      }
+
+      if (!reduceMotion && backdrop && containerEl && lightboxImgWrapper) {
+        const targetDims = computeTargetLightboxRect(currentPhoto);
+
+        const tl = gsap.timeline({
+          onComplete: () => {
+            // 先完全隐藏暗房，杜绝任何单帧样式清除导致的跳闪
+            lightbox.classList.remove('is-open');
+            lightbox.classList.add('hidden');
+            document.body.classList.remove('gallery-lightbox-open');
+            lastFocusedElement?.focus?.({ preventScroll: true });
+            lightboxTimeline = null;
+
+            // 延迟 1 帧清理样式，确保 DOM hidden 布局已生效
+            requestAnimationFrame(() => {
+              gsap.set([backdrop, containerEl, lightboxImgWrapper, topBar, drawer, ...navArrows].filter(Boolean), { clearProps: 'all' });
+            });
+          }
+        });
+        lightboxTimeline = tl;
+
+        // 1. 周边附属信息（顶栏、展签、箭头）先行迅速淡出
+        if (topBar) {
+          tl.to(topBar, { opacity: 0, y: -8, duration: 0.18, ease: 'power2.in' }, 0);
+        }
+        if (drawer) {
+          tl.to(drawer, { opacity: 0, y: 10, duration: 0.18, ease: 'power2.in' }, 0);
+        }
+        if (navArrows.length > 0) {
+          tl.to(navArrows, { opacity: 0, scale: 0.9, duration: 0.18, ease: 'power2.in' }, 0);
+        }
+
+        if (inViewport && targetImgEl && targetRect) {
+          const targetCenterXOnCard = targetRect.left + targetRect.width / 2;
+          const targetCenterYOnCard = targetRect.top + targetRect.height / 2;
+          const targetDeltaX = targetCenterXOnCard - targetDims.centerX;
+          const targetDeltaY = targetCenterYOnCard - targetDims.centerY;
+          const targetScaleX = Math.max(0.08, Math.min(1.0, targetRect.width / targetDims.width));
+          const targetScaleY = Math.max(0.08, Math.min(1.0, targetRect.height / targetDims.height));
+
+          // 2. 照片精准缩小飞回原位 (约 320ms 爽脆归位，直接覆盖底层已就位的卡片)
+          tl.to(lightboxImgWrapper, {
+            x: targetDeltaX,
+            y: targetDeltaY,
+            scaleX: targetScaleX,
+            scaleY: targetScaleY,
+            borderRadius: '6px',
+            duration: 0.32,
+            ease: 'power3.inOut',
+          }, 0.02);
+
+          // 3. 幕布随照片同步淡出
+          tl.to(backdrop, {
+            opacity: 0,
+            duration: 0.30,
+            ease: 'power2.in',
+          }, 0.04);
+        } else {
+          // 容错兜底：目标不在视口时，居中淡化微缩收回
+          tl.to(lightboxImgWrapper, {
+            opacity: 0,
+            scale: 0.93,
+            filter: 'blur(4px)',
+            duration: 0.24,
+            ease: 'power2.in',
+          }, 0);
+
+          tl.to(containerEl, {
+            opacity: 0,
+            scale: 0.94,
+            y: 12,
+            duration: 0.26,
+            ease: 'power2.in',
+          }, 0.02);
+
+          tl.to(backdrop, {
+            opacity: 0,
+            duration: 0.26,
+            ease: 'power2.in',
+          }, 0.03);
+        }
+      } else {
+        if (targetImgEl) {
+          targetImgEl.style.opacity = '';
+          targetImgEl.style.pointerEvents = '';
+        }
+        if (activeSourceImgEl) {
+          activeSourceImgEl.style.opacity = '';
+          activeSourceImgEl.style.pointerEvents = '';
+          activeSourceImgEl = null;
+        }
+        lightbox.classList.remove('is-open');
+        lightbox.classList.add('hidden');
+        document.body.classList.remove('gallery-lightbox-open');
+        lastFocusedElement?.focus?.();
+      }
+    }
+
+    function nextPhoto() {
+      renderLightboxPhoto(currentPhotoIndex + 1);
+    }
+
+    function prevPhoto() {
+      renderLightboxPhoto(currentPhotoIndex - 1);
+    }
+
+    window.addEventListener('resize', () => {
+      if (isLightboxOpen && lightboxImgWrapper) {
+        const list = getActivePhotoList();
+        const currentPhoto = list[currentPhotoIndex] || GALLERY_PHOTOS[0];
+        if (currentPhoto) {
+          const targetDims = computeTargetLightboxRect(currentPhoto);
+          lightboxImgWrapper.style.width = `${targetDims.width}px`;
+          lightboxImgWrapper.style.height = `${targetDims.height}px`;
+        }
+      }
+    }, { signal });
+
+    // 绑定卡片点击与键盘打开暗房 (Event delegation + direct bindings)
+    container.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (!target) return;
+      // If clicked a tag chip, don't open lightbox
+      if (target.closest('[data-click-tag]')) return;
+
+      const openTrigger = target.closest<HTMLElement>('[data-open-lightbox]');
+      if (openTrigger) {
+        e.stopPropagation();
+        const photoId = openTrigger.getAttribute('data-open-lightbox');
+        if (photoId) openLightbox(photoId, openTrigger);
+        return;
+      }
+
+      const card = target.closest<HTMLElement>('.gallery-mat-card');
+      if (card) {
+        e.stopPropagation();
+        const photoId = card.getAttribute('data-photo-id');
+        if (photoId) openLightbox(photoId, card);
+      }
+    }, { signal });
+
+    // 键盘支持
+    cards.forEach((card) => {
+      card.addEventListener('keydown', (e: Event) => {
+        const ke = e as KeyboardEvent;
+        if (ke.key === 'Enter' || ke.key === ' ') {
+          ke.preventDefault();
+          ke.stopPropagation();
+          const photoId = card.getAttribute('data-photo-id');
+          if (photoId) openLightbox(photoId, card);
+        }
+      }, { signal });
+    });
+
+    // 绑定关闭按钮与遮罩
+    document.querySelectorAll('[data-lightbox-close]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeLightbox();
+      }, { signal });
+    });
+
+    const lightboxStage = lightbox?.querySelector<HTMLElement>('.lightbox-stage');
+    if (lightboxStage) {
+      lightboxStage.addEventListener('click', (e) => {
+        if (e.target === lightboxStage) {
+          e.stopPropagation();
+          closeLightbox();
+        }
+      }, { signal });
+    }
+
+    const lightboxContainer = lightbox?.querySelector<HTMLElement>('.lightbox-container');
+    if (lightboxContainer) {
+      lightboxContainer.addEventListener('click', (e) => {
+        if (e.target === lightboxContainer) {
+          e.stopPropagation();
+          closeLightbox();
+        }
+      }, { signal });
+    }
+
+    // 绑定上一张/下一张按钮
+    document.querySelectorAll('[data-lightbox-prev]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        prevPhoto();
+      }, { signal });
+    });
+
+    document.querySelectorAll('[data-lightbox-next]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        nextPhoto();
+      }, { signal });
+    });
+
+    // 触摸滑动左右切图 (Mobile touch gestures)
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+
+    lightbox?.addEventListener('touchstart', (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchStartTime = Date.now();
+      }
+    }, { passive: true, signal });
+
+    lightbox?.addEventListener('touchend', (e: TouchEvent) => {
+      if (e.changedTouches.length === 1 && isLightboxOpen) {
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        const dt = Date.now() - touchStartTime;
+        if (dt < 450 && Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+          if (dx < 0) {
+            nextPhoto();
+          } else {
+            prevPhoto();
+          }
+        } else if (dt < 450 && dy > 80 && Math.abs(dy) > Math.abs(dx) * 1.5) {
+          closeLightbox();
+        }
+      }
+    }, { passive: true, signal });
+
+    // 键盘快捷键监听 (Esc 关闭，左右箭头切换，h/l 切换)
+    window.addEventListener('keydown', (e) => {
+      if (!isLightboxOpen) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeLightbox();
+      } else if (e.key === 'ArrowRight' || e.key === 'l') {
+        e.preventDefault();
+        nextPhoto();
+      } else if (e.key === 'ArrowLeft' || e.key === 'h') {
+        e.preventDefault();
+        prevPhoto();
+      }
+    }, { signal });
+
+    // 页面跳转前清理与单例保存
+    (window as any)[CLEANUP_KEY] = () => {
+      controller.abort();
+      if (filterTimeline) {
+        filterTimeline.kill();
+        filterTimeline = null;
+      }
+      if (isLightboxOpen) {
+        closeLightbox();
+      }
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+
+    document.addEventListener('astro:before-swap', () => {
+      if ((window as any)[CLEANUP_KEY]) {
+        (window as any)[CLEANUP_KEY]();
+      }
+    }, { signal });
+  }
+
+  // 初始化并在每次客户端路由跳转时重新挂载
+  initGalleryPage();
+
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', initGalleryPage);
+    (window as any)[LISTENER_KEY] = true;
+  }
+</script>

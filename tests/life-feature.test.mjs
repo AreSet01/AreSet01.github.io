@@ -24,11 +24,10 @@ test('Life Data Integrity: Shenzhen Observatory and starter items', () => {
   assert.ok(shenzhen.locationUrl && shenzhen.locationUrl.includes('amap.com'), 'Must have map link');
   assert.ok(Array.isArray(shenzhen.tips) && shenzhen.tips.length >= 3, 'Must have at least 3 tips');
 
-  // Ensure all categories are represented
+  // Verify categories schema and user item
   const categories = new Set(LIFE_ITEMS.map((i) => i.category));
   assert.ok(categories.has('places'), 'Must have places');
-  assert.ok(categories.has('activities'), 'Must have activities');
-  assert.ok(categories.has('items'), 'Must have items');
+  assert.strictEqual(LIFE_ITEMS.length, 1, 'Only genuine user-added item remains after removing placeholders');
 });
 
 test('Header Navigation contains /life with Life / 拾光 label', () => {

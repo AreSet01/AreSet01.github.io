@@ -53,46 +53,6 @@ export const LIFE_ITEMS: LifeItem[] = [
     dateAdded: '2026-09-30',
     isUserAdded: true,
   },
-  /* ── 示例数据（可随时替换或新增） ───────────────────────────────────── */
-  {
-    id: 'yuejiang-sunset-cycling',
-    title: '沿江落日骑行与江风放空',
-    category: 'activities',
-    categoryLabel: '体验玩乐',
-    city: '广州 · 阅江路绿道',
-    tags: ['落日骑行', '江边散步', '治愈放空', '晚风'],
-    rating: 5,
-    badge: '解压首选',
-    summary: '沿着有轨电车道与珠江畔骑行，看夕阳把江面染成金橙色。吹着晚风，听着耳机里的音乐，一整天的疲惫都烟消云散。',
-    tips: [
-      '建议下午 5:30 - 6:30 之间开骑，刚好捕捉蓝调时刻与落日余晖',
-      '可从猎德大桥底一直骑到琶醍，中途很多开阔草坪可以小坐',
-      '傍晚沿途共享单车比较抢手，看到车况好的可以直接扫码'
-    ],
-    bestTime: '晴天傍晚（日落前半小时至华灯初上）',
-    locationUrl: 'https://ditu.amap.com/search?query=%E9%98%85%E6%B1%9F%E4%B8%AD%E8%B7%AF',
-    dateAdded: '2026-09-30',
-    isUserAdded: false,
-  },
-  {
-    id: 'handbrew-coffee-kit',
-    title: '手冲咖啡仪式感套装',
-    category: 'items',
-    categoryLabel: '日常好物',
-    city: '居家书房',
-    tags: ['咖啡器具', '生活仪式感', '晨间清醒', '日常陪伴'],
-    rating: 5,
-    badge: '每日相伴',
-    summary: '清晨或者写代码卡壳时，慢慢研磨咖啡豆、注水闷蒸，闻着满室的花果香气，心会瞬间安静下来。不仅是喝咖啡，更是一段专属的专注时光。',
-    tips: [
-      '新手推荐入门款三洋梯形滤杯或 V60，容错率高、出品稳定',
-      '咖啡豆推荐埃塞俄比亚水洗花魁或耶加雪菲，花果香明亮干净',
-      '推荐粉水比 1:15，水温控制在 90℃ - 92℃ 之间口感最佳'
-    ],
-    bestTime: '晨间开工前 / 午后专注码字时',
-    dateAdded: '2026-09-30',
-    isUserAdded: false,
-  },
 ];
 
 /** 获取所有推荐项目 */

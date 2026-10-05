@@ -28,7 +28,7 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
 
 <BaseLayout title="年轮 - 梦付千秋" description="按时间展开的一卷手稿">
   <Header />
-  <main class="container-wide flex-1 timeline-main" style="padding-top: 2rem;">
+  <main class="container-wide flex-1 timeline-main pt-6 pb-20 lg:pt-8">
     <section class="timeline-head">
       <p class="eyebrow" data-enter="top">Timeline / 手卷</p>
       <h1 class="section-title mt-4" data-enter="left">年轮</h1>
@@ -49,7 +49,9 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
 
       <div class="timeline-viewport" data-timeline-viewport data-enter="bottom" data-no-replay>
         <div class="timeline-track" data-timeline-track>
-          <div class="timeline-baseline" aria-hidden="true"></div>
+          <div class="timeline-baseline" aria-hidden="true">
+            <span class="timeline-baseline-fill" data-timeline-baseline-fill></span>
+          </div>
           {entries.map((entry, index) => (
             <article
               class:list={['timeline-entry', index % 2 === 0 ? 'is-above' : 'is-below']}
@@ -118,11 +120,103 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
       if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
     });
 
-    // Narrow screens read the scroll as a plain vertical list (CSS) — nothing to pin
+    // Narrow screens read the scroll as a rich vertical chronicle with mobile ScrollTrigger interactions
     const horizontal = window.matchMedia('(min-width: 1024px)').matches && !reduceMotion;
     if (!horizontal) {
-      entries.forEach((entry) => entry.classList.add('is-near'));
-      (window as any)[CLEANUP_KEY] = () => controller.abort();
+      if (reduceMotion) {
+        entries.forEach((entry) => entry.classList.add('is-near', 'is-revealed'));
+        (window as any)[CLEANUP_KEY] = () => controller.abort();
+        return;
+      }
+
+      const baselineFill = stage.querySelector<HTMLElement>('[data-timeline-baseline-fill]');
+      let currentMobileYear = yearEl?.textContent?.trim() || '';
+
+      const updateMobileYear = (year?: string) => {
+        if (!yearEl || !year || year === currentMobileYear) return;
+        currentMobileYear = year;
+        gsap.fromTo(
+          yearEl,
+          { y: 14, opacity: 0 },
+          {
+            y: 0,
+            opacity: 1,
+            duration: 0.5,
+            ease: 'power2.out',
+            overwrite: true,
+            onStart: () => {
+              yearEl.textContent = year;
+            },
+          }
+        );
+      };
+
+      // 1. Mobile vertical baseline progress fill
+      if (baselineFill) {
+        ScrollTrigger.create({
+          id: `${TRIGGER_PREFIX}mobile-baseline`,
+          trigger: track,
+          start: 'top 75%',
+          end: 'bottom 45%',
+          scrub: 0.35,
+          onUpdate: (self) => {
+            baselineFill.style.transform = `scaleY(${self.progress.toFixed(4)})`;
+          },
+        });
+      }
+
+      // 2. Each entry reveals with ink bloom, scales dot, highlights reading zone, and updates sticky year
+      entries.forEach((entry, index) => {
+        ScrollTrigger.create({
+          id: `${TRIGGER_PREFIX}mobile-entry-${index}`,
+          trigger: entry,
+          start: 'top 88%',
+          end: 'bottom 12%',
+          onEnter: () => {
+            entry.classList.add('is-revealed');
+            updateMobileYear(entry.dataset.year);
+          },
+          onEnterBack: () => {
+            updateMobileYear(entry.dataset.year);
+          },
+          onToggle: (self) => {
+            if (self.isActive) {
+              entry.classList.add('is-near');
+            } else {
+              entry.classList.remove('is-near');
+            }
+          },
+        });
+      });
+
+      // 3. Rollup end seal reveal
+      const endEl = track.querySelector<HTMLElement>('.timeline-end');
+      if (endEl) {
+        ScrollTrigger.create({
+          id: `${TRIGGER_PREFIX}mobile-end`,
+          trigger: endEl,
+          start: 'top 90%',
+          toggleClass: { targets: endEl, className: 'is-near' },
+        });
+      }
+
+      // Sync initial active year based on viewport position
+      const firstVisible = entries.find((e) => {
+        const rect = e.getBoundingClientRect();
+        return rect.bottom > 0 && rect.top < window.innerHeight;
+      }) || entries[0];
+      if (firstVisible && firstVisible.dataset.year) {
+        currentMobileYear = firstVisible.dataset.year;
+        if (yearEl) yearEl.textContent = currentMobileYear;
+      }
+
+      (window as any)[CLEANUP_KEY] = () => {
+        controller.abort();
+        ScrollTrigger.getAll().forEach((trigger) => {
+          if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
+        });
+        (window as any)[CLEANUP_KEY] = undefined;
+      };
       return;
     }
 

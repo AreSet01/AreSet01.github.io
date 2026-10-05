@@ -121,8 +121,14 @@ test('life filtering and search matching logic works accurately', () => {
 });
 
 test('filter partition logic cleanly separates leaving, arriving, and persisting cards', () => {
-  // Mock card objects with id and filteredOut flag
-  const mockCards = LIFE_ITEMS.map((item) => ({
+  // Mock card objects with id and filteredOut flag across multiple categories
+  const sampleItems = [
+    { id: 'item-1', category: 'places' },
+    { id: 'item-2', category: 'activities' },
+    { id: 'item-3', category: 'places' },
+    { id: 'item-4', category: 'reading' },
+  ];
+  const mockCards = sampleItems.map((item) => ({
     id: item.id,
     category: item.category,
     filteredOut: false, // Initially all visible
@@ -179,7 +185,11 @@ test('filter partition logic cleanly separates leaving, arriving, and persisting
 });
 
 test('lottery candidate selection avoids immediate consecutive duplicates when pool > 1', () => {
-  const pool = LIFE_ITEMS.slice(0, 3);
+  const pool = [
+    { id: 'c1', title: 'Candidate 1' },
+    { id: 'c2', title: 'Candidate 2' },
+    { id: 'c3', title: 'Candidate 3' },
+  ];
   assert.ok(pool.length >= 2);
 
   let currentCard = pool[0];
@@ -201,3 +211,4 @@ test('lottery candidate selection avoids immediate consecutive duplicates when p
   assert.strictEqual(singleEligible.length, 1);
   assert.strictEqual(singleEligible[0], LIFE_ITEMS[0]);
 });
+

@@ -1,0 +1,563 @@
+---
+// ZenSoundscape.astro — 墨池听雨 · 极简白噪音伴读浮动舱 (Zen Reading & Rain Soundscape Capsule)
+import { SOUNDSCAPES } from '../utils/zenAudioEngine';
+---
+
+<div
+  id="zen-sound-capsule"
+  class="zen-sound-capsule"
+  role="dialog"
+  aria-label="墨池听雨 · 极简伴读音景"
+  aria-modal="false"
+  hidden
+  data-lenis-prevent
+>
+  <div class="zen-capsule-inner">
+    <!-- 头部栏：印章、标题与极简关闭按钮 (移除冗余播放状态角标，留白呼吸感) -->
+    <div class="zen-capsule-header">
+      <div class="zen-capsule-brand">
+        <span class="zen-seal" aria-hidden="true">雨</span>
+        <div class="zen-title-group">
+          <h2 class="zen-title">墨池听雨</h2>
+          <span class="zen-subtitle">Zen Soundscape</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="zen-capsule-close-btn"
+        data-zen-close-btn
+        aria-label="关闭伴读面板"
+        title="关闭面板 (Esc)"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- 四大文人意境音景选择器 (极简雅致药丸卡片：图标 + 4字名称) -->
+    <div class="zen-soundscapes-grid" role="radiogroup" aria-label="文人意境音景选择">
+      {SOUNDSCAPES.map((scene) => (
+        <button
+          type="button"
+          class="zen-scene-card"
+          data-scene-id={scene.id}
+          role="radio"
+          aria-checked="false"
+          aria-label={`${scene.name}：${scene.desc}`}
+        >
+          <span class="zen-scene-icon" aria-hidden="true">
+            {scene.id === 'rain' && (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+                <path d="M16 14v6"></path>
+                <path d="M8 14v6"></path>
+                <path d="M12 16v6"></path>
+              </svg>
+            )}
+            {scene.id === 'wind' && (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"></path>
+                <path d="M9.6 4.6A2 2 0 1 1 11 8H2"></path>
+                <path d="M12.6 19.4A2 2 0 1 0 14 16H2"></path>
+              </svg>
+            )}
+            {scene.id === 'paper' && (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                <path d="M9 7h6"></path>
+                <path d="M9 11h4"></path>
+              </svg>
+            )}
+            {scene.id === 'stream' && (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+                <path d="M2 13h1.5"></path>
+                <path d="M20.5 13H22"></path>
+              </svg>
+            )}
+          </span>
+          <span class="zen-scene-name">{scene.name}</span>
+          <span class="zen-scene-active-ring" aria-hidden="true"></span>
+        </button>
+      ))}
+    </div>
+
+    <!-- 当前音景唯美诗句与意境描述 (独占一行，分散留白) -->
+    <div class="zen-active-quote-box" data-zen-quote-box>
+      <p class="zen-active-poem" data-zen-active-poem>「一榻茶烟听雨声」</p>
+      <p class="zen-active-desc" data-zen-active-desc>屋檐雨声淅沥，雨滴顺瓦当垂落，深远静心</p>
+    </div>
+
+    <!-- 播放与主音量控制 -->
+    <div class="zen-controls-section">
+      <div class="zen-play-bar">
+        <button
+          type="button"
+          class="zen-main-play-btn"
+          data-zen-play-btn
+          aria-label="播放伴读"
+        >
+          <span class="zen-btn-ripple" aria-hidden="true"></span>
+          <span class="zen-btn-icon-play" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="6 3 20 12 6 21 6 3"></polygon>
+            </svg>
+          </span>
+          <span class="zen-btn-icon-pause" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+              <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+            </svg>
+          </span>
+          <span class="zen-btn-label" data-zen-play-label>伴读聆听</span>
+        </button>
+
+        <div class="zen-volume-control" title="音量平滑调节">
+          <span class="zen-volume-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+            </svg>
+          </span>
+          <input
+            type="range"
+            class="zen-volume-slider"
+            data-zen-volume-slider
+            min="0"
+            max="100"
+            value="60"
+            step="1"
+            aria-label="伴读音量"
+          />
+          <span class="zen-volume-value" data-zen-volume-text>60%</span>
+        </div>
+      </div>
+
+      <!-- 专注时钟 (15/25/45/60 分钟定时自动淡出，防断字不换行) -->
+      <div class="zen-timer-section">
+        <div class="zen-timer-header">
+          <span class="zen-timer-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span>专注伴读时钟</span>
+          </span>
+          <span class="zen-timer-countdown is-hidden" data-zen-countdown hidden>--:--</span>
+        </div>
+
+        <div class="zen-timer-pills" role="radiogroup" aria-label="定时关闭伴读">
+          <span class="zen-timer-glider" data-zen-timer-glider aria-hidden="true"></span>
+          <button type="button" class="zen-timer-pill is-active" data-timer-min="0" role="radio" aria-checked="true">持续</button>
+          <button type="button" class="zen-timer-pill" data-timer-min="15" role="radio" aria-checked="false" title="15分钟定时关闭">15分</button>
+          <button type="button" class="zen-timer-pill" data-timer-min="25" role="radio" aria-checked="false" title="番茄钟 (25分钟)">25分</button>
+          <button type="button" class="zen-timer-pill" data-timer-min="45" role="radio" aria-checked="false" title="深度阅读 (45分钟)">45分</button>
+          <button type="button" class="zen-timer-pill" data-timer-min="60" role="radio" aria-checked="false" title="入定沉思 (60分钟)">60分</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import gsap from 'gsap';
+  import { getZenAudioEngine, SOUNDSCAPES } from '../utils/zenAudioEngine';
+
+  (function setupZenSoundscapeUI() {
+    let unsubscribe: (() => void) | null = null;
+
+    function formatTime(seconds: number): string {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function positionCapsule() {
+      const capsule = document.getElementById('zen-sound-capsule');
+      if (!capsule) return;
+      const toggleBtn = document.querySelector('[data-zen-sound-toggle]');
+      if (toggleBtn && window.innerWidth >= 1024) {
+        const rect = toggleBtn.getBoundingClientRect();
+        const capsuleHeight = capsule.scrollHeight || capsule.offsetHeight || 380;
+        const vh = window.innerHeight;
+        // 严格视口安全约束：距离顶部至少 16px，底部至少留出 20px 呼吸边距，杜绝溢出截断
+        const maxTop = Math.max(16, vh - capsuleHeight - 20);
+        const targetTop = Math.max(16, Math.min(rect.top - 8, maxTop));
+        capsule.style.top = `${targetTop}px`;
+        // 严格约束 maxHeight，保证 targetTop + maxHeight 永远不会溢出视口底部
+        const allowedMaxHeight = Math.max(200, vh - targetTop - 20);
+        capsule.style.maxHeight = `${allowedMaxHeight}px`;
+      } else {
+        capsule.style.top = '';
+        capsule.style.maxHeight = '';
+      }
+    }
+
+    function updateTimerGlider() {
+      const capsule = document.getElementById('zen-sound-capsule');
+      if (!capsule) return;
+      const glider = capsule.querySelector('[data-zen-timer-glider]') as HTMLElement | null;
+      const pillsContainer = capsule.querySelector('.zen-timer-pills') as HTMLElement | null;
+      const activePill = capsule.querySelector('.zen-timer-pill.is-active') as HTMLElement | null;
+      if (!glider || !pillsContainer || !activePill) return;
+
+      const left = activePill.offsetLeft;
+      const width = activePill.offsetWidth;
+      if (width > 0) {
+        pillsContainer.classList.add('has-glider');
+        glider.style.width = `${width}px`;
+        glider.style.transform = `translateX(${left}px)`;
+        glider.style.opacity = '1';
+      }
+    }
+
+    function syncUI() {
+      const engine = getZenAudioEngine();
+      const state = engine.getState();
+      const capsule = document.getElementById('zen-sound-capsule');
+      const isOpen = capsule?.classList.contains('is-open') || false;
+
+      // 1. Sync global attribute on html for CSS styling
+      if (state.isPlaying) {
+        document.documentElement.setAttribute('data-zen-playing', 'true');
+      } else {
+        document.documentElement.removeAttribute('data-zen-playing');
+      }
+
+      // 2. Sync Header Toggle buttons across DOM
+      const headerToggles = document.querySelectorAll('[data-zen-sound-toggle]');
+      headerToggles.forEach((btn) => {
+        const scene = SOUNDSCAPES.find((s) => s.id === state.currentScene);
+        const sceneName = scene ? scene.name : '白噪音';
+        btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        if (state.isPlaying) {
+          btn.classList.add('is-playing');
+          btn.setAttribute('aria-pressed', 'true');
+          btn.setAttribute('title', `墨池听雨：${sceneName} (正在伴读)`);
+        } else {
+          btn.classList.remove('is-playing');
+          btn.setAttribute('aria-pressed', 'false');
+          btn.setAttribute('title', '墨池听雨 · 伴读音景');
+        }
+      });
+
+      if (!capsule) return;
+
+      // 3. Play button in capsule
+      const playBtn = capsule.querySelector('[data-zen-play-btn]');
+      const playLabel = capsule.querySelector('[data-zen-play-label]');
+      const activeScene = SOUNDSCAPES.find((s) => s.id === state.currentScene);
+
+      if (playBtn) {
+        if (state.isPlaying) {
+          playBtn.classList.add('is-playing');
+          if (playLabel) playLabel.textContent = '暂停伴读';
+          playBtn.setAttribute('aria-label', '暂停伴读');
+        } else {
+          playBtn.classList.remove('is-playing');
+          if (playLabel) playLabel.textContent = '伴读聆听';
+          playBtn.setAttribute('aria-label', '播放伴读');
+        }
+      }
+
+      // 4. Soundscape Cards
+      const sceneCards = capsule.querySelectorAll('[data-scene-id]');
+      sceneCards.forEach((card) => {
+        const sceneId = card.getAttribute('data-scene-id');
+        const isActive = sceneId === state.currentScene;
+        if (isActive) {
+          card.classList.add('is-active');
+          card.setAttribute('aria-checked', 'true');
+        } else {
+          card.classList.remove('is-active');
+          card.setAttribute('aria-checked', 'false');
+        }
+      });
+
+      // 4.1 Update dedicated poetic quote box
+      const quotePoem = capsule.querySelector('[data-zen-active-poem]');
+      const quoteDesc = capsule.querySelector('[data-zen-active-desc]');
+      if (quotePoem && activeScene) {
+        const targetPoem = `「${activeScene.poem}」`;
+        if (quotePoem.textContent !== targetPoem) {
+          gsap.fromTo(
+            [quotePoem, quoteDesc],
+            { opacity: 0.25, y: 3 },
+            { opacity: 1, y: 0, duration: 0.32, ease: 'power2.out', clearProps: 'transform' }
+          );
+          quotePoem.textContent = targetPoem;
+          if (quoteDesc) quoteDesc.textContent = activeScene.desc;
+        }
+      }
+
+      // 5. Volume Slider
+      const volumeSlider = capsule.querySelector('[data-zen-volume-slider]') as HTMLInputElement;
+      const volumeText = capsule.querySelector('[data-zen-volume-text]');
+      const volPercent = Math.round(state.volume * 100);
+      if (volumeSlider && parseInt(volumeSlider.value) !== volPercent) {
+        volumeSlider.value = String(volPercent);
+      }
+      if (volumeText) {
+        volumeText.textContent = `${volPercent}%`;
+      }
+
+      // 6. Timer Pills & Countdown
+      const timerPills = capsule.querySelectorAll('[data-timer-min]');
+      timerPills.forEach((pill) => {
+        const min = parseInt(pill.getAttribute('data-timer-min') || '0', 10);
+        if (min === state.timerDuration) {
+          pill.classList.add('is-active');
+          pill.setAttribute('aria-checked', 'true');
+        } else {
+          pill.classList.remove('is-active');
+          pill.setAttribute('aria-checked', 'false');
+        }
+      });
+
+      const countdownEl = capsule.querySelector('[data-zen-countdown]');
+      if (countdownEl) {
+        if (state.timerDuration > 0 && state.timerRemaining > 0) {
+          countdownEl.removeAttribute('hidden');
+          countdownEl.classList.remove('is-hidden');
+          countdownEl.textContent = formatTime(state.timerRemaining);
+        } else {
+          countdownEl.setAttribute('hidden', '');
+          countdownEl.classList.add('is-hidden');
+          countdownEl.textContent = '--:--';
+        }
+      }
+
+      updateTimerGlider();
+    }
+
+    function openCapsule() {
+      const capsule = document.getElementById('zen-sound-capsule');
+      if (!capsule) return;
+      capsule.removeAttribute('hidden');
+      capsule.classList.add('is-open');
+
+      positionCapsule();
+
+      // GSAP fluid elastic entrance
+      gsap.killTweensOf(capsule);
+      gsap.fromTo(
+        capsule,
+        {
+          opacity: 0,
+          scale: 0.93,
+          y: -10,
+        },
+        {
+          opacity: 1,
+          scale: 1,
+          y: 0,
+          duration: 0.36,
+          ease: 'back.out(1.4)',
+        }
+      );
+
+      // Signature ink splash at header toggle position
+      const toggleBtn = document.querySelector('[data-zen-sound-toggle]');
+      if (toggleBtn) {
+        const rect = toggleBtn.getBoundingClientRect();
+        (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 14);
+      }
+
+      syncUI();
+      requestAnimationFrame(() => {
+        updateTimerGlider();
+      });
+    }
+
+    function closeCapsule() {
+      const capsule = document.getElementById('zen-sound-capsule');
+      if (!capsule || capsule.hasAttribute('hidden')) return;
+
+      gsap.killTweensOf(capsule);
+      gsap.to(capsule, {
+        opacity: 0,
+        scale: 0.95,
+        y: -8,
+        duration: 0.22,
+        ease: 'power2.in',
+        onComplete: () => {
+          capsule.classList.remove('is-open');
+          capsule.setAttribute('hidden', '');
+          gsap.set(capsule, { clearProps: 'opacity,transform,visibility' });
+          syncUI();
+        },
+      });
+    }
+
+    function toggleCapsule() {
+      const capsule = document.getElementById('zen-sound-capsule');
+      if (!capsule) return;
+      if (capsule.hasAttribute('hidden') || !capsule.classList.contains('is-open')) {
+        openCapsule();
+      } else {
+        closeCapsule();
+      }
+    }
+
+    // Expose helpers on window for global buttons and View Transitions
+    (window as any).__openZenCapsule = openCapsule;
+    (window as any).__closeZenCapsule = closeCapsule;
+    (window as any).__toggleZenCapsule = toggleCapsule;
+
+    function bindCapsuleEvents(capsule: HTMLElement) {
+      if (capsule.dataset.zenBound === 'true') return;
+      capsule.dataset.zenBound = 'true';
+
+      // Close button
+      const closeBtn = capsule.querySelector('[data-zen-close-btn]');
+      closeBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeCapsule();
+      });
+
+      // Master play toggle button with GSAP spring & ripple
+      const playBtn = capsule.querySelector('[data-zen-play-btn]');
+      playBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        gsap.fromTo(
+          playBtn,
+          { scale: 0.94 },
+          { scale: 1, duration: 0.26, ease: 'back.out(2)', clearProps: 'transform' }
+        );
+        const rect = (playBtn as HTMLElement).getBoundingClientRect();
+        (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+        getZenAudioEngine().toggle();
+      });
+
+      // Soundscape cards selection with ripple wave & micro-interaction
+      const sceneCards = capsule.querySelectorAll('[data-scene-id]');
+      sceneCards.forEach((card) => {
+        card.addEventListener('click', (e) => {
+          e.stopPropagation();
+          gsap.fromTo(
+            card,
+            { scale: 0.95 },
+            { scale: 1, duration: 0.24, ease: 'back.out(2)', clearProps: 'transform' }
+          );
+          const rect = (card as HTMLElement).getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 7);
+
+          const sceneId = card.getAttribute('data-scene-id') as any;
+          if (sceneId) {
+            const engine = getZenAudioEngine();
+            if (!engine.getState().isPlaying) {
+              engine.play(sceneId);
+            } else {
+              engine.setScene(sceneId);
+            }
+          }
+        });
+      });
+
+      // Volume slider
+      const volumeSlider = capsule.querySelector('[data-zen-volume-slider]') as HTMLInputElement;
+      volumeSlider?.addEventListener('input', () => {
+        const val = parseInt(volumeSlider.value, 10) / 100;
+        getZenAudioEngine().setVolume(val);
+      });
+
+      // Timer pills
+      const timerPills = capsule.querySelectorAll('[data-timer-min]');
+      timerPills.forEach((pill) => {
+        pill.addEventListener('click', (e) => {
+          e.stopPropagation();
+          gsap.fromTo(
+            pill,
+            { scale: 0.93 },
+            { scale: 1, duration: 0.22, ease: 'back.out(2)', clearProps: 'transform' }
+          );
+          const rect = (pill as HTMLElement).getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 6);
+          const min = parseInt(pill.getAttribute('data-timer-min') || '0', 10);
+          getZenAudioEngine().setTimer(min);
+          updateTimerGlider();
+        });
+      });
+    }
+
+    // Global document and window event bindings (attached once per session)
+    if (!(window as any).__zenGlobalEventsBound) {
+      // Dismiss on Esc
+      window.addEventListener('keydown', (e) => {
+        const capsule = document.getElementById('zen-sound-capsule');
+        if (e.key === 'Escape' && capsule?.classList.contains('is-open')) {
+          closeCapsule();
+        }
+      });
+
+      // Dismiss when clicking outside
+      document.addEventListener('pointerdown', (e) => {
+        const capsule = document.getElementById('zen-sound-capsule');
+        if (!capsule || !capsule.classList.contains('is-open')) return;
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+        if (
+          !capsule.contains(target) &&
+          !target.closest('[data-zen-sound-toggle]')
+        ) {
+          closeCapsule();
+        }
+      });
+
+      // Global click delegation for Header toggle button
+      document.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement)?.closest('[data-zen-sound-toggle]');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        toggleCapsule();
+      });
+
+      // Reposition on window resize and scroll to ensure continuous clamping
+      window.addEventListener('resize', () => {
+        positionCapsule();
+        updateTimerGlider();
+      });
+      window.addEventListener('scroll', positionCapsule, { passive: true });
+      document.querySelector('.glass-nav')?.addEventListener('scroll', positionCapsule, { passive: true });
+
+      // Close capsule smoothly on Astro page transitions before swap
+      document.addEventListener('astro:before-swap', () => {
+        closeCapsule();
+      });
+
+      (window as any).__zenGlobalEventsBound = true;
+    }
+
+    function initListeners() {
+      const engine = getZenAudioEngine();
+      if (!unsubscribe) {
+        unsubscribe = engine.onStateChange(() => {
+          syncUI();
+        });
+      }
+
+      const capsule = document.getElementById('zen-sound-capsule');
+      if (capsule) {
+        // Ensure capsule is placed in <body> so it escapes containing blocks like backdrop-filter or perspective
+        if (capsule.parentElement !== document.body) {
+          document.body.appendChild(capsule);
+        }
+        bindCapsuleEvents(capsule);
+      }
+
+      syncUI();
+    }
+
+    document.addEventListener('astro:page-load', () => {
+      initListeners();
+    });
+
+    initListeners();
+  })();
+</script>

@@ -3,6 +3,7 @@ import '../styles/global.css';
 import { ClientRouter } from 'astro:transitions';
 import SiteIntro from '../components/SiteIntro.astro';
 import PostTransition from '../components/PostTransition.astro';
+import ZenSoundscape from '../components/ZenSoundscape.astro';
 
 const buildVersion = Date.now().toString(36);
 const searchIndexPath = `${import.meta.env.BASE_URL ?? '/'}search-index.json?v=${buildVersion}`;
@@ -318,6 +319,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <SiteIntro />
     <PostTransition />
     <canvas id="inkCanvas" transition:persist style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 100005;"></canvas>
+    <ZenSoundscape transition:persist />
     <div class="site-shell">
       <slot />
     </div>
@@ -436,13 +438,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           virtualScroll: (data) => {
             // When Shift key is held, completely bypass Lenis to permit horizontal scroll!
             if (data.event.shiftKey) return false;
-            // If any modal (e.g. Mermaid fullscreen modal, Life lottery modal) is open, completely block page scroll!
-            if (document.body.classList.contains('mermaid-modal-open') || document.body.classList.contains('life-modal-open')) return false;
+            // If any modal (e.g. Mermaid fullscreen modal, Life lottery modal, Gallery lightbox) is open, completely block page scroll!
+            if (document.body.classList.contains('mermaid-modal-open') || document.body.classList.contains('life-modal-open') || document.body.classList.contains('gallery-lightbox-open')) return false;
 
             const target = data.event.target;
             if (target instanceof Element) {
               // Completely prevent Lenis from scrolling page when interacting with TOC or modals
-              if (target.closest('.post-toc, .post-toc-inner, .post-toc-nav, .mermaid-modal-overlay, #mermaid-modal, [data-lenis-prevent]')) {
+              if (target.closest('.post-toc, .post-toc-inner, .post-toc-nav, .mermaid-modal-overlay, #mermaid-modal, #gallery-lightbox, .gallery-lightbox, [data-lenis-prevent]')) {
                 return false;
               }
               // When an inline diagram is zoomed, allow native pan/scroll without page hijacking
@@ -563,17 +565,17 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
       // follows the scroll (rising in from below when scrolling down, dropping in from above when
       // scrolling up) so the motion always agrees with where the element actually came from.
       // Opt-outs: data-enter-once (sidebar: only on hard loads), data-no-replay (inside pins).
-      // Nothing here touches filter/blur, so the whole sequence stays on the compositor.
-      const ENTER_OFFSET = { left: -140, right: 140, top: -110, bottom: 110 };
-      const ENTER_SCROLL_BIAS = 44; // vertical nudge on horizontal kinds during scroll re-entries
+      // Gentle, refined offsets: soft slide without violent jerking or snapping
+      const ENTER_OFFSET = { left: -46, right: 46, top: -38, bottom: 38 };
+      const ENTER_SCROLL_BIAS = 22; // subtle vertical nudge on horizontal kinds during scroll re-entries
       const ENTER_TRIGGER_PREFIX = 'enter:';
       // Sides converge first, then verticals, then scale/stamps, ink rows last
       const ENTER_ORDER = { left: 0, right: 0, top: 1, bottom: 1, scale: 2, stamp: 2, ink: 3 };
-      const ENTER_STAGGER = { default: 0.09, stamp: 0.13, ink: 0.07 };
+      const ENTER_STAGGER = { default: 0.08, stamp: 0.12, ink: 0.07 };
       let hasNavigated = false;
 
-      // Fast in, very long settle: 70% of the distance in the first fifth of the time
-      CustomEase.create('enter', 'M0,0 C0.06,0.62 0.16,0.9 0.42,0.975 0.62,1.005 0.8,1 1,1');
+      // Smooth, natural brush glide ease: gentle start, steady acceleration and soft settle (zero whip/snap)
+      CustomEase.create('enter', 'M0,0 C0.16,1 0.3,1 1,1');
 
       // Which way the page is moving — CSS reveals (post body) read it off <html>
       ScrollTrigger.create({
@@ -635,8 +637,13 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
       function splashAt(el) {
         if (typeof window.__inkSplash !== 'function') return;
+        if (!el || !el.isConnected) return;
         const rect = el.getBoundingClientRect();
-        window.__inkSplash(rect.left + rect.width / 2, rect.top + rect.height / 2, 14);
+        if (rect.width <= 0 || rect.height <= 0) return;
+        const centerX = Math.round(rect.left + rect.width / 2);
+        const centerY = Math.round(rect.top + rect.height / 2);
+        if (centerX <= 15 && centerY <= 15) return;
+        window.__inkSplash(centerX, centerY, 14);
       }
 
       // Adds this element's entrance to `tl` at `at` seconds; returns how long to wait before the
@@ -655,7 +662,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
             opacity: 1, scale: 1, rotation: restRotation,
             duration: 0.62,
             ease: 'back.out(2.2)',
-            onStart: () => { gsap.delayedCall(0.2, () => splashAt(el)); },
+            onStart: () => {
+              gsap.delayedCall(0.2, () => {
+                if (el && el.isConnected) splashAt(el);
+              });
+            },
             onComplete: () => finishEnter(el),
           }, at);
           el.querySelectorAll('[data-count]').forEach((numEl) => countUp(numEl, at + 0.25));
@@ -690,7 +701,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         gsap.set(el, from);
         tl.to(el, {
           opacity: 1, x: 0, y: 0, scale: 1,
-          duration: 1.6,
+          duration: 0.82,
           ease: 'enter',
           onComplete: () => finishEnter(el),
         }, at);
@@ -701,6 +712,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
       function replayEnter(el, scrollDir) {
         if (el.dataset.enterState === 'in') return;
         if (!isVisibleInFlow(el)) return;
+        if (el.classList.contains('is-filtered-out')) return;
         gsap.killTweensOf(el);
         scheduleEnter(gsap.timeline(), el, 0, scrollDir);
       }
@@ -708,6 +720,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
       // Scrolled fully out of the viewport: reset silently and arm for the next crossing
       function leaveEnter(el) {
         if (el.dataset.enterState !== 'in') return;
+        if (el.classList.contains('is-filtered-out')) return;
         // Triggers are measured once. An element that has grown since (an opened <details>)
         // can be "past its end" while still very much on screen — never hide that; re-measure.
         const rect = el.getBoundingClientRect();
@@ -922,6 +935,12 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
         });
       }
 
+      document.addEventListener('astro:before-swap', () => {
+        document.querySelectorAll('[data-enter]').forEach((el) => {
+          gsap.killTweensOf(el);
+        });
+      });
+
       document.addEventListener('astro:after-swap', () => {
         hasNavigated = true;
         enteredThisDocument = false;
@@ -941,9 +960,16 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           } catch {}
           (window as any).__postTransition.leave();
         }
+        const sidebarNav = document.querySelector('.glass-nav');
+        if (sidebarNav) sidebarNav.scrollTop = 0;
       });
 
       document.addEventListener('astro:page-load', () => {
+        const sidebarNav = document.querySelector('.glass-nav');
+        if (sidebarNav) {
+          sidebarNav.scrollTop = 0;
+          requestAnimationFrame(() => { sidebarNav.scrollTop = 0; });
+        }
         if (!enteredThisDocument) runPageEnter();
         initMagneticButtons();
         initScrollableContainers();
@@ -1049,6 +1075,11 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
 
 
         function sparkle(x, y, count) {
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+          // Guard against top-left (0, 0) origin collapse and out-of-bounds coordinates
+          if (x <= 15 && y <= 15) return;
+          if (x < 0 || y < 0) return;
+
           const currentTheme = document.documentElement.getAttribute('data-theme');
           const sparkleColors = currentTheme === 'moss' ? [
             '#FFF1F4', '#FFC2D1', '#FBE3E9', '#FFD3DE',
@@ -1172,6 +1203,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           let clickX = event.clientX;
           let clickY = event.clientY;
           if (clickX === 0 && clickY === 0) {
+            if (!event.isTrusted) return;
             const targetEl = event.target instanceof HTMLElement ? event.target : null;
             if (targetEl && typeof targetEl.getBoundingClientRect === 'function') {
               const rect = targetEl.getBoundingClientRect();
@@ -1185,6 +1217,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
               return;
             }
           }
+          if (clickX <= 15 && clickY <= 15) return;
           sparkle(clickX, clickY, 18);
         }, { signal });
 

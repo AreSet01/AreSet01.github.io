@@ -3,6 +3,7 @@ const navItems = [
   { label: 'Home', labelZh: 'Main*', href: '/' },
   { label: 'Archive', labelZh: 'All Doc', href: '/archive' },
   { label: 'Life', labelZh: 'Life / 拾光', href: '/life' },
+  { label: 'Gallery', labelZh: 'Gallery / 拾影', href: '/gallery' },
   { label: 'Timeline', labelZh: 'Timeline', href: '/timeline' },
   { label: 'Tags', labelZh: 'Tags', href: '/tags' },
   { label: 'Stats', labelZh: 'Stats', href: '/stats' },
@@ -23,8 +24,8 @@ const year = new Date().getFullYear();
 
 <header class="glass-nav" data-enter="left" data-enter-once>
   <div class="glass-nav-inner min-h-full flex flex-col justify-between">
-    <div class="flex flex-col gap-5 lg:gap-6 w-full">
-      <div class="flex items-center justify-between w-full">
+    <div class="flex flex-col gap-4 lg:gap-6 w-full">
+      <div class="flex items-center justify-between w-full mobile-top-bar">
         <a href="/" class="brand-mark">
           <span class="brand-seal" aria-hidden="true">汐</span>
           <span>梦付千秋</span>
@@ -41,8 +42,56 @@ const year = new Date().getFullYear();
             <polyline points="18 17 13 12 18 7"></polyline>
           </svg>
         </button>
+
+        <!-- 移动端顶部精炼操作群 (仅在 < 1024px 显示) -->
+        <div class="mobile-actions-cluster flex items-center gap-2 lg:hidden">
+          <button
+            class="mobile-search-btn"
+            type="button"
+            data-search-trigger
+            aria-label="打开搜索"
+            title="搜索 (⌘K)"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </button>
+          <button
+            class="zen-sound-toggle mobile-zen-btn"
+            type="button"
+            aria-label="打开白噪音伴读"
+            title="墨池听雨 · 伴读音景"
+            aria-haspopup="dialog"
+            aria-controls="zen-sound-capsule"
+            aria-expanded="false"
+            data-zen-sound-toggle
+          >
+            <span class="zen-toggle-inner">
+              <svg class="icon-zen-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+              </svg>
+              <span class="zen-toggle-ripple" aria-hidden="true"></span>
+              <span class="zen-toggle-dot" aria-hidden="true"></span>
+            </span>
+          </button>
+          <button
+            class="mobile-menu-toggle"
+            type="button"
+            aria-label="打开导航菜单"
+            aria-expanded="false"
+            aria-controls="mobile-drawer-panel"
+            data-mobile-menu-toggle
+          >
+            <span class="hamburger-box" aria-hidden="true">
+              <span class="hamburger-line top-line"></span>
+              <span class="hamburger-line mid-line"></span>
+              <span class="hamburger-line bot-line"></span>
+            </span>
+          </button>
+        </div>
       </div>
-      <div class="nav-cluster">
+      <div class="nav-cluster hidden lg:flex flex-col">
         <button
           class="nav-search-trigger"
           type="button"
@@ -65,6 +114,24 @@ const year = new Date().getFullYear();
           ))}
         </nav>
         <div class="nav-actions">
+          <button
+            class="zen-sound-toggle"
+            type="button"
+            aria-label="打开白噪音伴读"
+            title="墨池听雨 · 伴读音景"
+            aria-haspopup="dialog"
+            aria-controls="zen-sound-capsule"
+            aria-expanded="false"
+            data-zen-sound-toggle
+          >
+            <span class="zen-toggle-inner">
+              <svg class="icon-zen-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+              </svg>
+              <span class="zen-toggle-ripple" aria-hidden="true"></span>
+              <span class="zen-toggle-dot" aria-hidden="true"></span>
+            </span>
+          </button>
           <button
             class="cursor-trail-toggle"
             type="button"
@@ -128,10 +195,10 @@ const year = new Date().getFullYear();
       </div>
     </div>
     
-    <div class="sidebar-colophon hidden lg:flex flex-col gap-2 mt-auto pt-3 text-[0.75rem] leading-normal text-[var(--muted)]" style="font-family: var(--font-serif); font-style: italic;">
+    <div class="sidebar-colophon hidden lg:flex flex-col gap-1.5 mt-auto pt-2 text-[0.72rem] leading-normal text-[var(--muted)]" style="font-family: var(--font-serif); font-style: italic;">
       <div class="w-8 h-[1px] bg-[var(--rule)] mb-1"></div>
-      <p style="line-height: 1.55;">不持续且间断更新<br/>诶嘿？你怎么找到这里来的！！！</p>
-      <p class="font-mono not-italic tracking-[0.05em] uppercase text-[var(--text-strong)] mt-1.5">
+      <p style="line-height: 1.5;">不持续且间断更新<br/>诶嘿？你怎么找到这里来的！！！</p>
+      <p class="font-mono not-italic tracking-[0.05em] uppercase text-[var(--text-strong)] mt-1">
         &copy; {year} &middot; 梦付千秋
       </p>
       <p class="not-italic">
@@ -141,6 +208,130 @@ const year = new Date().getFullYear();
     </div>
   </div>
 </header>
+
+<!-- 移动端水墨抽屉遮罩与侧滑面板 -->
+<div
+  class="mobile-drawer-overlay"
+  data-mobile-drawer-overlay
+  aria-hidden="true"
+></div>
+
+<aside
+  class="mobile-drawer-panel"
+  id="mobile-drawer-panel"
+  data-mobile-drawer-panel
+  aria-label="移动端导航菜单"
+  aria-hidden="true"
+>
+  <div class="mobile-drawer-inner">
+    <div class="mobile-drawer-header">
+      <div class="drawer-brand">
+        <span class="brand-seal" aria-hidden="true">汐</span>
+        <span class="drawer-title">梦付千秋</span>
+      </div>
+      <button
+        class="mobile-drawer-close-btn"
+        type="button"
+        aria-label="关闭导航菜单"
+        data-mobile-drawer-close
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <nav class="mobile-drawer-nav" aria-label="移动端页面导航">
+      {navItems.map(item => (
+        <a
+          href={item.href}
+          class={`mobile-drawer-link ${isActive(item.href) ? 'is-active' : ''}`}
+          data-mobile-nav-link
+        >
+          <span class="mobile-link-dot" aria-hidden="true"></span>
+          <span class="mobile-link-text">{item.labelZh}</span>
+          <svg class="mobile-link-arrow" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </a>
+      ))}
+    </nav>
+
+    <div class="mobile-drawer-footer">
+      <div class="mobile-drawer-divider"></div>
+      <div class="mobile-drawer-controls">
+        <span class="drawer-controls-label">个性偏好</span>
+        <div class="drawer-controls-cluster">
+          <button
+            class="drawer-control-btn theme-toggle"
+            type="button"
+            aria-label="切换主题"
+            data-theme-toggle
+          >
+            <svg class="icon-sun" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+            </svg>
+            <svg class="icon-leaf" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M17 3c-6.5 0-11 2.6-12.6 7.4-.9 2.7-.4 5.2.1 6.4l1.3-2.3c1.1-2 3.1-4.4 6.4-6.2-2.6 2.4-4.4 5-5.4 7.7 1.3.3 3.6.3 5.6-.7C16.2 13.4 17.3 8.3 17 3z" />
+            </svg>
+            <svg class="icon-scroll" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M4.6 2.5h9.1c.83 0 1.5.67 1.5 1.5v11.2a2 2 0 0 0 .9-1.67V4.9h1.4v8.63a3.4 3.4 0 0 1-3.4 3.4H5.1a2.6 2.6 0 0 1-2.6-2.6V4.5c0-1.1.9-2 2.1-2zm-.7 2v9.83a1.2 1.2 0 0 0 1.2 1.2h8.9a2.56 2.56 0 0 1-.1-.73V4.5a.1.1 0 0 0-.1-.1H4.6a.7.7 0 0 0-.7.1z" />
+              <rect x="5.7" y="6.2" width="6.6" height="1.25" rx="0.6" />
+              <rect x="5.7" y="9" width="6.6" height="1.25" rx="0.6" />
+              <rect x="5.7" y="11.8" width="4.3" height="1.25" rx="0.6" />
+            </svg>
+            <span class="control-text">主题风格</span>
+          </button>
+          <button
+            class="drawer-control-btn font-toggle"
+            type="button"
+            aria-label="切换字体"
+            data-font-toggle
+          >
+            <svg class="icon-font-pixel" viewBox="0 0 16 16" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true">
+              <rect x="5" y="1" width="6" height="2" />
+              <rect x="3" y="3" width="2" height="12" />
+              <rect x="11" y="3" width="2" height="12" />
+              <rect x="5" y="7" width="6" height="2" />
+            </svg>
+            <svg class="icon-font-kai" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M16.78 2.55a1.62 1.62 0 0 0-2.29 0l-1.9 1.9 2.96 2.96 1.9-1.9a1.62 1.62 0 0 0 0-2.29z" />
+              <path d="M11.66 5.51 6.1 11.07c-.47.47-.8 1.06-.96 1.7l-.83 3.28a.62.62 0 0 0 .75.75l3.28-.83c.64-.16 1.23-.49 1.7-.96l5.56-5.56-2.96-2.96z" />
+              <path d="M4.16 16.63c-.6.46-1.42.68-2.45.68.42-.96.72-1.83.83-2.6l1.62 1.92z" opacity="0.65" />
+            </svg>
+            <span class="control-text">字形</span>
+          </button>
+          <button
+            class="drawer-control-btn cursor-trail-toggle"
+            type="button"
+            aria-label="关闭指针拖尾"
+            title="关闭指针拖尾"
+            data-cursor-trail-toggle
+          >
+            <svg class="icon-trail-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
+              <circle cx="17.5" cy="17.5" r="1.5" fill="currentColor" stroke="none"></circle>
+              <circle cx="21" cy="21" r="1" fill="currentColor" opacity="0.6" stroke="none"></circle>
+              <path d="M13 13l2 2"></path>
+            </svg>
+            <svg class="icon-trail-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
+              <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="2"></line>
+            </svg>
+            <span class="control-text">水墨拖尾</span>
+          </button>
+        </div>
+      </div>
+      <div class="drawer-colophon">
+        <p>&copy; {year} · 梦付千秋 · 诗意留白</p>
+      </div>
+    </div>
+  </div>
+</aside>
 
 <script>
 (function () {
@@ -529,8 +720,22 @@ import gsap from 'gsap';
     const collapseBtn = document.querySelector('[data-sidebar-collapse]');
     const expandBtn = document.querySelector('[data-sidebar-expand]');
     if (!nav || !inner) return;
+
+    const resetScroll = () => {
+      nav.scrollTop = 0;
+    };
+    resetScroll();
+    requestAnimationFrame(resetScroll);
+
     if (nav.dataset.sidebarBound === 'true') return;
     nav.dataset.sidebarBound = 'true';
+
+    nav.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => {
+        resetScroll();
+        requestAnimationFrame(resetScroll);
+      });
+    });
 
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -559,6 +764,120 @@ import gsap from 'gsap';
 
   document.addEventListener('astro:page-load', setupSidebar);
   setupSidebar();
+})();
+</script>
+
+<script>
+(function setupMobileDrawerController() {
+  function setupDrawer() {
+    const toggleBtn = document.querySelector('[data-mobile-menu-toggle]');
+    const closeBtn = document.querySelector('[data-mobile-drawer-close]');
+    const overlay = document.querySelector('[data-mobile-drawer-overlay]');
+    const panel = document.querySelector('[data-mobile-drawer-panel]');
+    if (!panel || !toggleBtn) return;
+
+    function openDrawer() {
+      document.documentElement.classList.add('mobile-menu-open');
+      document.body.classList.add('mobile-menu-open');
+      panel.classList.add('is-open');
+      panel.setAttribute('aria-hidden', 'false');
+      toggleBtn.classList.add('is-active');
+      toggleBtn.setAttribute('aria-expanded', 'true');
+      overlay?.classList.add('is-open');
+      overlay?.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeDrawer() {
+      document.documentElement.classList.remove('mobile-menu-open');
+      document.body.classList.remove('mobile-menu-open');
+      panel.classList.remove('is-open');
+      panel.setAttribute('aria-hidden', 'true');
+      toggleBtn.classList.remove('is-active');
+      toggleBtn.setAttribute('aria-expanded', 'false');
+      overlay?.classList.remove('is-open');
+      overlay?.setAttribute('aria-hidden', 'true');
+    }
+
+    function toggle() {
+      if (panel.classList.contains('is-open')) {
+        closeDrawer();
+      } else {
+        openDrawer();
+      }
+    }
+
+    if (toggleBtn.dataset.drawerBound === 'true') return;
+    toggleBtn.dataset.drawerBound = 'true';
+
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggle();
+    });
+
+    closeBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeDrawer();
+    });
+
+    overlay?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeDrawer();
+    });
+
+    // Close when clicking nav link so view-transition or navigation is instant
+    panel.querySelectorAll('[data-mobile-nav-link]').forEach((link) => {
+      link.addEventListener('click', () => {
+        closeDrawer();
+      });
+    });
+
+    // ESC key to dismiss
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && panel.classList.contains('is-open')) {
+        closeDrawer();
+      }
+    });
+
+    // Touch gesture: swipe right to dismiss
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    panel.addEventListener('touchstart', (e) => {
+      if (e.touches && e.touches.length > 0) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+
+    panel.addEventListener('touchend', (e) => {
+      if (e.changedTouches && e.changedTouches.length > 0) {
+        const deltaX = e.changedTouches[0].clientX - touchStartX;
+        const deltaY = e.changedTouches[0].clientY - touchStartY;
+        // Right swipe threshold: horizontal swipe of at least 48px, mostly horizontal
+        if (deltaX > 48 && deltaX > Math.abs(deltaY) * 1.2) {
+          closeDrawer();
+        }
+      }
+    }, { passive: true });
+  }
+
+  // Safe cleanup across View Transitions
+  document.addEventListener('astro:before-swap', () => {
+    document.documentElement.classList.remove('mobile-menu-open');
+    document.body.classList.remove('mobile-menu-open');
+    const panel = document.querySelector('[data-mobile-drawer-panel]');
+    const toggleBtn = document.querySelector('[data-mobile-menu-toggle]');
+    const overlay = document.querySelector('[data-mobile-drawer-overlay]');
+    panel?.classList.remove('is-open');
+    panel?.setAttribute('aria-hidden', 'true');
+    toggleBtn?.classList.remove('is-active');
+    toggleBtn?.setAttribute('aria-expanded', 'false');
+    overlay?.classList.remove('is-open');
+    overlay?.setAttribute('aria-hidden', 'true');
+  });
+
+  document.addEventListener('astro:page-load', setupDrawer);
+  setupDrawer();
 })();
 </script>
 
@@ -593,19 +912,29 @@ import gsap from 'gsap';
 
     .glass-nav {
       position: sticky !important;
+      top: 0 !important;
+      left: 0 !important;
       height: 100vh !important;
       height: 100dvh !important;
-      width: clamp(14rem, 20vw, 18rem);
-      min-width: clamp(14rem, 20vw, 18rem);
+      box-sizing: border-box !important;
+      width: clamp(15.5rem, 20vw, 19rem);
+      min-width: clamp(15.5rem, 20vw, 19rem);
       flex-shrink: 0;
-      overflow-y: auto;
-      overflow-x: hidden;
+      overflow-y: hidden !important;
+      overflow-x: hidden !important;
       scrollbar-width: none;
       perspective: 1400px;
+      padding: clamp(1.2rem, 2.5vh, 1.8rem) 0 clamp(1.2rem, 2.5vh, 1.8rem) 0 !important;
       transition: width 820ms cubic-bezier(0.22, 1, 0.36, 1),
                   min-width 820ms cubic-bezier(0.22, 1, 0.36, 1),
                   margin-left 820ms cubic-bezier(0.22, 1, 0.36, 1),
                   opacity 320ms ease !important;
+    }
+
+    @media (max-height: 520px) {
+      .glass-nav {
+        overflow-y: auto !important;
+      }
     }
 
     .glass-nav::-webkit-scrollbar {
@@ -614,13 +943,71 @@ import gsap from 'gsap';
 
     /* GSAP owns transform/opacity here (the hinge fold) — no CSS transition to fight it */
     .glass-nav-inner {
-      width: clamp(14rem, 20vw, 18rem) !important;
-      min-width: clamp(14rem, 20vw, 18rem) !important;
-      min-height: 100% !important;
+      width: clamp(15.5rem, 20vw, 19rem) !important;
+      min-width: clamp(15.5rem, 20vw, 19rem) !important;
+      height: 100% !important;
+      max-height: 100% !important;
+      box-sizing: border-box !important;
+      padding: 0 clamp(1.5rem, 2.2vw, 2.2rem) !important;
       transform-origin: left center;
       transform-style: preserve-3d;
       backface-visibility: hidden;
       transition: none !important;
+    }
+
+    .glass-nav .nav-cluster {
+      gap: clamp(1rem, 2.2vh, 1.6rem) !important;
+      width: 100% !important;
+    }
+
+    .glass-nav .nav-links {
+      gap: clamp(0.6rem, 1.6vh, 1.15rem) !important;
+      width: 100% !important;
+    }
+
+    .glass-nav .nav-link {
+      display: inline-flex !important;
+      align-items: center !important;
+      width: auto !important;
+      padding: 0.32rem 0.6rem 0.32rem 0 !important;
+      font-size: 0.82rem !important;
+      font-weight: 600 !important;
+      letter-spacing: 0.16em !important;
+      line-height: 1.4 !important;
+      background: transparent !important;
+      border-radius: 0 !important;
+      color: var(--muted-strong) !important;
+      transition: color 240ms ease !important;
+    }
+
+    .glass-nav .nav-link::after {
+      left: 0 !important;
+      right: 0.15rem !important;
+      bottom: 0.05rem !important;
+      height: 1.5px !important;
+    }
+
+    .glass-nav .nav-link:hover {
+      background: transparent !important;
+      color: var(--text-strong) !important;
+    }
+
+    .glass-nav .nav-link:hover::after,
+    .glass-nav .nav-link.is-active::after {
+      transform: scaleX(1) !important;
+    }
+
+    .glass-nav .nav-link.is-active {
+      background: transparent !important;
+      color: var(--text-strong) !important;
+      font-weight: 600 !important;
+    }
+
+    .glass-nav .sidebar-colophon {
+      padding-top: 0.75rem !important;
+      gap: 0.45rem !important;
+      font-size: 0.72rem !important;
+      line-height: 1.55 !important;
     }
 
     html[data-sidebar-folding="true"] .glass-nav-inner {

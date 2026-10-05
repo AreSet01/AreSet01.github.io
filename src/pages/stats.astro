@@ -4,9 +4,31 @@ import Header from '../components/Header.astro';
 import { getCollection } from 'astro:content';
 import { formatDate } from '../utils/date';
 import { byNewest, postMetrics, tagStats, categoryStats, tagSlug } from '../utils/posts';
+import { LIFE_ITEMS, LIFE_CATEGORIES, getAllLifeCities, getAllLifeTags } from '../data/life';
+import { GALLERY_PHOTOS, PHOTO_CATEGORIES } from '../data/gallery';
 
 const allPosts = await getCollection('posts', ({ data }) => !data.draft);
 const posts = byNewest(allPosts);
+
+// ---- Life (拾光) Metrics ----
+const totalLifeItems = LIFE_ITEMS.length;
+const lifeCities = getAllLifeCities();
+const lifeTags = getAllLifeTags();
+const lifeByCategory = LIFE_CATEGORIES.filter((c) => c.id !== 'all').map((cat) => ({
+  ...cat,
+  count: LIFE_ITEMS.filter((item) => item.category === cat.id).length,
+}));
+const maxLifeCategory = Math.max(1, ...lifeByCategory.map((c) => c.count));
+
+// ---- Gallery (拾影) Metrics ----
+const totalPhotos = GALLERY_PHOTOS.length;
+const photoCategories = PHOTO_CATEGORIES.filter((c) => c.id !== 'all').map((cat) => ({
+  ...cat,
+  count: GALLERY_PHOTOS.filter((photo) => photo.category === cat.id).length,
+}));
+const maxPhotoCategory = Math.max(1, ...photoCategories.map((c) => c.count));
+const photoLocations = Array.from(new Set(GALLERY_PHOTOS.map((p) => p.location.split('·')[0].trim())));
+const photoCameras = Array.from(new Set(GALLERY_PHOTOS.map((p) => p.exif.camera)));
 
 const rows = posts.map((post) => {
   const metrics = postMetrics(post);
@@ -87,7 +109,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
 
 <BaseLayout title="写作统计 - 梦付千秋" description="这个博客到今天为止写了多少字、多少行代码">
   <Header />
-  <main class="container-wide flex-1 pt-14 pb-20 md:pt-20">
+  <main class="container-wide flex-1 pt-6 pb-20 lg:pt-8">
     <section class="stats-head">
       <p class="eyebrow" data-enter="top">Stats / 写作统计</p>
       <h1 class="section-title mt-4" data-enter="left">写了多少</h1>
@@ -101,22 +123,35 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
       <p class="stats-hero-label">累计字数</p>
       <p class="stats-hero-value" data-stat-value={totalChars}>{nf.format(totalChars)}</p>
       <p class="stats-hero-note">
-        分布在 {posts.length} 篇文章里，另有 {nf.format(totalCode)} 行代码
+        分布在 {posts.length} 篇文章里，另收录 {totalLifeItems} 项生活拾光、{totalPhotos} 幅拾影留痕与 {nf.format(totalCode)} 行代码
       </p>
     </section>
 
     <section class="stats-kpis" data-enter="bottom">
       <div class="stats-kpi">
-        <p class="stats-kpi-label">文章</p>
+        <p class="stats-kpi-label">技术文章</p>
         <p class="stats-kpi-value" data-stat-value={posts.length}>{posts.length}</p>
+        <p class="stats-kpi-unit">篇</p>
       </div>
       <div class="stats-kpi">
-        <p class="stats-kpi-label">代码行</p>
+        <p class="stats-kpi-label">生活拾光</p>
+        <p class="stats-kpi-value" data-stat-value={totalLifeItems}>{totalLifeItems}</p>
+        <p class="stats-kpi-unit">条记趣</p>
+      </div>
+      <div class="stats-kpi">
+        <p class="stats-kpi-label">拾影画廊</p>
+        <p class="stats-kpi-value" data-stat-value={totalPhotos}>{totalPhotos}</p>
+        <p class="stats-kpi-unit">张摄影</p>
+      </div>
+      <div class="stats-kpi">
+        <p class="stats-kpi-label">漫游足迹</p>
+        <p class="stats-kpi-value" data-stat-value={lifeCities.length}>{lifeCities.length}</p>
+        <p class="stats-kpi-unit">座城市</p>
+      </div>
+      <div class="stats-kpi">
+        <p class="stats-kpi-label">代码行数</p>
         <p class="stats-kpi-value" data-stat-value={totalCode}>{nf.format(totalCode)}</p>
-      </div>
-      <div class="stats-kpi">
-        <p class="stats-kpi-label">标签</p>
-        <p class="stats-kpi-value" data-stat-value={tags.length}>{tags.length}</p>
+        <p class="stats-kpi-unit">行</p>
       </div>
       <div class="stats-kpi">
         <p class="stats-kpi-label">总阅读时长</p>
@@ -124,11 +159,9 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
         <p class="stats-kpi-unit">分钟</p>
       </div>
       <div class="stats-kpi">
-        <p class="stats-kpi-label">平均每篇</p>
-        <p class="stats-kpi-value" data-stat-value={Math.round(totalChars / Math.max(1, posts.length))}>
-          {nf.format(Math.round(totalChars / Math.max(1, posts.length)))}
-        </p>
-        <p class="stats-kpi-unit">字</p>
+        <p class="stats-kpi-label">全站标签</p>
+        <p class="stats-kpi-value" data-stat-value={tags.length + lifeTags.length}>{tags.length + lifeTags.length}</p>
+        <p class="stats-kpi-unit">个</p>
       </div>
     </section>
 
@@ -245,6 +278,66 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
       </ul>
     </section>
 
+    <!-- 5. Life / 拾光生活统计 -------------------------------------------- -->
+    <section class="chart-card" data-enter="bottom">
+      <div class="chart-head flex flex-col md:flex-row md:items-center justify-between gap-2">
+        <div>
+          <h2>拾光纪事 · 生活印迹</h2>
+          <p>记录日常去处、玩乐体验与心选好物，共 {totalLifeItems} 项美好回忆，漫步于 {lifeCities.join('、')} 等地~</p>
+        </div>
+        <a href="/life" class="stats-sub-link">探索生活拾光 &rarr;</a>
+      </div>
+      <ul class="chart-bars" data-chart-bars>
+        {lifeByCategory.map((cat, index) => (
+          <li
+            class:list={['chart-bar-row', { 'is-peak': index === 0 }]}
+            style={`--value: ${(cat.count / maxLifeCategory).toFixed(3)}; --i: ${index}`}
+            data-tip={`${cat.name} · ${cat.count} 条记录 · ${cat.desc}`}
+          >
+            <span class="chart-bar-name">{cat.icon} {cat.name}</span>
+            <span class="chart-bar-track" aria-hidden="true"><span class="chart-bar-fill"></span></span>
+            <span class="chart-bar-value">{cat.count} 条</span>
+          </li>
+        ))}
+      </ul>
+      <div class="stats-meta-row flex flex-wrap items-center gap-2">
+        <span class="stats-meta-label">漫游足迹：</span>
+        {lifeCities.map((city) => (
+          <span class="stats-tag-pill">{city}</span>
+        ))}
+      </div>
+    </section>
+
+    <!-- 6. Gallery / 拾影画廊统计 ----------------------------------------- -->
+    <section class="chart-card" data-enter="bottom">
+      <div class="chart-head flex flex-col md:flex-row md:items-center justify-between gap-2">
+        <div>
+          <h2>拾影集 · 山海光影</h2>
+          <p>定格 {totalPhotos} 幅山海风光与城市人文瞬息，主力器材 {photoCameras.join('、')}~</p>
+        </div>
+        <a href="/gallery" class="stats-sub-link">移步拾影画廊 &rarr;</a>
+      </div>
+      <ul class="chart-bars" data-chart-bars>
+        {photoCategories.map((cat, index) => (
+          <li
+            class:list={['chart-bar-row', { 'is-peak': index === 0 }]}
+            style={`--value: ${(cat.count / maxPhotoCategory).toFixed(3)}; --i: ${index}`}
+            data-tip={`${cat.name} · ${cat.count} 张摄影 · ${cat.desc}`}
+          >
+            <span class="chart-bar-name">{cat.icon} {cat.name}</span>
+            <span class="chart-bar-track" aria-hidden="true"><span class="chart-bar-fill"></span></span>
+            <span class="chart-bar-value">{cat.count} 张</span>
+          </li>
+        ))}
+      </ul>
+      <div class="stats-meta-row flex flex-wrap items-center gap-2">
+        <span class="stats-meta-label">拍摄地点：</span>
+        {photoLocations.map((loc) => (
+          <span class="stats-tag-pill">{loc}</span>
+        ))}
+      </div>
+    </section>
+
     <!-- Table view: every number above, reachable without hovering -------- -->
     <details class="stats-table" data-enter="bottom">
       <summary>数据表</summary>
@@ -274,6 +367,38 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
               <td class="is-num">{totalMinutes} min</td>
             </tr>
           </tfoot>
+        </table>
+
+        <table>
+          <caption>拾光生活记录</caption>
+          <thead><tr><th scope="col">标题</th><th scope="col">分类</th><th scope="col">城市</th><th scope="col">星级</th><th scope="col">日期</th></tr></thead>
+          <tbody>
+            {LIFE_ITEMS.map((item) => (
+              <tr>
+                <td><a href="/life">{item.title}</a></td>
+                <td>{item.categoryLabel}</td>
+                <td>{item.city}</td>
+                <td class="is-num">{'★'.repeat(item.rating)}</td>
+                <td>{item.dateAdded ?? '近期'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <table>
+          <caption>拾影摄影记录</caption>
+          <thead><tr><th scope="col">照片名称</th><th scope="col">影集</th><th scope="col">地点</th><th scope="col">器材规格</th><th scope="col">拍摄日期</th></tr></thead>
+          <tbody>
+            {GALLERY_PHOTOS.map((photo) => (
+              <tr>
+                <td><a href="/gallery">{photo.title}</a></td>
+                <td>{photo.categoryLabel}</td>
+                <td>{photo.location}</td>
+                <td>{photo.exif.camera} · {photo.exif.lens}</td>
+                <td>{photo.date}</td>
+              </tr>
+            ))}
+          </tbody>
         </table>
 
         <table>
@@ -540,3 +665,47 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     (window as any)[LISTENER_KEY] = true;
   }
 </script>
+
+<style>
+  .stats-sub-link {
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dashed var(--rule-strong);
+    padding-bottom: 2px;
+    transition: all 200ms ease;
+    white-space: nowrap;
+    align-self: flex-start;
+  }
+  .stats-sub-link:hover {
+    color: var(--text-strong);
+    border-bottom-style: solid;
+    border-bottom-color: var(--text-strong);
+  }
+  .stats-meta-row {
+    margin-top: 1.15rem;
+    font-size: 0.8rem;
+  }
+  .stats-meta-label {
+    color: var(--muted);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.78rem;
+  }
+  .stats-tag-pill {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    color: var(--text-strong);
+    font-size: 0.74rem;
+    font-family: var(--font-body);
+    transition: all 180ms ease;
+  }
+  .stats-tag-pill:hover {
+    background: var(--bg-elev);
+    border-color: var(--rule-strong);
+  }
+</style>

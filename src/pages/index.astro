@@ -20,8 +20,8 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
 
 <BaseLayout title="梦付千秋 - 日常记录与技术分享">
   <Header />
-  <main class="container-wide flex-1" style="padding-top: 2rem;">
-    <section class="home-hero" style="padding-block: 4rem 3rem;">
+  <main class="container-wide flex-1 pt-6 pb-16 lg:pt-8">
+    <section class="home-hero" style="padding-block: 0.5rem 2.5rem;">
       <div class="home-hero-copy">
         <p class="eyebrow" data-enter="top">Vol. 01 / Digital Garden</p>
         <h1 class="home-hero-title" style="font-size: clamp(2rem, 5vw, 3.4rem);" data-enter="left">
@@ -110,7 +110,7 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
         <div class="empty-note">暂无文章，快去写一篇吧</div>
       ) : (
         <div class="notes-grid">
-          {posts.map((post, index) => (
+          {posts.slice(0, 3).map((post, index) => (
             <PostCard
               title={post.data.title}
               description={post.data.description}
@@ -121,6 +121,13 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
               locked={post.data.locked}
             />
           ))}
+        </div>
+      )}
+      {posts.length > 3 && (
+        <div class="flex justify-center mt-10" data-enter="bottom">
+          <a href="/archive" class="btn-secondary" style="font-family: var(--font-body); letter-spacing: 0.08em;">
+            浏览全部文章 ({posts.length} 篇) &rarr;
+          </a>
         </div>
       )}
     </section>
