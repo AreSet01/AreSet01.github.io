@@ -196,6 +196,7 @@ const hasToc = tocHeadings.length > 1;
               <div class="post-toc-tools flex items-center gap-2">
                 <button
                   type="button"
+                  id="post-toc-search-btn"
                   class="post-toc-search-btn max-sm:hidden"
                   data-article-search-trigger
                   aria-label="搜索本文 (⌘F 或 /)"
@@ -210,6 +211,7 @@ const hasToc = tocHeadings.length > 1;
                 </button>
                 <button
                   type="button"
+                  id="post-toc-notes-btn"
                   class="post-toc-search-btn max-sm:hidden"
                   data-article-notes-trigger
                   aria-label="查看文章高亮笔记"
@@ -786,36 +788,81 @@ const hasToc = tocHeadings.length > 1;
         const headings = links
           .map((link) => {
             const id = link.getAttribute('data-toc-link');
-            const heading = id ? prose.querySelector(`#${CSS.escape(id)}`) : null;
+            const heading = id ? (document.getElementById(id) || (window.CSS && CSS.escape ? prose.querySelector('#' + CSS.escape(id)) : null)) : null;
             return heading ? { link, heading } : null;
           })
           .filter(Boolean);
 
+        let currentActiveId = null;
+
         function setActive(id) {
+          if (!id || id === currentActiveId) return;
+          currentActiveId = id;
           links.forEach((link) => {
-            link.classList.toggle('is-active', link.getAttribute('data-toc-link') === id);
+            const isCurrent = link.getAttribute('data-toc-link') === id;
+            link.classList.toggle('is-active', isCurrent);
+            if (isCurrent && toc.open) {
+              link.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
           });
         }
 
+        // Smooth scroll to heading when TOC link is clicked
         links.forEach((link) => {
-          link.addEventListener('click', () => {
+          link.addEventListener('click', (event) => {
+            if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
             const id = link.getAttribute('data-toc-link');
-            if (id) setActive(id);
+            if (!id) return;
+            const targetEl = document.getElementById(id) || (window.CSS && CSS.escape ? prose.querySelector('#' + CSS.escape(id)) : null);
+            if (targetEl) {
+              event.preventDefault();
+              setActive(id);
+              if (window.lenis) {
+                window.lenis.scrollTo(targetEl, { offset: -70 });
+              } else {
+                const top = targetEl.getBoundingClientRect().top + window.scrollY - 70;
+                window.scrollTo({ top, behavior: 'smooth' });
+              }
+              try {
+                history.pushState(null, '', '#' + id);
+              } catch (_) {}
+            }
           }, { signal });
         });
 
-        // 文章目录展开/收起平滑水墨缓动动画 (Water-ink Easing)
+        // 文章目录展开/收起平滑缓动动画
         const summary = toc.querySelector('.post-toc-summary');
-        const expander = toc.querySelector('.post-toc-expander') as HTMLElement | null;
-        const inner = toc.querySelector('.post-toc-inner') as HTMLElement | null;
+        const expander = toc.querySelector('.post-toc-expander');
+        const inner = toc.querySelector('.post-toc-inner');
         let isOpening = false;
         let isClosing = false;
-        let tocAnim: Animation | null = null;
+        let tocAnim = null;
 
         if (summary && expander && inner) {
+          // Event isolation for child buttons inside <summary>
+          const summaryButtons = summary.querySelectorAll('button, a, input');
+          summaryButtons.forEach((btn) => {
+            btn.addEventListener('click', (event) => {
+              event.stopPropagation();
+              event.preventDefault();
+              if (btn.matches('#post-toc-notes-btn, [data-article-notes-trigger]')) {
+                if (window.__articleHighlights && typeof window.__articleHighlights.openDrawer === 'function') {
+                  window.__articleHighlights.openDrawer();
+                } else {
+                  const pill = document.getElementById('article-highlights-floating-pill');
+                  if (pill) pill.click();
+                }
+              }
+            }, { signal });
+          });
+
           summary.addEventListener('click', (event) => {
-            const target = event.target as HTMLElement | null;
-            if (target && target.closest('button, a, input')) return;
+            const target = event.target instanceof Element ? event.target : null;
+            if (target && target.closest('button, a, input, [role="button"]')) {
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
 
             event.preventDefault();
 
@@ -831,8 +878,10 @@ const hasToc = tocHeadings.length > 1;
               toc.classList.toggle('is-collapsed', !toc.open);
               expander.style.height = '';
               expander.style.overflow = '';
-              try { (window as any).lenis?.resize(); } catch {}
-              try { (window as any).ScrollTrigger?.refresh(); } catch {}
+              expander.style.opacity = '';
+              expander.style.transform = '';
+              try { window.lenis?.resize(); } catch (_) {}
+              try { window.ScrollTrigger?.refresh(); } catch (_) {}
               toc.dispatchEvent(new Event('toggle'));
               return;
             }
@@ -858,7 +907,9 @@ const hasToc = tocHeadings.length > 1;
               toc.classList.remove('is-collapsed');
               expander.style.overflow = 'hidden';
 
-              const targetHeight = inner.offsetHeight || inner.scrollHeight;
+              // expander.scrollHeight includes the full inner content and its margins (such as margin-top: 0.85rem),
+              // preventing the 13.6px sudden jump at animation end.
+              const targetHeight = expander.scrollHeight;
               const remainingFraction = targetHeight > 0 ? (targetHeight - currentHeight) / targetHeight : 1;
               const duration = Math.max(160, Math.round(450 * Math.min(1, Math.max(0.2, remainingFraction))));
 
@@ -880,23 +931,36 @@ const hasToc = tocHeadings.length > 1;
               });
 
               tocAnim.onfinish = () => {
+                if (tocAnim) {
+                  tocAnim.cancel();
+                  tocAnim = null;
+                }
                 expander.style.height = '';
                 expander.style.overflow = '';
+                expander.style.opacity = '';
+                expander.style.transform = '';
+                isOpening = false;
+                const activeLink = toc.querySelector('.post-toc-link.is-active');
+                if (activeLink) {
+                  activeLink.scrollIntoView({ block: 'nearest' });
+                }
+                try { window.lenis?.resize(); } catch (_) {}
+                try { window.ScrollTrigger?.refresh(); } catch (_) {}
+                toc.dispatchEvent(new Event('toggle'));
+              };
+
+              tocAnim.oncancel = () => {
                 tocAnim = null;
                 isOpening = false;
-                try { (window as any).lenis?.resize(); } catch {}
-                try { (window as any).ScrollTrigger?.refresh(); } catch {}
-                toc.dispatchEvent(new Event('toggle'));
               };
             } else {
               // ----- COLLAPSE -----
               isOpening = false;
               isClosing = true;
 
-              let currentHeight = expander.offsetHeight;
+              let currentHeight = expander.getBoundingClientRect().height;
               let currentOpacity = 1;
               if (tocAnim) {
-                currentHeight = expander.getBoundingClientRect().height;
                 const style = window.getComputedStyle(expander);
                 currentOpacity = parseFloat(style.opacity) || 1;
                 tocAnim.cancel();
@@ -905,7 +969,7 @@ const hasToc = tocHeadings.length > 1;
 
               toc.classList.add('is-collapsed');
               expander.style.overflow = 'hidden';
-              const totalHeight = inner.offsetHeight || inner.scrollHeight || currentHeight;
+              const totalHeight = expander.scrollHeight || currentHeight;
 
               const remainingFraction = totalHeight > 0 ? currentHeight / totalHeight : 1;
               const duration = Math.max(160, Math.round(420 * Math.min(1, Math.max(0.2, remainingFraction))));
@@ -929,13 +993,23 @@ const hasToc = tocHeadings.length > 1;
 
               tocAnim.onfinish = () => {
                 toc.open = false;
+                if (tocAnim) {
+                  tocAnim.cancel();
+                  tocAnim = null;
+                }
                 expander.style.height = '';
                 expander.style.overflow = '';
+                expander.style.opacity = '';
+                expander.style.transform = '';
+                isClosing = false;
+                try { window.lenis?.resize(); } catch (_) {}
+                try { window.ScrollTrigger?.refresh(); } catch (_) {}
+                toc.dispatchEvent(new Event('toggle'));
+              };
+
+              tocAnim.oncancel = () => {
                 tocAnim = null;
                 isClosing = false;
-                try { (window as any).lenis?.resize(); } catch {}
-                try { (window as any).ScrollTrigger?.refresh(); } catch {}
-                toc.dispatchEvent(new Event('toggle'));
               };
             }
           }, { signal });
@@ -944,26 +1018,43 @@ const hasToc = tocHeadings.length > 1;
         if (!headings.length || !('IntersectionObserver' in window)) {
           const firstId = links[0]?.getAttribute('data-toc-link');
           if (firstId) setActive(firstId);
-          window[cleanupKey] = () => controller.abort();
+          window[cleanupKey] = () => {
+            if (tocAnim) {
+              tocAnim.cancel();
+              tocAnim = null;
+            }
+            controller.abort();
+          };
           return;
         }
 
-        const visible = new Map();
+        const visible = new Set();
         const observer = new IntersectionObserver((entries) => {
           entries.forEach((entry) => {
             const id = entry.target.id;
             if (!id) return;
             if (entry.isIntersecting) {
-              visible.set(id, entry.boundingClientRect.top);
+              visible.add(id);
             } else {
               visible.delete(id);
             }
           });
 
           if (visible.size > 0) {
-            const [id] = Array.from(visible.entries()).sort((a, b) => a[1] - b[1])[0];
-            setActive(id);
-            return;
+            const firstVisible = headings.find(({ heading }) => visible.has(heading.id));
+            if (firstVisible) {
+              setActive(firstVisible.heading.id);
+              return;
+            }
+          }
+
+          // Initial fallback when page is near the top
+          if (window.scrollY < 200 && links.length > 0) {
+            const firstId = links[0].getAttribute('data-toc-link');
+            if (firstId) {
+              setActive(firstId);
+              return;
+            }
           }
 
           const current = headings
@@ -978,7 +1069,32 @@ const hasToc = tocHeadings.length > 1;
 
         headings.forEach(({ heading }) => observer.observe(heading));
 
+        // Initial state determination on load (hash takes priority over top fallback)
+        if (location.hash) {
+          const hashId = decodeURIComponent(location.hash.slice(1));
+          if (hashId && links.some((l) => l.getAttribute('data-toc-link') === hashId)) {
+            setActive(hashId);
+          }
+        }
+        if (!currentActiveId && window.scrollY < 200 && links.length > 0) {
+          const firstId = links[0].getAttribute('data-toc-link');
+          if (firstId) setActive(firstId);
+        }
+
+        window.addEventListener('hashchange', () => {
+          if (location.hash) {
+            const hashId = decodeURIComponent(location.hash.slice(1));
+            if (hashId && links.some((l) => l.getAttribute('data-toc-link') === hashId)) {
+              setActive(hashId);
+            }
+          }
+        }, { signal });
+
         window[cleanupKey] = () => {
+          if (tocAnim) {
+            tocAnim.cancel();
+            tocAnim = null;
+          }
           controller.abort();
           observer.disconnect();
         };
@@ -1189,12 +1305,12 @@ const hasToc = tocHeadings.length > 1;
       color: var(--muted);
       transition: transform 380ms cubic-bezier(0.16, 1, 0.3, 1), color 200ms ease;
     }
-    .post-toc:not([open]) .post-toc-caret,
-    .post-toc.is-collapsed .post-toc-caret {
-      transform: rotate(-90deg);
-    }
     .post-toc[open] .post-toc-caret {
       transform: rotate(0deg);
+    }
+    .post-toc:not([open]) .post-toc-caret,
+    .post-toc.is-collapsed .post-toc-caret {
+      transform: rotate(-90deg) !important;
     }
     .post-toc-summary:hover .post-toc-caret {
       color: var(--text-strong);
@@ -1253,6 +1369,9 @@ const hasToc = tocHeadings.length > 1;
       border-color: var(--rule-strong);
       background: rgba(0, 0, 0, 0.08);
       transform: translateY(-1px);
+    }
+    .post-toc-search-btn:active {
+      transform: scale(0.97);
     }
     .post-toc-search-kbd,
     .post-toc-notes-badge {
@@ -1341,6 +1460,9 @@ const hasToc = tocHeadings.length > 1;
       color: var(--text-strong);
       background: rgba(0, 0, 0, 0.04);
       transform: translateX(3px);
+    }
+    .post-toc-link:active {
+      transform: scale(0.97);
     }
     .post-toc-link:hover .toc-bullet {
       opacity: 1;
