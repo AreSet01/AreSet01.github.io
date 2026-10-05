@@ -4782,6 +4782,8 @@ body.preview-open .site-shell {
   align-items: center;
   gap: 10px;
   pointer-events: none;
+  flex-wrap: nowrap;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .article-floating-actions > * {
@@ -4792,13 +4794,61 @@ body.preview-open .site-shell {
   top: auto !important;
   margin: 0 !important;
   pointer-events: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 @media (max-width: 640px) {
+  .post-toc-tools .post-toc-search-btn {
+    display: none !important;
+  }
   .article-floating-actions {
-    bottom: max(16px, env(safe-area-inset-bottom, 16px));
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     right: 16px;
     gap: 8px;
+    max-width: calc(100vw - 135px);
+  }
+}
+
+@media (max-width: 390px) {
+  .article-floating-actions {
+    right: 12px;
+    gap: 6px;
+    max-width: calc(100vw - 120px);
+  }
+  .article-floating-actions .article-highlights-floating-pill,
+  .article-floating-actions .article-search-floating-pill {
+    padding: 6px 8px !important;
+    font-size: 0.76rem !important;
+  }
+}
+
+/* When selection dock is open on mobile, suppress floating capsules to prevent visual collision */
+@media (max-width: 640px) {
+  body.has-selection-dock-open .article-floating-actions,
+  body.has-selection-dock-open .article-highlights-floating-pill,
+  body.has-selection-dock-open .article-search-floating-pill,
+  body.has-selection-dock-open .ink-ask-sidebar-trigger {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(16px) !important;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  body.has-selection-dock-open .pin-edge-tab {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(var(--tab-base-y, 0)) translateX(100%) !important;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+}
+
+/* Hide physical keyboard shortcut badges on mobile / touch devices */
+@media (max-width: 640px), (hover: none) and (pointer: coarse) {
+  .article-search-pill-kbd,
+  .post-toc-search-kbd,
+  .article-search-kbd,
+  .article-search-close-btn .article-search-kbd {
+    display: none !important;
   }
 }
 
@@ -8944,7 +8994,7 @@ body.gallery-lightbox-open {
   .pin-edge-tab {
     --tab-base-y: 0;
     top: auto;
-    bottom: 2rem;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
     transform: translateY(var(--tab-base-y)) translateX(100%);
     border-radius: 999px 0 0 999px;
     padding: 0.65rem 0.85rem;

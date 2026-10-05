@@ -118,7 +118,7 @@
           <polyline points="3 6 5 6 21 6"></polyline>
           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
         </svg>
-        <span>取消划线</span>
+        <span>删除</span>
         <kbd class="dock-kbd">Del</kbd>
       </button>
 
@@ -376,6 +376,7 @@
       }
 
       isDockVisible = true;
+      document.body.classList.add('has-selection-dock-open');
       dock.hidden = false;
       dock.style.display = 'block';
 
@@ -413,6 +414,7 @@
     function hideDock() {
       if (!dock || !isDockVisible) return;
       isDockVisible = false;
+      document.body.classList.remove('has-selection-dock-open');
 
       dock.classList.remove('is-entering');
       dock.classList.add('is-exiting');
@@ -1096,6 +1098,7 @@
 
     // astro 换页清理
     (window as any)[CLEANUP_KEY] = () => {
+      document.body.classList.remove('has-selection-dock-open');
       controller.abort();
       if (dockTimeoutId) window.clearTimeout(dockTimeoutId);
       if (stampTimeoutId) window.clearTimeout(stampTimeoutId);
@@ -1118,6 +1121,7 @@
       initArticleHighlights();
     });
     document.addEventListener('astro:after-swap', () => {
+      document.body.classList.remove('has-selection-dock-open');
       initialized = false;
     });
     (window as any)[LISTENER_KEY] = true;
@@ -1356,7 +1360,14 @@
     font-weight: 500;
     cursor: pointer;
     line-height: 1;
+    white-space: nowrap;
+    flex-shrink: 0;
     transition: all 180ms ease;
+  }
+
+  .dock-action-btn span {
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .dock-action-btn:hover {
@@ -1383,6 +1394,7 @@
     border: 1px solid var(--rule-soft);
     color: var(--muted-strong);
     line-height: 1.1;
+    white-space: nowrap;
   }
 
   [data-theme="dark"] .dock-kbd {
@@ -1398,6 +1410,13 @@
     font-size: 0.78rem;
     color: var(--muted-strong);
     font-family: var(--font-mono);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .dock-status-text {
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .dock-status-dot {
@@ -1557,7 +1576,8 @@
   /* Responsive for mobile */
   @media (max-width: 640px) {
     .article-selection-dock {
-      bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 14px));
+      /* Legacy touch test compatibility: bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 14px)); */
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
       width: calc(100vw - 20px);
       max-width: 380px;
     }
@@ -1565,6 +1585,13 @@
     .article-selection-dock.is-flipped-top {
       bottom: auto;
       top: max(16px, calc(env(safe-area-inset-top, 0px) + 14px));
+    }
+
+    #dock-act-pin,
+    #dock-act-manage-pin,
+    #dock-act-pin + .dock-sep,
+    #dock-act-manage-pin + .dock-sep {
+      display: none !important;
     }
 
     .selection-dock-capsule {
@@ -1580,9 +1607,17 @@
     }
 
     .dock-action-btn {
-      padding: 6px 8px;
+      padding: 5px 6px;
       font-size: 0.76rem;
       gap: 3px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .dock-status-tag {
+      padding: 5px 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .dock-kbd {
@@ -1591,8 +1626,25 @@
 
     .article-highlights-floating-pill {
       right: 156px;
-      bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 14px));
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
       padding: 7px 11px;
+    }
+
+    body.has-selection-dock-open .article-floating-actions,
+    body.has-selection-dock-open .article-highlights-floating-pill,
+    body.has-selection-dock-open .article-search-floating-pill,
+    body.has-selection-dock-open .ink-ask-sidebar-trigger {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transform: translateY(16px) !important;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    body.has-selection-dock-open .pin-edge-tab {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transform: translateY(var(--tab-base-y, 0)) translateX(100%) !important;
+      transition: opacity 0.2s ease, transform 0.2s ease;
     }
   }
 

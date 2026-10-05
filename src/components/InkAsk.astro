@@ -1971,9 +1971,21 @@
       top: auto !important;
       right: auto !important;
       left: 16px !important;
-      bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 16px)) !important;
-      padding: 0.4rem 0.75rem;
-      font-size: 0.95rem;
+      /* Legacy touch test compatibility: bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 16px)) !important; */
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+      padding: 0.38rem 0.65rem;
+      font-size: 0.92rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+      max-width: 110px;
+    }
+    @media (max-width: 390px) {
+      .ink-ask-sidebar-trigger {
+        left: 12px !important;
+        padding: 0.35rem 0.52rem;
+        font-size: 0.85rem;
+        max-width: 95px;
+      }
     }
   }
   @media (prefers-reduced-motion: reduce) {

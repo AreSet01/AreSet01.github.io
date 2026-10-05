@@ -2381,10 +2381,21 @@
       width: calc(100vw - 24px);
       max-height: 240px;
     }
+    .article-search-kbd,
+    .article-search-pill-kbd {
+      display: none !important;
+    }
     .article-search-floating-pill {
       right: 16px;
-      bottom: max(16px, env(safe-area-inset-bottom, 16px));
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
       padding: 7px 11px;
+    }
+  }
+
+  @media (hover: none) and (pointer: coarse) {
+    .article-search-kbd,
+    .article-search-pill-kbd {
+      display: none !important;
     }
   }
 </style>
