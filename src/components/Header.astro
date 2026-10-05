@@ -567,6 +567,7 @@ const year = new Date().getFullYear();
 
     function onPointerEnter(e) {
       if (isCursorTrailDisabled()) return;
+      if (e.pointerType === 'touch' || isMobile || !window.matchMedia('(pointer: fine)').matches) return;
       brush.isVisible = true;
       updateMouse(e);
       brush.x = mouse.x;   brush.y = mouse.y;
@@ -582,6 +583,7 @@ const year = new Date().getFullYear();
 
     function onPointerMove(e) {
       if (isCursorTrailDisabled()) return;
+      if (e.pointerType === 'touch' || isMobile || !window.matchMedia('(pointer: fine)').matches) return;
       updateMouse(e);
       brush.isVisible = true;
       const t = e.target;
@@ -595,6 +597,7 @@ const year = new Date().getFullYear();
     }
     function onPointerDown(e) {
       if (isCursorTrailDisabled()) return;
+      if (e.pointerType === 'touch' || isMobile || !window.matchMedia('(pointer: fine)').matches) return;
       if (e.button === 0) {
         updateMouse(e);
         brush.isPressed = true;
@@ -843,13 +846,18 @@ import gsap from 'gsap';
     let touchStartY = 0;
 
     panel.addEventListener('touchstart', (e) => {
+      touchStartX = 0;
+      touchStartY = 0;
       if (e.touches && e.touches.length > 0) {
+        // Avoid conflicting with Safari system back swipe at screen left edge
+        if (e.touches[0].clientX < 30) return;
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
       }
     }, { passive: true });
 
     panel.addEventListener('touchend', (e) => {
+      if (!touchStartX) return;
       if (e.changedTouches && e.changedTouches.length > 0) {
         const deltaX = e.changedTouches[0].clientX - touchStartX;
         const deltaY = e.changedTouches[0].clientY - touchStartY;
@@ -858,6 +866,8 @@ import gsap from 'gsap';
           closeDrawer();
         }
       }
+      touchStartX = 0;
+      touchStartY = 0;
     }, { passive: true });
   }
 

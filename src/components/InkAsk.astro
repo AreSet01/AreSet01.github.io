@@ -114,7 +114,9 @@
     seal.textContent = '问';
     seal.title = '问问 AI（通俗解释）';
     seal.setAttribute('aria-label', '问 AI：通俗解释选中的内容');
-    seal.addEventListener('pointerdown', (event) => event.preventDefault());
+    seal.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse') event.preventDefault();
+    });
     seal.addEventListener('click', () => {
       const root = prose();
       if (sealRange && root) open(sealRange, root);
@@ -132,6 +134,7 @@
   }
 
   function showSeal(range: Range) {
+    if (useSheet()) return hideSeal();
     const rects = lineRects(range);
     if (!rects.length) return hideSeal();
     const last = rects[rects.length - 1];
@@ -313,17 +316,28 @@
 
   // ---------- 拖拽支持 ----------
 
-  function enableDrag(card: HTMLElement, handle: HTMLElement, onMoved: () => void) {
+  function enableDrag(card: HTMLElement, handle: HTMLElement, onMoved: () => void, signal?: AbortSignal) {
     let startX = 0;
     let startY = 0;
     let initialLeft = 0;
     let initialTop = 0;
     let isDragging = false;
+    let isPullingSheet = false;
+    let sheetPullStartY = 0;
+    let sheetPullDy = 0;
 
     handle.addEventListener('pointerdown', (e: PointerEvent) => {
       if ((e.target as HTMLElement).closest('button, input, textarea, a')) return;
       if (e.button !== 0) return;
-      if (useSheet()) return; // 移动端底部抽屉不拖拽
+
+      if (useSheet()) {
+        isPullingSheet = true;
+        sheetPullStartY = e.clientY;
+        sheetPullDy = 0;
+        card.style.transition = 'none';
+        try { handle.setPointerCapture(e.pointerId); } catch {}
+        return;
+      }
 
       e.preventDefault();
       isDragging = true;
@@ -335,46 +349,78 @@
       initialTop = rect.top + window.scrollY;
 
       card.classList.add('is-dragging');
-      handle.setPointerCapture(e.pointerId);
+      try { handle.setPointerCapture(e.pointerId); } catch {}
+    }, { signal });
 
-      const onPointerMove = (ev: PointerEvent) => {
-        if (!isDragging) return;
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
+    const onPointerMove = (ev: PointerEvent) => {
+      if (isPullingSheet) {
+        const dy = ev.clientY - sheetPullStartY;
+        if (dy > 0) {
+          sheetPullDy = dy;
+          card.style.transform = `translateY(${dy}px)`;
+        } else {
+          sheetPullDy = 0;
+          card.style.transform = '';
+        }
+        return;
+      }
 
-        const width = card.offsetWidth;
-        const height = card.offsetHeight;
-        const minX = 8 + window.scrollX;
-        const maxX = window.innerWidth - width - 8 + window.scrollX;
-        const minY = 8 + window.scrollY;
-        const maxY = window.innerHeight - height - 8 + window.scrollY;
+      if (!isDragging) return;
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
 
-        const nextLeft = Math.max(minX, Math.min(maxX, initialLeft + dx));
-        const nextTop = Math.max(minY, Math.min(maxY, initialTop + dy));
+      const width = card.offsetWidth;
+      const height = card.offsetHeight;
+      const minX = 8 + window.scrollX;
+      const maxX = window.innerWidth - width - 8 + window.scrollX;
+      const minY = 8 + window.scrollY;
+      const maxY = window.innerHeight - height - 8 + window.scrollY;
 
-        card.style.left = `${Math.round(nextLeft)}px`;
-        card.style.top = `${Math.round(nextTop)}px`;
-        card.classList.remove('is-above'); // 拖拽后清除 transform 偏移
+      const nextLeft = Math.max(minX, Math.min(maxX, initialLeft + dx));
+      const nextTop = Math.max(minY, Math.min(maxY, initialTop + dy));
 
-        onMoved();
-      };
+      card.style.left = `${Math.round(nextLeft)}px`;
+      card.style.top = `${Math.round(nextTop)}px`;
+      card.classList.remove('is-above'); // 拖拽后清除 transform 偏移
 
-      const onPointerUp = (ev: PointerEvent) => {
-        if (!isDragging) return;
-        isDragging = false;
-        card.classList.remove('is-dragging');
-        try {
-          handle.releasePointerCapture(ev.pointerId);
-        } catch {}
-        handle.removeEventListener('pointermove', onPointerMove);
-        handle.removeEventListener('pointerup', onPointerUp);
-        handle.removeEventListener('pointercancel', onPointerUp);
-      };
+      onMoved();
+    };
 
-      handle.addEventListener('pointermove', onPointerMove);
-      handle.addEventListener('pointerup', onPointerUp);
-      handle.addEventListener('pointercancel', onPointerUp);
-    });
+    const onPointerUp = (ev: PointerEvent) => {
+      if (isPullingSheet) {
+        isPullingSheet = false;
+        try { handle.releasePointerCapture(ev.pointerId); } catch {}
+        card.style.transition = 'transform 280ms cubic-bezier(0.16, 1, 0.3, 1)';
+        if (sheetPullDy > 80) {
+          card.style.transform = 'translateY(100%)';
+          setTimeout(() => {
+            close();
+            card.style.transform = '';
+            card.style.transition = '';
+          }, 280);
+        } else {
+          card.style.transform = '';
+          setTimeout(() => {
+            card.style.transition = '';
+          }, 280);
+        }
+        return;
+      }
+
+      if (!isDragging) return;
+      isDragging = false;
+      card.classList.remove('is-dragging');
+      try {
+        handle.releasePointerCapture(ev.pointerId);
+      } catch {}
+    };
+
+    handle.addEventListener('pointermove', onPointerMove, { signal });
+    handle.addEventListener('pointerup', onPointerUp, { signal });
+    handle.addEventListener('pointercancel', onPointerUp, { signal });
+    window.addEventListener('pointermove', onPointerMove, { signal });
+    window.addEventListener('pointerup', onPointerUp, { signal });
+    window.addEventListener('pointercancel', onPointerUp, { signal });
   }
 
   // ---------- 划词卡片 ----------
@@ -438,7 +484,7 @@
     const sheet = useSheet();
     card.classList.toggle('is-sheet', sheet);
     if (sheet) {
-      card.style.left = card.style.top = card.style.width = '';
+      card.style.left = card.style.top = card.style.width = card.style.transform = '';
       return;
     }
 
@@ -674,7 +720,7 @@
     const head = card.querySelector<HTMLElement>('.ink-ask-head')!;
     enableDrag(card, head, () => {
       s.userMoved = true;
-    });
+    }, s.stop.signal);
 
     // 快捷预设词
     card.querySelectorAll<HTMLButtonElement>('.ink-ask-pill').forEach((pill) => {
@@ -1196,6 +1242,7 @@
     gap: 0.75rem;
     padding: 0.75rem 0.85rem 0.5rem 1rem;
     cursor: grab;
+    touch-action: none;
     user-select: none;
     -webkit-user-select: none;
     background: var(--bg-soft);
@@ -1921,8 +1968,10 @@
       font-size: 16px;
     }
     .ink-ask-sidebar-trigger {
-      top: 1rem;
-      right: 1rem;
+      top: auto !important;
+      right: auto !important;
+      left: 16px !important;
+      bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 16px)) !important;
       padding: 0.4rem 0.75rem;
       font-size: 0.95rem;
     }

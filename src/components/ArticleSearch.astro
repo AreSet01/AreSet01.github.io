@@ -917,6 +917,13 @@
       if (track) track.classList.remove('is-exiting');
       if (floatingPill) floatingPill.classList.add('is-active');
 
+      if (window.innerWidth <= 780) {
+        hud.style.removeProperty('--hud-translate-x');
+        hud.style.left = '';
+        hud.style.top = '';
+        hud.style.transform = '';
+      }
+
       // Check if user selected text in post to pre-fill
       const selection = window.getSelection()?.toString().trim();
       if (selection && selection.length > 0 && selection.length < 100) {
@@ -998,6 +1005,7 @@
     if (dragHandle) {
       dragHandle.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
+        if (window.innerWidth <= 780) return;
         isDragging = true;
         dragHandle.setPointerCapture(e.pointerId);
         dragStartX = e.clientX;
@@ -1019,8 +1027,8 @@
         const deltaX = e.clientX - dragStartX;
         const deltaY = e.clientY - dragStartY;
 
-        const maxX = window.innerWidth - hud.offsetWidth - 12;
-        const maxY = window.innerHeight - hud.offsetHeight - 12;
+        const maxX = Math.max(12, window.innerWidth - hud.offsetWidth - 12);
+        const maxY = Math.max(12, window.innerHeight - hud.offsetHeight - 12);
 
         const nextX = Math.max(12, Math.min(maxX, hudStartX + deltaX));
         const nextY = Math.max(12, Math.min(maxY, hudStartY + deltaY));
@@ -1044,11 +1052,20 @@
       // Double-click to reset position back to top center
       dragHandle.addEventListener('dblclick', () => {
         hud.style.removeProperty('--hud-translate-x');
-        hud.style.left = '50%';
-        hud.style.top = '24px';
-        hud.style.transform = 'translate(-50%, 0)';
+        hud.style.left = '';
+        hud.style.top = '';
+        hud.style.transform = '';
       }, { signal });
     }
+
+    window.addEventListener('resize', () => {
+      if (window.innerWidth <= 780 && hud) {
+        hud.style.removeProperty('--hud-translate-x');
+        hud.style.left = '';
+        hud.style.top = '';
+        hud.style.transform = '';
+      }
+    }, { signal });
 
     // Input listeners
     input.addEventListener('input', onSearchInputChange, { signal });
@@ -2312,8 +2329,14 @@
   }
 
   @media (max-width: 780px) {
+    .article-search-drag-handle {
+      display: none !important;
+    }
     .article-search-hud {
-      top: 14px;
+      top: max(14px, calc(env(safe-area-inset-top, 0px) + 8px));
+      left: 50% !important;
+      --hud-translate-x: -50% !important;
+      transform: translate(-50%, 0);
       width: calc(100vw - 16px);
       max-width: calc(100vw - 16px);
     }

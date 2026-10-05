@@ -262,6 +262,27 @@
         return;
       }
 
+  function setBlockZoom(block: HTMLElement, zoom: number) {
+    const renderEl = block.querySelector<HTMLElement>('.mermaid-render');
+    const stageEl = block.querySelector<HTMLElement>('.mermaid-stage');
+    const zoomVal = block.querySelector<HTMLElement>('.mermaid-zoom-val');
+    if (!renderEl) return;
+
+    const clamped = Math.min(5.0, Math.max(0.4, Math.round(zoom * 100) / 100));
+    block.dataset.currentZoom = `${clamped}`;
+    if (zoomVal) zoomVal.textContent = `${Math.round(clamped * 100)}%`;
+    renderEl.style.transform = clamped === 1.0 ? '' : `scale(${clamped})`;
+    if (clamped > 1.0) {
+      stageEl?.classList.add('is-zoomed');
+    } else {
+      stageEl?.classList.remove('is-zoomed');
+      if (stageEl) {
+        stageEl.scrollLeft = 0;
+        stageEl.scrollTop = 0;
+      }
+    }
+  }
+
       // 4. 局部缩放（放大、缩小、复位）
       const zoomInBtn = target.closest<HTMLElement>('.mermaid-btn-zoom-in');
       const zoomOutBtn = target.closest<HTMLElement>('.mermaid-btn-zoom-out');
@@ -270,10 +291,6 @@
         const btn = (zoomInBtn || zoomOutBtn || zoomResetBtn)!;
         const block = btn.closest<HTMLElement>('.mermaid-block');
         if (!block) return;
-        const renderEl = block.querySelector<HTMLElement>('.mermaid-render');
-        const stageEl = block.querySelector<HTMLElement>('.mermaid-stage');
-        const zoomVal = block.querySelector<HTMLElement>('.mermaid-zoom-val');
-        if (!renderEl) return;
 
         let currentZoom = parseFloat(block.dataset.currentZoom || '1.0') || 1.0;
         if (zoomInBtn) {
@@ -284,61 +301,124 @@
           currentZoom = 1.0;
         }
 
-        currentZoom = Math.min(5.0, Math.max(0.4, Math.round(currentZoom * 100) / 100));
-        block.dataset.currentZoom = `${currentZoom}`;
-
-        if (zoomVal) zoomVal.textContent = `${Math.round(currentZoom * 100)}%`;
-        renderEl.style.transform = currentZoom === 1.0 ? '' : `scale(${currentZoom})`;
-        if (currentZoom > 1.0) {
-          stageEl?.classList.add('is-zoomed');
-        } else {
-          stageEl?.classList.remove('is-zoomed');
-        }
+        setBlockZoom(block, currentZoom);
         return;
       }
     });
 
-    // 局部缩放后的拖拽平移（全局单例绑定）
+    // 局部缩放后的拖拽平移、双指缩放与双击重置（指针事件统一升级）
     let isStageDragging = false;
     let activeStageEl: HTMLElement | null = null;
     let stageStartX = 0;
     let stageStartY = 0;
     let stageScrollLeft = 0;
     let stageScrollTop = 0;
+    const activePointers = new Map<number, { x: number; y: number }>();
+    let initialPinchDistance = 0;
+    let initialPinchZoom = 1.0;
+    let lastTapTime = 0;
+    let lastTapStage: HTMLElement | null = null;
 
-    document.addEventListener('mousedown', (e) => {
+    document.addEventListener('pointerdown', (e) => {
       const target = e.target as HTMLElement | null;
       const stage = target?.closest<HTMLElement>('.mermaid-stage');
       if (!stage) return;
       const block = stage.closest<HTMLElement>('.mermaid-block');
-      const currentZoom = parseFloat(block?.dataset.currentZoom || '1.0') || 1.0;
+      if (!block) return;
+
+      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      // 双击/双触快速复位 (Double tap to reset zoom)
+      const now = Date.now();
+      if (lastTapStage === stage && now - lastTapTime < 320) {
+        setBlockZoom(block, 1.0);
+        lastTapTime = 0;
+        lastTapStage = null;
+        activePointers.clear();
+        if (activeStageEl) {
+          try { activeStageEl.releasePointerCapture(e.pointerId); } catch {}
+          activeStageEl.classList.remove('is-dragging');
+          isStageDragging = false;
+          activeStageEl = null;
+        }
+        return;
+      }
+      lastTapTime = now;
+      lastTapStage = stage;
+      activeStageEl = stage;
+
+      // 双指捏合缩放初始判定 (Pinch-to-zoom)
+      if (activePointers.size === 2) {
+        const pts = Array.from(activePointers.values());
+        initialPinchDistance = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        initialPinchZoom = parseFloat(block.dataset.currentZoom || '1.0') || 1.0;
+        if (isStageDragging && activeStageEl) {
+          try { activeStageEl.releasePointerCapture(e.pointerId); } catch {}
+          activeStageEl.classList.remove('is-dragging');
+        }
+        isStageDragging = false;
+        return;
+      }
+
+      const currentZoom = parseFloat(block.dataset.currentZoom || '1.0') || 1.0;
       if (currentZoom <= 1.0) return;
 
       isStageDragging = true;
-      activeStageEl = stage;
       stage.classList.add('is-dragging');
-      stageStartX = e.pageX - stage.offsetLeft;
-      stageStartY = e.pageY - stage.offsetTop;
+      try {
+        stage.setPointerCapture(e.pointerId);
+      } catch {}
+      stageStartX = e.clientX;
+      stageStartY = e.clientY;
       stageScrollLeft = stage.scrollLeft;
       stageScrollTop = stage.scrollTop;
     });
 
-    window.addEventListener('mousemove', (e) => {
+    document.addEventListener('pointermove', (e) => {
+      if (!activePointers.has(e.pointerId)) return;
+      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      // 双指手势 Pinch-to-zoom 运算
+      if (activePointers.size === 2 && activeStageEl) {
+        const block = activeStageEl.closest<HTMLElement>('.mermaid-block');
+        if (!block) return;
+        const pts = Array.from(activePointers.values());
+        const curDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        if (initialPinchDistance > 10) {
+          const ratio = curDist / initialPinchDistance;
+          setBlockZoom(block, initialPinchZoom * ratio);
+        }
+        return;
+      }
+
       if (!isStageDragging || !activeStageEl) return;
-      e.preventDefault();
-      const x = e.pageX - activeStageEl.offsetLeft;
-      const y = e.pageY - activeStageEl.offsetTop;
-      activeStageEl.scrollLeft = stageScrollLeft - (x - stageStartX);
-      activeStageEl.scrollTop = stageScrollTop - (y - stageStartY);
+      const dx = e.clientX - stageStartX;
+      const dy = e.clientY - stageStartY;
+      activeStageEl.scrollLeft = stageScrollLeft - dx;
+      activeStageEl.scrollTop = stageScrollTop - dy;
     });
 
-    window.addEventListener('mouseup', () => {
-      if (isStageDragging && activeStageEl) {
-        isStageDragging = false;
-        activeStageEl.classList.remove('is-dragging');
-        activeStageEl = null;
+    const stopStageInteraction = (e: PointerEvent) => {
+      activePointers.delete(e.pointerId);
+      if (activePointers.size < 2) {
+        initialPinchDistance = 0;
       }
-    });
+      if (activePointers.size === 0) {
+        if (activeStageEl) {
+          if (isStageDragging) {
+            try {
+              activeStageEl.releasePointerCapture(e.pointerId);
+            } catch {}
+            activeStageEl.classList.remove('is-dragging');
+          }
+          activeStageEl = null;
+        }
+        isStageDragging = false;
+      }
+    };
+
+    document.addEventListener('pointerup', stopStageInteraction);
+    document.addEventListener('pointercancel', stopStageInteraction);
   }
 
   // ---------- 渲染等待与动画 ----------

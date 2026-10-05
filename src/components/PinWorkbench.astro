@@ -1143,6 +1143,8 @@
       const sheet = document.getElementById('pin-sheet-drawer');
       const backdrop = document.getElementById('pin-sheet-backdrop');
       if (sheet && backdrop) {
+        sheet.style.transform = '';
+        sheet.style.transition = '';
         sheet.hidden = false;
         sheet.style.display = '';
         backdrop.hidden = false;
@@ -1160,6 +1162,8 @@
       const backdrop = document.getElementById('pin-sheet-backdrop');
       if (sheet && backdrop) {
         sheet.classList.remove('is-open');
+        sheet.style.transform = '';
+        sheet.style.transition = '';
         backdrop.classList.remove('is-open');
         document.body.classList.remove('pin-sheet-open');
         setTimeout(() => {
@@ -1169,6 +1173,62 @@
           backdrop.style.display = 'none';
         }, 720);
       }
+    }
+
+    // ---------- 移动端 Bottom Sheet 下拉手势 ----------
+    function bindSheetDrag() {
+      const sheet = document.getElementById('pin-sheet-drawer');
+      const sheetHandle = sheet?.querySelector<HTMLElement>('.pin-sheet-handle');
+      if (!sheet || !sheetHandle) return;
+
+      let startY = 0;
+      let currentTranslate = 0;
+
+      sheetHandle.addEventListener('pointerdown', (e: PointerEvent) => {
+        if (!isMobile()) return;
+        startY = e.clientY;
+        currentTranslate = 0;
+        sheet.style.transition = 'none';
+        try {
+          sheetHandle.setPointerCapture(e.pointerId);
+        } catch {}
+
+        const onPointerMove = (ev: PointerEvent) => {
+          const dy = ev.clientY - startY;
+          if (dy > 0) {
+            currentTranslate = dy;
+            sheet.style.transform = `translateY(${dy}px)`;
+          } else {
+            currentTranslate = 0;
+            sheet.style.transform = '';
+          }
+        };
+
+        const onPointerUp = (ev: PointerEvent) => {
+          try {
+            sheetHandle.releasePointerCapture(ev.pointerId);
+          } catch {}
+          window.removeEventListener('pointermove', onPointerMove);
+          window.removeEventListener('pointerup', onPointerUp);
+          window.removeEventListener('pointercancel', onPointerUp);
+          sheetHandle.removeEventListener('pointermove', onPointerMove);
+          sheetHandle.removeEventListener('pointerup', onPointerUp);
+          sheetHandle.removeEventListener('pointercancel', onPointerUp);
+          sheet.style.transition = '';
+          if (currentTranslate > 70) {
+            closeMobileSheet();
+          } else {
+            sheet.style.transform = '';
+          }
+        };
+
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', onPointerUp);
+        sheetHandle.addEventListener('pointermove', onPointerMove);
+        sheetHandle.addEventListener('pointerup', onPointerUp);
+        sheetHandle.addEventListener('pointercancel', onPointerUp);
+      });
     }
 
     // ---------- 拖拽移动逻辑 (Zero-Jitter Smooth Drag) ----------
@@ -1244,6 +1304,7 @@
       bound = true;
 
       bindDrag();
+      bindSheetDrag();
 
       // Click delegation
       document.addEventListener('click', (e) => {

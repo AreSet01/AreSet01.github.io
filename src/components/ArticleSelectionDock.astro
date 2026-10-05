@@ -367,17 +367,9 @@
         targetRect = mark ? mark.getBoundingClientRect() : null;
       }
 
-      if (targetRect && targetRect.bottom > window.innerHeight - 85) {
-        const canScroll = (window.scrollY + window.innerHeight) < document.documentElement.scrollHeight - 20;
-        if (canScroll) {
-          const deltaY = Math.ceil(targetRect.bottom - (window.innerHeight - 115));
-          window.scrollBy({ top: deltaY, behavior: 'smooth' });
-          dock.classList.remove('is-flipped-top');
-          copyStamp?.classList.remove('is-flipped-top');
-        } else {
-          dock.classList.add('is-flipped-top');
-          copyStamp?.classList.add('is-flipped-top');
-        }
+      if (targetRect && targetRect.bottom > window.innerHeight - 90) {
+        dock.classList.add('is-flipped-top');
+        copyStamp?.classList.add('is-flipped-top');
       } else {
         dock.classList.remove('is-flipped-top');
         copyStamp?.classList.remove('is-flipped-top');
@@ -416,11 +408,11 @@
       dock.addEventListener('animationend', onEnterEnd, { once: true });
     }
 
+    let isDockInteracting = false;
+
     function hideDock() {
       if (!dock || !isDockVisible) return;
       isDockVisible = false;
-      currentSelectedRange = null;
-      activeHighlightId = null;
 
       dock.classList.remove('is-entering');
       dock.classList.add('is-exiting');
@@ -431,12 +423,15 @@
         dock.hidden = true;
         dock.style.display = 'none';
         dockTimeoutId = null;
+        currentSelectedRange = null;
+        activeHighlightId = null;
       }, 320);
     }
 
     // ---------- 划词检测逻辑 ----------
     let selectionTimer = 0;
     function checkProseSelection() {
+      if (isDockInteracting) return;
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
         // 如果当前没有点击在已划线 mark 上，则收起 dock
@@ -487,9 +482,19 @@
       }
     }, { signal });
 
-    // 阻止点击微托盘本体导致选区收起或焦点漂移
+    // 阻止点击微托盘本体导致选区收起或焦点漂移（仅鼠标拦截，触屏设备绝不 preventDefault 以免破坏 iOS Safari 的 click 派发）
     dockCapsule?.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
+      isDockInteracting = true;
+      if (e.pointerType === 'mouse') {
+        e.preventDefault();
+      }
+    }, { signal });
+
+    window.addEventListener('pointerup', () => {
+      isDockInteracting = false;
+    }, { signal });
+    window.addEventListener('pointercancel', () => {
+      isDockInteracting = false;
     }, { signal });
 
     // 点击页面空白处关闭 Dock
@@ -1213,7 +1218,7 @@
      ========================================================= */
   .article-selection-dock {
     position: fixed;
-    bottom: 28px;
+    bottom: max(20px, calc(env(safe-area-inset-bottom, 0px) + 16px));
     left: 50%;
     transform: translateX(-50%);
     z-index: 100020;
@@ -1223,7 +1228,7 @@
 
   .article-selection-dock.is-flipped-top {
     bottom: auto;
-    top: 28px;
+    top: max(20px, calc(env(safe-area-inset-top, 0px) + 16px));
   }
 
   .selection-dock-capsule {
@@ -1552,9 +1557,14 @@
   /* Responsive for mobile */
   @media (max-width: 640px) {
     .article-selection-dock {
-      bottom: max(16px, env(safe-area-inset-bottom, 16px));
+      bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 14px));
       width: calc(100vw - 20px);
       max-width: 380px;
+    }
+
+    .article-selection-dock.is-flipped-top {
+      bottom: auto;
+      top: max(16px, calc(env(safe-area-inset-top, 0px) + 14px));
     }
 
     .selection-dock-capsule {
@@ -1581,7 +1591,7 @@
 
     .article-highlights-floating-pill {
       right: 156px;
-      bottom: max(16px, env(safe-area-inset-bottom, 16px));
+      bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 14px));
       padding: 7px 11px;
     }
   }

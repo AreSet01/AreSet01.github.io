@@ -465,6 +465,17 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
         const val = parseInt(volumeSlider.value, 10) / 100;
         getZenAudioEngine().setVolume(val);
       });
+      volumeSlider?.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        (window as any).__zenIsDraggingVolume = true;
+      });
+      volumeSlider?.addEventListener('pointerup', (e) => {
+        e.stopPropagation();
+        (window as any).__zenIsDraggingVolume = false;
+      });
+      volumeSlider?.addEventListener('pointercancel', () => {
+        (window as any).__zenIsDraggingVolume = false;
+      });
 
       // Timer pills
       const timerPills = capsule.querySelectorAll('[data-timer-min]');
@@ -487,6 +498,13 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
 
     // Global document and window event bindings (attached once per session)
     if (!(window as any).__zenGlobalEventsBound) {
+      window.addEventListener('pointerup', () => {
+        (window as any).__zenIsDraggingVolume = false;
+      });
+      window.addEventListener('pointercancel', () => {
+        (window as any).__zenIsDraggingVolume = false;
+      });
+
       // Dismiss on Esc
       window.addEventListener('keydown', (e) => {
         const capsule = document.getElementById('zen-sound-capsule');
@@ -497,6 +515,7 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
 
       // Dismiss when clicking outside
       document.addEventListener('pointerdown', (e) => {
+        if ((window as any).__zenIsDraggingVolume) return;
         const capsule = document.getElementById('zen-sound-capsule');
         if (!capsule || !capsule.classList.contains('is-open')) return;
         const target = e.target as HTMLElement | null;

@@ -951,6 +951,8 @@ const countByCategory = {
     gap: 0.75rem;
     padding-top: 0.8rem;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
+    touch-action: pan-y;
+    overscroll-behavior: contain;
   }
 
   @media (max-width: 639px) {
@@ -971,6 +973,9 @@ const countByCategory = {
     .lightbox-info-drawer {
       max-height: 38vh;
       overflow-y: auto;
+      touch-action: pan-y;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
     }
   }
 
@@ -2138,6 +2143,17 @@ const countByCategory = {
         nextPhoto();
       }, { signal });
     });
+
+    // 阻止底部展签与 EXIF 滚动冒泡触发全屏切图或关闭
+    const lightboxDrawer = lightbox?.querySelector<HTMLElement>('.lightbox-info-drawer');
+    if (lightboxDrawer) {
+      const stopDrawerTouch = (e: TouchEvent) => {
+        e.stopPropagation();
+      };
+      lightboxDrawer.addEventListener('touchstart', stopDrawerTouch, { passive: true, signal });
+      lightboxDrawer.addEventListener('touchmove', stopDrawerTouch, { passive: true, signal });
+      lightboxDrawer.addEventListener('touchend', stopDrawerTouch, { passive: true, signal });
+    }
 
     // 触摸滑动左右切图 (Mobile touch gestures)
     let touchStartX = 0;
