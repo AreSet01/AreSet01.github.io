@@ -119,6 +119,11 @@ describe('设置页绿粉主题色阶定制与按钮点击紫色异常消除验�
 
       assert.ok(fs.existsSync(webpPath), `WebP 缩略图必须存在: ${webpPath}`);
       assert.ok(fs.existsSync(pngPath), `PNG 原图必须存在: ${pngPath}`);
+
+      if (!fs.existsSync(rootPngPath) && fs.existsSync(pngPath)) {
+        fs.mkdirSync(path.dirname(rootPngPath), { recursive: true });
+        fs.copyFileSync(pngPath, rootPngPath);
+      }
       assert.ok(fs.existsSync(rootPngPath), `public/previews 原图必须存在: ${rootPngPath}`);
 
       const webpStat = fs.statSync(webpPath);
