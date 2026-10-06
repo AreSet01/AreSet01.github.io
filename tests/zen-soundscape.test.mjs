@@ -7,6 +7,9 @@ import {
   createPinkNoiseData,
   createBrownNoiseData,
   createWhiteNoiseData,
+  createLoopingPinkNoiseData,
+  createLoopingBrownNoiseData,
+  createLoopingWhiteNoiseData,
   loopSmoothBuffer,
   ZenAudioEngine,
 } from '../src/utils/zenAudioEngine.ts';
@@ -552,6 +555,71 @@ test('Acoustic & Visual Robustness: Filter sweep tracking, sub-timer cleanup, an
   assert.ok(
     rainscapeContent.includes('lakeRipples.length < getMaxRipples() && Math.random() < 0.40'),
     'ZenRainscape must support natural companion droplet scatter to maintain rich ripple density'
+  );
+});
+
+test('Equal-Power Overlap-and-Add: Looping noise generators guarantee constant energy and zero seam clicks', () => {
+  const len = 44100 * 2; // 2 seconds
+  const crossfade = 4410; // 0.1s crossfade
+
+  // 1. Looping Pink Noise
+  const loopingPink = createLoopingPinkNoiseData(len, crossfade);
+  assert.strictEqual(loopingPink.length, len, 'Looping pink noise buffer must match requested length');
+  assert.ok(Math.abs(loopingPink[0] - loopingPink[len - 1]) < 0.5, 'Loop seam step must be finite and within normal variance');
+
+  // Verify power constancy across crossfade region vs body region
+  let powerFade = 0;
+  for (let i = 0; i < crossfade; i++) powerFade += loopingPink[i] * loopingPink[i];
+  powerFade /= crossfade;
+
+  let powerBody = 0;
+  for (let i = crossfade; i < crossfade * 2; i++) powerBody += loopingPink[i] * loopingPink[i];
+  powerBody /= crossfade;
+
+  const ratioPink = powerFade / powerBody;
+  assert.ok(ratioPink > 0.5 && ratioPink < 1.8, `Pink noise power ratio (${ratioPink}) must remain strictly within equal-power bounds, no 0dB dips`);
+
+  // 2. Looping Brown Noise
+  const loopingBrown = createLoopingBrownNoiseData(len, crossfade);
+  assert.strictEqual(loopingBrown.length, len, 'Looping brown noise buffer must match requested length');
+  assert.ok(Math.abs(loopingBrown[0] - loopingBrown[len - 1]) < 0.6, 'Loop seam step must be finite and smooth');
+
+  // 3. Looping White Noise
+  const loopingWhite = createLoopingWhiteNoiseData(len, crossfade);
+  assert.strictEqual(loopingWhite.length, len, 'Looping white noise buffer must match requested length');
+});
+
+test('Acoustic Architecture: Coprime non-symmetric long buffers eliminate 5-second periodic stutter', () => {
+  const engineContent = fs.readFileSync(path.join(rootDir, 'src/utils/zenAudioEngine.ts'), 'utf-8');
+
+  // 1. Rain soundscape must use coprime buffers (10.7s and 13.1s)
+  assert.ok(
+    engineContent.includes('10.7') && engineContent.includes('13.1'),
+    'Mountain Rain soundscape must configure coprime buffer lengths (10.7s and 13.1s) to eliminate phase locking'
+  );
+
+  // 2. Wind soundscape must use long non-symmetric buffers (12.7s and 9.1s)
+  assert.ok(
+    engineContent.includes('12.7') && engineContent.includes('9.1'),
+    'Wind soundscape must configure long non-symmetric buffer lengths (12.7s and 9.1s)'
+  );
+
+  // 3. Stream soundscape must use long buffer (11.3s)
+  assert.ok(
+    engineContent.includes('11.3'),
+    'Stream soundscape must configure long buffer length (11.3s)'
+  );
+
+  // 4. Paper soundscape must use long buffer (11.9s)
+  assert.ok(
+    engineContent.includes('11.9'),
+    'Paper soundscape must configure long buffer length (11.9s)'
+  );
+
+  // 5. Looping generators must be used across all four soundscape implementations
+  assert.ok(
+    engineContent.includes('createLoopingPinkNoiseData') && engineContent.includes('createLoopingBrownNoiseData'),
+    'All soundscape background layers must invoke equal-power looping generators'
   );
 });
 

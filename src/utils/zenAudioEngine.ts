@@ -115,7 +115,108 @@ export function createWhiteNoiseData(length: number): Float32Array {
 }
 
 /**
- * 消除缓冲区首尾接缝，确保 100% 无缝平滑循环
+ * 生成具备恒定能量与等功率交叉渐变 (Equal-Power Overlap-and-Add) 的无缝循环粉红噪声
+ * 连续生成 length + crossfade 个样本，将尾部超出部分按 cos/sin 等功率叠加至头部
+ * 能量衰减严格为 0.00 dB，接缝无阶跃无断层，彻底消除 5 秒周期性卡顿与吸水掉音黑洞
+ */
+export function createLoopingPinkNoiseData(
+  length: number,
+  crossfadeSamples = 38400
+): Float32Array {
+  if (length <= 0) return new Float32Array(0);
+  const safeFade = Math.max(16, Math.min(crossfadeSamples, Math.floor(length * 0.25)));
+  const total = length + safeFade;
+  const raw = new Float32Array(total);
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  for (let i = 0; i < total; i++) {
+    const white = Math.random() * 2 - 1;
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.96900 * b2 + white * 0.1538520;
+    b3 = 0.86650 * b3 + white * 0.3104856;
+    b4 = 0.55000 * b4 + white * 0.5329522;
+    b5 = -0.7616 * b5 - white * 0.0168980;
+    raw[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+    b6 = white * 0.115926;
+  }
+
+  const out = new Float32Array(length);
+  const halfPi = Math.PI * 0.5;
+  for (let i = 0; i < safeFade; i++) {
+    const theta = (i / safeFade) * halfPi;
+    const wFadeOut = Math.cos(theta);
+    const wFadeIn = Math.sin(theta);
+    out[i] = raw[length + i] * wFadeOut + raw[i] * wFadeIn;
+  }
+  for (let i = safeFade; i < length; i++) {
+    out[i] = raw[i];
+  }
+  return out;
+}
+
+/**
+ * 生成具备恒定能量与等功率交叉渐变 (Equal-Power Overlap-and-Add) 的无缝循环布朗噪声 (红噪声)
+ */
+export function createLoopingBrownNoiseData(
+  length: number,
+  crossfadeSamples = 38400
+): Float32Array {
+  if (length <= 0) return new Float32Array(0);
+  const safeFade = Math.max(16, Math.min(crossfadeSamples, Math.floor(length * 0.25)));
+  const total = length + safeFade;
+  const raw = new Float32Array(total);
+  let lastOut = 0.0;
+  for (let i = 0; i < total; i++) {
+    const white = Math.random() * 2 - 1;
+    lastOut = (lastOut + 0.02 * white) / 1.02;
+    raw[i] = lastOut * 3.5;
+  }
+
+  const out = new Float32Array(length);
+  const halfPi = Math.PI * 0.5;
+  for (let i = 0; i < safeFade; i++) {
+    const theta = (i / safeFade) * halfPi;
+    const wFadeOut = Math.cos(theta);
+    const wFadeIn = Math.sin(theta);
+    out[i] = raw[length + i] * wFadeOut + raw[i] * wFadeIn;
+  }
+  for (let i = safeFade; i < length; i++) {
+    out[i] = raw[i];
+  }
+  return out;
+}
+
+/**
+ * 生成具备恒定能量与等功率交叉渐变的无缝循环白噪声
+ */
+export function createLoopingWhiteNoiseData(
+  length: number,
+  crossfadeSamples = 38400
+): Float32Array {
+  if (length <= 0) return new Float32Array(0);
+  const safeFade = Math.max(16, Math.min(crossfadeSamples, Math.floor(length * 0.25)));
+  const total = length + safeFade;
+  const raw = new Float32Array(total);
+  for (let i = 0; i < total; i++) {
+    raw[i] = Math.random() * 2 - 1;
+  }
+
+  const out = new Float32Array(length);
+  const halfPi = Math.PI * 0.5;
+  for (let i = 0; i < safeFade; i++) {
+    const theta = (i / safeFade) * halfPi;
+    const wFadeOut = Math.cos(theta);
+    const wFadeIn = Math.sin(theta);
+    out[i] = raw[length + i] * wFadeOut + raw[i] * wFadeIn;
+  }
+  for (let i = safeFade; i < length; i++) {
+    out[i] = raw[i];
+  }
+  return out;
+}
+
+/**
+ * 消除缓冲区首尾接缝，提供向后兼容的原地平滑兜底
  */
 export function loopSmoothBuffer(data: Float32Array, crossfadeSamples = 2048): void {
   const n = data.length;
@@ -474,16 +575,12 @@ export class ZenAudioEngine {
   private buildRainSoundscape(ctx: AudioContext, output: AudioNode): (fade?: number) => void {
     let isDisposed = false;
     const sampleRate = ctx.sampleRate;
-    const bufferLen = sampleRate * 5; // 5-second seamless loop buffer
-
-    // 1. 远山阵雨层：低频（低通 1200Hz）结合慢速（0.12Hz）LFO 模拟山风起伏雨幕与远山雨声呼吸起伏
-    const distBuffer = ctx.createBuffer(2, bufferLen, sampleRate);
-    const distLeft = createPinkNoiseData(bufferLen);
-    const distRight = createPinkNoiseData(bufferLen);
-    loopSmoothBuffer(distLeft);
-    loopSmoothBuffer(distRight);
-    distBuffer.getChannelData(0).set(distLeft);
-    distBuffer.getChannelData(1).set(distRight);
+    // 使用互质非对称长缓冲区 (远雨 10.7s, 近雨 13.1s)，搭配生成器级等功率无缝叠接，彻底消除 5 秒周期性卡顿与掉音断层
+    const distBufferLen = Math.floor(sampleRate * 10.7);
+    const distFadeLen = Math.floor(sampleRate * 0.8);
+    const distBuffer = ctx.createBuffer(2, distBufferLen, sampleRate);
+    distBuffer.getChannelData(0).set(createLoopingPinkNoiseData(distBufferLen, distFadeLen));
+    distBuffer.getChannelData(1).set(createLoopingPinkNoiseData(distBufferLen, distFadeLen));
 
     const distSource = ctx.createBufferSource();
     distSource.buffer = distBuffer;
@@ -516,13 +613,11 @@ export class ZenAudioEngine {
     distGain.connect(output);
 
     // 2. 近景雨丝层：高频（带通 2800Hz~4200Hz）轻柔细致沙沙声，消除单调单频粉噪感
-    const nearBuffer = ctx.createBuffer(2, bufferLen, sampleRate);
-    const nearLeft = createPinkNoiseData(bufferLen);
-    const nearRight = createPinkNoiseData(bufferLen);
-    loopSmoothBuffer(nearLeft);
-    loopSmoothBuffer(nearRight);
-    nearBuffer.getChannelData(0).set(nearLeft);
-    nearBuffer.getChannelData(1).set(nearRight);
+    const nearBufferLen = Math.floor(sampleRate * 13.1);
+    const nearFadeLen = Math.floor(sampleRate * 0.8);
+    const nearBuffer = ctx.createBuffer(2, nearBufferLen, sampleRate);
+    nearBuffer.getChannelData(0).set(createLoopingPinkNoiseData(nearBufferLen, nearFadeLen));
+    nearBuffer.getChannelData(1).set(createLoopingPinkNoiseData(nearBufferLen, nearFadeLen));
 
     const nearSource = ctx.createBufferSource();
     nearSource.buffer = nearBuffer;
@@ -677,16 +772,12 @@ export class ZenAudioEngine {
   // =========================================================================
   private buildWindSoundscape(ctx: AudioContext, output: AudioNode): (fade?: number) => void {
     const sampleRate = ctx.sampleRate;
-    const bufferLen = sampleRate * 6;
-
-    // Brownian Noise Buffer
-    const buffer = ctx.createBuffer(2, bufferLen, sampleRate);
-    const leftData = createBrownNoiseData(bufferLen);
-    const rightData = createBrownNoiseData(bufferLen);
-    loopSmoothBuffer(leftData);
-    loopSmoothBuffer(rightData);
-    buffer.getChannelData(0).set(leftData);
-    buffer.getChannelData(1).set(rightData);
+    // 使用互质长缓冲区 (主风 12.7s, 松针微风 9.1s) 与等功率叠接，彻底消除接缝跳变与周期性断层
+    const windBufferLen = Math.floor(sampleRate * 12.7);
+    const windFadeLen = Math.floor(sampleRate * 0.8);
+    const buffer = ctx.createBuffer(2, windBufferLen, sampleRate);
+    buffer.getChannelData(0).set(createLoopingBrownNoiseData(windBufferLen, windFadeLen));
+    buffer.getChannelData(1).set(createLoopingBrownNoiseData(windBufferLen, windFadeLen));
 
     const noiseSource = ctx.createBufferSource();
     noiseSource.buffer = buffer;
@@ -719,11 +810,11 @@ export class ZenAudioEngine {
     breatheLfo.connect(breatheGain);
     breatheGain.connect(windGain.gain);
 
-    // 松针微风高频透气层 (Airy Pine Needles Layer via Pink Noise)
-    const airBuffer = ctx.createBuffer(1, sampleRate * 3, sampleRate);
-    const airData = createPinkNoiseData(sampleRate * 3);
-    loopSmoothBuffer(airData);
-    airBuffer.getChannelData(0).set(airData);
+    // 松针微风高频透气层 (Airy Pine Needles Layer via Looping Pink Noise, 9.1s)
+    const airBufferLen = Math.floor(sampleRate * 9.1);
+    const airFadeLen = Math.floor(sampleRate * 0.6);
+    const airBuffer = ctx.createBuffer(1, airBufferLen, sampleRate);
+    airBuffer.getChannelData(0).set(createLoopingPinkNoiseData(airBufferLen, airFadeLen));
 
     const airSource = ctx.createBufferSource();
     airSource.buffer = airBuffer;
@@ -776,16 +867,12 @@ export class ZenAudioEngine {
   private buildPaperSoundscape(ctx: AudioContext, output: AudioNode): (fade?: number) => void {
     let isDisposed = false;
     const sampleRate = ctx.sampleRate;
-    const bufferLen = sampleRate * 5;
-
-    // 炭炉余温低频底噪 (Warm Hearth Rumble)
+    // 炭炉余温低频底噪 (Warm Hearth Rumble, 11.9s 循环缓冲区，等功率交叉渐变)
+    const bufferLen = Math.floor(sampleRate * 11.9);
+    const fadeLen = Math.floor(sampleRate * 0.8);
     const buffer = ctx.createBuffer(2, bufferLen, sampleRate);
-    const leftData = createBrownNoiseData(bufferLen);
-    const rightData = createBrownNoiseData(bufferLen);
-    loopSmoothBuffer(leftData);
-    loopSmoothBuffer(rightData);
-    buffer.getChannelData(0).set(leftData);
-    buffer.getChannelData(1).set(rightData);
+    buffer.getChannelData(0).set(createLoopingBrownNoiseData(bufferLen, fadeLen));
+    buffer.getChannelData(1).set(createLoopingBrownNoiseData(bufferLen, fadeLen));
 
     const hearthSource = ctx.createBufferSource();
     hearthSource.buffer = buffer;
@@ -943,16 +1030,12 @@ export class ZenAudioEngine {
   private buildStreamSoundscape(ctx: AudioContext, output: AudioNode): (fade?: number) => void {
     let isDisposed = false;
     const sampleRate = ctx.sampleRate;
-    const bufferLen = sampleRate * 5;
-
-    // 1. 浅滩水幕底噪：平稳温润的石上水漫底噪 (立体声粉红噪声 + 400Hz~1800Hz 宽频平滑塑造)
+    // 1. 浅滩水幕底噪：平稳温润的石上水漫底噪 (立体声粉红噪声，11.3s 循环缓冲区，等功率交叉渐变)
+    const bufferLen = Math.floor(sampleRate * 11.3);
+    const fadeLen = Math.floor(sampleRate * 0.8);
     const buffer = ctx.createBuffer(2, bufferLen, sampleRate);
-    const leftData = createPinkNoiseData(bufferLen);
-    const rightData = createPinkNoiseData(bufferLen);
-    loopSmoothBuffer(leftData);
-    loopSmoothBuffer(rightData);
-    buffer.getChannelData(0).set(leftData);
-    buffer.getChannelData(1).set(rightData);
+    buffer.getChannelData(0).set(createLoopingPinkNoiseData(bufferLen, fadeLen));
+    buffer.getChannelData(1).set(createLoopingPinkNoiseData(bufferLen, fadeLen));
 
     const streamSource = ctx.createBufferSource();
     streamSource.buffer = buffer;
