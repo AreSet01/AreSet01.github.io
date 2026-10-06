@@ -4120,7 +4120,7 @@ body.preview-open .site-shell {
 
 .home-hero-title {
   position: relative;
-  max-width: 14ch;
+  max-width: clamp(26ch, 65vw, 42ch);
   margin: 2rem 0 0;
   padding-left: 2rem;
   padding-block: 0.4rem;
@@ -4130,7 +4130,11 @@ body.preview-open .site-shell {
   font-weight: 500;
   line-height: 1.35;
   letter-spacing: var(--font-letter-title);
-  text-wrap: balance;
+}
+
+.home-hero-title .hero-title-phrase {
+  display: inline-block;
+  white-space: nowrap;
 }
 
 .home-hero-title::before {
@@ -4197,77 +4201,265 @@ body.preview-open .site-shell {
   }
 }
 
-.home-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 6.5rem;
-  height: 6.5rem;
-  border: 2px solid var(--vermilion);
-  border-radius: 4px;
-  color: var(--vermilion);
-  background: transparent;
-  box-shadow:
-    inset 0 0 6px var(--vermilion-soft),
-    0 2px 6px rgba(var(--vermilion-rgb), 0.08);
-  font-family: var(--font-hand-title);
-  --tilt: -1.5deg;
-  transform: rotate(var(--tilt));
-  transition: transform 300ms var(--ease-bounce), box-shadow 300ms var(--ease);
-  cursor: none;
-  user-select: none;
-}
-
-.home-stat:nth-child(2n) {
-  --tilt: 2deg;
-}
-
-/* Once landed, stamps breathe like the floating seal — three phases so they never sync */
-.home-stat.is-entered,
+/* Once landed, archive metrics breathe like the floating seal */
 .archive-metric-card.is-entered {
   animation: stampBreathe 7s ease-in-out infinite alternate;
 }
-.home-stat.is-entered:nth-child(2),
 .archive-metric-card.is-entered:nth-child(2) { animation-delay: -2.3s; }
-.home-stat.is-entered:nth-child(3),
 .archive-metric-card.is-entered:nth-child(3) { animation-delay: -4.6s; }
 
-.home-stat.is-entered:hover,
 .archive-metric-card.is-entered:hover {
   animation: none;
 }
 
 @keyframes stampBreathe {
-  0%   { transform: rotate(calc(var(--tilt) - 1.2deg)) translateY(0); }
-  100% { transform: rotate(calc(var(--tilt) + 1.2deg)) translateY(-3px); }
+  0%   { transform: rotate(calc(var(--tilt, 0deg) - 1.2deg)) translateY(0); }
+  100% { transform: rotate(calc(var(--tilt, 0deg) + 1.2deg)) translateY(-3px); }
 }
 
-.home-stat:hover {
-  transform: rotate(0deg) scale(1.06);
+/* ================= 水墨渐隐长卷胶囊 (Stats Ribbon & Archive Capsule) ================= */
+
+.home-stats-strip,
+.archive-stats-strip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.35rem 0.6rem;
+  background: var(--bg-soft);
+  background: color-mix(in srgb, var(--bg-base) 75%, var(--bg-soft) 25%);
+  border: 1px solid var(--rule-soft);
+  border-radius: 9999px;
   box-shadow:
-    inset 0 0 8px var(--vermilion-soft),
-    0 4px 12px rgba(var(--vermilion-rgb), 0.16);
+    0 4px 20px rgba(0, 0, 0, 0.02),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  user-select: none;
+  -webkit-user-select: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: visible;
+  transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
 }
 
-.home-stat span {
-  color: var(--vermilion);
-  font-family: var(--font-body);
+/* 两端柔光水墨淡化意境微光边缘 */
+.home-stats-strip::before,
+.archive-stats-strip::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 9999px;
+  padding: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--rule-strong) 25%,
+    var(--rule) 50%,
+    var(--rule-strong) 75%,
+    transparent 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.65;
+}
+
+[data-theme="dark"] .home-stats-strip,
+[data-theme="dark"] .archive-stats-strip {
+  background: rgba(28, 28, 28, 0.72);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .home-stats-strip::before,
+[data-theme="dark"] .archive-stats-strip::before {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.22) 25%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.22) 75%,
+    transparent 100%
+  );
+}
+
+.archive-stats-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+@media (min-width: 768px) {
+  .archive-stats-wrap {
+    justify-content: flex-end;
+  }
+}
+
+.archive-stats-strip {
+  padding: 0.38rem 0.75rem;
+}
+
+.archive-stat-item {
+  padding: 0.32rem 1.1rem;
+}
+
+.archive-stats-strip .stats-separator {
+  height: 2.1rem;
+}
+
+.archive-stats-strip .stats-subnote {
+  display: block;
+  font-family: var(--font-serif);
   font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  color: var(--muted);
   opacity: 0.85;
-}
-
-.home-stat strong {
-  color: var(--vermilion);
-  font-family: var(--font-hand-title);
-  font-size: 1.8rem;
-  font-weight: 500;
   line-height: 1.1;
   margin-top: 0.2rem;
-  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: color 0.22s var(--ease), opacity 0.22s var(--ease);
+}
+
+html[data-font="kai"] .archive-stats-strip .stats-subnote {
+  font-family: var(--font-hand);
+  font-size: 0.7rem;
+}
+
+.archive-stat-item:hover .stats-subnote {
+  color: var(--text-strong);
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .archive-stats-strip {
+    width: 100%;
+    max-width: 360px;
+    justify-content: space-between;
+    padding: 0.3rem 0.45rem;
+  }
+  .archive-stat-item {
+    padding: 0.28rem 0.55rem;
+  }
+}
+
+/* 磁吸流体滑块 (Magnetic Glider) */
+.stats-glider {
+  position: absolute;
+  top: 0.35rem;
+  left: 0;
+  height: calc(100% - 0.7rem);
+  width: 0;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateZ(0);
+  transition:
+    transform 0.36s cubic-bezier(0.2, 0.9, 0.2, 1),
+    width 0.32s cubic-bezier(0.2, 0.9, 0.2, 1),
+    opacity 0.2s ease;
+  z-index: 0;
+}
+
+[data-theme="dark"] .stats-glider {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="moss"] .stats-glider {
+  background: rgba(98, 160, 111, 0.12);
+  border-color: rgba(98, 160, 111, 0.2);
+}
+
+[data-theme="rice"] .stats-glider {
+  background: rgba(184, 169, 149, 0.18);
+  border-color: rgba(184, 169, 149, 0.28);
+}
+
+/* 单个数据项胶囊 (Stats Item) */
+.stats-item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 1.15rem;
+  border-radius: 9999px;
+  text-decoration: none !important;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.22s var(--ease);
+}
+
+.stats-item:hover {
+  transform: translateY(-1.5px);
+}
+
+.stats-item:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.stats-label {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.2;
+  transition: color 0.22s var(--ease);
+}
+
+.stats-item:hover .stats-label {
+  color: var(--text-strong);
+}
+
+.stats-value {
+  display: block;
+  margin-top: 0.15rem;
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+  transition: color 0.22s var(--ease), transform 0.22s var(--ease);
+}
+
+/* 行楷字体模式下的自适应排版 */
+html[data-font="kai"] .stats-value {
+  font-family: var(--font-hand-title);
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+html[data-font="kai"] .stats-label {
+  font-family: var(--font-hand);
+  letter-spacing: 0.08em;
+}
+
+/* 淡墨分割竖线 */
+.stats-separator {
+  display: block;
+  width: 1px;
+  height: 1.4rem;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--rule-strong) 30%,
+    var(--rule-strong) 70%,
+    transparent 100%
+  );
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 /* ================= Home Ticker (movable-type strip between hero and digest) ================= */
@@ -4601,7 +4793,7 @@ body.preview-open .site-shell {
 
 @media (min-width: 768px) {
   .home-hero {
-    grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.3fr);
+    grid-template-columns: minmax(0, 1.4fr) auto;
     align-items: end;
   }
 
@@ -4634,7 +4826,7 @@ body.preview-open .site-shell {
 
 @media (max-width: 768px) {
   .home-hero-title {
-    max-width: 13ch;
+    max-width: 100%;
   }
 }
 
@@ -4681,7 +4873,7 @@ body.preview-open .site-shell {
   .prose img,
   .image-viewer-close,
   .stat-card,
-  .home-stat,
+  .stats-item,
   .archive-metric-card,
   [data-post-preview],
   [data-search-trigger],
@@ -4728,7 +4920,7 @@ body.preview-open .site-shell {
   html[data-cursor-trail="disabled"] .prose img,
   html[data-cursor-trail="disabled"] .image-viewer-close,
   html[data-cursor-trail="disabled"] .stat-card,
-  html[data-cursor-trail="disabled"] .home-stat,
+  html[data-cursor-trail="disabled"] .stats-item,
   html[data-cursor-trail="disabled"] .archive-metric-card,
   html[data-cursor-trail="disabled"] [data-post-preview],
   html[data-cursor-trail="disabled"] [data-search-trigger],
@@ -8103,22 +8295,24 @@ body.gallery-lightbox-open {
 
   .home-rail {
     justify-content: center;
-    gap: 0.85rem;
-    padding-top: 0.4rem;
+    width: 100%;
+    padding-top: 0.6rem;
   }
 
-  .home-stat {
-    width: 5.4rem;
-    height: 5.4rem;
+  .home-stats-strip {
+    width: 100%;
+    max-width: 360px;
+    justify-content: space-between;
+    padding: 0.28rem 0.35rem;
   }
 
-  .home-stat strong {
-    font-size: 1.5rem;
+  .stats-item {
+    flex: 1;
+    padding: 0.3rem 0.45rem;
   }
 
-  .home-stat span {
-    font-size: 0.56rem;
-    letter-spacing: 0.06em;
+  .stats-value {
+    font-size: 1.15rem;
   }
 
   /* 写作方向 runs down the margin as a vertical rule on desktop. On a phone it

@@ -22,18 +22,32 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
           <span class="zen-subtitle">Zen Soundscape</span>
         </div>
       </div>
-      <button
-        type="button"
-        class="zen-capsule-close-btn"
-        data-zen-close-btn
-        aria-label="关闭伴读面板"
-        title="关闭面板 (Esc)"
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="zen-rain-toggle-pill is-active"
+          data-zen-rain-toggle
+          aria-label="切换烟雨画境"
+          title="烟雨画境：随伴读自动展开水墨烟雨"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+          </svg>
+          <span>烟雨画境</span>
+        </button>
+        <button
+          type="button"
+          class="zen-capsule-close-btn"
+          data-zen-close-btn
+          aria-label="关闭伴读面板"
+          title="关闭面板 (Esc)"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- 四大文人意境音景选择器 (极简雅致药丸卡片：图标 + 4字名称) -->
@@ -333,6 +347,21 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
       }
 
       updateTimerGlider();
+
+      // 7. Visual rain toggle state
+      const rainToggleBtn = capsule.querySelector('[data-zen-rain-toggle]');
+      if (rainToggleBtn) {
+        const isRainDisabled = document.documentElement.getAttribute('data-zen-rain') === 'disabled';
+        if (isRainDisabled) {
+          rainToggleBtn.classList.remove('is-active');
+          rainToggleBtn.setAttribute('aria-pressed', 'false');
+          rainToggleBtn.setAttribute('title', '烟雨画境已静音（点击开启）');
+        } else {
+          rainToggleBtn.classList.add('is-active');
+          rainToggleBtn.setAttribute('aria-pressed', 'true');
+          rainToggleBtn.setAttribute('title', '烟雨画境随伴读展开（点击关闭）');
+        }
+      }
     }
 
     function openCapsule() {
@@ -418,6 +447,29 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
       closeBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
         closeCapsule();
+      });
+
+      // Visual rain toggle button
+      const rainToggleBtn = capsule.querySelector('[data-zen-rain-toggle]');
+      rainToggleBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isRainDisabled = document.documentElement.getAttribute('data-zen-rain') === 'disabled';
+        if (isRainDisabled) {
+          document.documentElement.removeAttribute('data-zen-rain');
+          try { localStorage.removeItem('zen-rain-disabled'); } catch (err) {}
+          const rainCanvas = document.getElementById('zenRainCanvas');
+          if (rainCanvas && getZenAudioEngine().getState().isPlaying) {
+            rainCanvas.classList.add('is-active');
+          }
+        } else {
+          document.documentElement.setAttribute('data-zen-rain', 'disabled');
+          try { localStorage.setItem('zen-rain-disabled', '1'); } catch (err) {}
+          const rainCanvas = document.getElementById('zenRainCanvas');
+          if (rainCanvas) {
+            rainCanvas.classList.remove('is-active');
+          }
+        }
+        syncUI();
       });
 
       // Master play toggle button with GSAP spring & ripple
@@ -580,3 +632,40 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
     initListeners();
   })();
 </script>
+
+<style>
+  .zen-rain-toggle-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.22rem 0.55rem;
+    border-radius: 9999px;
+    font-size: 0.72rem;
+    font-family: var(--font-pixel, monospace);
+    color: var(--muted);
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid var(--rule);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    white-space: nowrap;
+  }
+  .zen-rain-toggle-pill:hover {
+    color: var(--text-strong);
+    border-color: var(--rule-strong);
+    background: rgba(0, 0, 0, 0.08);
+  }
+  .zen-rain-toggle-pill.is-active {
+    color: var(--text-strong);
+    background: rgba(0, 0, 0, 0.08);
+    border-color: var(--rule-strong);
+  }
+  [data-theme="dark"] .zen-rain-toggle-pill {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+  [data-theme="dark"] .zen-rain-toggle-pill:hover,
+  [data-theme="dark"] .zen-rain-toggle-pill.is-active {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.35);
+  }
+</style>

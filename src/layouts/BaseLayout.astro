@@ -4,6 +4,7 @@ import { ClientRouter } from 'astro:transitions';
 import SiteIntro from '../components/SiteIntro.astro';
 import PostTransition from '../components/PostTransition.astro';
 import ZenSoundscape from '../components/ZenSoundscape.astro';
+import ZenRainscape from '../components/ZenRainscape.astro';
 
 const buildVersion = Date.now().toString(36);
 const searchIndexPath = `${import.meta.env.BASE_URL ?? '/'}search-index.json?v=${buildVersion}`;
@@ -319,6 +320,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
     <SiteIntro />
     <PostTransition />
     <canvas id="inkCanvas" transition:persist style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 100005;"></canvas>
+    <ZenRainscape transition:persist />
     <ZenSoundscape transition:persist />
     <div class="site-shell">
       <slot />
@@ -569,9 +571,9 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
       const ENTER_OFFSET = { left: -46, right: 46, top: -38, bottom: 38 };
       const ENTER_SCROLL_BIAS = 22; // subtle vertical nudge on horizontal kinds during scroll re-entries
       const ENTER_TRIGGER_PREFIX = 'enter:';
-      // Sides converge first, then verticals, then scale/stamps, ink rows last
-      const ENTER_ORDER = { left: 0, right: 0, top: 1, bottom: 1, scale: 2, stamp: 2, ink: 3 };
-      const ENTER_STAGGER = { default: 0.08, stamp: 0.12, ink: 0.07 };
+      // Sides converge first, then verticals, then scale/stamps/bloom, ink rows last
+      const ENTER_ORDER = { left: 0, right: 0, top: 1, bottom: 1, scale: 2, stamp: 2, bloom: 2, ink: 3 };
+      const ENTER_STAGGER = { default: 0.08, stamp: 0.12, bloom: 0.12, ink: 0.07 };
       let hasNavigated = false;
 
       // Smooth, natural brush glide ease: gentle start, steady acceleration and soft settle (zero whip/snap)
@@ -617,7 +619,7 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
       function finishEnter(el) {
         el.classList.remove('is-entering');
         el.classList.add('is-entered');
-        gsap.set(el, { clearProps: 'transform,opacity,clipPath' });
+        gsap.set(el, { clearProps: 'transform,opacity,clipPath,filter' });
       }
 
       function countUp(el, delay) {
@@ -671,6 +673,33 @@ const { title, description = '梦付千秋 - 日常记录与技术分享' } = As
           }, at);
           el.querySelectorAll('[data-count]').forEach((numEl) => countUp(numEl, at + 0.25));
           return ENTER_STAGGER.stamp;
+        }
+
+        if (kind === 'bloom') {
+          // 落墨生花：墨韵氤氲渐显，微澜涟漪，清雅破茧
+          gsap.set(el, {
+            opacity: 0,
+            y: 20,
+            scale: 0.94,
+            filter: 'blur(10px)',
+            transformOrigin: '50% 50%',
+          });
+          tl.to(el, {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            filter: 'blur(0px)',
+            duration: 0.95,
+            ease: 'power3.out',
+            onStart: () => {
+              gsap.delayedCall(0.18, () => {
+                if (el && el.isConnected) splashAt(el);
+              });
+            },
+            onComplete: () => finishEnter(el),
+          }, at);
+          el.querySelectorAll('[data-count]').forEach((numEl) => countUp(numEl, at + 0.2));
+          return ENTER_STAGGER.bloom;
         }
 
         if (kind === 'ink') {

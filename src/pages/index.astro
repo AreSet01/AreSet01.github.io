@@ -21,11 +21,12 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
 <BaseLayout title="梦付千秋 - 日常记录与技术分享">
   <Header />
   <main class="container-wide flex-1 pt-6 pb-16 lg:pt-8">
-    <section class="home-hero" style="padding-block: 0.5rem 2.5rem;">
+    <section class="home-hero">
       <div class="home-hero-copy">
         <p class="eyebrow" data-enter="top">Vol. 01 / Digital Garden</p>
         <h1 class="home-hero-title" style="font-size: clamp(2rem, 5vw, 3.4rem);" data-enter="left">
-          欢迎光临AreSetのBlog
+          <span class="hero-title-phrase inline-block whitespace-nowrap">欢迎光临</span>
+          <span class="hero-title-phrase inline-block whitespace-nowrap">AreSet の Blog</span>
         </h1>
         <p class="home-hero-desc" data-enter="left">
           这里用来随便分享一点小知识，一些行业看法，或是说些愤青（bushi）言论
@@ -37,18 +38,28 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
       </div>
 
       <aside class="home-rail" aria-label="站点概览">
-        <div class="home-stat" data-enter="stamp">
-          <span>Posts</span>
-          <strong data-count={posts.length}>{posts.length}</strong>
-        </div>
-        <div class="home-stat" data-enter="stamp">
-          <span>Tags</span>
-          <strong data-count={totalTags}>{totalTags}</strong>
-        </div>
-        <div class="home-stat" data-enter="stamp">
-          <span>Year</span>
-          <strong>{latestYear}</strong>
-        </div>
+        <nav class="home-stats-strip" data-enter="bloom" data-home-stats-strip aria-label="核心数据导航">
+          <span class="stats-glider" data-stats-glider aria-hidden="true"></span>
+          
+          <a href="/archive" class="stats-item" data-stats-item title="浏览全部文章归档">
+            <span class="stats-label">Posts</span>
+            <strong class="stats-value" data-count={posts.length}>{posts.length}</strong>
+          </a>
+
+          <span class="stats-separator" aria-hidden="true"></span>
+
+          <a href="/tags" class="stats-item" data-stats-item title="查看全站技术与生活标签">
+            <span class="stats-label">Tags</span>
+            <strong class="stats-value" data-count={totalTags}>{totalTags}</strong>
+          </a>
+
+          <span class="stats-separator" aria-hidden="true"></span>
+
+          <a href="/timeline" class="stats-item" data-stats-item title="穿梭岁月足迹时间轴">
+            <span class="stats-label">Year</span>
+            <strong class="stats-value">{latestYear}</strong>
+          </a>
+        </nav>
       </aside>
     </section>
 
@@ -151,23 +162,41 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
 
   function splitTitle(title: HTMLElement): HTMLElement[] {
     if (title.dataset.split === 'true') return Array.from(title.querySelectorAll<HTMLElement>('.egg-char'));
-    const text = title.textContent?.trim() || '';
+    const phraseElements = title.querySelectorAll<HTMLElement>('.hero-title-phrase');
+    const phrases = phraseElements.length > 0
+      ? Array.from(phraseElements).map(el => el.textContent?.trim() || '').filter(Boolean)
+      : [title.textContent?.trim() || ''];
+
     title.textContent = '';
     title.dataset.split = 'true';
     const chars: HTMLElement[] = [];
-    // Latin runs stay one unbreakable word so the line still wraps like real text
-    for (const word of text.split(/(?<=[^\x00-\x7F])|(?=[^\x00-\x7F])/)) {
-      const wordEl = document.createElement('span');
-      wordEl.className = 'egg-word';
-      for (const ch of word) {
-        const span = document.createElement('span');
-        span.className = 'egg-char';
-        span.textContent = ch;
-        wordEl.appendChild(span);
-        chars.push(span);
+
+    phrases.forEach((phrase, phraseIdx) => {
+      const phraseEl = document.createElement('span');
+      phraseEl.className = 'hero-title-phrase inline-block whitespace-nowrap';
+
+      for (const word of phrase.split(/(?<=[^\x00-\x7F])|(?=[^\x00-\x7F])/)) {
+        if (/^\s+$/.test(word)) {
+          phraseEl.appendChild(document.createTextNode(' '));
+          continue;
+        }
+        const wordEl = document.createElement('span');
+        wordEl.className = 'egg-word';
+        for (const ch of word) {
+          const span = document.createElement('span');
+          span.className = 'egg-char';
+          span.textContent = ch;
+          wordEl.appendChild(span);
+          chars.push(span);
+        }
+        phraseEl.appendChild(wordEl);
       }
-      title.appendChild(wordEl);
-    }
+
+      title.appendChild(phraseEl);
+      if (phraseIdx < phrases.length - 1) {
+        title.appendChild(document.createTextNode(' '));
+      }
+    });
     return chars;
   }
 
@@ -319,4 +348,49 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
     document.addEventListener('astro:page-load', initHomeEggs);
     (window as any)[LISTENER_KEY] = true;
   }
+</script>
+
+<script>
+  (function initStatsGliderController() {
+    function setupGlider() {
+      const strip = document.querySelector('[data-home-stats-strip]') as HTMLElement;
+      const glider = document.querySelector('[data-stats-glider]') as HTMLElement;
+      if (!strip || !glider) return;
+
+      const items = strip.querySelectorAll<HTMLElement>('[data-stats-item]');
+      if (!items || items.length === 0) return;
+
+      function moveGlider(target: HTMLElement) {
+        const stripRect = strip.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const left = targetRect.left - stripRect.left;
+        const width = targetRect.width;
+        glider.style.opacity = '1';
+        glider.style.transform = `translateX(${left}px)`;
+        glider.style.width = `${width}px`;
+      }
+
+      function hideGlider() {
+        glider.style.opacity = '0';
+      }
+
+      items.forEach((item) => {
+        item.addEventListener('pointerenter', () => moveGlider(item));
+        item.addEventListener('focus', () => moveGlider(item));
+        item.addEventListener('click', () => {
+          const rect = item.getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+        });
+      });
+
+      strip.addEventListener('pointerleave', hideGlider);
+    }
+
+    document.addEventListener('astro:page-load', setupGlider);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupGlider);
+    } else {
+      setupGlider();
+    }
+  })();
 </script>

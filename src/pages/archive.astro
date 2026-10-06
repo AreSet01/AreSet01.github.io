@@ -37,30 +37,31 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
             这里可以按时间看到所~有~的文章噢~
           </p>
         </div>
-        <div class="archive-metrics-grid">
-          <div class="stat-card archive-metric-card" data-enter="stamp">
-            <div class="archive-metric-top">
-              <p class="archive-metric-label">Total</p>
-              <span class="archive-metric-dot" aria-hidden="true"></span>
+        <div class="archive-stats-wrap" data-enter="bloom" data-archive-stats-strip>
+          <div class="archive-stats-strip" aria-label="归档数据概览">
+            <span class="stats-glider" data-archive-stats-glider aria-hidden="true"></span>
+
+            <div class="stats-item archive-stat-item" data-stats-item tabindex="0" title="全站公开文章总数">
+              <span class="stats-label">TOTAL</span>
+              <strong class="stats-value" data-count={posts.length}>{posts.length}</strong>
+              <span class="stats-subnote">篇公开文章</span>
             </div>
-            <p class="archive-metric-value" data-count={posts.length}>{posts.length}</p>
-            <p class="archive-metric-note">篇公开文章</p>
-          </div>
-          <div class="stat-card archive-metric-card" data-enter="stamp">
-            <div class="archive-metric-top">
-              <p class="archive-metric-label">Years</p>
-              <span class="archive-metric-dot" aria-hidden="true"></span>
+
+            <span class="stats-separator" aria-hidden="true"></span>
+
+            <div class="stats-item archive-stat-item" data-stats-item tabindex="0" title="跨越年度">
+              <span class="stats-label">YEARS</span>
+              <strong class="stats-value" data-count={years.length}>{years.length}</strong>
+              <span class="stats-subnote">年历程</span>
             </div>
-            <p class="archive-metric-value" data-count={years.length}>{years.length}</p>
-            <p class="archive-metric-note">年</p>
-          </div>
-          <div class="stat-card archive-metric-card" data-enter="stamp">
-            <div class="archive-metric-top">
-              <p class="archive-metric-label">Latest</p>
-              <span class="archive-metric-dot" aria-hidden="true"></span>
+
+            <span class="stats-separator" aria-hidden="true"></span>
+
+            <div class="stats-item archive-stat-item" data-stats-item tabindex="0" title="最近活跃年份">
+              <span class="stats-label">LATEST</span>
+              <strong class="stats-value">{latestYear}</strong>
+              <span class="stats-subnote">最近活跃</span>
             </div>
-            <p class="archive-metric-value">{latestYear}</p>
-            <p class="archive-metric-note">最近活跃年份</p>
           </div>
         </div>
       </div>
@@ -462,4 +463,49 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
     document.addEventListener('astro:page-load', initArchiveFilter);
     (window as any)[LISTENER_KEY] = true;
   }
+</script>
+
+<script>
+  (function initArchiveStatsGliderController() {
+    function setupGlider() {
+      const strip = document.querySelector('[data-archive-stats-strip]') as HTMLElement;
+      const glider = document.querySelector('[data-archive-stats-glider]') as HTMLElement;
+      if (!strip || !glider) return;
+
+      const items = strip.querySelectorAll<HTMLElement>('[data-stats-item]');
+      if (!items || items.length === 0) return;
+
+      function moveGlider(target: HTMLElement) {
+        const stripRect = strip.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const left = targetRect.left - stripRect.left;
+        const width = targetRect.width;
+        glider.style.opacity = '1';
+        glider.style.transform = `translateX(${left}px)`;
+        glider.style.width = `${width}px`;
+      }
+
+      function hideGlider() {
+        glider.style.opacity = '0';
+      }
+
+      items.forEach((item) => {
+        item.addEventListener('pointerenter', () => moveGlider(item));
+        item.addEventListener('focus', () => moveGlider(item));
+        item.addEventListener('click', () => {
+          const rect = item.getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+        });
+      });
+
+      strip.addEventListener('pointerleave', hideGlider);
+    }
+
+    document.addEventListener('astro:page-load', setupGlider);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupGlider);
+    } else {
+      setupGlider();
+    }
+  })();
 </script>

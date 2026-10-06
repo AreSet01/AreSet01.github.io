@@ -1,0 +1,316 @@
+---
+// ZenRainscape.astro — 全站「烟雨濛濛」音画微气象背景系统
+// 平时保持纯净宣纸底色（0% 开销），开启「墨池听雨」伴读白噪音时，漫入斜风细雨与空灵微澜
+---
+
+<canvas
+  id="zenRainCanvas"
+  transition:persist="zen-rain-canvas"
+  class="zen-rain-canvas"
+  aria-hidden="true"
+  tabindex="-1"
+></canvas>
+
+<style>
+  .zen-rain-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 1; /* 位于纸张底纹之上，正文与交互容器之下 */
+    opacity: 0;
+    transition: opacity 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity;
+  }
+
+  .zen-rain-canvas.is-active {
+    opacity: 1;
+  }
+</style>
+
+<script>
+import { getZenAudioEngine } from '../utils/zenAudioEngine';
+
+(function setupZenRainscape() {
+  let canvas: HTMLCanvasElement | null = null;
+  let ctx: CanvasRenderingContext2D | null = null;
+  let animId: number | null = null;
+  let isRunning = false;
+  let currentOpacity = 0;
+  let targetOpacity = 0;
+  let width = 0;
+  let height = 0;
+  let listenerAttached = false;
+
+  interface RainDrop {
+    x: number;
+    y: number;
+    len: number;
+    speed: number;
+    opacity: number;
+    width: number;
+  }
+
+  interface LakeRipple {
+    x: number;
+    y: number;
+    r: number;
+    maxR: number;
+    opacity: number;
+    speed: number;
+    color: string;
+  }
+
+  const drops: RainDrop[] = [];
+  const lakeRipples: LakeRipple[] = [];
+  let nextRippleTime = 0;
+
+  const maxDrops = 140;
+  const maxRipples = 20;
+  const windAngle = Math.PI / 11; // ~16 度倾斜细雨
+  const cosAngle = Math.cos(windAngle);
+  const sinAngle = Math.sin(windAngle);
+
+  function resize() {
+    if (!canvas) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    if (ctx) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+
+  function initDrops() {
+    drops.length = 0;
+    const count = window.innerWidth < 768 ? Math.floor(maxDrops * 0.6) : maxDrops;
+    for (let i = 0; i < count; i++) {
+      drops.push({
+        x: Math.random() * (width + 300) - 150,
+        y: Math.random() * height,
+        len: 16 + Math.random() * 24,
+        speed: 6.5 + Math.random() * 4.5,
+        opacity: 0.12 + Math.random() * 0.22,
+        width: 0.8 + Math.random() * 0.7,
+      });
+    }
+
+    lakeRipples.length = 0;
+    nextRippleTime = performance.now() + 200;
+  }
+
+  function getPalette() {
+    const theme = document.documentElement.getAttribute('data-theme') || 'light';
+    if (theme === 'dark') {
+      return {
+        rain: '255, 255, 255',
+        ripple: '255, 255, 255',
+      };
+    } else if (theme === 'moss') {
+      return {
+        rain: '240, 248, 242',
+        ripple: '240, 248, 242',
+      };
+    } else if (theme === 'rice') {
+      return {
+        rain: '40, 34, 28',
+        ripple: '40, 34, 28',
+      };
+    }
+    // Default paper/light: pure deep ink
+    return {
+      rain: '26, 24, 20',
+      ripple: '30, 28, 24',
+    };
+  }
+
+  function spawnLakeRipple(palette: any) {
+    if (lakeRipples.length >= maxRipples) return;
+    lakeRipples.push({
+      x: 40 + Math.random() * Math.max(100, width - 80),
+      y: 60 + Math.random() * Math.max(100, height - 120),
+      r: 1,
+      maxR: 24 + Math.random() * 42,
+      opacity: 0.25 + Math.random() * 0.18,
+      speed: 0.48 + Math.random() * 0.36,
+      color: palette.ripple,
+    });
+  }
+
+  function loop() {
+    if (!ctx || !canvas) return;
+
+    // Smooth alpha transition
+    currentOpacity += (targetOpacity - currentOpacity) * 0.05;
+    if (currentOpacity < 0.005 && targetOpacity === 0) {
+      currentOpacity = 0;
+      ctx.clearRect(0, 0, width, height);
+      isRunning = false;
+      animId = null;
+      return;
+    }
+
+    ctx.clearRect(0, 0, width, height);
+
+    const palette = getPalette();
+    const now = performance.now();
+
+    // 1. 活跃的静湖雨滴微澜 (涟漪频率自然提升，无积水，宛如雨丝敲击水面)
+    if (now >= nextRippleTime && currentOpacity > 0.1) {
+      spawnLakeRipple(palette);
+      // 下次波纹间隔 260ms ~ 620ms，营造生动空灵的湖面微澜韵律
+      nextRippleTime = now + 260 + Math.random() * 360;
+    }
+
+    // 2. 渲染自然微澜水波 (同心双环椭圆微澜，透视比例 0.42)
+    for (let i = lakeRipples.length - 1; i >= 0; i--) {
+      const rip = lakeRipples[i];
+      rip.r += rip.speed;
+      const progress = rip.r / rip.maxR;
+      const currentAlpha = rip.opacity * (1 - progress) * currentOpacity;
+
+      if (progress >= 1 || currentAlpha <= 0.01) {
+        lakeRipples.splice(i, 1);
+        continue;
+      }
+
+      ctx.save();
+      // 外层主涟漪椭圆
+      ctx.beginPath();
+      ctx.ellipse(rip.x, rip.y, rip.r, rip.r * 0.42, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${rip.color}, ${currentAlpha})`;
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
+
+      // 内层微澜回音环
+      if (rip.r > 9) {
+        const innerR = rip.r * 0.62;
+        const innerAlpha = currentAlpha * 0.55;
+        ctx.beginPath();
+        ctx.ellipse(rip.x, rip.y, innerR, innerR * 0.42, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${rip.color}, ${innerAlpha})`;
+        ctx.lineWidth = 0.65;
+        ctx.stroke();
+      }
+
+      // 雨丝初触水面微弱晕点
+      if (rip.r < 7) {
+        const pingAlpha = (1 - rip.r / 7) * 0.3 * currentOpacity;
+        ctx.beginPath();
+        ctx.arc(rip.x, rip.y, 2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${rip.color}, ${pingAlpha})`;
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // 3. 渲染斜风细雨丝 (自然贯穿全屏与循环重置，绝不底部积水)
+    for (let i = 0; i < drops.length; i++) {
+      const d = drops[i];
+      d.x += sinAngle * d.speed;
+      d.y += cosAngle * d.speed;
+
+      const alpha = d.opacity * currentOpacity;
+      ctx.beginPath();
+      ctx.strokeStyle = `rgba(${palette.rain}, ${alpha})`;
+      ctx.lineWidth = d.width;
+      ctx.moveTo(d.x, d.y);
+      ctx.lineTo(d.x + sinAngle * d.len, d.y + cosAngle * d.len);
+      ctx.stroke();
+
+      // 超出屏幕下边缘即循环回顶部，无任何地面碎溅或积水残留
+      if (d.y > height + d.len) {
+        d.y = -d.len - Math.random() * 40;
+        d.x = Math.random() * (width + 300) - 150;
+      }
+    }
+
+    animId = requestAnimationFrame(loop);
+  }
+
+  function start() {
+    if (document.documentElement.getAttribute('data-zen-rain') === 'disabled') {
+      stop();
+      return;
+    }
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion) return;
+
+    targetOpacity = 1;
+    if (canvas) canvas.classList.add('is-active');
+
+    if (!isRunning) {
+      isRunning = true;
+      if (drops.length === 0) initDrops();
+      if (animId) cancelAnimationFrame(animId);
+      animId = requestAnimationFrame(loop);
+    }
+  }
+
+  function stop() {
+    targetOpacity = 0;
+    if (canvas) canvas.classList.remove('is-active');
+  }
+
+  function ensureCanvas() {
+    const el = document.getElementById('zenRainCanvas') as HTMLCanvasElement;
+    if (!el) return;
+    if (el !== canvas || !ctx) {
+      canvas = el;
+      ctx = canvas.getContext('2d');
+    }
+    resize();
+  }
+
+  function syncWithAudio() {
+    try {
+      const engine = getZenAudioEngine();
+      if (engine.getState().isPlaying) {
+        start();
+      } else {
+        stop();
+      }
+    } catch (e) {}
+  }
+
+  function attachEngineListener() {
+    if (listenerAttached) return;
+    try {
+      const engine = getZenAudioEngine();
+      engine.onStateChange((state) => {
+        if (state.isPlaying) {
+          start();
+        } else {
+          stop();
+        }
+      });
+      listenerAttached = true;
+    } catch (e) {
+      console.warn('[ZenRainscape] Failed to attach audio listener', e);
+    }
+  }
+
+  function init() {
+    ensureCanvas();
+    window.addEventListener('resize', resize, { passive: true });
+    attachEngineListener();
+    syncWithAudio();
+  }
+
+  // Astro View Transitions 生命周期持久化监听
+  document.addEventListener('astro:page-load', () => {
+    ensureCanvas();
+    syncWithAudio();
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
