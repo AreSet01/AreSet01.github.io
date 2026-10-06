@@ -462,50 +462,98 @@ export class ZenAudioEngine {
 
   // =========================================================================
   // 1. 空山听雨（Mountain Rain / 屋檐雨声与落水点缀）
+  // 声学架构：
+  // 1) 双层远近雨幕底噪：
+  //    - 远山阵雨层：低通 1200Hz + 慢速 0.12Hz LFO 调制呼吸起伏
+  //    - 近景雨丝层：高通 2800Hz / 低通 4200Hz 轻柔细致沙沙声，消除单调单频粉噪感
+  // 2) 瓦当青石物理水滴群：
+  //    - 近景青石/屋檐瓦当滴答：800~1200Hz 空腔共振与沉稳圆润微顿音
+  //    - 山叶落水：1500~2200Hz 清脆下掠水音
+  //    - 随机立体声声像偏置，间歇节奏更自然连绵
   // =========================================================================
   private buildRainSoundscape(ctx: AudioContext, output: AudioNode): (fade?: number) => void {
     let isDisposed = false;
     const sampleRate = ctx.sampleRate;
     const bufferLen = sampleRate * 5; // 5-second seamless loop buffer
 
-    // Stereo Pink Noise Buffer
-    const buffer = ctx.createBuffer(2, bufferLen, sampleRate);
-    const leftData = createPinkNoiseData(bufferLen);
-    const rightData = createPinkNoiseData(bufferLen);
-    loopSmoothBuffer(leftData);
-    loopSmoothBuffer(rightData);
-    buffer.getChannelData(0).set(leftData);
-    buffer.getChannelData(1).set(rightData);
+    // 1. 远山阵雨层：低频（低通 1200Hz）结合慢速（0.12Hz）LFO 模拟山风起伏雨幕与远山雨声呼吸起伏
+    const distBuffer = ctx.createBuffer(2, bufferLen, sampleRate);
+    const distLeft = createPinkNoiseData(bufferLen);
+    const distRight = createPinkNoiseData(bufferLen);
+    loopSmoothBuffer(distLeft);
+    loopSmoothBuffer(distRight);
+    distBuffer.getChannelData(0).set(distLeft);
+    distBuffer.getChannelData(1).set(distRight);
 
-    const noiseSource = ctx.createBufferSource();
-    noiseSource.buffer = buffer;
-    noiseSource.loop = true;
+    const distSource = ctx.createBufferSource();
+    distSource.buffer = distBuffer;
+    distSource.loop = true;
 
-    // Highpass: remove muddy sub-bass
-    const hp = ctx.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.setValueAtTime(180, ctx.currentTime);
+    const distHp = ctx.createBiquadFilter();
+    distHp.type = 'highpass';
+    distHp.frequency.setValueAtTime(140, ctx.currentTime);
 
-    // Lowpass: soften harsh hiss to authentic mountain rain
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.setValueAtTime(2200, ctx.currentTime);
-    lp.Q.setValueAtTime(0.7, ctx.currentTime);
+    const distLp = ctx.createBiquadFilter();
+    distLp.type = 'lowpass';
+    distLp.frequency.setValueAtTime(1200, ctx.currentTime);
+    distLp.Q.setValueAtTime(0.7, ctx.currentTime);
 
-    const rainGain = ctx.createGain();
-    rainGain.gain.setValueAtTime(0.85, ctx.currentTime);
+    const distGain = ctx.createGain();
+    distGain.gain.setValueAtTime(0.58, ctx.currentTime);
 
-    noiseSource.connect(hp);
-    hp.connect(lp);
-    lp.connect(rainGain);
-    rainGain.connect(output);
-    noiseSource.start();
+    // 0.12Hz 慢速 LFO 模拟山风起伏雨幕与远山雨声呼吸起伏
+    const distLfo = ctx.createOscillator();
+    distLfo.type = 'sine';
+    distLfo.frequency.setValueAtTime(0.12, ctx.currentTime);
+    const distLfoGain = ctx.createGain();
+    distLfoGain.gain.setValueAtTime(0.18, ctx.currentTime);
+    distLfo.connect(distLfoGain);
+    distLfoGain.connect(distGain.gain);
 
-    // 屋檐水滴调度器：模拟屋檐与山叶落水 (Water Drop Drops)
+    distSource.connect(distHp);
+    distHp.connect(distLp);
+    distLp.connect(distGain);
+    distGain.connect(output);
+
+    // 2. 近景雨丝层：高频（带通 2800Hz~4200Hz）轻柔细致沙沙声，消除单调单频粉噪感
+    const nearBuffer = ctx.createBuffer(2, bufferLen, sampleRate);
+    const nearLeft = createPinkNoiseData(bufferLen);
+    const nearRight = createPinkNoiseData(bufferLen);
+    loopSmoothBuffer(nearLeft);
+    loopSmoothBuffer(nearRight);
+    nearBuffer.getChannelData(0).set(nearLeft);
+    nearBuffer.getChannelData(1).set(nearRight);
+
+    const nearSource = ctx.createBufferSource();
+    nearSource.buffer = nearBuffer;
+    nearSource.loop = true;
+
+    const nearHp = ctx.createBiquadFilter();
+    nearHp.type = 'highpass';
+    nearHp.frequency.setValueAtTime(2800, ctx.currentTime);
+
+    const nearLp = ctx.createBiquadFilter();
+    nearLp.type = 'lowpass';
+    nearLp.frequency.setValueAtTime(4200, ctx.currentTime);
+    nearLp.Q.setValueAtTime(0.8, ctx.currentTime);
+
+    const nearGain = ctx.createGain();
+    nearGain.gain.setValueAtTime(0.32, ctx.currentTime);
+
+    nearSource.connect(nearHp);
+    nearHp.connect(nearLp);
+    nearLp.connect(nearGain);
+    nearGain.connect(output);
+
+    distSource.start();
+    nearSource.start();
+    distLfo.start();
+
+    // 3. 瓦当青石物理水滴调度器：连绵自然的间歇节奏 (380ms ~ 1250ms)
     let dropTimeout: any = null;
     const scheduleDrop = () => {
       if (isDisposed) return;
-      const delay = 800 + Math.random() * 1600; // 0.8s ~ 2.4s interval
+      const delay = 380 + Math.random() * 870;
       dropTimeout = setTimeout(() => {
         if (isDisposed) return;
         this.synthesizeRainDrop(ctx, output);
@@ -518,53 +566,86 @@ export class ZenAudioEngine {
       isDisposed = true;
       if (dropTimeout) clearTimeout(dropTimeout);
       try {
-        noiseSource.stop();
-        noiseSource.disconnect();
-        hp.disconnect();
-        lp.disconnect();
-        rainGain.disconnect();
+        distSource.stop();
+        nearSource.stop();
+        distLfo.stop();
+        distSource.disconnect();
+        nearSource.disconnect();
+        distLfo.disconnect();
+        distLfoGain.disconnect();
+        distHp.disconnect();
+        distLp.disconnect();
+        distGain.disconnect();
+        nearHp.disconnect();
+        nearLp.disconnect();
+        nearGain.disconnect();
       } catch (e) {}
     };
   }
 
   /**
-   * 单个屋檐水滴声学合成：急速俯冲正弦频包络 + 高 Q 值带通共鸣
+   * 瓦当青石物理水滴群声学合成：
+   * 分为：
+   * 1) 近景青石/屋檐瓦当滴答：800~1200Hz 空腔共振与沉稳圆润微顿音
+   * 2) 山叶落水：1500~2200Hz 清脆下掠水音
+   * 均加入随机立体声声像偏置
    */
   private synthesizeRainDrop(ctx: AudioContext, output: AudioNode): void {
     try {
       const now = ctx.currentTime;
+      const isStoneTile = Math.random() < 0.6; // 60% 瓦当青石，40% 山叶落水
+
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       const filter = ctx.createBiquadFilter();
 
-      const baseFreq = 1400 + Math.random() * 500; // 1400Hz - 1900Hz
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(baseFreq, now);
-      // 水滴泡涌效应：0.045秒内频率快速下滑
-      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.45, now + 0.045);
+      if (isStoneTile) {
+        // 近景青石/屋檐瓦当滴答：800~1200Hz 空腔共振与沉稳圆润微顿音
+        const baseFreq = 820 + Math.random() * 360; // 820Hz ~ 1180Hz
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(baseFreq * 1.06, now);
+        // 微下潜与圆润共振稳定
+        osc.frequency.exponentialRampToValueAtTime(baseFreq, now + 0.02);
 
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(1150, now);
-      filter.Q.setValueAtTime(6.5, now);
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(baseFreq, now);
+        filter.Q.setValueAtTime(4.8, now); // 空腔共振峰
 
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.linearRampToValueAtTime(0.12 + Math.random() * 0.08, now + 0.004);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.14 + Math.random() * 0.08, now + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.095);
+      } else {
+        // 山叶落水：1500~2200Hz 清脆下掠水音
+        const baseFreq = 1550 + Math.random() * 600; // 1550Hz ~ 2150Hz
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(baseFreq, now);
+        // 急速下掠水音
+        osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.42, now + 0.045);
+
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(baseFreq * 0.75, now);
+        filter.Q.setValueAtTime(5.8, now);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.10 + Math.random() * 0.06, now + 0.003);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
+      }
 
       osc.connect(filter);
       filter.connect(gain);
 
-      // 立体声微偏置
+      // 立体声声像随机偏置
       let panner: StereoPannerNode | null = null;
       if (typeof ctx.createStereoPanner === 'function') {
         panner = ctx.createStereoPanner();
-        panner.pan.setValueAtTime(Math.random() * 1.2 - 0.6, now);
+        panner.pan.setValueAtTime(Math.random() * 1.4 - 0.7, now);
         gain.connect(panner);
         panner.connect(output);
       } else {
         gain.connect(output);
       }
 
+      const stopTime = isStoneTile ? now + 0.11 : now + 0.08;
       osc.onended = () => {
         try {
           osc.disconnect();
@@ -575,7 +656,7 @@ export class ZenAudioEngine {
       };
 
       osc.start(now);
-      osc.stop(now + 0.1);
+      osc.stop(stopTime);
     } catch (e) {}
   }
 
@@ -842,13 +923,17 @@ export class ZenAudioEngine {
 
   // =========================================================================
   // 4. 古寺清溪（Stream & Bell / 潺潺溪流与悠远空灵磬声）
+  // 声学架构：
+  // 1) 浅滩水幕底噪：平稳温润的石上水漫底噪（宽频低通 1800Hz + 带通 400Hz~1800Hz），彻底摆脱旧版的单调风管感
+  // 2) 物理气泡群涌动：Minnaert 气泡谐振调度器 synthesizeStreamBubble，400~2800Hz 微水泡破裂密集连续触发（每 50~130ms）
+  // 3) 古刹远磬：保持并优化 432Hz 铜磬泛音列与长余韵
   // =========================================================================
   private buildStreamSoundscape(ctx: AudioContext, output: AudioNode): (fade?: number) => void {
     let isDisposed = false;
     const sampleRate = ctx.sampleRate;
     const bufferLen = sampleRate * 5;
 
-    // Pink Noise Stream Core
+    // 1. 浅滩水幕底噪：平稳温润的石上水漫底噪 (立体声粉红噪声 + 400Hz~1800Hz 宽频平滑塑造)
     const buffer = ctx.createBuffer(2, bufferLen, sampleRate);
     const leftData = createPinkNoiseData(bufferLen);
     const rightData = createPinkNoiseData(bufferLen);
@@ -861,60 +946,67 @@ export class ZenAudioEngine {
     streamSource.buffer = buffer;
     streamSource.loop = true;
 
-    // 溪流三频多态共鸣调制器 (Tri-band Dynamic Water Flow Resonators)
-    // 分支 1: 水花低回涌动 (430Hz)
-    const bp1 = ctx.createBiquadFilter();
-    bp1.type = 'bandpass';
-    bp1.frequency.setValueAtTime(430, ctx.currentTime);
-    bp1.Q.setValueAtTime(3.2, ctx.currentTime);
-    const lfo1 = ctx.createOscillator();
-    lfo1.frequency.setValueAtTime(0.35, ctx.currentTime);
-    const lfo1Gain = ctx.createGain();
-    lfo1Gain.gain.setValueAtTime(75, ctx.currentTime);
-    lfo1.connect(lfo1Gain);
-    lfo1Gain.connect(bp1.frequency);
+    // 高通滤波：切除 360Hz 以下沉闷低频，保留石上漫水轮廓
+    const streamHp = ctx.createBiquadFilter();
+    streamHp.type = 'highpass';
+    streamHp.frequency.setValueAtTime(360, ctx.currentTime);
 
-    // 分支 2: 溪石飞花泼溅 (1080Hz)
-    const bp2 = ctx.createBiquadFilter();
-    bp2.type = 'bandpass';
-    bp2.frequency.setValueAtTime(1080, ctx.currentTime);
-    bp2.Q.setValueAtTime(4.0, ctx.currentTime);
-    const lfo2 = ctx.createOscillator();
-    lfo2.frequency.setValueAtTime(0.62, ctx.currentTime);
-    const lfo2Gain = ctx.createGain();
-    lfo2Gain.gain.setValueAtTime(130, ctx.currentTime);
-    lfo2.connect(lfo2Gain);
-    lfo2Gain.connect(bp2.frequency);
+    // 低通滤波：切除 1800Hz 以上尖锐毛刺，使水流平稳温润
+    const streamLp = ctx.createBiquadFilter();
+    streamLp.type = 'lowpass';
+    streamLp.frequency.setValueAtTime(1800, ctx.currentTime);
+    streamLp.Q.setValueAtTime(0.65, ctx.currentTime);
 
-    // 分支 3: 水珠清脆细流 (2350Hz)
-    const bp3 = ctx.createBiquadFilter();
-    bp3.type = 'bandpass';
-    bp3.frequency.setValueAtTime(2350, ctx.currentTime);
-    bp3.Q.setValueAtTime(4.8, ctx.currentTime);
-    const lfo3 = ctx.createOscillator();
-    lfo3.frequency.setValueAtTime(1.15, ctx.currentTime);
-    const lfo3Gain = ctx.createGain();
-    lfo3Gain.gain.setValueAtTime(240, ctx.currentTime);
-    lfo3.connect(lfo3Gain);
-    lfo3Gain.connect(bp3.frequency);
+    // 宽峰值滤波 (中心 850Hz，Q 1.0)：强化鹅卵石间水流漫过的主体水体声
+    const streamBody = ctx.createBiquadFilter();
+    streamBody.type = 'peaking';
+    streamBody.frequency.setValueAtTime(850, ctx.currentTime);
+    streamBody.Q.setValueAtTime(1.0, ctx.currentTime);
+    streamBody.gain.setValueAtTime(2.5, ctx.currentTime);
 
-    const streamMasterGain = ctx.createGain();
-    streamMasterGain.gain.setValueAtTime(0.82, ctx.currentTime);
+    // 缓速慢波 LFO：0.07Hz 微澜轻涌，赋予溪水自然流动的有机生命力
+    const streamLfo = ctx.createOscillator();
+    streamLfo.type = 'sine';
+    streamLfo.frequency.setValueAtTime(0.07, ctx.currentTime);
+    const streamLfoGain = ctx.createGain();
+    streamLfoGain.gain.setValueAtTime(0.08, ctx.currentTime);
 
-    streamSource.connect(bp1);
-    streamSource.connect(bp2);
-    streamSource.connect(bp3);
-    bp1.connect(streamMasterGain);
-    bp2.connect(streamMasterGain);
-    bp3.connect(streamMasterGain);
-    streamMasterGain.connect(output);
+    const streamWashGain = ctx.createGain();
+    streamWashGain.gain.setValueAtTime(0.65, ctx.currentTime);
+    streamLfo.connect(streamLfoGain);
+    streamLfoGain.connect(streamWashGain.gain);
+
+    streamSource.connect(streamHp);
+    streamHp.connect(streamLp);
+    streamLp.connect(streamBody);
+    streamBody.connect(streamWashGain);
+    streamWashGain.connect(output);
 
     streamSource.start();
-    lfo1.start();
-    lfo2.start();
-    lfo3.start();
+    streamLfo.start();
 
-    // 悠远古寺磬声调度器 (Zen Temple Bell / Singing Bowl Chime every 20-35s)
+    // 2. 物理气泡群涌动调度器：密集连续触发 (50ms ~ 130ms)，呈现生动逼真的“叮咚、咕嘟、淙淙”泉水穿石流水感
+    let bubbleTimeout: any = null;
+    const scheduleBubble = () => {
+      if (isDisposed) return;
+      const delay = 50 + Math.random() * 80; // 50ms ~ 130ms 密集节奏
+      bubbleTimeout = setTimeout(() => {
+        if (isDisposed) return;
+        this.synthesizeStreamBubble(ctx, output);
+        // 偶发连珠双微泡 (20% 概率)
+        if (Math.random() < 0.20) {
+          setTimeout(() => {
+            if (!isDisposed) {
+              this.synthesizeStreamBubble(ctx, output);
+            }
+          }, 15 + Math.random() * 20);
+        }
+        scheduleBubble();
+      }, delay);
+    };
+    scheduleBubble();
+
+    // 3. 悠远古寺磬声调度器 (Zen Temple Bell / Singing Bowl Chime every 20-35s)
     let bellTimeout: any = null;
     const scheduleBell = () => {
       if (isDisposed) return;
@@ -929,25 +1021,71 @@ export class ZenAudioEngine {
 
     return () => {
       isDisposed = true;
+      if (bubbleTimeout) clearTimeout(bubbleTimeout);
       if (bellTimeout) clearTimeout(bellTimeout);
       try {
         streamSource.stop();
-        lfo1.stop();
-        lfo2.stop();
-        lfo3.stop();
+        streamLfo.stop();
         streamSource.disconnect();
-        lfo1.disconnect();
-        lfo2.disconnect();
-        lfo3.disconnect();
-        lfo1Gain.disconnect();
-        lfo2Gain.disconnect();
-        lfo3Gain.disconnect();
-        bp1.disconnect();
-        bp2.disconnect();
-        bp3.disconnect();
-        streamMasterGain.disconnect();
+        streamHp.disconnect();
+        streamLp.disconnect();
+        streamBody.disconnect();
+        streamLfo.disconnect();
+        streamLfoGain.disconnect();
+        streamWashGain.disconnect();
       } catch (e) {}
     };
+  }
+
+  /**
+   * 微水泡破裂物理声学合成 (Minnaert 气泡谐振 / Bubble Acoustics)：
+   * 泉水穿石、激荡飞花时空气微泡产生与破裂的瞬态谐振：
+   * 随机频率 400Hz~2800Hz，极短（8~20ms）指数衰减正弦脉冲，微向上掠频，立体声声像展开
+   */
+  private synthesizeStreamBubble(ctx: AudioContext, output: AudioNode): void {
+    try {
+      const now = ctx.currentTime;
+      // 气泡物理共振频 (400Hz ~ 2800Hz，稍偏向 600~1900Hz 更有咕嘟淙淙感)
+      const baseFreq = 400 + Math.random() * 2400;
+      // 极短持续时间 8ms ~ 20ms
+      const duration = 0.008 + Math.random() * 0.012;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(baseFreq, now);
+      // Minnaert 气泡微上掠频 (~9% 频移)，模拟气泡收缩破裂真实音色
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.09, now + duration);
+
+      const amp = 0.035 + Math.random() * 0.045;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(amp, now + 0.002);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+      let panner: StereoPannerNode | null = null;
+      if (typeof ctx.createStereoPanner === 'function') {
+        panner = ctx.createStereoPanner();
+        panner.pan.setValueAtTime(Math.random() * 1.5 - 0.75, now);
+        osc.connect(gain);
+        gain.connect(panner);
+        panner.connect(output);
+      } else {
+        osc.connect(gain);
+        gain.connect(output);
+      }
+
+      osc.onended = () => {
+        try {
+          osc.disconnect();
+          gain.disconnect();
+          if (panner) panner.disconnect();
+        } catch (e) {}
+      };
+
+      osc.start(now);
+      osc.stop(now + duration + 0.005);
+    } catch (e) {}
   }
 
   /**

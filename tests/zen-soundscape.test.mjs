@@ -424,4 +424,96 @@ test('UI Polish: Scrollbar suppression, fixed timer layout stability, and tactil
   );
 });
 
+test('Acoustic Reconstruction: Mountain Rain & Stream & Bell procedural soundscape physics', () => {
+  const engineContent = fs.readFileSync(path.join(rootDir, 'src/utils/zenAudioEngine.ts'), 'utf-8');
+
+  // 1. Mountain Rain Dual-Layer Wash
+  assert.ok(
+    engineContent.includes('1200') && engineContent.includes('0.12'),
+    'Mountain rain must include distant shower layer with 1200Hz filter and 0.12Hz LFO breath'
+  );
+  assert.ok(
+    engineContent.includes('2800') && engineContent.includes('4200'),
+    'Mountain rain must include nearfield drizzle layer with 2800Hz~4200Hz high-frequency band'
+  );
+
+  // 2. Tile Stone vs Mountain Leaf Water Drop Physical Synthesis
+  assert.ok(
+    engineContent.includes('isStoneTile'),
+    'synthesizeRainDrop must distinguish between tile/stone drops and mountain leaf drips'
+  );
+  assert.ok(
+    engineContent.includes('820') || engineContent.includes('800'),
+    'Tile/stone drop must cover 800~1200Hz cavity resonance range'
+  );
+  assert.ok(
+    engineContent.includes('1550') || engineContent.includes('1500'),
+    'Mountain leaf drop must cover 1500~2200Hz crisp downward sweep range'
+  );
+
+  // 3. Stream & Bell: Minnaert Bubble Acoustics
+  assert.ok(
+    engineContent.includes('synthesizeStreamBubble'),
+    'Stream soundscape must include synthesizeStreamBubble for physical bubble acoustics'
+  );
+  assert.ok(
+    engineContent.includes('400') && engineContent.includes('2400'),
+    'Stream bubbles must span 400Hz to 2800Hz frequency spectrum'
+  );
+  assert.ok(
+    engineContent.includes('scheduleBubble'),
+    'Stream soundscape must schedule dense bubble arrivals'
+  );
+  assert.ok(
+    engineContent.includes('streamHp') && engineContent.includes('streamLp') && engineContent.includes('1800'),
+    'Stream soundscape must feature broad 360Hz~1800Hz shallow stone water wash'
+  );
+
+  // 4. Temple Bell
+  assert.ok(
+    engineContent.includes('synthesizeTempleBell'),
+    'Stream soundscape must include synthesizeTempleBell'
+  );
+  assert.ok(
+    engineContent.includes('432'),
+    'Temple bell must tune fundamental to 432Hz'
+  );
+});
+
+test('Visual Reconstruction: ZenRainscape multi-tier water ripples and adaptive density', () => {
+  const rainscapeContent = fs.readFileSync(path.join(rootDir, 'src/components/ZenRainscape.astro'), 'utf-8');
+
+  // 1. Adaptive Ripple Caps & Intervals
+  assert.ok(
+    rainscapeContent.includes('maxRipplesDesktop = 55') || rainscapeContent.includes('55'),
+    'ZenRainscape must support desktop concurrency limit of 55 ripples'
+  );
+  assert.ok(
+    rainscapeContent.includes('maxRipplesMobile = 32') || rainscapeContent.includes('32'),
+    'ZenRainscape must support mobile concurrency limit of 32 ripples'
+  );
+  assert.ok(
+    rainscapeContent.includes('80') && rainscapeContent.includes('160'),
+    'Desktop spawn interval must target 80ms~160ms'
+  );
+  assert.ok(
+    rainscapeContent.includes('140') && rainscapeContent.includes('240'),
+    'Mobile spawn interval must target 140ms~240ms'
+  );
+
+  // 2. Multi-tier Ripple Geometry
+  assert.ok(
+    rainscapeContent.includes('RippleTier') || rainscapeContent.includes("'micro'") || rainscapeContent.includes('micro'),
+    'ZenRainscape must classify ripples by tier'
+  );
+  assert.ok(
+    rainscapeContent.includes('micro') && rainscapeContent.includes('main') && rainscapeContent.includes('deep'),
+    'ZenRainscape must feature micro droplet, main dual-ring, and deep expansive swell tiers'
+  );
+
+  // 3. Purity Guards (No puddle or mist artifacts)
+  assert.ok(!rainscapeContent.includes('splashes'), 'Must never introduce splashes');
+  assert.ok(!rainscapeContent.includes('mists'), 'Must never introduce mists');
+});
+
 

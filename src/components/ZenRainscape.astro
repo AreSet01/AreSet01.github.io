@@ -53,6 +53,8 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
     width: number;
   }
 
+  type RippleTier = 'micro' | 'main' | 'deep';
+
   interface LakeRipple {
     x: number;
     y: number;
@@ -61,6 +63,7 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
     opacity: number;
     speed: number;
     color: string;
+    tier: RippleTier;
   }
 
   const drops: RainDrop[] = [];
@@ -68,10 +71,22 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
   let nextRippleTime = 0;
 
   const maxDrops = 140;
-  const maxRipples = 20;
+  const maxRipplesDesktop = 55;
+  const maxRipplesMobile = 32;
+  const maxRipples = maxRipplesDesktop; // 默认桌面端上限 55，移动端自适应 32
   const windAngle = Math.PI / 11; // ~16 度倾斜细雨
   const cosAngle = Math.cos(windAngle);
   const sinAngle = Math.sin(windAngle);
+
+  function getMaxRipples() {
+    return window.innerWidth < 768 ? maxRipplesMobile : maxRipplesDesktop;
+  }
+
+  function getNextRippleInterval() {
+    return window.innerWidth < 768
+      ? 140 + Math.random() * 100 // 移动端 140ms ~ 240ms
+      : 80 + Math.random() * 80;   // 桌面端 80ms ~ 160ms，连绵不绝
+  }
 
   function resize() {
     if (!canvas) return;
@@ -100,7 +115,7 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
     }
 
     lakeRipples.length = 0;
-    nextRippleTime = performance.now() + 200;
+    nextRippleTime = performance.now() + 100;
   }
 
   function getPalette() {
@@ -129,15 +144,43 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
   }
 
   function spawnLakeRipple(palette: any) {
-    if (lakeRipples.length >= maxRipples) return;
+    if (lakeRipples.length >= getMaxRipples()) return;
+
+    const rand = Math.random();
+    let tier: RippleTier;
+    let maxR: number;
+    let speed: number;
+    let opacity: number;
+
+    if (rand < 0.45) {
+      // 1. 微落点圈 (半径 2~14px)：细密雨滴初触水面的灵动小水点
+      tier = 'micro';
+      maxR = 3 + Math.random() * 11; // 3~14px
+      speed = 0.52 + Math.random() * 0.32;
+      opacity = 0.22 + Math.random() * 0.16;
+    } else if (rand < 0.90) {
+      // 2. 主椭圆双环 (半径 20~45px)：遵循视角透视的半透明经典同心水晕
+      tier = 'main';
+      maxR = 20 + Math.random() * 25; // 20~45px
+      speed = 0.42 + Math.random() * 0.26;
+      opacity = 0.20 + Math.random() * 0.16;
+    } else {
+      // 3. 深漫水澜 (半径 50~75px)：偶发缓慢散开的大水波纹，全屏交叠而不突兀
+      tier = 'deep';
+      maxR = 50 + Math.random() * 25; // 50~75px
+      speed = 0.24 + Math.random() * 0.16;
+      opacity = 0.13 + Math.random() * 0.09;
+    }
+
     lakeRipples.push({
-      x: 40 + Math.random() * Math.max(100, width - 80),
-      y: 60 + Math.random() * Math.max(100, height - 120),
+      x: 30 + Math.random() * Math.max(100, width - 60),
+      y: 40 + Math.random() * Math.max(100, height - 80),
       r: 1,
-      maxR: 24 + Math.random() * 42,
-      opacity: 0.25 + Math.random() * 0.18,
-      speed: 0.48 + Math.random() * 0.36,
+      maxR,
+      opacity,
+      speed,
       color: palette.ripple,
+      tier,
     });
   }
 
@@ -159,51 +202,86 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
     const palette = getPalette();
     const now = performance.now();
 
-    // 1. 活跃的静湖雨滴微澜 (涟漪频率自然提升，无积水，宛如雨丝敲击水面)
+    // 1. 高频生动水波节奏调度器 (桌面端 80~160ms，移动端 140~240ms，连绵不绝)
     if (now >= nextRippleTime && currentOpacity > 0.1) {
       spawnLakeRipple(palette);
-      // 下次波纹间隔 260ms ~ 620ms，营造生动空灵的湖面微澜韵律
-      nextRippleTime = now + 260 + Math.random() * 360;
+      nextRippleTime = now + getNextRippleInterval();
     }
 
-    // 2. 渲染自然微澜水波 (同心双环椭圆微澜，透视比例 0.42)
+    // 2. 多层次分级水波渲染 (微落点圈 2~14px + 主椭圆双环 20~45px + 深漫水澜 50~75px)
     for (let i = lakeRipples.length - 1; i >= 0; i--) {
       const rip = lakeRipples[i];
       rip.r += rip.speed;
       const progress = rip.r / rip.maxR;
       const currentAlpha = rip.opacity * (1 - progress) * currentOpacity;
 
-      if (progress >= 1 || currentAlpha <= 0.01) {
+      if (progress >= 1 || currentAlpha <= 0.008) {
         lakeRipples.splice(i, 1);
         continue;
       }
 
       ctx.save();
-      // 外层主涟漪椭圆
-      ctx.beginPath();
-      ctx.ellipse(rip.x, rip.y, rip.r, rip.r * 0.42, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(${rip.color}, ${currentAlpha})`;
-      ctx.lineWidth = 0.9;
-      ctx.stroke();
-
-      // 内层微澜回音环
-      if (rip.r > 9) {
-        const innerR = rip.r * 0.62;
-        const innerAlpha = currentAlpha * 0.55;
+      if (rip.tier === 'micro') {
+        // 微落点圈：细密初触水面的灵动小水点 (半径 2~14px)
         ctx.beginPath();
-        ctx.ellipse(rip.x, rip.y, innerR, innerR * 0.42, 0, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${rip.color}, ${innerAlpha})`;
-        ctx.lineWidth = 0.65;
+        ctx.ellipse(rip.x, rip.y, rip.r, rip.r * 0.45, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${rip.color}, ${currentAlpha})`;
+        ctx.lineWidth = 0.75;
         ctx.stroke();
-      }
 
-      // 雨丝初触水面微弱晕点
-      if (rip.r < 7) {
-        const pingAlpha = (1 - rip.r / 7) * 0.3 * currentOpacity;
+        // 触水瞬间极小晕心
+        if (rip.r < 4) {
+          const coreAlpha = (1 - rip.r / 4) * 0.35 * currentOpacity;
+          ctx.beginPath();
+          ctx.arc(rip.x, rip.y, 1.2, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${rip.color}, ${coreAlpha})`;
+          ctx.fill();
+        }
+      } else if (rip.tier === 'main') {
+        // 主椭圆双环：视角透视同心水晕 (半径 20~45px，透视比例 0.42)
         ctx.beginPath();
-        ctx.arc(rip.x, rip.y, 2, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${rip.color}, ${pingAlpha})`;
-        ctx.fill();
+        ctx.ellipse(rip.x, rip.y, rip.r, rip.r * 0.42, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${rip.color}, ${currentAlpha})`;
+        ctx.lineWidth = 0.85;
+        ctx.stroke();
+
+        // 内层微澜回音环
+        if (rip.r > 8) {
+          const innerR = rip.r * 0.62;
+          const innerAlpha = currentAlpha * 0.55;
+          ctx.beginPath();
+          ctx.ellipse(rip.x, rip.y, innerR, innerR * 0.42, 0, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(${rip.color}, ${innerAlpha})`;
+          ctx.lineWidth = 0.6;
+          ctx.stroke();
+        }
+
+        // 初触微弱晕点
+        if (rip.r < 6) {
+          const pingAlpha = (1 - rip.r / 6) * 0.28 * currentOpacity;
+          ctx.beginPath();
+          ctx.arc(rip.x, rip.y, 1.6, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${rip.color}, ${pingAlpha})`;
+          ctx.fill();
+        }
+      } else {
+        // 深漫水澜：偶发缓慢散开的大水波纹 (半径 50~75px，透视比例 0.40)
+        ctx.beginPath();
+        ctx.ellipse(rip.x, rip.y, rip.r, rip.r * 0.40, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${rip.color}, ${currentAlpha})`;
+        ctx.lineWidth = 0.75;
+        ctx.stroke();
+
+        // 内层深韵衬环
+        if (rip.r > 15) {
+          const innerR = rip.r * 0.70;
+          const innerAlpha = currentAlpha * 0.45;
+          ctx.beginPath();
+          ctx.ellipse(rip.x, rip.y, innerR, innerR * 0.40, 0, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(${rip.color}, ${innerAlpha})`;
+          ctx.lineWidth = 0.55;
+          ctx.stroke();
+        }
       }
       ctx.restore();
     }
