@@ -178,4 +178,273 @@ describe('主题颜色适配与交互悬停辨识度验证', () => {
     // 6. 非法色号被阻断并回退
     assert.deepEqual(simulateGetStoredMossShade('?moss-shade=FFAABB', null), { shade: null, stored: null });
   });
+
+  it('9. BaseLayout 主题运行时脚本无语法/引用异常且完整导出全局 API (isValidTheme, applyTheme)', () => {
+    const baseLayout = fs.readFileSync(path.join(rootDir, 'src/layouts/BaseLayout.astro'), 'utf8');
+    assert.ok(baseLayout.includes('function isValidTheme'), 'BaseLayout 必须显式声明 isValidTheme 函数');
+    assert.ok(baseLayout.includes("VALID_THEMES = ['dark', 'light', 'moss', 'rice']"), 'BaseLayout 必须声明合法主题列表 VALID_THEMES');
+
+    const scripts = [...baseLayout.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+    const themeScript = scripts.find(s => s[1].includes('VALID_THEMES'));
+    assert.ok(themeScript, '必须包含定义主题核心逻辑的 inline script');
+
+    const windowMock = {
+      location: { search: '' },
+      matchMedia: () => ({ matches: false }),
+      dispatchEvent: () => {},
+      clearTimeout: () => {},
+      setTimeout: () => {},
+      addEventListener: () => {},
+    };
+    const documentMock = {
+      documentElement: {
+        classList: { add: () => {}, remove: () => {} },
+        setAttribute: (k, v) => { documentMock.documentElement.attrs[k] = v; },
+        removeAttribute: (k) => { delete documentMock.documentElement.attrs[k]; },
+        getAttribute: (k) => documentMock.documentElement.attrs[k] || null,
+        attrs: {},
+        style: {}
+      },
+      querySelector: () => null,
+      addEventListener: () => {}
+    };
+    const storageMock = {};
+    const localStorageMock = {
+      getItem: (k) => storageMock[k] || null,
+      setItem: (k, v) => { storageMock[k] = String(v); },
+      removeItem: (k) => { delete storageMock[k]; }
+    };
+    const CustomEventMock = function(name, opts) { this.name = name; this.opts = opts; };
+
+    // 执行 head inline script，验证绝不抛出 ReferenceError (如 isValidTheme is not defined)
+    assert.doesNotThrow(() => {
+      const fn = new Function('window', 'document', 'localStorage', 'requestAnimationFrame', 'CustomEvent', themeScript[1]);
+      fn(windowMock, documentMock, localStorageMock, (cb) => cb(), CustomEventMock);
+    }, 'BaseLayout 主题脚本执行不应抛出任何错误');
+
+    assert.equal(typeof windowMock.__applyTheme, 'function', 'window.__applyTheme 必须成功挂载');
+    assert.equal(typeof windowMock.__transitionTheme, 'function', 'window.__transitionTheme 必须成功挂载');
+    assert.equal(typeof windowMock.__getPreferredTheme, 'function', 'window.__getPreferredTheme 必须成功挂载');
+    assert.equal(documentMock.documentElement.getAttribute('data-theme'), 'light', '默认初始主题应为 light');
+  });
+
+  it('10. 全站主题点击切换事件与软导航全链路验证 (light ⇄ dark ⇄ moss ⇄ rice 循环与持久化)', () => {
+    const baseLayout = fs.readFileSync(path.join(rootDir, 'src/layouts/BaseLayout.astro'), 'utf8');
+    const scripts = [...baseLayout.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+    const themeScript = scripts.find(s => s[1].includes('VALID_THEMES'));
+    const toggleScript = scripts.find(s => s[1].includes('THEME_CYCLE'));
+    assert.ok(toggleScript, '必须包含主题循环监听 script');
+
+    const windowMock = {
+      location: { search: '' },
+      matchMedia: () => ({ matches: false }),
+      dispatchEvent: () => {},
+      clearTimeout: () => {},
+      setTimeout: () => {},
+      addEventListener: () => {},
+    };
+    const storageMock = {};
+    const localStorageMock = {
+      getItem: (k) => storageMock[k] || null,
+      setItem: (k, v) => { storageMock[k] = String(v); },
+      removeItem: (k) => { delete storageMock[k]; }
+    };
+    const docListeners = {};
+    const documentMock = {
+      documentElement: {
+        classList: { add: () => {}, remove: () => {} },
+        setAttribute: (k, v) => { documentMock.documentElement.attrs[k] = v; },
+        removeAttribute: (k) => { delete documentMock.documentElement.attrs[k]; },
+        getAttribute: (k) => documentMock.documentElement.attrs[k] || null,
+        attrs: {},
+        style: {}
+      },
+      querySelector: () => null,
+      addEventListener: (evt, handler) => {
+        docListeners[evt] = docListeners[evt] || [];
+        docListeners[evt].push(handler);
+      }
+    };
+    const CustomEventMock = function(name, opts) { this.name = name; this.opts = opts; };
+
+    // 运行初始化
+    const headFn = new Function('window', 'document', 'localStorage', 'requestAnimationFrame', 'CustomEvent', themeScript[1]);
+    headFn(windowMock, documentMock, localStorageMock, (cb) => cb(), CustomEventMock);
+
+    const toggleFn = new Function('window', 'document', 'localStorage', 'requestAnimationFrame', 'CustomEvent', toggleScript[1]);
+    toggleFn(windowMock, documentMock, localStorageMock, (cb) => cb(), CustomEventMock);
+
+    assert.ok(docListeners['click'] && docListeners['click'].length > 0, '必须注册 click 监听器');
+
+    const clickToggle = () => {
+      const btn = {
+        closest: (sel) => (sel === '[data-theme-toggle]' ? btn : null),
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 24, height: 24 })
+      };
+      for (const handler of docListeners['click']) {
+        handler({ target: btn, preventDefault: () => {} });
+      }
+    };
+
+    // 初始状态为 light
+    assert.equal(documentMock.documentElement.getAttribute('data-theme'), 'light');
+
+    // 1 次点击 -> dark
+    clickToggle();
+    assert.equal(documentMock.documentElement.getAttribute('data-theme'), 'dark');
+    assert.equal(storageMock.theme, 'dark');
+
+    // 2 次点击 -> moss
+    clickToggle();
+    assert.equal(documentMock.documentElement.getAttribute('data-theme'), 'moss');
+    assert.equal(storageMock.theme, 'moss');
+
+    // 3 次点击 -> rice
+    clickToggle();
+    assert.equal(documentMock.documentElement.getAttribute('data-theme'), 'rice');
+    assert.equal(storageMock.theme, 'rice');
+
+    // 4 次点击 -> 回到 light
+    clickToggle();
+    assert.equal(documentMock.documentElement.getAttribute('data-theme'), 'light');
+    assert.equal(storageMock.theme, 'light');
+
+    // 软导航 Astro 生命周期验证
+    // 模拟切换至 moss 并发生软切页
+    clickToggle(); // dark
+    clickToggle(); // moss
+    assert.equal(storageMock.theme, 'moss');
+
+    const newDoc = {
+      documentElement: {
+        attrs: {},
+        setAttribute: (k, v) => { newDoc.documentElement.attrs[k] = v; },
+        getAttribute: (k) => newDoc.documentElement.attrs[k] || null,
+      }
+    };
+
+    // astro:before-swap 钩子应将新页面根节点预设为 moss
+    if (docListeners['astro:before-swap']) {
+      for (const h of docListeners['astro:before-swap']) {
+        h({ newDocument: newDoc });
+      }
+      assert.equal(newDoc.documentElement.getAttribute('data-theme'), 'moss', 'astro:before-swap 应提前为新页面设定当前主题');
+    }
+
+    // astro:after-swap 钩子确认保持当前主题
+    if (docListeners['astro:after-swap']) {
+      for (const h of docListeners['astro:after-swap']) {
+        h({});
+      }
+      assert.equal(documentMock.documentElement.getAttribute('data-theme'), 'moss', 'astro:after-swap 应恢复当前主题');
+    }
+  });
+
+  it('11. 主题切换极端防御与边界容错验证 (SVG子节点点击、文本节点点击、私密模式抛错、ViewTransition异常降级)', () => {
+    const baseLayout = fs.readFileSync(path.join(rootDir, 'src/layouts/BaseLayout.astro'), 'utf8');
+    const scripts = [...baseLayout.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+    const themeScript = scripts.find(s => s[1].includes('VALID_THEMES'));
+    const toggleScript = scripts.find(s => s[1].includes('THEME_CYCLE'));
+
+    const windowMock = {
+      location: { search: '' },
+      matchMedia: () => ({ matches: false }),
+      dispatchEvent: () => {},
+      clearTimeout: () => {},
+      setTimeout: () => {},
+      addEventListener: () => {},
+      innerWidth: 1024,
+      innerHeight: 768,
+    };
+    const storageMock = {};
+    let shouldThrowStorage = false;
+    const localStorageMock = {
+      getItem: (k) => {
+        if (shouldThrowStorage) throw new Error('QuotaExceeded or SecurityError in private browsing');
+        return storageMock[k] || null;
+      },
+      setItem: (k, v) => {
+        if (shouldThrowStorage) throw new Error('QuotaExceeded or SecurityError in private browsing');
+        storageMock[k] = String(v);
+      },
+      removeItem: (k) => {
+        if (shouldThrowStorage) throw new Error('SecurityError');
+        delete storageMock[k];
+      }
+    };
+    const docListeners = {};
+    const documentMock = {
+      documentElement: {
+        classList: { add: () => {}, remove: () => {} },
+        setAttribute: (k, v) => { documentMock.documentElement.attrs[k] = v; },
+        removeAttribute: (k) => { delete documentMock.documentElement.attrs[k]; },
+        getAttribute: (k) => documentMock.documentElement.attrs[k] || null,
+        attrs: {},
+        style: {}
+      },
+      querySelector: () => null,
+      addEventListener: (evt, handler) => {
+        docListeners[evt] = docListeners[evt] || [];
+        docListeners[evt].push(handler);
+      },
+      // 模拟 View Transition 抛出异常的严苛极端场景
+      startViewTransition: () => {
+        throw new Error('ViewTransition AbortError or InvalidStateError');
+      }
+    };
+    const CustomEventMock = function(name, opts) { this.name = name; this.opts = opts; };
+
+    const headFn = new Function('window', 'document', 'localStorage', 'requestAnimationFrame', 'CustomEvent', themeScript[1]);
+    headFn(windowMock, documentMock, localStorageMock, (cb) => cb(), CustomEventMock);
+
+    const toggleFn = new Function('window', 'document', 'localStorage', 'requestAnimationFrame', 'CustomEvent', toggleScript[1]);
+    toggleFn(windowMock, documentMock, localStorageMock, (cb) => cb(), CustomEventMock);
+
+    // 1. 测试直接调用 window.__applyTheme('rice') 是否能自动持久化到 localStorage
+    windowMock.__applyTheme('rice');
+    assert.equal(documentMock.documentElement.getAttribute('data-theme'), 'rice');
+    assert.equal(storageMock.theme, 'rice', '显式调用 __applyTheme 必须自动持久化');
+
+    // 2. 模拟 SVG <path> 内部嵌套子节点被点击 (带有 closest 方法)
+    const btnMock = {
+      nodeType: 1,
+      closest: (sel) => (sel === '[data-theme-toggle]' ? btnMock : null),
+      getBoundingClientRect: () => ({ left: 10, top: 10, width: 24, height: 24 })
+    };
+    const svgPathMock = {
+      nodeType: 1,
+      parentElement: btnMock,
+      closest: (sel) => (sel === '[data-theme-toggle]' ? btnMock : null)
+    };
+
+    for (const h of docListeners['click']) {
+      h({ target: svgPathMock, preventDefault: () => {} });
+    }
+    // rice -> light
+    assert.equal(documentMock.documentElement.getAttribute('data-theme'), 'light');
+    assert.equal(storageMock.theme, 'light');
+
+    // 3. 模拟文本节点 target (nodeType === 3，无 closest 方法，需回退至 parentElement)
+    const textNodeMock = {
+      nodeType: 3,
+      parentElement: btnMock,
+      closest: undefined
+    };
+    for (const h of docListeners['click']) {
+      h({ target: textNodeMock, preventDefault: () => {} });
+    }
+    // light -> dark (在 startViewTransition 抛异常环境下成功降级)
+    assert.equal(documentMock.documentElement.getAttribute('data-theme'), 'dark');
+    assert.equal(storageMock.theme, 'dark');
+
+    // 4. 模拟无痕模式 / 禁用存储环境下抛出 SecurityError 仍能顺利点击切换
+    shouldThrowStorage = true;
+    assert.doesNotThrow(() => {
+      for (const h of docListeners['click']) {
+        h({ target: btnMock, preventDefault: () => {} });
+      }
+    }, 'Storage 抛错时不应中断主题切换流程');
+    // dark -> moss
+    assert.equal(documentMock.documentElement.getAttribute('data-theme'), 'moss');
+  });
 });

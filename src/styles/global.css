@@ -1492,6 +1492,7 @@ html[data-cursor-trail="disabled"] .cursor-trail-toggle .icon-trail-on  { displa
 .theme-toggle svg {
   width: 16px;
   height: 16px;
+  pointer-events: none;
   transition: transform 400ms var(--ease);
 }
 
@@ -1548,6 +1549,7 @@ html[data-cursor-trail="disabled"] .cursor-trail-toggle .icon-trail-on  { displa
 .font-toggle svg {
   width: 16px;
   height: 16px;
+  pointer-events: none;
   transition: transform 400ms var(--ease);
 }
 

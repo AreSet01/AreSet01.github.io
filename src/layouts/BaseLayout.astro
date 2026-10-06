@@ -74,9 +74,38 @@ const {
           }
         }
 
+        var VALID_THEMES = ['dark', 'light', 'moss', 'rice'];
+        var LIGHT_THEMES = ['light', 'rice'];
+        var runtimeKey = '__areSetThemeRuntimeBound__';
+        var themeTransitionTimer = 0;
+
+        function isValidTheme(value) {
+          return typeof value === 'string' && VALID_THEMES.indexOf(value) !== -1;
+        }
+
+        function getStoredTheme() {
+          try {
+            var stored = localStorage.getItem('theme');
+            return isValidTheme(stored) ? stored : null;
+          } catch (error) {
+            return null;
+          }
+        }
+
+        function resolveTheme(explicitTheme) {
+          if (isValidTheme(explicitTheme)) return explicitTheme;
+          var storedTheme = getStoredTheme();
+          if (storedTheme) return storedTheme;
+          return window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+        }
+
         // Hide [data-enter] elements before first paint so the enter choreography can reveal them
         document.documentElement.classList.add('js-enter');
         try {
+          var preTheme = resolveTheme();
+          if (preTheme) {
+            document.documentElement.setAttribute('data-theme', preTheme);
+          }
           if (localStorage.getItem('sidebar-collapsed') === 'true') {
             document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
           }
@@ -95,27 +124,6 @@ const {
             document.documentElement.setAttribute('data-moss-shade', preShade);
           }
         } catch (e) {}
-
-        var VALID_THEMES = ['dark', 'light', 'moss', 'rice'];
-        var LIGHT_THEMES = ['light', 'rice'];
-        var runtimeKey = '__areSetThemeRuntimeBound__';
-        var themeTransitionTimer = 0;
-
-        function getStoredTheme() {
-          try {
-            var stored = localStorage.getItem('theme');
-            return isValidTheme(stored) ? stored : null;
-          } catch (error) {
-            return null;
-          }
-        }
-
-        function resolveTheme(explicitTheme) {
-          if (isValidTheme(explicitTheme)) return explicitTheme;
-          var storedTheme = getStoredTheme();
-          if (storedTheme) return storedTheme;
-          return window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
-        }
 
         function syncThemeColor(theme) {
           var meta = document.querySelector('meta[name="theme-color"]');
@@ -153,6 +161,9 @@ const {
 
         function applyTheme(explicitTheme) {
           var nextTheme = resolveTheme(explicitTheme);
+          if (isValidTheme(explicitTheme)) {
+            try { localStorage.setItem('theme', explicitTheme); } catch (e) {}
+          }
           document.documentElement.setAttribute('data-theme', nextTheme);
           var shade = getStoredMossShade();
           if (nextTheme === 'moss' && shade) {
@@ -198,6 +209,10 @@ const {
             ? explicitFont
             : (getStoredFont() || 'pixel');
 
+          if (explicitFont === 'kai' || explicitFont === 'pixel') {
+            try { localStorage.setItem('site-font', explicitFont); } catch (e) {}
+          }
+
           if (nextFont === 'kai') {
             document.documentElement.setAttribute('data-font', 'kai');
           } else {
@@ -230,28 +245,36 @@ const {
             Math.max(y, window.innerHeight - y)
           );
 
-          var transition = document.startViewTransition(function() {
-            applyFont(nextFont);
-          });
+          try {
+            var transition = document.startViewTransition(function() {
+              applyFont(nextFont);
+            });
 
-          transition.ready
-            .then(function() {
-              document.documentElement.animate(
-                {
-                  clipPath: [
-                    'circle(14px at ' + x + 'px ' + y + 'px)',
-                    'circle(' + endRadius + 'px at ' + x + 'px ' + y + 'px)',
-                  ],
-                  filter: ['blur(5px)', 'blur(0)'],
-                },
-                {
-                  duration: 760,
-                  easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
-                  pseudoElement: '::view-transition-new(root)',
-                }
-              );
-            })
-            .catch(function() {});
+            if (transition && transition.ready && typeof transition.ready.then === 'function') {
+              transition.ready
+                .then(function() {
+                  if (typeof document.documentElement.animate === 'function') {
+                    document.documentElement.animate(
+                      {
+                        clipPath: [
+                          'circle(14px at ' + x + 'px ' + y + 'px)',
+                          'circle(' + endRadius + 'px at ' + x + 'px ' + y + 'px)',
+                        ],
+                        filter: ['blur(5px)', 'blur(0)'],
+                      },
+                      {
+                        duration: 760,
+                        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                        pseudoElement: '::view-transition-new(root)',
+                      }
+                    );
+                  }
+                })
+                .catch(function() {});
+            }
+          } catch (e) {
+            applyFont(nextFont);
+          }
         }
 
         function transitionTheme(nextTheme, sourceEl) {
@@ -275,30 +298,39 @@ const {
             Math.max(y, window.innerHeight - y)
           );
 
-          var transition = document.startViewTransition(function() {
+          try {
+            var transition = document.startViewTransition(function() {
+              markThemeSwitching();
+              applyTheme(nextTheme);
+            });
+
+            if (transition && transition.ready && typeof transition.ready.then === 'function') {
+              transition.ready
+                .then(function() {
+                  if (typeof document.documentElement.animate === 'function') {
+                    document.documentElement.animate(
+                      {
+                        clipPath: [
+                          'circle(14px at ' + x + 'px ' + y + 'px)',
+                          'circle(' + endRadius + 'px at ' + x + 'px ' + y + 'px)',
+                        ],
+                        opacity: [0.7, 1],
+                        filter: ['blur(6px) brightness(0.94) saturate(0.92)', 'blur(0) brightness(1) saturate(1)'],
+                      },
+                      {
+                        duration: 920,
+                        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                        pseudoElement: '::view-transition-new(root)',
+                      }
+                    );
+                  }
+                })
+                .catch(function() {});
+            }
+          } catch (e) {
             markThemeSwitching();
             applyTheme(nextTheme);
-          });
-
-          transition.ready
-            .then(function() {
-              document.documentElement.animate(
-                {
-                  clipPath: [
-                    'circle(14px at ' + x + 'px ' + y + 'px)',
-                    'circle(' + endRadius + 'px at ' + x + 'px ' + y + 'px)',
-                  ],
-                  opacity: [0.7, 1],
-                  filter: ['blur(6px) brightness(0.94) saturate(0.92)', 'blur(0) brightness(1) saturate(1)'],
-                },
-                {
-                  duration: 920,
-                  easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
-                  pseudoElement: '::view-transition-new(root)',
-                }
-              );
-            })
-            .catch(function() {});
+          }
         }
 
         window.__getPreferredTheme = resolveTheme;
@@ -311,6 +343,30 @@ const {
         applyFont();
 
         if (window[runtimeKey]) return;
+
+        document.addEventListener('astro:before-swap', function(e) {
+          try {
+            var activeTheme = resolveTheme();
+            if (e.newDocument && e.newDocument.documentElement) {
+              if (activeTheme) e.newDocument.documentElement.setAttribute('data-theme', activeTheme);
+              var shade = getStoredMossShade();
+              if (activeTheme === 'moss' && shade) {
+                e.newDocument.documentElement.setAttribute('data-moss-shade', shade);
+              } else {
+                e.newDocument.documentElement.removeAttribute('data-moss-shade');
+              }
+              var font = getStoredFont();
+              if (font === 'kai') {
+                e.newDocument.documentElement.setAttribute('data-font', 'kai');
+              } else {
+                e.newDocument.documentElement.removeAttribute('data-font');
+              }
+              if (localStorage.getItem('sidebar-collapsed') === 'true') {
+                e.newDocument.documentElement.setAttribute('data-sidebar-collapsed', 'true');
+              }
+            }
+          } catch (err) {}
+        });
 
         document.addEventListener('astro:after-swap', function() {
           applyTheme();
@@ -2726,12 +2782,17 @@ const {
         var THEME_CYCLE = ['light', 'dark', 'moss', 'rice'];
 
         document.addEventListener('click', function(e) {
-          var btn = e.target.closest('[data-theme-toggle]');
+          var node = e.target;
+          var el = node && typeof node.closest === 'function'
+            ? node
+            : (node && node.parentElement && typeof node.parentElement.closest === 'function' ? node.parentElement : null);
+          var btn = el ? el.closest('[data-theme-toggle]') : null;
           if (!btn) return;
 
-          var current = document.documentElement.getAttribute('data-theme') || 'light';
+          var current = (document.documentElement.getAttribute('data-theme') || '').trim() ||
+            (typeof window.__getPreferredTheme === 'function' ? window.__getPreferredTheme() : 'light');
           var index = THEME_CYCLE.indexOf(current);
-          var next = THEME_CYCLE[(index + 1) % THEME_CYCLE.length];
+          var next = index !== -1 ? THEME_CYCLE[(index + 1) % THEME_CYCLE.length] : 'dark';
 
           try {
             localStorage.setItem('theme', next);
@@ -2756,7 +2817,11 @@ const {
         if (window[toggleKey]) return;
 
         document.addEventListener('click', function(e) {
-          var btn = e.target.closest('[data-font-toggle]');
+          var node = e.target;
+          var el = node && typeof node.closest === 'function'
+            ? node
+            : (node && node.parentElement && typeof node.parentElement.closest === 'function' ? node.parentElement : null);
+          var btn = el ? el.closest('[data-font-toggle]') : null;
           if (!btn) return;
 
           var isKai = document.documentElement.getAttribute('data-font') === 'kai';
