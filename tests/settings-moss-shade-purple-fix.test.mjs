@@ -107,6 +107,13 @@ describe('设置页绿粉主题色阶定制与按钮点击紫色异常消除验�
     assert.ok(settingsAstro.includes('id="mossShadesGrid"'), '必须包含卡片网格 #mossShadesGrid');
     assert.ok(settingsAstro.includes('id="resetShadeBtn"'), '必须包含恢复推荐色按钮 #resetShadeBtn');
     assert.ok(settingsAstro.includes('data-moss-shade-card'), '卡片必须声明 data-moss-shade-card 交互属性');
+
+    // E. 必须置于 workbenchSection 内部，保证未登录时受密码锁保护，禁止在未登录锁屏视图下外露调色
+    const lockIdx = settingsAstro.indexOf('id="lockSection"');
+    const workbenchIdx = settingsAstro.indexOf('id="workbenchSection"');
+    const mossIdx = settingsAstro.indexOf('id="mossShadesSection"');
+    assert.ok(lockIdx !== -1 && workbenchIdx !== -1 && mossIdx !== -1, '各核心区块必须定义');
+    assert.ok(mossIdx > workbenchIdx, 'mossShadesSection 必须置于 workbenchSection 内部，禁止在外层裸露于 lockSection 之上');
   });
 
   it('3. 静态预览截图资源在 public/assets/previews/ 与 public/previews/ 均完整就绪', () => {
