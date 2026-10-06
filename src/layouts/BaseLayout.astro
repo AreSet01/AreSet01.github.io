@@ -50,11 +50,25 @@ const {
         var VALID_MOSS_SHADES = ['004D40', '00695C', '00796B', '00897B', '4DB6AC'];
         function getStoredMossShade() {
           try {
-            var urlParam = new URLSearchParams(window.location.search).get('moss-shade') ||
+            var raw = new URLSearchParams(window.location.search).get('moss-shade') ||
                            new URLSearchParams(window.location.search).get('shade');
-            if (urlParam && VALID_MOSS_SHADES.indexOf(urlParam) !== -1) return urlParam;
+            if (raw) {
+              var clean = raw.trim().replace(/^#/, '').toUpperCase();
+              if (clean === 'DEFAULT' || clean === 'RESET') {
+                localStorage.removeItem('moss-shade');
+                return null;
+              }
+              if (VALID_MOSS_SHADES.indexOf(clean) !== -1) {
+                try { localStorage.setItem('moss-shade', clean); } catch (err) {}
+                return clean;
+              }
+            }
             var stored = localStorage.getItem('moss-shade');
-            return stored && VALID_MOSS_SHADES.indexOf(stored) !== -1 ? stored : null;
+            if (stored) {
+              var normStored = stored.trim().replace(/^#/, '').toUpperCase();
+              return VALID_MOSS_SHADES.indexOf(normStored) !== -1 ? normStored : null;
+            }
+            return null;
           } catch (e) {
             return null;
           }
@@ -143,7 +157,7 @@ const {
           var shade = getStoredMossShade();
           if (nextTheme === 'moss' && shade) {
             document.documentElement.setAttribute('data-moss-shade', shade);
-          } else if (nextTheme !== 'moss') {
+          } else {
             document.documentElement.removeAttribute('data-moss-shade');
           }
           syncThemeColor(nextTheme);
@@ -152,6 +166,20 @@ const {
           window.setTimeout(function() { syncGiscusTheme(nextTheme); }, 180);
           window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme: nextTheme } }));
           return nextTheme;
+        }
+
+        function setMossShade(shade) {
+          try {
+            if (shade) {
+              var clean = shade.trim().replace(/^#/, '').toUpperCase();
+              if (VALID_MOSS_SHADES.indexOf(clean) !== -1) {
+                localStorage.setItem('moss-shade', clean);
+              }
+            } else {
+              localStorage.removeItem('moss-shade');
+            }
+          } catch (e) {}
+          applyTheme('moss');
         }
 
         /* ---------- 字体：像素体 ⇄ 行楷 ---------- */
@@ -275,6 +303,7 @@ const {
 
         window.__getPreferredTheme = resolveTheme;
         window.__applyTheme = applyTheme;
+        window.__setMossShade = setMossShade;
         window.__transitionTheme = transitionTheme;
         window.__applyFont = applyFont;
         window.__transitionFont = transitionFont;

@@ -267,6 +267,9 @@ html[data-font="kai"] body {
   --glass-shadow-lg: 0 40px 96px rgba(0, 36, 30, 0.55);
   --glass-inner-top: inset 0 1px 0 rgba(255, 241, 244, 0.1);
   --glass-inner-bottom: inset 0 -1px 0 rgba(0, 36, 30, 0.24);
+
+  /* Contrast badge text token: ensures text on accent/active controls is legible in all shades */
+  --moss-badge-text: #004D40;
 }
 
 /* 5 档绿意微调色号变体支持 */
@@ -316,6 +319,7 @@ html[data-font="kai"] body {
   --muted-strong: #004d40;
   --accent: #004d40;
   --accent-strong: #00362e;
+  --moss-badge-text: #ffffff;
   --rule: rgba(0, 34, 29, 0.16);
   --rule-strong: rgba(0, 34, 29, 0.32);
   --rule-soft: rgba(0, 34, 29, 0.08);
@@ -2375,13 +2379,13 @@ html[data-sidebar-collapsed="true"] .zen-sound-capsule {
 }
 
 [data-theme="moss"] .zen-timer-pill.is-active {
-  color: #004D40 !important;
+  color: var(--moss-badge-text, #004D40) !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 [data-theme="moss"] .zen-timer-pill.is-active:hover {
-  background: #FFC2D1 !important;
-  color: #004D40 !important;
+  background: var(--accent) !important;
+  color: var(--moss-badge-text, #004D40) !important;
 }
 
 /* Responsive adjustment for Mobile */
@@ -8205,14 +8209,14 @@ a.chart-bar-name:hover {
 
 [data-theme="moss"] .mermaid-action-btn.is-active {
   background: var(--accent);
-  color: #004D40;
+  color: var(--moss-badge-text, #004D40);
   border-color: var(--accent);
 }
 
 [data-theme="moss"] .mermaid-action-btn.is-active:hover {
-  background: #FFD3DE;
-  color: #004D40;
-  border-color: #FFD3DE;
+  background: var(--accent-strong, #FFD3DE);
+  color: var(--moss-badge-text, #004D40);
+  border-color: var(--accent-strong, #FFD3DE);
 }
 
 [data-theme="moss"] .mermaid-source {
@@ -8570,9 +8574,9 @@ body.gallery-lightbox-open {
 
 [data-theme="moss"] .code-pin-button.is-pinned,
 [data-theme="moss"] .mermaid-action-btn.mermaid-btn-pin.is-pinned {
-  color: #004D40 !important;
-  background: #FFC2D1 !important;
-  border-color: #FFC2D1 !important;
+  color: var(--moss-badge-text, #004D40) !important;
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
 }
 
 [data-theme="rice"] .code-pin-button.is-pinned,
@@ -8777,8 +8781,8 @@ body.gallery-lightbox-open {
 }
 
 [data-theme="moss"] .pin-edge-tab-count {
-  background: #FFC2D1 !important;
-  color: #004D40 !important;
+  background: var(--accent) !important;
+  color: var(--moss-badge-text, #004D40) !important;
 }
 
 [data-theme="rice"] .pin-edge-tab-count {
@@ -8984,8 +8988,8 @@ body.gallery-lightbox-open {
 }
 
 [data-theme="moss"] .pin-count-badge {
-  background: #FFC2D1 !important;
-  color: #004D40 !important;
+  background: var(--accent) !important;
+  color: var(--moss-badge-text, #004D40) !important;
 }
 
 [data-theme="rice"] .pin-count-badge {

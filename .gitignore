@@ -10,3 +10,5 @@ server/ask.env
 server/*.json
 # npm run deploy 打包时的临时归档（脚本结束会删，万一中断了这个兜底）
 blog-dist-*.tar.gz
+# 主题预览截图与临时调试生成目录
+public/previews/

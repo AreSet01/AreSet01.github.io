@@ -9,6 +9,7 @@
     "ask": "node server/ask.mjs",
     "deploy": "node scripts/deploy-server.mjs",
     "preview": "astro preview",
+    "preview:theme": "node scripts/generate-previews.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
