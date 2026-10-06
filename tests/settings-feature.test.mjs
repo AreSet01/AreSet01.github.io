@@ -274,6 +274,24 @@ test('3. Frontend Settings Page & Route Isolation Verification', () => {
   assert.ok(pageContent.includes('/api/settings/models'), 'Must communicate with models API');
   assert.ok(pageContent.includes('/api/settings/test-model'), 'Must communicate with test-model API');
 
+  // Verify layout centering, standalone isolation, and data-astro-rerun
+  assert.ok(pageContent.includes('standalone={true}'), 'settings page must specify standalone={true}');
+  assert.ok(pageContent.includes('data-astro-rerun'), 'settings script must specify data-astro-rerun');
+  assert.ok(pageContent.includes('flex items-center justify-center'), 'lockSection must have flex centering');
+  assert.ok(pageContent.includes('min-h-[calc(100vh'), 'lockSection must have viewport height calculation');
+
+  // Verify BaseLayout standalone prop
+  const layoutPath = path.resolve(ROOT, 'src', 'layouts', 'BaseLayout.astro');
+  const layoutContent = readFileSync(layoutPath, 'utf8');
+  assert.ok(layoutContent.includes('standalone?: boolean'), 'BaseLayout must support standalone prop');
+  assert.ok(layoutContent.includes('site-shell-standalone'), 'BaseLayout must toggle site-shell-standalone');
+
+  // Verify global CSS rules
+  const cssPath = path.resolve(ROOT, 'src', 'styles', 'global.css');
+  const cssContent = readFileSync(cssPath, 'utf8');
+  assert.ok(cssContent.includes('.site-shell.site-shell-standalone'), 'global.css must provide standalone rules');
+  assert.ok(cssContent.includes('.sidebar-expand-btn'), 'global.css must handle sidebar expand button');
+
   // Verify navigation isolation: Header should NOT have /settings link
   const headerPath = path.resolve(ROOT, 'src', 'components', 'Header.astro');
   const headerContent = readFileSync(headerPath, 'utf8');

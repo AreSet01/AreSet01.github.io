@@ -2,11 +2,11 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="服务器设置 · 控制台" description="博客划词问答与服务运行时控制台">
-  <div class="settings-viewport min-h-screen flex flex-col justify-between selection:bg-neutral-800 selection:text-neutral-100">
+<BaseLayout title="服务器设置 · 控制台" description="博客划词问答与服务运行时控制台" standalone={true}>
+  <div class="settings-viewport w-full min-h-screen flex flex-col justify-between selection:bg-neutral-800 selection:text-neutral-100">
     <!-- 顶部状态栏 -->
-    <header class="settings-header border-b border-neutral-200/60 dark:border-neutral-800/80 bg-neutral-50/80 dark:bg-neutral-950/80 backdrop-blur-md sticky top-0 z-40 transition-colors">
-      <div class="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+    <header class="settings-header w-full border-b border-neutral-200/60 dark:border-neutral-800/80 bg-neutral-50/80 dark:bg-neutral-950/80 backdrop-blur-md sticky top-0 z-40 transition-colors">
+      <div class="max-w-5xl w-full mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         <div class="flex items-center gap-3">
           <a href="/" class="settings-back-link flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200 transition-colors" title="返回博客首页">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -33,10 +33,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </div>
     </header>
 
-    <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 relative">
+    <main class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col relative">
       <!-- 视图 1：密码解锁卡片 -->
-      <section id="lockSection" class="max-w-md mx-auto my-12 transition-all duration-300">
-        <div class="bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-8 shadow-xl shadow-neutral-900/5">
+      <section id="lockSection" class="flex-1 w-full min-h-[calc(100vh-9.5rem)] flex items-center justify-center my-auto py-8 transition-all duration-300">
+        <div class="w-full max-w-md bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-8 shadow-xl shadow-neutral-900/5">
           <div class="w-12 h-12 mx-auto rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-700 dark:text-neutral-300 mb-5 border border-neutral-200/50 dark:border-neutral-700/50">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
@@ -100,7 +100,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </section>
 
       <!-- 视图 2：控制台工作台 -->
-      <section id="workbenchSection" class="hidden space-y-8 pb-24 transition-all duration-300">
+      <section id="workbenchSection" class="hidden w-full space-y-8 pb-24 transition-all duration-300">
         <!-- 统计面板条 -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div class="p-4 rounded-xl bg-white/70 dark:bg-neutral-900/70 border border-neutral-200/70 dark:border-neutral-800/70">
@@ -384,7 +384,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           </div>
 
           <!-- 底部悬浮保存栏 -->
-          <div class="sticky bottom-6 z-30 p-4 rounded-2xl bg-neutral-900/90 dark:bg-neutral-100/90 text-neutral-100 dark:text-neutral-900 backdrop-blur-xl shadow-2xl flex items-center justify-between gap-4 border border-neutral-800 dark:border-neutral-200">
+          <div class="sticky bottom-6 z-30 p-4 rounded-2xl bg-neutral-900/90 dark:bg-neutral-100/90 text-neutral-100 dark:text-neutral-900 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border border-neutral-800 dark:border-neutral-200">
             <div class="flex items-center gap-2 text-xs">
               <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               <span class="font-mono">保存后即刻热重载生效，无需重启进程</span>
@@ -393,7 +393,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             <button
               type="submit"
               id="saveConfigBtn"
-              class="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold tracking-wider font-mono transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+              class="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold tracking-wider font-mono transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
             >
               <span id="saveBtnText">保存并应用配置</span>
               <svg id="saveSpinner" class="hidden animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
@@ -407,7 +407,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     </main>
 
     <!-- 底部状态声明 -->
-    <footer class="py-4 border-t border-neutral-200/40 dark:border-neutral-800/40 text-center text-[11px] text-neutral-400 font-mono">
+    <footer class="w-full py-4 border-t border-neutral-200/40 dark:border-neutral-800/40 text-center text-[11px] text-neutral-400 font-mono">
       <span>Blog Runtime Control Center · AreSet01</span>
     </footer>
   </div>
@@ -415,7 +415,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   <!-- Toast 提示容器 -->
   <div id="toast" class="fixed top-6 right-6 z-50 transform translate-y-[-20px] opacity-0 pointer-events-none transition-all duration-300 max-w-sm px-4 py-3 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2 border"></div>
 
-  <script is:inline>
+  <script is:inline data-astro-rerun>
     (function () {
       const STORAGE_KEY = 'blog_settings_token';
       let currentToken = sessionStorage.getItem(STORAGE_KEY) || '';
@@ -849,4 +849,29 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       }
     })();
   </script>
+
+  <style is:global>
+    /* 确保控制台视口撑满全屏，且不被侧边栏浮动按扭/印章遮挡 */
+    .site-shell:has(.settings-viewport),
+    .site-shell-standalone {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-height: 100vh !important;
+      gap: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      overflow: visible !important;
+    }
+    .site-shell:has(.settings-viewport) > *,
+    .site-shell-standalone > * {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+    html:has(.settings-viewport) .sidebar-expand-btn,
+    html:has(.settings-viewport) .seal-floating {
+      display: none !important;
+    }
+  </style>
 </BaseLayout>
