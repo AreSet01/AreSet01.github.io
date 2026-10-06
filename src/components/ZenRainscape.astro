@@ -155,21 +155,21 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
     if (rand < 0.45) {
       // 1. 微落点圈 (半径 2~14px)：细密雨滴初触水面的灵动小水点
       tier = 'micro';
-      maxR = 3 + Math.random() * 11; // 3~14px
-      speed = 0.52 + Math.random() * 0.32;
-      opacity = 0.22 + Math.random() * 0.16;
-    } else if (rand < 0.90) {
+      maxR = 2.5 + Math.random() * 11.5; // 2~14px
+      speed = 0.22 + Math.random() * 0.16; // 自然轻灵慢速扩展，持续约 0.6~1.0 秒
+      opacity = 0.26 + Math.random() * 0.16;
+    } else if (rand < 0.88) {
       // 2. 主椭圆双环 (半径 20~45px)：遵循视角透视的半透明经典同心水晕
       tier = 'main';
       maxR = 20 + Math.random() * 25; // 20~45px
-      speed = 0.42 + Math.random() * 0.26;
-      opacity = 0.20 + Math.random() * 0.16;
+      speed = 0.30 + Math.random() * 0.18; // 柔和水晕荡漾，持续约 1.5~2.2 秒
+      opacity = 0.22 + Math.random() * 0.16;
     } else {
       // 3. 深漫水澜 (半径 50~75px)：偶发缓慢散开的大水波纹，全屏交叠而不突兀
       tier = 'deep';
       maxR = 50 + Math.random() * 25; // 50~75px
-      speed = 0.24 + Math.random() * 0.16;
-      opacity = 0.13 + Math.random() * 0.09;
+      speed = 0.20 + Math.random() * 0.12; // 悠缓深澜回荡，持续约 3.5~5.0 秒
+      opacity = 0.15 + Math.random() * 0.09;
     }
 
     lakeRipples.push({
@@ -194,6 +194,7 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
       ctx.clearRect(0, 0, width, height);
       isRunning = false;
       animId = null;
+      lakeRipples.length = 0; // 淡出彻底归零，清除残留波纹
       return;
     }
 
@@ -203,8 +204,12 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
     const now = performance.now();
 
     // 1. 高频生动水波节奏调度器 (桌面端 80~160ms，移动端 140~240ms，连绵不绝)
-    if (now >= nextRippleTime && currentOpacity > 0.1) {
+    if (now >= nextRippleTime && currentOpacity > 0.04) {
       spawnLakeRipple(palette);
+      // 自然降水散射：偶发伴生次水花或水滴连缀，提升生动微澜感
+      if (lakeRipples.length < getMaxRipples() && Math.random() < 0.40) {
+        spawnLakeRipple(palette);
+      }
       nextRippleTime = now + getNextRippleInterval();
     }
 
@@ -215,8 +220,14 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
       const progress = rip.r / rip.maxR;
       const currentAlpha = rip.opacity * (1 - progress) * currentOpacity;
 
-      if (progress >= 1 || currentAlpha <= 0.008) {
+      // 仅根据物理几何扩展生命周期判断消亡，彻底杜绝淡入淡出阶段误杀年轻波纹
+      if (progress >= 1 || rip.r >= rip.maxR) {
         lakeRipples.splice(i, 1);
+        continue;
+      }
+
+      // 极低透明度跳过绘制以优化性能，但保留波纹生命周期
+      if (currentAlpha <= 0.003) {
         continue;
       }
 

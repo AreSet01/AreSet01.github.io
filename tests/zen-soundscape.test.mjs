@@ -516,4 +516,44 @@ test('Visual Reconstruction: ZenRainscape multi-tier water ripples and adaptive 
   assert.ok(!rainscapeContent.includes('mists'), 'Must never introduce mists');
 });
 
+test('Acoustic & Visual Robustness: Filter sweep tracking, sub-timer cleanup, and ripple lifecycle protection', () => {
+  const engineContent = fs.readFileSync(path.join(rootDir, 'src/utils/zenAudioEngine.ts'), 'utf-8');
+  const rainscapeContent = fs.readFileSync(path.join(rootDir, 'src/components/ZenRainscape.astro'), 'utf-8');
+
+  // 1. Mountain leaf drop filter must sweep synchronously with oscillator
+  assert.ok(
+    engineContent.includes('filter.frequency.exponentialRampToValueAtTime(baseFreq * 0.42'),
+    'Mountain leaf bandpass filter must sweep down to 0.42 * baseFreq synchronously with oscillator'
+  );
+
+  // 2. Secondary bubble and rain sub-timers must be cleared on disposal
+  assert.ok(
+    engineContent.includes('clearTimeout(subDropTimeout)') && engineContent.includes('clearTimeout(subBubbleTimeout)'),
+    'ZenAudioEngine must clean up subDropTimeout and subBubbleTimeout on disposal'
+  );
+
+  // 3. Minnaert bubble loudness compensation & non-linear power distribution
+  assert.ok(
+    engineContent.includes('loudnessWeight') && engineContent.includes('Math.pow(u, 1.25)'),
+    'Minnaert bubble synthesis must apply loudness compensation and non-linear power distribution'
+  );
+
+  // 4. Ripple lifecycle must NOT prematurely purge during canvas fade-in
+  assert.ok(
+    rainscapeContent.includes('progress >= 1 || rip.r >= rip.maxR'),
+    'Ripple lifecycle must terminate based on physical geometric progress, avoiding premature purge during fade-in'
+  );
+  assert.ok(
+    !rainscapeContent.includes('currentAlpha <= 0.008') && !rainscapeContent.includes('currentAlpha <= 0.01'),
+    'ZenRainscape must not purge ripples when alpha is low during master fade-in'
+  );
+
+  // 5. Natural rain scatter density
+  assert.ok(
+    rainscapeContent.includes('lakeRipples.length < getMaxRipples() && Math.random() < 0.40'),
+    'ZenRainscape must support natural companion droplet scatter to maintain rich ripple density'
+  );
+});
+
+
 

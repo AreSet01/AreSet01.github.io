@@ -551,12 +551,21 @@ export class ZenAudioEngine {
 
     // 3. 瓦当青石物理水滴调度器：连绵自然的间歇节奏 (380ms ~ 1250ms)
     let dropTimeout: any = null;
+    let subDropTimeout: any = null;
     const scheduleDrop = () => {
       if (isDisposed) return;
       const delay = 380 + Math.random() * 870;
       dropTimeout = setTimeout(() => {
         if (isDisposed) return;
         this.synthesizeRainDrop(ctx, output);
+        // 偶发屋檐连缀水滴 (滴答连缀，25% 概率)
+        if (Math.random() < 0.25) {
+          subDropTimeout = setTimeout(() => {
+            if (!isDisposed) {
+              this.synthesizeRainDrop(ctx, output);
+            }
+          }, 140 + Math.random() * 100);
+        }
         scheduleDrop();
       }, delay);
     };
@@ -565,6 +574,7 @@ export class ZenAudioEngine {
     return () => {
       isDisposed = true;
       if (dropTimeout) clearTimeout(dropTimeout);
+      if (subDropTimeout) clearTimeout(subDropTimeout);
       try {
         distSource.stop();
         nearSource.stop();
@@ -623,8 +633,10 @@ export class ZenAudioEngine {
         osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.42, now + 0.045);
 
         filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(baseFreq * 0.75, now);
-        filter.Q.setValueAtTime(5.8, now);
+        // 关键修复：滤波器中心频跟随振荡器同步下掠，杜绝固定带通截断衰减与闷响
+        filter.frequency.setValueAtTime(baseFreq, now);
+        filter.frequency.exponentialRampToValueAtTime(baseFreq * 0.42, now + 0.045);
+        filter.Q.setValueAtTime(3.6, now);
 
         gain.gain.setValueAtTime(0.0001, now);
         gain.gain.linearRampToValueAtTime(0.10 + Math.random() * 0.06, now + 0.003);
@@ -987,6 +999,7 @@ export class ZenAudioEngine {
 
     // 2. 物理气泡群涌动调度器：密集连续触发 (50ms ~ 130ms)，呈现生动逼真的“叮咚、咕嘟、淙淙”泉水穿石流水感
     let bubbleTimeout: any = null;
+    let subBubbleTimeout: any = null;
     const scheduleBubble = () => {
       if (isDisposed) return;
       const delay = 50 + Math.random() * 80; // 50ms ~ 130ms 密集节奏
@@ -995,7 +1008,7 @@ export class ZenAudioEngine {
         this.synthesizeStreamBubble(ctx, output);
         // 偶发连珠双微泡 (20% 概率)
         if (Math.random() < 0.20) {
-          setTimeout(() => {
+          subBubbleTimeout = setTimeout(() => {
             if (!isDisposed) {
               this.synthesizeStreamBubble(ctx, output);
             }
@@ -1022,6 +1035,7 @@ export class ZenAudioEngine {
     return () => {
       isDisposed = true;
       if (bubbleTimeout) clearTimeout(bubbleTimeout);
+      if (subBubbleTimeout) clearTimeout(subBubbleTimeout);
       if (bellTimeout) clearTimeout(bellTimeout);
       try {
         streamSource.stop();
@@ -1045,8 +1059,10 @@ export class ZenAudioEngine {
   private synthesizeStreamBubble(ctx: AudioContext, output: AudioNode): void {
     try {
       const now = ctx.currentTime;
-      // 气泡物理共振频 (400Hz ~ 2800Hz，稍偏向 600~1900Hz 更有咕嘟淙淙感)
-      const baseFreq = 400 + Math.random() * 2400;
+      // 气泡物理共振频 (400Hz ~ 2800Hz，集中于 600~1900Hz 更有咕嘟淙淙感)
+      // 使用幂次概率分布模拟真实微气泡尺径谱 (中频饱满，高频灵动，拒绝均匀分布的生硬感)
+      const u = Math.random();
+      const baseFreq = 400 + Math.pow(u, 1.25) * 2400;
       // 极短持续时间 8ms ~ 20ms
       const duration = 0.008 + Math.random() * 0.012;
 
@@ -1058,7 +1074,11 @@ export class ZenAudioEngine {
       // Minnaert 气泡微上掠频 (~9% 频移)，模拟气泡收缩破裂真实音色
       osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.09, now + duration);
 
-      const amp = 0.035 + Math.random() * 0.045;
+      // 人耳等响度曲线补偿：高频气泡轻柔细碎，中低频气泡温润饱满，消除尖锐刺耳毛刺
+      const loudnessWeight = Math.min(1.4, Math.max(0.65, Math.pow(1100 / baseFreq, 0.35)));
+      const rawAmp = 0.035 + Math.random() * 0.045;
+      const amp = rawAmp * loudnessWeight;
+
       gain.gain.setValueAtTime(0.0001, now);
       gain.gain.linearRampToValueAtTime(amp, now + 0.002);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
