@@ -1467,6 +1467,87 @@ html[data-cursor-trail="disabled"] .cursor-trail-toggle .icon-trail-on  { displa
   color: var(--accent);
 }
 
+.theme-toggle,
+.font-toggle,
+.cursor-trail-toggle,
+.zen-sound-toggle,
+.drawer-control-btn,
+[data-theme-toggle],
+[data-font-toggle],
+[data-cursor-trail-toggle],
+[data-zen-sound-toggle],
+[data-moss-shade-card],
+.shade-option-card,
+#resetShadeBtn,
+.sidebar-collapse-btn,
+.mobile-menu-toggle,
+.mobile-search-btn {
+  outline: none !important;
+  outline-color: transparent !important;
+  box-shadow: none !important;
+  -webkit-focus-ring-color: transparent !important;
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.theme-toggle:focus,
+.font-toggle:focus,
+.cursor-trail-toggle:focus,
+.zen-sound-toggle:focus,
+.drawer-control-btn:focus,
+.theme-toggle:focus-visible,
+.font-toggle:focus-visible,
+.cursor-trail-toggle:focus-visible,
+.zen-sound-toggle:focus-visible,
+.drawer-control-btn:focus-visible,
+.theme-toggle:active,
+.font-toggle:active,
+.cursor-trail-toggle:active,
+.zen-sound-toggle:active,
+.drawer-control-btn:active,
+[data-theme-toggle]:focus,
+[data-font-toggle]:focus,
+[data-cursor-trail-toggle]:focus,
+[data-zen-sound-toggle]:focus,
+[data-theme-toggle]:focus-visible,
+[data-font-toggle]:focus-visible,
+[data-cursor-trail-toggle]:focus-visible,
+[data-zen-sound-toggle]:focus-visible,
+[data-theme-toggle]:active,
+[data-font-toggle]:active,
+[data-cursor-trail-toggle]:active,
+[data-zen-sound-toggle]:active,
+[data-moss-shade-card]:focus,
+[data-moss-shade-card]:focus-visible,
+[data-moss-shade-card]:active,
+.shade-option-card:focus,
+.shade-option-card:focus-visible,
+.shade-option-card:active,
+#resetShadeBtn:focus,
+#resetShadeBtn:focus-visible,
+#resetShadeBtn:active {
+  outline: none !important;
+  outline-color: transparent !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+  -webkit-focus-ring-color: transparent !important;
+}
+
+button.theme-toggle::-moz-focus-inner,
+button.font-toggle::-moz-focus-inner,
+button.cursor-trail-toggle::-moz-focus-inner,
+button.zen-sound-toggle::-moz-focus-inner,
+button.drawer-control-btn::-moz-focus-inner,
+button[data-theme-toggle]::-moz-focus-inner,
+button[data-font-toggle]::-moz-focus-inner,
+button[data-cursor-trail-toggle]::-moz-focus-inner,
+button[data-zen-sound-toggle]::-moz-focus-inner,
+button[data-moss-shade-card]::-moz-focus-inner,
+button#resetShadeBtn::-moz-focus-inner {
+  border: 0 !important;
+}
+
 .theme-toggle {
   display: flex;
   align-items: center;
@@ -2521,7 +2602,7 @@ html.js-enter [data-enter]:not(.is-entered) {
 }
 
 ::view-transition-new(root) {
-  will-change: clip-path, opacity, filter;
+  will-change: clip-path;
 }
 
 html.theme-switching body,
@@ -4956,6 +5037,14 @@ html[data-font="kai"] .stats-label {
 
 ::view-transition-new(root) {
   animation: vt-fade-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+html.theme-switching::view-transition-old(root),
+html.theme-switching::view-transition-new(root),
+html.font-switching::view-transition-old(root),
+html.font-switching::view-transition-new(root) {
+  animation: none !important;
+  mix-blend-mode: normal !important;
 }
 
 @keyframes vt-fade-out {

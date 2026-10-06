@@ -1,5 +1,58 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+
+const MOSS_SHADES = [
+  {
+    id: '004D40',
+    hex: '#004D40',
+    name: 'Teal 900 (松石极墨)',
+    contrast: '8.96:1 (AAA)',
+    note: '深沉如墨松，对比度极高，偏厚重',
+    previewWebp: '/assets/previews/shade_1_004D40.webp',
+    previewPng: '/assets/previews/shade_1_004D40.png',
+    isRecommended: false,
+  },
+  {
+    id: '00695C',
+    hex: '#00695C',
+    name: 'Teal 800 (竹青墨韵)',
+    contrast: '6.03:1 (AA)',
+    note: '浓郁雅致，青翠如竹，兼顾护眼与辨识',
+    previewWebp: '/assets/previews/shade_2_00695C.webp',
+    previewPng: '/assets/previews/shade_2_00695C.png',
+    isRecommended: false,
+  },
+  {
+    id: '00796B',
+    hex: '#00796B',
+    name: 'Teal 700 (翡翠青玉 · 推荐)',
+    contrast: '4.85:1 (AA)',
+    note: '透亮青润，摆脱原版浑浊感与深暗感，粉墨相映极佳',
+    previewWebp: '/assets/previews/shade_3_00796B.webp',
+    previewPng: '/assets/previews/shade_3_00796B.png',
+    isRecommended: true,
+  },
+  {
+    id: '00897B',
+    hex: '#00897B',
+    name: 'Teal 600 (碧波苍青)',
+    contrast: '3.93:1',
+    note: '明亮通透，青意盎然，大字辨识度高',
+    previewWebp: '/assets/previews/shade_4_00897B.webp',
+    previewPng: '/assets/previews/shade_4_00897B.png',
+    isRecommended: false,
+  },
+  {
+    id: '4DB6AC',
+    hex: '#4DB6AC',
+    name: 'Teal 300 (清凉薄荷)',
+    contrast: '2.23:1 (适配深墨)',
+    note: '清爽明亮浅底，需配合深黛墨字呈现',
+    previewWebp: '/assets/previews/shade_5_4DB6AC.webp',
+    previewPng: '/assets/previews/shade_5_4DB6AC.png',
+    isRecommended: false,
+  },
+];
 ---
 
 <BaseLayout title="服务器设置 · 控制台" description="博客划词问答与服务运行时控制台" standalone={true}>
@@ -33,7 +86,110 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </div>
     </header>
 
-    <main class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col relative">
+    <main class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col relative space-y-8">
+      <!-- 模块 0：绿粉主题色阶定制 (全站即时生效，无需服务端密码) -->
+      <section id="mossShadesSection" class="w-full bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-7 shadow-sm transition-colors">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-neutral-100 dark:border-neutral-800/70">
+          <div class="flex items-start sm:items-center gap-3">
+            <div class="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200/60 dark:border-teal-800/50 shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 21a4 4 0 01-4-4 4 4 0 014-4c.94 0 1.8.33 2.47.88L14 9.35a4 4 0 015.53-5.53 4 4 0 010 5.66l-4.53 4.53A4 4 0 0111 17a4 4 0 01-4 4z"></path>
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h2 class="text-base font-semibold text-neutral-900 dark:text-neutral-100 tracking-tight">
+                  绿粉主题色阶全景实测与切换
+                </h2>
+                <span class="text-xs px-2 py-0.5 rounded-full bg-teal-100/80 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 font-mono">
+                  Moss Theme Shades
+                </span>
+              </div>
+              <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                基准粉色字 (#FFF1F4) · 默认推荐翡翠青玉 #00796B，点击任一色卡即刻热切换全站生效并持久化
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            id="resetShadeBtn"
+            class="self-start sm:self-auto text-xs text-neutral-600 dark:text-neutral-400 hover:text-teal-600 dark:hover:text-teal-300 font-mono border border-neutral-300/80 dark:border-neutral-700 rounded-lg px-3 py-1.5 hover:bg-neutral-100/70 dark:hover:bg-neutral-800/70 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shrink-0"
+            title="恢复推荐色阶 #00796B"
+          >
+            <span>↺ 恢复推荐色</span>
+            <span class="font-bold text-teal-600 dark:text-teal-400">#00796B</span>
+          </button>
+        </div>
+
+        <!-- 5 款候选绿色全景效果卡片组 (参考图 3) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4" id="mossShadesGrid">
+          {MOSS_SHADES.map((shade) => (
+            <button
+              type="button"
+              class={`shade-option-card relative rounded-xl p-3 text-left border transition-all duration-200 cursor-pointer flex flex-col justify-between group outline-none focus:outline-none ${
+                shade.id === '00796B' ? 'border-[#FFC2D1] shadow-sm' : 'border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/40 hover:border-neutral-400 dark:hover:border-neutral-600'
+              }`}
+              data-moss-shade-card={shade.id}
+              data-shade-name={shade.name}
+              data-shade-hex={shade.hex}
+              title={`点击应用 ${shade.name}`}
+            >
+              <div>
+                <!-- 实测截图缩略图 -->
+                <div class="relative w-full aspect-[16/10] rounded-lg overflow-hidden border border-neutral-300/60 dark:border-neutral-700/60 bg-neutral-900 mb-3 shadow-inner">
+                  <picture>
+                    <source srcset={shade.previewWebp} type="image/webp" />
+                    <img
+                      src={shade.previewPng}
+                      alt={`${shade.name} 全景实测截图`}
+                      class="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105 pointer-events-none"
+                      loading="lazy"
+                    />
+                  </picture>
+
+                  {shade.isRecommended && (
+                    <span class="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#FFC2D1] text-[#004D40] shadow-sm tracking-tight pointer-events-none">
+                      ★ 最佳推荐
+                    </span>
+                  )}
+
+                  <span class="shade-active-badge hidden absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500 text-white shadow-sm tracking-tight flex items-center gap-0.5 pointer-events-none">
+                    ✓ 生效中
+                  </span>
+                </div>
+
+                <!-- 色块与色彩标识 -->
+                <div class="flex items-center gap-2 mb-2">
+                  <span
+                    class="w-5 h-5 rounded-md border border-neutral-300/80 dark:border-neutral-600 shadow-sm shrink-0"
+                    style={{ backgroundColor: shade.hex }}
+                    aria-hidden="true"
+                  ></span>
+                  <div class="min-w-0">
+                    <span class="font-mono text-xs font-bold text-neutral-900 dark:text-neutral-100 block leading-tight">
+                      {shade.hex}
+                    </span>
+                    <span class="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium truncate block leading-tight mt-0.5">
+                      {shade.name}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 对比度与点评说明 -->
+              <div class="mt-2 pt-2 border-t border-neutral-200/50 dark:border-neutral-800/60">
+                <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-neutral-200/70 dark:bg-neutral-800/80 text-neutral-700 dark:text-neutral-300 mb-1.5">
+                  WCAG: {shade.contrast}
+                </span>
+                <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug line-clamp-2">
+                  {shade.note}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <!-- 视图 1：密码解锁卡片 -->
       <section id="lockSection" class="flex-1 w-full min-h-[calc(100vh-9.5rem)] flex items-center justify-center my-auto py-8 transition-all duration-300">
         <div class="w-full max-w-md bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-8 shadow-xl shadow-neutral-900/5">
@@ -448,6 +604,78 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           toast.style.pointerEvents = 'none';
         }, 3200);
       }
+
+      // 绿粉主题色阶选择器交互与热切换
+      function initMossShadeSelector() {
+        const shadeCards = document.querySelectorAll('[data-moss-shade-card]');
+        const resetBtn = document.getElementById('resetShadeBtn');
+        if (!shadeCards.length) return;
+
+        function getActiveShade() {
+          try {
+            const stored = localStorage.getItem('moss-shade');
+            if (stored) {
+              const norm = stored.trim().replace(/^#/, '').toUpperCase();
+              if (['004D40', '00695C', '00796B', '00897B', '4DB6AC'].includes(norm)) {
+                return norm;
+              }
+            }
+          } catch (e) {}
+          return '00796B';
+        }
+
+        function updateShadeUi(activeShade) {
+          shadeCards.forEach((card) => {
+            const cardShade = card.getAttribute('data-moss-shade-card');
+            const isActive = cardShade === activeShade;
+            const badge = card.querySelector('.shade-active-badge');
+
+            if (isActive) {
+              card.classList.add('is-active', 'ring-2', 'ring-[#FFC2D1]', 'border-[#FFC2D1]', 'bg-[#FFC2D1]/10');
+              card.classList.remove('border-neutral-200/80', 'dark:border-neutral-800');
+              card.setAttribute('aria-pressed', 'true');
+              if (badge) badge.classList.remove('hidden');
+            } else {
+              card.classList.remove('is-active', 'ring-2', 'ring-[#FFC2D1]', 'border-[#FFC2D1]', 'bg-[#FFC2D1]/10');
+              card.classList.add('border-neutral-200/80', 'dark:border-neutral-800');
+              card.setAttribute('aria-pressed', 'false');
+              if (badge) badge.classList.add('hidden');
+            }
+          });
+        }
+
+        function applyShade(shade, name) {
+          if (typeof window.__setMossShade === 'function') {
+            window.__setMossShade(shade);
+          } else {
+            try { localStorage.setItem('moss-shade', shade); } catch (e) {}
+            document.documentElement.setAttribute('data-theme', 'moss');
+            document.documentElement.setAttribute('data-moss-shade', shade);
+          }
+          updateShadeUi(shade);
+          showToast(`已切换绿粉主题色阶：${name || shade} (#${shade})`);
+        }
+
+        updateShadeUi(getActiveShade());
+
+        shadeCards.forEach((card) => {
+          card.addEventListener('click', () => {
+            const shade = card.getAttribute('data-moss-shade-card');
+            const name = card.getAttribute('data-shade-name') || shade;
+            if (shade) applyShade(shade, name);
+          });
+        });
+
+        resetBtn?.addEventListener('click', () => {
+          applyShade('00796B', 'Teal 700 (翡翠青玉 · 推荐)');
+        });
+
+        window.addEventListener('theme-change', () => {
+          updateShadeUi(getActiveShade());
+        });
+      }
+
+      initMossShadeSelector();
 
       // 切换视图
       function setAuthedState(authed) {

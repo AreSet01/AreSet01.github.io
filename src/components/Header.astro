@@ -502,16 +502,22 @@ const year = new Date().getFullYear();
     });
   }
 
+  function clearCursorTrail() {
+    points = [];
+    isDrawing = false;
+    brush.isVisible = false;
+    brush.isPressed = false;
+    if (ctx && canvas) {
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    }
+  }
+  window.__clearCursorTrail = clearCursorTrail;
+
   function setCursorTrailDisabled(disabled) {
     if (disabled) {
       document.documentElement.setAttribute('data-cursor-trail', 'disabled');
       try { localStorage.setItem('cursor-trail', 'disabled'); } catch (e) {}
-      if (ctx && canvas) {
-        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      }
-      points = [];
-      isDrawing = false;
-      brush.isVisible = false;
+      clearCursorTrail();
     } else {
       document.documentElement.removeAttribute('data-cursor-trail');
       try { localStorage.removeItem('cursor-trail'); } catch (e) {}
@@ -585,12 +591,13 @@ const year = new Date().getFullYear();
     function onPointerMove(e) {
       if (isCursorTrailDisabled()) return;
       if (e.pointerType === 'touch' || isMobile || !window.matchMedia('(pointer: fine)').matches) return;
+      const t = e.target;
+      if (t && (t.matches('input,textarea,[contenteditable="true"],.search-input') || (typeof t.closest === 'function' && t.closest('[data-theme-toggle],[data-font-toggle],[data-cursor-trail-toggle],[data-zen-sound-toggle],.theme-toggle,.font-toggle,.cursor-trail-toggle,.zen-sound-toggle,.drawer-control-btn,[data-moss-shade-card]')))) {
+        brush.isVisible = false;
+        return;
+      }
       updateMouse(e);
       brush.isVisible = true;
-      const t = e.target;
-      if (t && t.matches('input,textarea,[contenteditable="true"],.search-input')) {
-        brush.isVisible = false;
-      }
       if (!isDrawing) {
         isDrawing = true;
         requestAnimationFrame(updateAndDraw);
@@ -599,6 +606,12 @@ const year = new Date().getFullYear();
     function onPointerDown(e) {
       if (isCursorTrailDisabled()) return;
       if (e.pointerType === 'touch' || isMobile || !window.matchMedia('(pointer: fine)').matches) return;
+      const t = e.target;
+      if (t && typeof t.closest === 'function' && t.closest('[data-theme-toggle],[data-font-toggle],[data-cursor-trail-toggle],[data-zen-sound-toggle],.theme-toggle,.font-toggle,.cursor-trail-toggle,.zen-sound-toggle,.drawer-control-btn,[data-moss-shade-card]')) {
+        brush.isVisible = false;
+        brush.isPressed = false;
+        return;
+      }
       if (e.button === 0) {
         updateMouse(e);
         brush.isPressed = true;
