@@ -282,15 +282,18 @@
       return line;
     }).join('\n');
 
-    // 3. 解决 ** 内部空格导致的解析失效以及中文词内强调误伤：
-    // 如 ** `FField` 压根没有继承...！ ** ->  **`FField` 压根没有继承...！** 
-    text = text.replace(/\*\*([\s\S]+?)\*\*/g, (match, inner) => {
+    // 3. 解决反引号内联代码与粗体组合在非英文标点语境下的解析失效：
+    // CommonMark 规则下反引号被视作标点，前接中文字符时 ** 无法作为左侧定界符（如 为什么必须用**`CreateDefaultSubobject`**？）。
+    // 将 **(`...`)** 直接转换为 <strong>$1</strong>，令 marked 解析为 <strong><code>...</code></strong>，避免依赖定界符规则与引入不必要空格。
+    text = text.replace(/\*\*\s*(`[^`\n]+`)\s*\*\*/g, '<strong>$1</strong>');
+
+    // 4. 解决 ** 内部空格导致的解析失效：清理 ** 内侧多余空格（如 ** 结论 ** -> **结论**），不向外侧注入额外空格
+    text = text.replace(/\*\*([^\n]+?)\*\*/g, (match, inner) => {
       const trimmed = inner.trim();
-      if (!trimmed) return match;
-      return ` **${trimmed}** `;
+      return trimmed ? `**${trimmed}**` : match;
     });
 
-    // 4. 清理连续重复空格（但保留换行）
+    // 5. 清理连续重复空格（但保留换行）
     text = text.replace(/[ \t]{2,}/g, ' ');
 
     return text;

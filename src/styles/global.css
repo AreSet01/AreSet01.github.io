@@ -602,11 +602,16 @@ img {
   overflow: visible !important;
 }
 
-.site-shell.site-shell-standalone > *,
-.site-shell:has(.settings-viewport) > * {
+.site-shell.site-shell-standalone > .settings-viewport,
+.site-shell:has(.settings-viewport) > .settings-viewport {
   width: 100% !important;
   max-width: 100% !important;
   flex: 1 1 auto !important;
+}
+
+#toast {
+  width: auto !important;
+  max-width: 24rem !important;
 }
 
 .sidebar-expand-btn {

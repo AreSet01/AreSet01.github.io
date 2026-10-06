@@ -290,7 +290,15 @@ test('3. Frontend Settings Page & Route Isolation Verification', () => {
   const cssPath = path.resolve(ROOT, 'src', 'styles', 'global.css');
   const cssContent = readFileSync(cssPath, 'utf8');
   assert.ok(cssContent.includes('.site-shell.site-shell-standalone'), 'global.css must provide standalone rules');
+  assert.ok(cssContent.includes('.site-shell.site-shell-standalone > .settings-viewport'), 'global.css must scope 100% width specifically to .settings-viewport');
+  assert.ok(cssContent.includes('#toast'), 'global.css must define defensive rules for #toast');
   assert.ok(cssContent.includes('.sidebar-expand-btn'), 'global.css must handle sidebar expand button');
+
+  // Verify toast positioning and non-clipping isolation in settings page
+  assert.ok(pageContent.includes('id="toast"'), 'settings.astro must have #toast container');
+  assert.ok(pageContent.includes('.site-shell:has(.settings-viewport) > .settings-viewport'), 'settings.astro must scope width specifically to .settings-viewport');
+  assert.ok(pageContent.includes('#toast'), 'settings.astro must define defensive rules for #toast');
+  assert.match(pageContent, /id="toast"[\s\S]*?<\/div>\s*<script/, '#toast must reside inside .settings-viewport to prevent layout blowout');
 
   // Verify navigation isolation: Header should NOT have /settings link
   const headerPath = path.resolve(ROOT, 'src', 'components', 'Header.astro');
