@@ -448,13 +448,13 @@ const countByCategory = {
     transform: scaleX(1);
   }
 
-  .life-cat-tab:hover {
+  .life-cat-tab:not(.is-active):hover {
     color: var(--text-strong);
     border-color: var(--accent);
     transform: translateY(-1px);
   }
 
-  .life-cat-tab:hover .cat-count {
+  .life-cat-tab:not(.is-active):hover .cat-count {
     color: var(--text-strong);
     border-color: var(--accent);
   }
@@ -465,6 +465,17 @@ const countByCategory = {
     border-color: var(--ink-strong);
     font-weight: 500;
     box-shadow: none;
+  }
+
+  .life-cat-tab.is-active:hover {
+    color: var(--bg-base);
+    border-color: var(--ink-strong);
+    transform: translateY(-1px);
+  }
+
+  .life-cat-tab.is-active:hover .cat-count {
+    color: inherit;
+    border-color: transparent;
   }
 
   .life-cat-tab .cat-count {

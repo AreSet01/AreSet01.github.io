@@ -47,6 +47,19 @@ const {
     <ClientRouter />
     <script is:inline>
       (function(){
+        var VALID_MOSS_SHADES = ['004D40', '00695C', '00796B', '00897B', '4DB6AC'];
+        function getStoredMossShade() {
+          try {
+            var urlParam = new URLSearchParams(window.location.search).get('moss-shade') ||
+                           new URLSearchParams(window.location.search).get('shade');
+            if (urlParam && VALID_MOSS_SHADES.indexOf(urlParam) !== -1) return urlParam;
+            var stored = localStorage.getItem('moss-shade');
+            return stored && VALID_MOSS_SHADES.indexOf(stored) !== -1 ? stored : null;
+          } catch (e) {
+            return null;
+          }
+        }
+
         // Hide [data-enter] elements before first paint so the enter choreography can reveal them
         document.documentElement.classList.add('js-enter');
         try {
@@ -63,16 +76,16 @@ const {
           if (localStorage.getItem('site-font') === 'kai') {
             document.documentElement.setAttribute('data-font', 'kai');
           }
+          var preShade = getStoredMossShade();
+          if (preShade) {
+            document.documentElement.setAttribute('data-moss-shade', preShade);
+          }
         } catch (e) {}
 
         var VALID_THEMES = ['dark', 'light', 'moss', 'rice'];
         var LIGHT_THEMES = ['light', 'rice'];
         var runtimeKey = '__areSetThemeRuntimeBound__';
         var themeTransitionTimer = 0;
-
-        function isValidTheme(value) {
-          return VALID_THEMES.indexOf(value) !== -1;
-        }
 
         function getStoredTheme() {
           try {
@@ -92,9 +105,10 @@ const {
 
         function syncThemeColor(theme) {
           var meta = document.querySelector('meta[name="theme-color"]');
+          var mossShade = document.documentElement.getAttribute('data-moss-shade');
           var barColor =
             theme === 'dark' ? '#0a0a0a' :
-            theme === 'moss' ? '#62A06F' :
+            theme === 'moss' ? (mossShade ? '#' + mossShade : '#00796B') :
             theme === 'rice' ? '#F2E9D8' : '#ffffff';
           if (meta) meta.setAttribute('content', barColor);
           document.documentElement.style.colorScheme =
@@ -126,6 +140,12 @@ const {
         function applyTheme(explicitTheme) {
           var nextTheme = resolveTheme(explicitTheme);
           document.documentElement.setAttribute('data-theme', nextTheme);
+          var shade = getStoredMossShade();
+          if (nextTheme === 'moss' && shade) {
+            document.documentElement.setAttribute('data-moss-shade', shade);
+          } else if (nextTheme !== 'moss') {
+            document.documentElement.removeAttribute('data-moss-shade');
+          }
           syncThemeColor(nextTheme);
 
           requestAnimationFrame(function() { syncGiscusTheme(nextTheme); });

@@ -1732,6 +1732,16 @@
     color: #ffffff;
   }
 
+  [data-theme="moss"] .article-search-icon-btn:not(:disabled):hover {
+    background: rgba(255, 241, 244, 0.14);
+    color: var(--text-strong);
+  }
+
+  [data-theme="moss"] .article-search-icon-btn.is-active {
+    background: rgba(255, 241, 244, 0.22);
+    color: var(--text-strong);
+  }
+
   /* Options Buttons */
   .article-search-options {
     display: flex;
@@ -1768,8 +1778,18 @@
     box-sizing: border-box;
   }
 
-  .article-search-toggle-btn:hover {
+  .article-search-toggle-btn:not(.is-active):hover {
     background: rgba(0, 0, 0, 0.05);
+    color: var(--text-strong);
+  }
+
+  [data-theme="dark"] .article-search-toggle-btn:not(.is-active):hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-strong);
+  }
+
+  [data-theme="moss"] .article-search-toggle-btn:not(.is-active):hover {
+    background: rgba(255, 241, 244, 0.12);
     color: var(--text-strong);
   }
 
@@ -1779,9 +1799,21 @@
     font-weight: 700;
   }
 
-  [data-theme="dark"] .article-search-toggle-btn.is-active {
+  .article-search-toggle-btn.is-active:hover {
+    background: var(--ink-strong, #000);
+    color: var(--bg-base, #fff);
+  }
+
+  [data-theme="dark"] .article-search-toggle-btn.is-active,
+  [data-theme="dark"] .article-search-toggle-btn.is-active:hover {
     background: #ffffff;
     color: #000000;
+  }
+
+  [data-theme="moss"] .article-search-toggle-btn.is-active,
+  [data-theme="moss"] .article-search-toggle-btn.is-active:hover {
+    background: #FFC2D1;
+    color: #004D40;
   }
 
   /* Close Button */
@@ -1821,6 +1853,18 @@
 
   [data-theme="dark"] .article-search-close-btn:hover {
     background: rgba(255, 255, 255, 0.12);
+  }
+
+  [data-theme="moss"] .article-search-close-btn {
+    background: rgba(255, 241, 244, 0.08);
+    border-color: rgba(255, 241, 244, 0.2);
+    color: var(--muted-strong);
+  }
+
+  [data-theme="moss"] .article-search-close-btn:hover {
+    background: rgba(255, 241, 244, 0.18);
+    border-color: rgba(255, 241, 244, 0.35);
+    color: var(--text-strong);
   }
 
   .article-search-kbd {

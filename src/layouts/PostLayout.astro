@@ -1396,6 +1396,14 @@ const hasToc = tocHeadings.length > 1;
     [data-theme="dark"] .post-toc-search-btn:hover {
       background: rgba(255, 255, 255, 0.12);
     }
+    [data-theme="moss"] .post-toc-search-btn {
+      background: rgba(255, 241, 244, 0.08);
+      border-color: var(--rule-soft);
+    }
+    [data-theme="moss"] .post-toc-search-btn:hover {
+      background: rgba(255, 241, 244, 0.18);
+      border-color: var(--rule-strong);
+    }
     .post-toc-inner {
       margin-top: 0.85rem;
       padding-top: 0.85rem;
@@ -1461,6 +1469,12 @@ const hasToc = tocHeadings.length > 1;
       background: rgba(0, 0, 0, 0.04);
       transform: translateX(3px);
     }
+    [data-theme="dark"] .post-toc-link:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+    [data-theme="moss"] .post-toc-link:hover {
+      background: rgba(255, 241, 244, 0.1);
+    }
     .post-toc-link:active {
       transform: scale(0.97);
     }
@@ -1472,6 +1486,12 @@ const hasToc = tocHeadings.length > 1;
       color: var(--accent-strong);
       font-weight: 700;
       background: rgba(0, 0, 0, 0.05);
+    }
+    [data-theme="dark"] .post-toc-link.is-active {
+      background: rgba(255, 255, 255, 0.14);
+    }
+    [data-theme="moss"] .post-toc-link.is-active {
+      background: rgba(255, 241, 244, 0.16);
     }
     .post-toc-link.is-active .toc-bullet {
       opacity: 1;

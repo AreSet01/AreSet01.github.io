@@ -1380,6 +1380,11 @@
     background: rgba(255, 255, 255, 0.1);
   }
 
+  [data-theme="moss"] .dock-action-btn:hover {
+    background: rgba(255, 241, 244, 0.14);
+    color: var(--text-strong);
+  }
+
   .dock-action-btn:active {
     transform: translateY(0) scale(0.97);
   }
@@ -1483,6 +1488,12 @@
     background: #f5f5f5;
     color: #111;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  }
+
+  [data-theme="moss"] .dock-copy-stamp {
+    background: #FFC2D1;
+    color: #004D40;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   }
 
   /* =========================================================
@@ -1761,6 +1772,11 @@
     background: rgba(255, 255, 255, 0.1);
   }
 
+  [data-theme="moss"] .notes-drawer-close-btn:hover {
+    background: rgba(255, 241, 244, 0.14);
+    color: var(--text-strong);
+  }
+
   /* Drawer Body */
   .notes-drawer-body {
     flex: 1;
@@ -1890,6 +1906,11 @@
     background: rgba(255, 255, 255, 0.1);
   }
 
+  [data-theme="moss"] .notes-btn:hover {
+    background: rgba(255, 241, 244, 0.14);
+    color: var(--text-strong);
+  }
+
   .notes-btn-del:hover {
     color: #e53935;
     border-color: rgba(229, 57, 53, 0.4);
@@ -1932,6 +1953,16 @@
   [data-theme="dark"] .notes-export-btn {
     background: #f4f4f4;
     color: #111;
+  }
+
+  [data-theme="moss"] .notes-export-btn {
+    background: #FFC2D1;
+    color: #004D40;
+  }
+
+  [data-theme="moss"] .notes-export-btn:hover {
+    background: #FFE0E7;
+    color: #004D40;
   }
 
   .notes-clear-btn {

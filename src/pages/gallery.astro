@@ -451,14 +451,14 @@ const countByCategory = {
     transform: scaleX(1);
   }
 
-  .gallery-cat-tab:hover {
+  .gallery-cat-tab:not(.is-active):hover {
     color: var(--text-strong);
     border-color: var(--accent);
     transform: translateY(-1px);
     background: transparent;
   }
 
-  .gallery-cat-tab:hover .cat-count {
+  .gallery-cat-tab:not(.is-active):hover .cat-count {
     color: var(--text-strong);
     border-color: var(--accent);
   }
@@ -468,6 +468,18 @@ const countByCategory = {
     color: var(--bg-base);
     border-color: var(--ink-strong);
     box-shadow: none;
+  }
+
+  .gallery-cat-tab.is-active:hover {
+    color: var(--bg-base);
+    border-color: var(--ink-strong);
+    transform: translateY(-1px);
+    background: transparent;
+  }
+
+  .gallery-cat-tab.is-active:hover .cat-count {
+    color: inherit;
+    border-color: transparent;
   }
 
   .gallery-cat-tab .cat-count {

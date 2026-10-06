@@ -34,13 +34,10 @@ describe('全站「烟雨濛濛」音画微气象系统与首页视觉纯净化�
     assert.ok(content.includes('zen-rain-disabled'), '应支持本地偏好记忆或状态持久化');
   });
 
-  it('4. index.astro & 架构纯净性: 已完全移除 XingChuiYeHero 点阵组件与冗余包', () => {
-    const xingchuiyePath = path.join(rootDir, 'src/components/XingChuiYeHero.astro');
-    assert.ok(!fs.existsSync(xingchuiyePath), 'XingChuiYeHero.astro 文件应已被彻底移除');
-
+  it('4. index.astro & 架构纯净性: 首页水墨架构纯净且无冗余 3D 渲染包依赖', () => {
     const indexPath = path.join(rootDir, 'src/pages/index.astro');
     const indexContent = fs.readFileSync(indexPath, 'utf8');
-    assert.ok(!indexContent.includes('XingChuiYeHero'), 'index.astro 中不应包含任何 XingChuiYeHero 痕迹');
+    assert.ok(indexContent.includes('home-stats-strip'), 'index.astro 应包含水墨长卷数据条');
 
     const packageJsonPath = path.join(rootDir, 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));

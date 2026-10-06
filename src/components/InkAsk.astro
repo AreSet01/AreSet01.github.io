@@ -1622,7 +1622,19 @@
     outline: none;
     transform: rotate(0deg) scale(1.05);
     background: var(--vermilion);
-    color: #fff;
+    color: var(--bg-base);
+  }
+  [data-theme="dark"] .ink-ask-send:hover,
+  [data-theme="dark"] .ink-ask-send:focus-visible {
+    background: #ffffff;
+    color: #141414;
+    border-color: #ffffff;
+  }
+  [data-theme="moss"] .ink-ask-send:hover,
+  [data-theme="moss"] .ink-ask-send:focus-visible {
+    background: var(--accent);
+    color: #004D40;
+    border-color: var(--accent);
   }
   .ink-ask-form.is-busy .ink-ask-send {
     opacity: 0.35;
@@ -1921,7 +1933,19 @@
     outline: none;
     transform: scale(1.06);
     background: var(--vermilion);
-    color: #fff;
+    color: var(--bg-base);
+  }
+  [data-theme="dark"] .ink-ask-drawer-send:hover,
+  [data-theme="dark"] .ink-ask-drawer-send:focus-visible {
+    background: #ffffff;
+    color: #141414;
+    border-color: #ffffff;
+  }
+  [data-theme="moss"] .ink-ask-drawer-send:hover,
+  [data-theme="moss"] .ink-ask-drawer-send:focus-visible {
+    background: var(--accent);
+    color: #004D40;
+    border-color: var(--accent);
   }
   .ink-ask-drawer-form.is-busy .ink-ask-drawer-send {
     opacity: 0.35;
