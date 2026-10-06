@@ -68,10 +68,16 @@ sudo chown root:root /etc/blog-ask.env && sudo chmod 600 /etc/blog-ask.env
 
 | 变量 | 作用 | 建议 |
 |---|---|---|
+| `ADMIN_PASSWORD_HASH` | 隐藏控制台 (`/settings`) 管理密码的 SHA-256 哈希 | 本机执行 `npm run hash:password -- 密码` 获取 |
 | `AI_MAX_TOKENS` | 单次回答上限 | 思考型模型的思考也计入，回答老被截断就调大 |
 | `ASK_DAILY_LIMIT` | 全站每天调用模型的总次数 | 这是**花钱的闸门**，按预算设 |
 | `ASK_RATE_PER_MIN` / `ASK_RATE_PER_DAY` | 每个 IP 的限流 | 防一个人刷 |
 | `ASK_MAX_CONCURRENT` | 同时进行中的回答数 | 每个回答约 1–3MB 内存，12 足够 |
+
+### 网页在线配置控制台 (/settings)
+服务自带专属管理页面（仅可通过浏览器地址栏直接输入 `/settings` 访问，站内无任何入口，爬虫已屏蔽）：
+- 输入管理员密码验证通过后即可在线更新模型接口地址、Key、拉取远端模型、测活及调整限流。
+- 点击保存后直接落盘至 `/var/lib/blog-ask/runtime-config.json` 并即刻热重载生效，无需重启进程。
 
 ## 四、建账号、起服务
 

@@ -1,0 +1,852 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="服务器设置 · 控制台" description="博客划词问答与服务运行时控制台">
+  <div class="settings-viewport min-h-screen flex flex-col justify-between selection:bg-neutral-800 selection:text-neutral-100">
+    <!-- 顶部状态栏 -->
+    <header class="settings-header border-b border-neutral-200/60 dark:border-neutral-800/80 bg-neutral-50/80 dark:bg-neutral-950/80 backdrop-blur-md sticky top-0 z-40 transition-colors">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <a href="/" class="settings-back-link flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200 transition-colors" title="返回博客首页">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            <span class="hidden sm:inline font-mono">Home</span>
+          </a>
+          <span class="text-neutral-300 dark:text-neutral-700">/</span>
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50 animate-pulse"></span>
+            <span class="font-medium text-sm tracking-wide text-neutral-900 dark:text-neutral-100 font-mono">CONSOLE</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-neutral-200/70 dark:bg-neutral-800/70 text-neutral-600 dark:text-neutral-400 font-mono">settings</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3" id="headerStatusGroup">
+          <div id="serviceStatusBadge" class="hidden items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-mono border">
+            <!-- 动态注入状态 -->
+          </div>
+          <button id="logoutBtn" type="button" class="hidden text-xs text-neutral-500 hover:text-rose-500 dark:hover:text-rose-400 font-mono transition-colors">
+            退出登录
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 relative">
+      <!-- 视图 1：密码解锁卡片 -->
+      <section id="lockSection" class="max-w-md mx-auto my-12 transition-all duration-300">
+        <div class="bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-8 shadow-xl shadow-neutral-900/5">
+          <div class="w-12 h-12 mx-auto rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-700 dark:text-neutral-300 mb-5 border border-neutral-200/50 dark:border-neutral-700/50">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+            </svg>
+          </div>
+
+          <h2 class="text-center text-lg font-semibold text-neutral-900 dark:text-neutral-100 tracking-tight">
+            服务器控制台保护
+          </h2>
+          <p class="text-center text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 mb-6">
+            此页面受服务端管理密码保护，请输入密码以解锁配置
+          </p>
+
+          <form id="loginForm" class="space-y-4">
+            <div>
+              <label for="adminPassword" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5">
+                ADMIN PASSWORD
+              </label>
+              <div class="relative">
+                <input
+                  type="password"
+                  id="adminPassword"
+                  name="password"
+                  required
+                  autocomplete="current-password"
+                  placeholder="••••••••••••"
+                  class="w-full px-3.5 py-2.5 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 transition-all font-mono"
+                />
+                <button
+                  type="button"
+                  id="togglePasswordVisibility"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 text-xs px-1"
+                  title="显示/隐藏密码"
+                >
+                  👁️
+                </button>
+              </div>
+            </div>
+
+            <div id="loginError" class="hidden text-xs text-rose-500 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-lg p-2.5 text-center"></div>
+
+            <button
+              type="submit"
+              id="loginSubmitBtn"
+              class="w-full py-2.5 px-4 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-neutral-100 dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-[0.99]"
+            >
+              <span id="loginBtnText">验证密码并解锁</span>
+              <svg id="loginSpinner" class="hidden animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </button>
+          </form>
+
+          <div class="mt-6 pt-5 border-t border-neutral-100 dark:border-neutral-800/60 text-center">
+            <span class="text-[11px] text-neutral-400 dark:text-neutral-500 font-mono">
+              密码哈希配置于 /etc/blog-ask.env
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 视图 2：控制台工作台 -->
+      <section id="workbenchSection" class="hidden space-y-8 pb-24 transition-all duration-300">
+        <!-- 统计面板条 -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="p-4 rounded-xl bg-white/70 dark:bg-neutral-900/70 border border-neutral-200/70 dark:border-neutral-800/70">
+            <div class="text-xs text-neutral-500 font-mono">服务状态</div>
+            <div class="mt-1 flex items-center gap-2">
+              <span id="statConfiguredDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <span id="statConfiguredText" class="text-sm font-medium text-neutral-900 dark:text-neutral-100">已就绪</span>
+            </div>
+          </div>
+          <div class="p-4 rounded-xl bg-white/70 dark:bg-neutral-900/70 border border-neutral-200/70 dark:border-neutral-800/70">
+            <div class="text-xs text-neutral-500 font-mono">今日问答调用</div>
+            <div class="mt-1 flex items-baseline gap-1.5">
+              <span id="statDailyUsed" class="text-xl font-bold font-mono text-neutral-900 dark:text-neutral-100">0</span>
+              <span class="text-xs text-neutral-400 font-mono">/ <span id="statDailyLimit">800</span> 次</span>
+            </div>
+          </div>
+          <div class="p-4 rounded-xl bg-white/70 dark:bg-neutral-900/70 border border-neutral-200/70 dark:border-neutral-800/70">
+            <div class="text-xs text-neutral-500 font-mono">已缓存答案条数</div>
+            <div class="mt-1 flex items-center justify-between">
+              <span id="statCacheCount" class="text-xl font-bold font-mono text-neutral-900 dark:text-neutral-100">0</span>
+              <button
+                type="button"
+                id="quickClearCacheBtn"
+                class="text-xs text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 border border-rose-200 dark:border-rose-900/60 rounded px-2 py-0.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+              >
+                清空缓存
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <form id="settingsForm" class="space-y-8">
+          <!-- 模块 1：AI 模型接入配置 -->
+          <div class="bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-7 shadow-sm">
+            <div class="flex items-center gap-2.5 mb-6 pb-4 border-b border-neutral-100 dark:border-neutral-800/70">
+              <div class="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">AI 模型与接口接入</h3>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400">划词问答服务端请求 OpenAI 兼容接口的核心参数</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <!-- AI_BASE_URL -->
+              <div>
+                <label for="aiBaseUrl" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  AI_BASE_URL <span class="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="aiBaseUrl"
+                  name="baseUrl"
+                  required
+                  placeholder="https://api.openai.com/v1"
+                  class="w-full px-3.5 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-400 font-mono"
+                />
+                <span class="text-[11px] text-neutral-400 mt-1 block">服务会请求 &#123;AI_BASE_URL&#125;/chat/completions</span>
+              </div>
+
+              <!-- AI_API_KEY -->
+              <div>
+                <label for="aiApiKey" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center justify-between">
+                  <span>AI_API_KEY <span class="text-rose-500">*</span></span>
+                  <span id="apiKeyHint" class="text-[10px] text-emerald-600 dark:text-emerald-400 font-sans"></span>
+                </label>
+                <div class="relative">
+                  <input
+                    type="password"
+                    id="aiApiKey"
+                    name="apiKey"
+                    placeholder="留空则保持现有 Key 不变"
+                    class="w-full px-3.5 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-400 font-mono pr-12"
+                  />
+                  <button
+                    type="button"
+                    id="toggleApiKeyVisibility"
+                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 text-xs px-1"
+                    title="显示明文"
+                  >
+                    👁️
+                  </button>
+                </div>
+                <span class="text-[11px] text-neutral-400 mt-1 block">密钥只存储于服务器，支持脱敏显示</span>
+              </div>
+            </div>
+
+            <!-- 模型选择、拉取与测活核心控制区 -->
+            <div class="mt-6 pt-5 border-t border-neutral-100 dark:border-neutral-800/60">
+              <label class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center justify-between">
+                <span>AI_MODEL（模型选取与测活） <span class="text-rose-500">*</span></span>
+                <span id="modelTestStatusBadge" class="text-xs font-mono hidden"></span>
+              </label>
+
+              <div class="flex flex-col sm:flex-row gap-2.5">
+                <div class="relative flex-1">
+                  <input
+                    type="text"
+                    id="aiModel"
+                    name="model"
+                    required
+                    placeholder="例如 gemini-3.8-flash-high 或 gpt-4o"
+                    class="w-full px-3.5 py-2.5 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-400 font-mono"
+                  />
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0">
+                  <!-- 拉取模型列表按钮 -->
+                  <button
+                    type="button"
+                    id="fetchModelsBtn"
+                    class="px-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs font-medium font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="从 Base URL 获取可用模型列表"
+                  >
+                    <svg id="fetchModelsIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span>拉取模型列表</span>
+                  </button>
+
+                  <!-- 测活按钮 -->
+                  <button
+                    type="button"
+                    id="testModelBtn"
+                    class="px-3.5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium font-mono flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                    title="测试当前填写的模型连通性"
+                  >
+                    <svg id="testModelIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    <span>模型测活</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 模型选择抽屉/下拉卡片 -->
+              <div id="modelsDrawer" class="hidden mt-3 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950/70 border border-neutral-200 dark:border-neutral-800 transition-all">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-medium text-neutral-800 dark:text-neutral-200">远端模型库</span>
+                    <span id="modelCountBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 font-mono text-neutral-600 dark:text-neutral-400">0 个模型</span>
+                  </div>
+                  <input
+                    type="text"
+                    id="modelFilterInput"
+                    placeholder="搜索过滤模型 (如 gemini / gpt / claude)..."
+                    class="px-2.5 py-1 text-xs rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 focus:outline-none w-52"
+                  />
+                </div>
+
+                <div id="modelsListContainer" class="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                  <!-- 动态插入模型项 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 高级参数 -->
+            <div class="mt-6 pt-5 border-t border-neutral-100 dark:border-neutral-800/60 grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div>
+                <label for="aiMaxTokens" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  AI_MAX_TOKENS (单次回答上限)
+                </label>
+                <input
+                  type="number"
+                  id="aiMaxTokens"
+                  name="maxTokens"
+                  min="256"
+                  max="32768"
+                  placeholder="2048"
+                  class="w-full px-3.5 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
+                />
+                <span class="text-[11px] text-neutral-400 mt-1 block">思考型模型的思考也计入，过小易截断</span>
+              </div>
+
+              <div>
+                <label for="aiTemperature" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  AI_TEMPERATURE (模型温度: <span id="tempValueDisplay" class="font-bold">0.4</span>)
+                </label>
+                <div class="flex items-center gap-3">
+                  <input
+                    type="range"
+                    id="aiTemperature"
+                    name="temperature"
+                    min="0"
+                    max="1.5"
+                    step="0.05"
+                    class="w-full accent-neutral-900 dark:accent-neutral-100"
+                  />
+                  <input
+                    type="number"
+                    id="aiTemperatureNum"
+                    min="0"
+                    max="1.5"
+                    step="0.05"
+                    class="w-16 px-2 py-1 rounded text-xs text-center bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 font-mono"
+                  />
+                </div>
+                <span class="text-[11px] text-neutral-400 mt-1 block">值越低回答越严谨，推荐 0.2 ~ 0.5</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 模块 2：频率控制与安全闸门 -->
+          <div class="bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-7 shadow-sm">
+            <div class="flex items-center gap-2.5 mb-6 pb-4 border-b border-neutral-100 dark:border-neutral-800/70">
+              <div class="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">限流配额与费用闸门</h3>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400">控制全站调用频率与预算保护</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label for="askRatePerMin" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  单 IP 每分上限
+                </label>
+                <input
+                  type="number"
+                  id="askRatePerMin"
+                  name="perMinute"
+                  min="1"
+                  max="120"
+                  placeholder="6"
+                  class="w-full px-3 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 font-mono"
+                />
+              </div>
+
+              <div>
+                <label for="askRatePerDay" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  单 IP 每天上限
+                </label>
+                <input
+                  type="number"
+                  id="askRatePerDay"
+                  name="perDay"
+                  min="5"
+                  max="1000"
+                  placeholder="60"
+                  class="w-full px-3 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 font-mono"
+                />
+              </div>
+
+              <div>
+                <label for="askDailyLimit" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  全站每日总上限
+                </label>
+                <input
+                  type="number"
+                  id="askDailyLimit"
+                  name="dailyLimit"
+                  min="10"
+                  max="10000"
+                  placeholder="800"
+                  class="w-full px-3 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 font-mono"
+                />
+              </div>
+
+              <div>
+                <label for="askMaxConcurrent" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  最大并发数
+                </label>
+                <input
+                  type="number"
+                  id="askMaxConcurrent"
+                  name="maxConcurrent"
+                  min="1"
+                  max="100"
+                  placeholder="12"
+                  class="w-full px-3 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 font-mono"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- 底部悬浮保存栏 -->
+          <div class="sticky bottom-6 z-30 p-4 rounded-2xl bg-neutral-900/90 dark:bg-neutral-100/90 text-neutral-100 dark:text-neutral-900 backdrop-blur-xl shadow-2xl flex items-center justify-between gap-4 border border-neutral-800 dark:border-neutral-200">
+            <div class="flex items-center gap-2 text-xs">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span class="font-mono">保存后即刻热重载生效，无需重启进程</span>
+            </div>
+
+            <button
+              type="submit"
+              id="saveConfigBtn"
+              class="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold tracking-wider font-mono transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+            >
+              <span id="saveBtnText">保存并应用配置</span>
+              <svg id="saveSpinner" class="hidden animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <!-- 底部状态声明 -->
+    <footer class="py-4 border-t border-neutral-200/40 dark:border-neutral-800/40 text-center text-[11px] text-neutral-400 font-mono">
+      <span>Blog Runtime Control Center · AreSet01</span>
+    </footer>
+  </div>
+
+  <!-- Toast 提示容器 -->
+  <div id="toast" class="fixed top-6 right-6 z-50 transform translate-y-[-20px] opacity-0 pointer-events-none transition-all duration-300 max-w-sm px-4 py-3 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2 border"></div>
+
+  <script is:inline>
+    (function () {
+      const STORAGE_KEY = 'blog_settings_token';
+      let currentToken = sessionStorage.getItem(STORAGE_KEY) || '';
+      let fetchedModelsList = [];
+
+      const lockSection = document.getElementById('lockSection');
+      const workbenchSection = document.getElementById('workbenchSection');
+      const logoutBtn = document.getElementById('logoutBtn');
+      const headerStatusGroup = document.getElementById('headerStatusGroup');
+      const serviceStatusBadge = document.getElementById('serviceStatusBadge');
+      const toast = document.getElementById('toast');
+
+      // Toast 提示
+      function showToast(message, type = 'success') {
+        if (!toast) return;
+        toast.textContent = message;
+        toast.className = `fixed top-6 right-6 z-50 transition-all duration-300 max-w-sm px-4 py-3 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2 border ${
+          type === 'success'
+            ? 'bg-emerald-950 text-emerald-200 border-emerald-800'
+            : 'bg-rose-950 text-rose-200 border-rose-800'
+        }`;
+        toast.style.transform = 'translateY(0)';
+        toast.style.opacity = '1';
+        toast.style.pointerEvents = 'auto';
+
+        clearTimeout(toast.__timer);
+        toast.__timer = setTimeout(() => {
+          toast.style.transform = 'translateY(-20px)';
+          toast.style.opacity = '0';
+          toast.style.pointerEvents = 'none';
+        }, 3200);
+      }
+
+      // 切换视图
+      function setAuthedState(authed) {
+        if (authed) {
+          lockSection.classList.add('hidden');
+          workbenchSection.classList.remove('hidden');
+          logoutBtn.classList.remove('hidden');
+          serviceStatusBadge.classList.remove('hidden');
+          serviceStatusBadge.classList.add('flex');
+        } else {
+          lockSection.classList.remove('hidden');
+          workbenchSection.classList.add('hidden');
+          logoutBtn.classList.add('hidden');
+          serviceStatusBadge.classList.add('hidden');
+          serviceStatusBadge.classList.remove('flex');
+          sessionStorage.removeItem(STORAGE_KEY);
+          currentToken = '';
+        }
+      }
+
+      // 请求封装
+      async function apiFetch(path, options = {}) {
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(options.headers || {}),
+        };
+        if (currentToken) {
+          headers['Authorization'] = `Bearer ${currentToken}`;
+        }
+        const res = await fetch(path, { ...options, headers });
+        if (res.status === 401 && path !== '/api/settings/login') {
+          setAuthedState(false);
+          showToast('登录态已失效，请重新输入密码', 'error');
+          throw new Error('Unauthorized');
+        }
+        return res;
+      }
+
+      // 密码可见性切换
+      const togglePwBtn = document.getElementById('togglePasswordVisibility');
+      const adminPasswordInput = document.getElementById('adminPassword');
+      if (togglePwBtn && adminPasswordInput) {
+        togglePwBtn.addEventListener('click', () => {
+          adminPasswordInput.type = adminPasswordInput.type === 'password' ? 'text' : 'password';
+        });
+      }
+
+      const toggleApiKeyBtn = document.getElementById('toggleApiKeyVisibility');
+      const aiApiKeyInput = document.getElementById('aiApiKey');
+      if (toggleApiKeyBtn && aiApiKeyInput) {
+        toggleApiKeyBtn.addEventListener('click', () => {
+          aiApiKeyInput.type = aiApiKeyInput.type === 'password' ? 'text' : 'password';
+        });
+      }
+
+      // 登录表单
+      const loginForm = document.getElementById('loginForm');
+      const loginError = document.getElementById('loginError');
+      const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+      const loginSpinner = document.getElementById('loginSpinner');
+      const loginBtnText = document.getElementById('loginBtnText');
+
+      loginForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        loginError.classList.add('hidden');
+        loginSubmitBtn.disabled = true;
+        loginSpinner.classList.remove('hidden');
+        loginBtnText.textContent = '验证中...';
+
+        try {
+          const password = adminPasswordInput.value.trim();
+          const res = await fetch('/api/settings/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            loginError.textContent = data.error || '验证失败';
+            loginError.classList.remove('hidden');
+            return;
+          }
+
+          currentToken = data.token;
+          sessionStorage.setItem(STORAGE_KEY, currentToken);
+          setAuthedState(true);
+          showToast('解锁成功，正在加载服务器配置...');
+          await loadConfig();
+        } catch (err) {
+          loginError.textContent = err.message || '网络连接异常';
+          loginError.classList.remove('hidden');
+        } finally {
+          loginSubmitBtn.disabled = false;
+          loginSpinner.classList.add('hidden');
+          loginBtnText.textContent = '验证密码并解锁';
+        }
+      });
+
+      // 退出登录
+      logoutBtn?.addEventListener('click', () => {
+        setAuthedState(false);
+        showToast('已安全退出控制台');
+      });
+
+      // 加载配置数据
+      async function loadConfig() {
+        try {
+          const res = await apiFetch('/api/settings/config');
+          const data = await res.json();
+          if (!data.ok) return;
+
+          const cfg = data.config;
+          const status = data.status;
+
+          document.getElementById('aiBaseUrl').value = cfg.baseUrl || '';
+          document.getElementById('aiModel').value = cfg.model || '';
+          document.getElementById('aiMaxTokens').value = cfg.maxTokens || 2048;
+
+          const temp = cfg.temperature !== null && cfg.temperature !== undefined ? cfg.temperature : 0.4;
+          document.getElementById('aiTemperature').value = temp;
+          document.getElementById('aiTemperatureNum').value = temp;
+          document.getElementById('tempValueDisplay').textContent = temp;
+
+          const apiKeyHint = document.getElementById('apiKeyHint');
+          if (cfg.apiKeyMasked) {
+            apiKeyHint.textContent = `已配置: ${cfg.apiKeyMasked}`;
+          } else {
+            apiKeyHint.textContent = '尚未配置 Key';
+            apiKeyHint.className = 'text-[10px] text-amber-500 font-sans';
+          }
+
+          document.getElementById('askRatePerMin').value = cfg.perMinute || 6;
+          document.getElementById('askRatePerDay').value = cfg.perDay || 60;
+          document.getElementById('askDailyLimit').value = cfg.dailyLimit || 800;
+          document.getElementById('askMaxConcurrent').value = cfg.maxConcurrent || 12;
+
+          // 状态卡片
+          document.getElementById('statConfiguredDot').className = status.configured
+            ? 'w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50'
+            : 'w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50';
+          document.getElementById('statConfiguredText').textContent = status.configured ? '服务正常运行' : '未完全配置';
+
+          document.getElementById('statDailyUsed').textContent = status.dailyUsed || 0;
+          document.getElementById('statDailyLimit').textContent = cfg.dailyLimit || 800;
+          document.getElementById('statCacheCount').textContent = status.cacheCount || 0;
+
+          // 头部徽标
+          serviceStatusBadge.className = status.configured
+            ? 'flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-mono border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+            : 'flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-mono border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400';
+          serviceStatusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${status.configured ? 'bg-emerald-500' : 'bg-amber-500'}"></span><span>${status.configured ? 'ONLINE' : 'INCOMPLETE'}</span>`;
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      // 温度滑块与数值联动
+      const tempRange = document.getElementById('aiTemperature');
+      const tempNum = document.getElementById('aiTemperatureNum');
+      const tempDisplay = document.getElementById('tempValueDisplay');
+      tempRange?.addEventListener('input', (e) => {
+        tempNum.value = e.target.value;
+        tempDisplay.textContent = e.target.value;
+      });
+      tempNum?.addEventListener('input', (e) => {
+        tempRange.value = e.target.value;
+        tempDisplay.textContent = e.target.value;
+      });
+
+      // 拉取模型列表
+      const fetchModelsBtn = document.getElementById('fetchModelsBtn');
+      const fetchModelsIcon = document.getElementById('fetchModelsIcon');
+      const modelsDrawer = document.getElementById('modelsDrawer');
+      const modelsListContainer = document.getElementById('modelsListContainer');
+      const modelCountBadge = document.getElementById('modelCountBadge');
+      const modelFilterInput = document.getElementById('modelFilterInput');
+
+      function renderModels(filter = '') {
+        if (!modelsListContainer) return;
+        const norm = filter.trim().toLowerCase();
+        const filtered = fetchedModelsList.filter((m) => !norm || m.toLowerCase().includes(norm));
+
+        modelCountBadge.textContent = `${filtered.length} / ${fetchedModelsList.length} 个模型`;
+
+        if (!filtered.length) {
+          modelsListContainer.innerHTML = '<div class="text-xs text-neutral-400 py-3 text-center">无匹配的模型</div>';
+          return;
+        }
+
+        modelsListContainer.innerHTML = filtered
+          .map(
+            (id) => `
+          <div class="flex items-center justify-between px-3 py-1.5 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200/70 dark:border-neutral-800/80 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
+            <span class="text-xs font-mono text-neutral-800 dark:text-neutral-200 truncate mr-2" title="${id}">${id}</span>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                data-select-model="${id}"
+                class="px-2 py-0.5 rounded text-[11px] bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-mono transition-colors cursor-pointer"
+              >
+                选取
+              </button>
+              <button
+                type="button"
+                data-test-model="${id}"
+                class="px-2 py-0.5 rounded text-[11px] bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 font-mono transition-colors cursor-pointer"
+              >
+                测活
+              </button>
+            </div>
+          </div>
+        `
+          )
+          .join('');
+
+        // 绑定选取与独立测活事件
+        modelsListContainer.querySelectorAll('[data-select-model]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const m = btn.getAttribute('data-select-model');
+            document.getElementById('aiModel').value = m;
+            showToast(`已选取模型: ${m}`);
+          });
+        });
+
+        modelsListContainer.querySelectorAll('[data-test-model]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const m = btn.getAttribute('data-test-model');
+            testSpecificModel(m, btn);
+          });
+        });
+      }
+
+      modelFilterInput?.addEventListener('input', (e) => {
+        renderModels(e.target.value);
+      });
+
+      fetchModelsBtn?.addEventListener('click', async () => {
+        fetchModelsBtn.disabled = true;
+        fetchModelsIcon.classList.add('animate-spin');
+
+        const baseUrl = document.getElementById('aiBaseUrl').value.trim();
+        const apiKey = document.getElementById('aiApiKey').value.trim();
+
+        try {
+          const res = await apiFetch('/api/settings/models', {
+            method: 'POST',
+            body: JSON.stringify({ baseUrl, apiKey }),
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            showToast(data.error || '获取模型失败', 'error');
+            return;
+          }
+
+          fetchedModelsList = data.models || [];
+          modelsDrawer.classList.remove('hidden');
+          renderModels(modelFilterInput.value);
+          showToast(`成功获取 ${fetchedModelsList.length} 个可用模型！`);
+        } catch (err) {
+          showToast(err.message || '网络连接失败', 'error');
+        } finally {
+          fetchModelsBtn.disabled = false;
+          fetchModelsIcon.classList.remove('animate-spin');
+        }
+      });
+
+      // 模型测活核心
+      async function testSpecificModel(targetModel, triggerBtn) {
+        if (!targetModel) {
+          showToast('请先填写或选择模型名称', 'error');
+          return;
+        }
+
+        const baseUrl = document.getElementById('aiBaseUrl').value.trim();
+        const apiKey = document.getElementById('aiApiKey').value.trim();
+
+        let prevText = '';
+        if (triggerBtn) {
+          prevText = triggerBtn.textContent;
+          triggerBtn.textContent = '测活中...';
+          triggerBtn.disabled = true;
+        }
+
+        const statusBadge = document.getElementById('modelTestStatusBadge');
+        if (statusBadge) {
+          statusBadge.classList.remove('hidden');
+          statusBadge.className = 'text-xs font-mono text-neutral-400';
+          statusBadge.textContent = '正在测活探测...';
+        }
+
+        try {
+          const res = await apiFetch('/api/settings/test-model', {
+            method: 'POST',
+            body: JSON.stringify({ model: targetModel, baseUrl, apiKey }),
+          });
+          const data = await res.json();
+
+          if (data.ok) {
+            showToast(`🟢 模型【${targetModel}】测活成功！延时: ${data.latencyMs}ms`);
+            if (statusBadge) {
+              statusBadge.className = 'text-xs font-mono text-emerald-500 font-medium';
+              statusBadge.textContent = `🟢 正常 (${data.latencyMs}ms)`;
+            }
+          } else {
+            showToast(`🔴 测活失败: ${data.error || '未能连通'}`, 'error');
+            if (statusBadge) {
+              statusBadge.className = 'text-xs font-mono text-rose-500 font-medium';
+              statusBadge.textContent = `🔴 失败 (${data.error || '连接超时'})`;
+            }
+          }
+        } catch (err) {
+          showToast(`测活请求异常: ${err.message}`, 'error');
+        } finally {
+          if (triggerBtn) {
+            triggerBtn.textContent = prevText;
+            triggerBtn.disabled = false;
+          }
+        }
+      }
+
+      // 当前模型测活按钮
+      const testModelBtn = document.getElementById('testModelBtn');
+      testModelBtn?.addEventListener('click', () => {
+        const currentModel = document.getElementById('aiModel').value.trim();
+        testSpecificModel(currentModel, testModelBtn);
+      });
+
+      // 清空缓存
+      const quickClearCacheBtn = document.getElementById('quickClearCacheBtn');
+      quickClearCacheBtn?.addEventListener('click', async () => {
+        if (!confirm('确定要清空所有已保存的问答答案缓存吗？')) return;
+        quickClearCacheBtn.disabled = true;
+        try {
+          const res = await apiFetch('/api/settings/clear-cache', { method: 'POST' });
+          const data = await res.json();
+          if (data.ok) {
+            document.getElementById('statCacheCount').textContent = '0';
+            showToast(`已清空 ${data.cleared} 条答案缓存`);
+          } else {
+            showToast('清空缓存失败', 'error');
+          }
+        } catch (err) {
+          showToast(err.message, 'error');
+        } finally {
+          quickClearCacheBtn.disabled = false;
+        }
+      });
+
+      // 保存设置
+      const settingsForm = document.getElementById('settingsForm');
+      const saveConfigBtn = document.getElementById('saveConfigBtn');
+      const saveSpinner = document.getElementById('saveSpinner');
+      const saveBtnText = document.getElementById('saveBtnText');
+
+      settingsForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        saveConfigBtn.disabled = true;
+        saveSpinner.classList.remove('hidden');
+        saveBtnText.textContent = '保存并热生效中...';
+
+        const payload = {
+          baseUrl: document.getElementById('aiBaseUrl').value.trim(),
+          apiKey: document.getElementById('aiApiKey').value.trim(),
+          model: document.getElementById('aiModel').value.trim(),
+          maxTokens: Number(document.getElementById('aiMaxTokens').value) || 2048,
+          temperature: Number(document.getElementById('aiTemperature').value),
+          perMinute: Number(document.getElementById('askRatePerMin').value) || 6,
+          perDay: Number(document.getElementById('askRatePerDay').value) || 60,
+          dailyLimit: Number(document.getElementById('askDailyLimit').value) || 800,
+          maxConcurrent: Number(document.getElementById('askMaxConcurrent').value) || 12,
+        };
+
+        try {
+          const res = await apiFetch('/api/settings/config', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            showToast('✅ 配置已成功保存，并在服务端即刻生效！');
+            await loadConfig();
+            document.getElementById('aiApiKey').value = '';
+          } else {
+            showToast(data.error || '保存配置失败', 'error');
+          }
+        } catch (err) {
+          showToast(err.message || '保存异常', 'error');
+        } finally {
+          saveConfigBtn.disabled = false;
+          saveSpinner.classList.add('hidden');
+          saveBtnText.textContent = '保存并应用配置';
+        }
+      });
+
+      // 初始化：若已有 token，尝试自动加载
+      if (currentToken) {
+        setAuthedState(true);
+        loadConfig().catch(() => setAuthedState(false));
+      }
+    })();
+  </script>
+</BaseLayout>

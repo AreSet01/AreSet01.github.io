@@ -6,8 +6,8 @@
 //                  → text/event-stream：{"d":"文字"} … {"done":true} | {"error":"…"}
 
 import http from 'node:http';
-import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash, randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,7 +40,131 @@ const config = {
   dailyLimit: positive('ASK_DAILY_LIMIT', 800),
   maxConcurrent: positive('ASK_MAX_CONCURRENT', 12),
 };
-const configured = Boolean(config.baseUrl && config.apiKey && config.model);
+
+const resolveConfigFile = () => {
+  if (process.env.ASK_CONFIG_FILE) return path.resolve(HERE, process.env.ASK_CONFIG_FILE);
+  if (process.platform === 'linux' && existsSync('/var/lib/blog-ask')) {
+    return '/var/lib/blog-ask/runtime-config.json';
+  }
+  return path.resolve(HERE, 'runtime-config.json');
+};
+const CONFIG_FILE = resolveConfigFile();
+
+function applyRuntimeConfig() {
+  if (!CONFIG_FILE || !existsSync(CONFIG_FILE)) return;
+  try {
+    const raw = readFileSync(CONFIG_FILE, 'utf8');
+    const saved = JSON.parse(raw);
+    if (typeof saved.baseUrl === 'string') config.baseUrl = saved.baseUrl.trim().replace(/\/+$/, '');
+    if (typeof saved.apiKey === 'string') config.apiKey = saved.apiKey.trim();
+    if (typeof saved.model === 'string') config.model = saved.model.trim();
+    if (Number.isFinite(saved.maxTokens) && saved.maxTokens > 0) config.maxTokens = saved.maxTokens;
+    if (saved.temperature !== undefined) {
+      config.temperature = saved.temperature === null || saved.temperature === '' ? undefined : Number(saved.temperature);
+    }
+    if (Number.isFinite(saved.perMinute) && saved.perMinute > 0) config.perMinute = saved.perMinute;
+    if (Number.isFinite(saved.perDay) && saved.perDay > 0) config.perDay = saved.perDay;
+    if (Number.isFinite(saved.dailyLimit) && saved.dailyLimit > 0) config.dailyLimit = saved.dailyLimit;
+    if (Number.isFinite(saved.maxConcurrent) && saved.maxConcurrent > 0) config.maxConcurrent = saved.maxConcurrent;
+  } catch (err) {
+    console.error('[ask] failed to read runtime config:', err.message);
+  }
+}
+applyRuntimeConfig();
+
+let configured = Boolean(config.baseUrl && config.apiKey && config.model);
+
+function persistRuntimeConfig(updated) {
+  if (typeof updated.baseUrl === 'string') config.baseUrl = updated.baseUrl.trim().replace(/\/+$/, '');
+  if (typeof updated.apiKey === 'string' && updated.apiKey.trim()) config.apiKey = updated.apiKey.trim();
+  if (typeof updated.model === 'string') config.model = updated.model.trim();
+  if (Number.isFinite(updated.maxTokens) && updated.maxTokens > 0) config.maxTokens = updated.maxTokens;
+  if (updated.temperature !== undefined) {
+    config.temperature = (updated.temperature === null || updated.temperature === '') ? undefined : Number(updated.temperature);
+  }
+  if (Number.isFinite(updated.perMinute) && updated.perMinute > 0) config.perMinute = updated.perMinute;
+  if (Number.isFinite(updated.perDay) && updated.perDay > 0) config.perDay = updated.perDay;
+  if (Number.isFinite(updated.dailyLimit) && updated.dailyLimit > 0) config.dailyLimit = updated.dailyLimit;
+  if (Number.isFinite(updated.maxConcurrent) && updated.maxConcurrent > 0) config.maxConcurrent = updated.maxConcurrent;
+
+  configured = Boolean(config.baseUrl && config.apiKey && config.model);
+
+  const payload = {
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
+    model: config.model,
+    maxTokens: config.maxTokens,
+    temperature: config.temperature ?? null,
+    perMinute: config.perMinute,
+    perDay: config.perDay,
+    dailyLimit: config.dailyLimit,
+    maxConcurrent: config.maxConcurrent,
+    updatedAt: new Date().toISOString(),
+  };
+
+  try {
+    writeFileSync(CONFIG_FILE, JSON.stringify(payload, null, 2), 'utf8');
+  } catch (err) {
+    throw new Error(`无法写入配置文件: ${err.message}`);
+  }
+}
+
+// ---------- 管理密码与安全校验 ----------
+const ADMIN_PASSWORD_HASH = (process.env.ADMIN_PASSWORD_HASH || '').trim().toLowerCase();
+const SESSION_SECRET = randomBytes(32).toString('hex');
+
+function createSessionToken() {
+  const exp = Date.now() + 24 * 3600 * 1000; // 24小时有效
+  const salt = randomBytes(8).toString('hex');
+  const payload = `${exp}.${salt}`;
+  const sig = createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
+  return `${payload}.${sig}`;
+}
+
+function verifySessionToken(token) {
+  if (!token || typeof token !== 'string') return false;
+  const parts = token.split('.');
+  if (parts.length !== 3) return false;
+  const [expStr, salt, sig] = parts;
+  const exp = Number(expStr);
+  if (!Number.isFinite(exp) || Date.now() > exp) return false;
+  const expectedSig = createHmac('sha256', SESSION_SECRET).update(`${expStr}.${salt}`).digest('hex');
+  try {
+    return timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expectedSig, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+const loginAttempts = new Map(); // ip -> { count, lockedUntil }
+function checkLoginAttempt(ip) {
+  const now = Date.now();
+  const record = loginAttempts.get(ip);
+  if (record && record.lockedUntil > now) {
+    const waitSec = Math.ceil((record.lockedUntil - now) / 1000);
+    return `密码输错次数过多，请在 ${waitSec} 秒后再试`;
+  }
+  return null;
+}
+function recordLoginFailure(ip) {
+  const now = Date.now();
+  const record = loginAttempts.get(ip) || { count: 0, lockedUntil: 0 };
+  record.count += 1;
+  if (record.count >= 5) {
+    record.lockedUntil = now + 5 * 60 * 1000; // 锁定5分钟
+    record.count = 0;
+  }
+  loginAttempts.set(ip, record);
+}
+function recordLoginSuccess(ip) {
+  loginAttempts.delete(ip);
+}
+
+function maskApiKey(key) {
+  if (!key) return '';
+  if (key.length <= 8) return '****';
+  return `${key.slice(0, 3)}...${key.slice(-4)}`;
+}
 
 const LIMITS = { selection: 400, question: 120, anchor: 64, body: 8 * 1024 };
 const IDLE_TIMEOUT_MS = 60_000; // 思考型模型首字可能很慢，但一分钟没有任何字节就放弃
@@ -603,16 +727,240 @@ async function handleAsk(req, res) {
   log(`${outcome} ${Date.now() - started}ms ${summary}`);
 }
 
+async function handleSettings(req, res, subPath) {
+  const ip = clientIp(req);
+
+  // 1. 登录校验
+  if (subPath === '/login' && req.method === 'POST') {
+    if (!ADMIN_PASSWORD_HASH) {
+      return sendJson(res, 403, { error: '服务器未配置 ADMIN_PASSWORD_HASH，请先在环境配置中设置管理密码哈希' });
+    }
+    const attemptBlock = checkLoginAttempt(ip);
+    if (attemptBlock) return sendJson(res, 429, { error: attemptBlock });
+
+    let body;
+    try {
+      body = await readJson(req);
+    } catch {
+      return sendJson(res, 400, { error: '请求数据格式有误' });
+    }
+
+    const password = typeof body?.password === 'string' ? body.password : '';
+    const hash = createHash('sha256').update(password, 'utf8').digest('hex').toLowerCase();
+
+    if (hash === ADMIN_PASSWORD_HASH) {
+      recordLoginSuccess(ip);
+      const token = createSessionToken();
+      log(`admin login success from ${ip}`);
+      return sendJson(res, 200, { ok: true, token });
+    } else {
+      recordLoginFailure(ip);
+      log(`admin login failed from ${ip}`);
+      return sendJson(res, 401, { error: '管理密码错误' });
+    }
+  }
+
+  // 2. 其它 /api/settings/* 接口全部需要验证 Session Token
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!verifySessionToken(token)) {
+    return sendJson(res, 401, { error: '未授权或登录已过期，请重新登录' });
+  }
+
+  // 3. 获取配置
+  if (subPath === '/config' && req.method === 'GET') {
+    return sendJson(res, 200, {
+      ok: true,
+      config: {
+        baseUrl: config.baseUrl,
+        apiKeyMasked: maskApiKey(config.apiKey),
+        hasApiKey: Boolean(config.apiKey),
+        model: config.model,
+        maxTokens: config.maxTokens,
+        temperature: config.temperature ?? null,
+        perMinute: config.perMinute,
+        perDay: config.perDay,
+        dailyLimit: config.dailyLimit,
+        maxConcurrent: config.maxConcurrent,
+        siteName: config.siteName,
+      },
+      status: {
+        configured,
+        cacheCount: answers.size,
+        dailyUsed: quota.total,
+        active,
+      },
+    });
+  }
+
+  // 4. 保存配置
+  if (subPath === '/config' && req.method === 'POST') {
+    let body;
+    try {
+      body = await readJson(req);
+    } catch {
+      return sendJson(res, 400, { error: '请求格式不正确' });
+    }
+    try {
+      persistRuntimeConfig(body);
+      log(`admin updated runtime configuration`);
+      return sendJson(res, 200, { ok: true, message: '配置已更新并热重载生效' });
+    } catch (err) {
+      return sendJson(res, 500, { error: err.message || '保存配置失败' });
+    }
+  }
+
+  // 5. 拉取远端模型列表
+  if (subPath === '/models' && req.method === 'POST') {
+    let body = {};
+    try {
+      body = await readJson(req);
+    } catch {}
+
+    const targetBaseUrl = (body.baseUrl || config.baseUrl || '').trim().replace(/\/+$/, '');
+    const rawKey = body.apiKey && !body.apiKey.includes('...') ? body.apiKey.trim() : config.apiKey;
+    const targetApiKey = rawKey || '';
+
+    if (!targetBaseUrl || !targetApiKey) {
+      return sendJson(res, 400, { error: '请先填写或保存 Base URL 与 API Key' });
+    }
+
+    try {
+      const upstream = await fetch(`${targetBaseUrl}/models`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${targetApiKey}`,
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!upstream.ok) {
+        const detail = (await upstream.text().catch(() => '')).slice(0, 300);
+        return sendJson(res, 200, {
+          ok: false,
+          status: upstream.status,
+          error: `上游返回 HTTP ${upstream.status}: ${detail || '未能获取模型列表'}`,
+        });
+      }
+
+      const json = await upstream.json().catch(() => null);
+      let list = [];
+      if (Array.isArray(json)) list = json;
+      else if (Array.isArray(json?.data)) list = json.data;
+      else if (Array.isArray(json?.models)) list = json.models;
+
+      const models = Array.from(
+        new Set(list.map((m) => (typeof m === 'string' ? m : m?.id)).filter(Boolean))
+      ).sort((a, b) => a.localeCompare(b));
+
+      return sendJson(res, 200, { ok: true, models });
+    } catch (err) {
+      return sendJson(res, 200, {
+        ok: false,
+        error: err.name === 'TimeoutError' ? '连接上游接口超时 (10s)' : (err.message || '获取模型失败'),
+      });
+    }
+  }
+
+  // 6. 模型测活
+  if (subPath === '/test-model' && req.method === 'POST') {
+    let body;
+    try {
+      body = await readJson(req);
+    } catch {
+      return sendJson(res, 400, { error: '请求格式不正确' });
+    }
+
+    const targetBaseUrl = (body.baseUrl || config.baseUrl || '').trim().replace(/\/+$/, '');
+    const rawKey = body.apiKey && !body.apiKey.includes('...') ? body.apiKey.trim() : config.apiKey;
+    const targetApiKey = rawKey || '';
+    const targetModel = (body.model || config.model || '').trim();
+
+    if (!targetBaseUrl || !targetApiKey || !targetModel) {
+      return sendJson(res, 400, { error: 'Base URL、API Key 与待测模型不能为空' });
+    }
+
+    const start = Date.now();
+    try {
+      const upstream = await fetch(`${targetBaseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${targetApiKey}`,
+        },
+        body: JSON.stringify({
+          model: targetModel,
+          messages: [{ role: 'user', content: 'Say "OK" briefly' }],
+          max_tokens: 8,
+          stream: false,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      const latencyMs = Date.now() - start;
+
+      if (!upstream.ok) {
+        const detail = (await upstream.text().catch(() => '')).slice(0, 300);
+        return sendJson(res, 200, {
+          ok: false,
+          status: upstream.status,
+          error: detail || `HTTP ${upstream.status}`,
+          latencyMs,
+        });
+      }
+
+      const json = await upstream.json().catch(() => ({}));
+      const reply = json?.choices?.[0]?.message?.content?.trim() || 'OK';
+      return sendJson(res, 200, {
+        ok: true,
+        model: targetModel,
+        latencyMs,
+        sample: reply.slice(0, 50),
+      });
+    } catch (err) {
+      const latencyMs = Date.now() - start;
+      return sendJson(res, 200, {
+        ok: false,
+        error: err.name === 'TimeoutError' ? '上游测活响应超时 (15s)' : (err.message || '网络连接失败'),
+        latencyMs,
+      });
+    }
+  }
+
+  // 7. 清空缓存
+  if (subPath === '/clear-cache' && req.method === 'POST') {
+    const cleared = answers.size;
+    answers.clear();
+    answersDirty = true;
+    saveAnswers();
+    log(`admin cleared ${cleared} cached answers`);
+    return sendJson(res, 200, { ok: true, cleared });
+  }
+
+  return sendJson(res, 404, { error: 'not found' });
+}
+
 const server = http.createServer((req, res) => {
   const { pathname } = new URL(req.url || '/', 'http://localhost');
-  if (pathname !== '/api/ask') return sendJson(res, 404, { error: 'not found' });
-  if (req.method === 'GET' || req.method === 'HEAD') return sendJson(res, 200, { ok: configured });
-  if (req.method !== 'POST') return sendJson(res, 405, { error: 'method not allowed' });
-  handleAsk(req, res).catch((error) => {
-    log('crash:', error?.stack || error);
-    if (!res.headersSent) sendJson(res, 500, { error: '服务出错了' });
-    else res.end();
-  });
+  if (pathname === '/api/ask') {
+    if (req.method === 'GET' || req.method === 'HEAD') return sendJson(res, 200, { ok: configured });
+    if (req.method !== 'POST') return sendJson(res, 405, { error: 'method not allowed' });
+    return handleAsk(req, res).catch((error) => {
+      log('crash:', error?.stack || error);
+      if (!res.headersSent) sendJson(res, 500, { error: '服务出错了' });
+      else res.end();
+    });
+  }
+
+  if (pathname.startsWith('/api/settings')) {
+    const subPath = pathname.slice('/api/settings'.length);
+    return handleSettings(req, res, subPath).catch((error) => {
+      log('settings crash:', error?.stack || error);
+      if (!res.headersSent) sendJson(res, 500, { error: '服务出错了' });
+      else res.end();
+    });
+  }
+
+  return sendJson(res, 404, { error: 'not found' });
 });
 
 server.listen(config.port, config.host, () => {
