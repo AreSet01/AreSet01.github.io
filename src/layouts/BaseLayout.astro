@@ -35,6 +35,10 @@ const {
     <meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&display=swap"
@@ -1233,6 +1237,12 @@ const {
           document.body.classList.remove('search-lock', 'search-open', 'preview-lock', 'preview-active', 'preview-open', 'image-view-open');
           document.documentElement.style.setProperty('--scrollbar-offset', '0px');
 
+          // 性能优化：为正文图片挂载异步解码与视口懒加载（零样式侵入，释放主线程）
+          document.querySelectorAll('.prose img').forEach((img) => {
+            if (!img.getAttribute('decoding')) img.setAttribute('decoding', 'async');
+            if (!img.getAttribute('loading')) img.setAttribute('loading', 'lazy');
+          });
+
 
 
         function sparkle(x, y, count) {
@@ -1549,7 +1559,7 @@ const {
               </svg>
             </button>
             <div class="image-viewer-stage">
-              <img class="image-viewer-media" alt="" />
+              <img class="image-viewer-media" alt="" decoding="async" />
               <p class="image-viewer-caption" id="image-viewer-caption" hidden></p>
             </div>
           </div>

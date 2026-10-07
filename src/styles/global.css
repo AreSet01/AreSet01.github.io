@@ -8240,6 +8240,7 @@ a.chart-bar-name:hover {
   overscroll-behavior: contain !important;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x pan-y;
+  contain: paint;
 }
 
 .mermaid-stage.is-zoomed {
@@ -8251,6 +8252,7 @@ a.chart-bar-name:hover {
   cursor: grabbing;
   user-select: none;
   touch-action: none;
+  will-change: scroll-position;
 }
 
 .mermaid-stage::-webkit-scrollbar {

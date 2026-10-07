@@ -128,8 +128,9 @@ const countByCategory = {
                   src={photo.url}
                   alt={photo.title}
                   class="mat-photo-img"
-                  loading="lazy"
+                  loading={index < 2 ? 'eager' : 'lazy'}
                   decoding="async"
+                  fetchpriority={index < 2 ? 'high' : 'auto'}
                   width="1200"
                   height="800"
                 />
