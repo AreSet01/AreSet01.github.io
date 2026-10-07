@@ -6844,6 +6844,15 @@ html[data-pixel="true"] body::after {
   height: 0.5rem;
 }
 
+.series-dot::before {
+  content: '';
+  position: absolute;
+  top: -14px;
+  bottom: -14px;
+  left: 0;
+  right: 0;
+}
+
 .series-dot-mark {
   display: block;
   width: 100%;
