@@ -44,7 +44,7 @@ const timeline = [
 <BaseLayout title="关于我 - 梦付千秋">
   <AboutIntro />
   <Header />
-  <main class="container-wide flex-1 pt-6 pb-16 lg:pt-8" style="position: relative;">
+  <main id="main-content" tabindex="-1" class="container-wide flex-1 pt-6 pb-16 lg:pt-8 outline-none" style="position: relative;">
     <div class="about-marquee" data-about-marquee aria-hidden="true">
       <div class="about-marquee-track" data-about-marquee-track>
         {[...marqueeWords, ...marqueeWords].map((word) => (

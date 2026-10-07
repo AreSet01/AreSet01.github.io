@@ -86,7 +86,7 @@ const MOSS_SHADES = [
       </div>
     </header>
 
-    <main class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col relative space-y-8">
+    <main id="main-content" tabindex="-1" class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col relative space-y-8 outline-none">
       <!-- 视图 1：密码解锁卡片 -->
       <section id="lockSection" class="flex-1 w-full min-h-[calc(100vh-9.5rem)] flex items-center justify-center my-auto py-8 transition-all duration-300">
         <div class="w-full max-w-md bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-8 shadow-xl shadow-neutral-900/5">
@@ -339,8 +339,9 @@ const MOSS_SHADES = [
                     id="toggleApiKeyVisibility"
                     class="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 text-xs px-1"
                     title="显示明文"
+                    aria-label="切换显示 API 密钥明文"
                   >
-                    👁️
+                    <span aria-hidden="true">👁️</span>
                   </button>
                 </div>
                 <span class="text-[11px] text-neutral-400 mt-1 block">密钥只存储于服务器，支持脱敏显示</span>
@@ -349,7 +350,7 @@ const MOSS_SHADES = [
 
             <!-- 模型选择、拉取与测活核心控制区 -->
             <div class="mt-6 pt-5 border-t border-neutral-100 dark:border-neutral-800/60">
-              <label class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center justify-between">
+              <label for="aiModel" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center justify-between">
                 <span>AI_MODEL（模型选取与测活） <span class="text-rose-500">*</span></span>
                 <span id="modelTestStatusBadge" class="text-xs font-mono hidden"></span>
               </label>
@@ -405,8 +406,9 @@ const MOSS_SHADES = [
                   <input
                     type="text"
                     id="modelFilterInput"
+                    aria-label="搜索过滤模型"
                     placeholder="搜索过滤模型 (如 gemini / gpt / claude)..."
-                    class="px-2.5 py-1 text-xs rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 focus:outline-none w-52"
+                    class="px-2.5 py-1 text-base sm:text-xs rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 focus:outline-none w-full sm:w-52"
                   />
                 </div>
 

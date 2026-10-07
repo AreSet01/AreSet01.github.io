@@ -438,6 +438,7 @@ const {
     <title>{title}</title>
   </head>
   <body>
+    <a href="#main-content" class="skip-link">跳至主要内容</a>
     <SiteIntro />
     <PostTransition />
     <canvas id="inkCanvas" transition:persist style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 100005;"></canvas>
@@ -2824,9 +2825,24 @@ const {
       initSiteUi();
 
       if (!window[listenerKey]) {
+        let isInitialLoad = true;
         document.addEventListener('astro:page-load', () => {
           const init = window[initKey];
           if (typeof init === 'function') init();
+
+          // NEW-05: Restore focus after Astro View Transitions SPA navigation
+          if (!isInitialLoad) {
+            const mainContent = document.getElementById('main-content');
+            const pageHeading = document.querySelector('h1');
+            const targetFocus = pageHeading || mainContent;
+            if (targetFocus) {
+              if (!targetFocus.hasAttribute('tabindex')) {
+                targetFocus.setAttribute('tabindex', '-1');
+              }
+              targetFocus.focus({ preventScroll: true });
+            }
+          }
+          isInitialLoad = false;
         });
         window[listenerKey] = true;
       }

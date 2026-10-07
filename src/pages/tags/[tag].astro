@@ -21,7 +21,7 @@ const siblings = relatedTagsOf(allPosts, tagName, 8);
 
 <BaseLayout title={`${tagName} - 标签 - 梦付千秋`} description={`标签「${tagName}」下的 ${count} 篇文章`}>
   <Header />
-  <main class="container-wide flex-1 pt-6 pb-20 lg:pt-8">
+  <main id="main-content" tabindex="-1" class="container-wide flex-1 pt-6 pb-20 lg:pt-8 outline-none">
     <section class="tag-page-head">
       <p class="eyebrow" data-enter="top">
         <a href="/tags" class="tag-back">← 标签星图</a>

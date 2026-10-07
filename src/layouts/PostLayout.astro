@@ -61,7 +61,7 @@ const hasToc = tocHeadings.length > 1;
 
 <BaseLayout title={title} description={description}>
   <Header />
-  <main class="container-medium flex-1 pt-6 pb-28 lg:pt-8">
+  <main id="main-content" tabindex="-1" class="container-medium flex-1 pt-6 pb-28 lg:pt-8 outline-none">
     <article
       class="space-y-14"
       data-locked-post={isLocked ? 'true' : undefined}

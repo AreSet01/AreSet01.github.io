@@ -109,7 +109,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
 
 <BaseLayout title="写作统计 - 梦付千秋" description="这个博客到今天为止写了多少字、多少行代码">
   <Header />
-  <main class="container-wide flex-1 pt-6 pb-20 lg:pt-8">
+  <main id="main-content" tabindex="-1" class="container-wide flex-1 pt-6 pb-20 lg:pt-8 outline-none">
     <section class="stats-head">
       <p class="eyebrow" data-enter="top">Stats / 写作统计</p>
       <h1 class="section-title mt-4" data-enter="left">写了多少</h1>
