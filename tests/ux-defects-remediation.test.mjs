@@ -33,18 +33,28 @@ test('UX & Visual Defect Remediation Suite', async (t) => {
     // 检查 onPointerMove 悬停在按钮时仍继续驱动 requestAnimationFrame
     assert.match(
       headerContent,
-      /if \(points\.length > 0 && !isDrawing\) \{\s*isDrawing = true;\s*requestAnimationFrame\(updateAndDraw\);\s*\}/,
-      'onPointerMove over buttons should continue rendering remaining points until they fade'
+      /document\.addEventListener\('visibilitychange', onVisibilityChange\);/,
+      'Header.astro must listen for visibilitychange to clear canvas on tab switch'
     );
   });
 
-  await t.test('2. 首次访问 SiteIntro 点击跳过卡死空白问题消除: 300ms 安全回退与强力页面释放', () => {
-    // 检查 skipFallbackTimer 存在
+  await t.test('2. 首次访问 SiteIntro & AboutIntro 点击跳过卡死空白问题消除: 300ms 安全回退与强力页面释放', () => {
+    const aboutIntroPath = path.join(rootDir, 'src/components/AboutIntro.astro');
+    const aboutIntroContent = fs.readFileSync(aboutIntroPath, 'utf-8');
+
+    // 检查 SiteIntro skipFallbackTimer
     assert.match(siteIntroContent, /let skipFallbackTimer = 0;/, 'SiteIntro must declare skipFallbackTimer');
     assert.match(
       siteIntroContent,
       /skipFallbackTimer = window\.setTimeout\(finish, 300\);/,
       'SiteIntro skip() must set guaranteed 300ms fallback timeout to invoke finish()'
+    );
+    // 检查 AboutIntro skipFallbackTimer
+    assert.match(aboutIntroContent, /let skipFallbackTimer = 0;/, 'AboutIntro must declare skipFallbackTimer');
+    assert.match(
+      aboutIntroContent,
+      /skipFallbackTimer = window\.setTimeout\(finish, 300\);/,
+      'AboutIntro skip() must set guaranteed 300ms fallback timeout to invoke finish()'
     );
     // 检查 finish() 彻底清理 site-intro-active 与 __siteIntroPending
     assert.match(

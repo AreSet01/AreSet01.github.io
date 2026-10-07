@@ -629,7 +629,11 @@ const year = new Date().getFullYear();
         strokeId++;
       }
     }
-    function onPointerUp()    { brush.isPressed = false; strokeId++; }
+    function onVisibilityChange() {
+      if (document.hidden) {
+        clearCursorTrail();
+      }
+    }
 
     window.addEventListener('resize',       onResize);
     window.addEventListener('pointerenter', onPointerEnter);
@@ -637,6 +641,7 @@ const year = new Date().getFullYear();
     window.addEventListener('pointermove',  onPointerMove);
     window.addEventListener('pointerdown',  onPointerDown);
     window.addEventListener('pointerup',    onPointerUp);
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     // Check mobile
     const onMobileCheck = () => {
@@ -653,6 +658,7 @@ const year = new Date().getFullYear();
       () => window.removeEventListener('pointermove',  onPointerMove),
       () => window.removeEventListener('pointerdown',  onPointerDown),
       () => window.removeEventListener('pointerup',    onPointerUp),
+      () => document.removeEventListener('visibilitychange', onVisibilityChange),
     );
   }
 

@@ -386,6 +386,18 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
   function init() {
     ensureCanvas();
     window.addEventListener('resize', resize, { passive: true });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (animId) {
+          cancelAnimationFrame(animId);
+          animId = null;
+        }
+      } else {
+        if (isRunning && !animId) {
+          animId = requestAnimationFrame(loop);
+        }
+      }
+    });
     attachEngineListener();
     syncWithAudio();
   }

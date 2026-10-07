@@ -931,15 +931,26 @@
     }, undefined, T.release);
     tl.call(finish, undefined, T.end);
 
+    let skipFallbackTimer = 0;
+
     function skip() {
-      if (finished || skipping) return;
+      if (finished) return;
+      if (skipping) {
+        finish();
+        return;
+      }
       skipping = true;
       const t = (performance.now() - started) / 1000;
       skipAt = t;
       tl.kill();
       lifted = true;
       intro.classList.add('is-lifting');
-      gsap.to([seal, taglineEl, foot], { opacity: 0, duration: 0.25, ease: 'power2.in', overwrite: 'auto' });
+      gsap.to([seal, taglineEl, foot], { opacity: 0, duration: 0.2, ease: 'power2.in', overwrite: 'auto' });
+
+      // Guarantee finish() within 300ms fallback even if frames drop or particles stall
+      window.clearTimeout(skipFallbackTimer);
+      skipFallbackTimer = window.setTimeout(finish, 300);
+
       if (!homesAssigned) {
         assignHomes(t, true);
       }
@@ -949,6 +960,7 @@
     function finish() {
       if (finished) return;
       finished = true;
+      window.clearTimeout(skipFallbackTimer);
       cancelAnimationFrame(frameId);
       controller.abort();
       tl.kill();
