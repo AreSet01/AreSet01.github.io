@@ -30,7 +30,7 @@
   --ink: #222222;
   --ink-strong: #000000;
   --ink-mid: #555555;
-  --ink-light: #888888;
+  --ink-light: #666666;
   --ink-wash: rgba(0, 0, 0, 0.42);
   --ink-mist: rgba(0, 0, 0, 0.16);
 
@@ -176,8 +176,8 @@ html[data-font="kai"] body {
 
   --ink: #e0e0e0;
   --ink-strong: #EAE8E3;
-  --ink-mid: #999999;
-  --ink-light: #666666;
+  --ink-mid: #A8A8A8;
+  --ink-light: #8E8E8E;
   --ink-wash: rgba(255, 255, 255, 0.4);
   --ink-mist: rgba(255, 255, 255, 0.16);
 
@@ -230,13 +230,13 @@ html[data-font="kai"] body {
   --ink: #FBE3E9;
   --ink-strong: #FFF1F4;
   --ink-mid: #F0C4CF;
-  --ink-light: #D8B2BC;
+  --ink-light: #F7E4EA;
   --ink-wash: rgba(255, 241, 244, 0.45);
   --ink-mist: rgba(255, 241, 244, 0.18);
 
   --text: var(--ink);
   --text-strong: var(--ink-strong);
-  --muted: #E3BFC9;
+  --muted: #F7E4EA;
   --muted-strong: var(--ink-mid);
 
   --rule: rgba(255, 241, 244, 0.22);
@@ -348,7 +348,7 @@ html[data-font="kai"] body {
   --ink: #423A30;
   --ink-strong: #2B241C;
   --ink-mid: #6B5F50;
-  --ink-light: #857868;
+  --ink-light: #6E6152;
   --ink-wash: rgba(43, 36, 28, 0.4);
   --ink-mist: rgba(43, 36, 28, 0.15);
 
@@ -4971,6 +4971,22 @@ html[data-font="kai"] .stats-label {
   line-height: 1.35;
   height: 100%;
   padding-inline: 1rem;
+}
+
+@media (max-width: 1023.98px) {
+  .home-topics {
+    padding-right: 0;
+  }
+  .home-topics h2 {
+    position: relative;
+    top: auto;
+    right: auto;
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    height: auto;
+    padding-inline: 0;
+    margin-bottom: 0.75rem;
+  }
 }
 
 .home-topics > div {

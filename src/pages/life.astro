@@ -962,8 +962,17 @@ const countByCategory = {
     margin-bottom: 1.5rem;
   }
 
+  @media (max-width: 639px) {
+    .life-modal-dialog {
+      padding: 1.5rem 1.15rem;
+      margin: 1rem;
+      max-width: calc(100vw - 2rem);
+    }
+  }
+
   .life-modal-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.75rem;
     justify-content: center;
   }
@@ -973,6 +982,8 @@ const countByCategory = {
     padding: 0.55rem 1.2rem;
     font-size: 0.85rem;
     border-radius: 6px;
+    flex: 1 1 130px;
+    text-align: center;
     cursor: pointer;
     transition: all 180ms ease;
   }
