@@ -804,10 +804,11 @@ const countByCategory = {
     height: 100%;
     max-width: 100vw;
     max-height: 100vh;
+    max-height: 100dvh;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 1.2rem 1.5rem;
+    padding: 1.2rem 1.5rem calc(1.2rem + env(safe-area-inset-bottom, 0px));
     box-sizing: border-box;
     color: #ffffff;
     will-change: transform, opacity;
@@ -969,7 +970,7 @@ const countByCategory = {
 
   @media (max-width: 639px) {
     .lightbox-container {
-      padding: 0.8rem 0.9rem;
+      padding: 0.8rem 0.9rem calc(0.8rem + env(safe-area-inset-bottom, 0px));
     }
 
     .lightbox-img-wrapper {

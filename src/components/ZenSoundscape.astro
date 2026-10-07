@@ -403,7 +403,7 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
       });
     }
 
-    function closeCapsule() {
+    function closeCapsule(restoreFocus = true) {
       const capsule = document.getElementById('zen-sound-capsule');
       if (!capsule || capsule.hasAttribute('hidden')) return;
 
@@ -419,6 +419,10 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
           capsule.setAttribute('hidden', '');
           gsap.set(capsule, { clearProps: 'opacity,transform,visibility' });
           syncUI();
+          if (restoreFocus) {
+            const toggle = document.getElementById('zen-sound-toggle') || document.querySelector<HTMLElement>('[data-zen-sound-toggle]');
+            toggle?.focus();
+          }
         },
       });
     }
@@ -557,11 +561,44 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
         (window as any).__zenIsDraggingVolume = false;
       });
 
-      // Dismiss on Esc
+      function trapCapsuleTab(container: HTMLElement, e: KeyboardEvent) {
+        if (e.key !== 'Tab') return;
+        const focusables = Array.from(
+          container.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((el) => el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0);
+        if (focusables.length === 0) {
+          e.preventDefault();
+          return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first || !container.contains(document.activeElement)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !container.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+
+      // Dismiss on Esc & Trap Tab
       window.addEventListener('keydown', (e) => {
         const capsule = document.getElementById('zen-sound-capsule');
-        if (e.key === 'Escape' && capsule?.classList.contains('is-open')) {
-          closeCapsule();
+        if (capsule?.classList.contains('is-open')) {
+          if (e.key === 'Tab') {
+            trapCapsuleTab(capsule, e);
+            return;
+          }
+          if (e.key === 'Escape') {
+            closeCapsule();
+            return;
+          }
         }
       });
 

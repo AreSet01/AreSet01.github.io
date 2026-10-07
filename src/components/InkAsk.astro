@@ -991,6 +991,7 @@
     sidebarOverlay?.classList.remove('is-open');
     sidebarDrawer?.classList.remove('is-open');
     sidebarController?.abort();
+    sidebarBtn?.focus();
   }
 
   function toggleSidebar() {
@@ -1066,11 +1067,58 @@
       if (!mouseDown) settleSoon(280);
     });
 
+    function trapModalTab(container: HTMLElement, e: KeyboardEvent) {
+      if (e.key !== 'Tab') return;
+      const focusables = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0);
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first || !container.contains(document.activeElement)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last || !container.contains(document.activeElement)) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
     document.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return;
-      if (sidebarDrawer?.classList.contains('is-open')) closeSidebar();
-      else if (session) close();
-      else hideSeal();
+      if (sidebarDrawer?.classList.contains('is-open')) {
+        if (event.key === 'Tab') {
+          trapModalTab(sidebarDrawer, event);
+          return;
+        }
+        if (event.key === 'Escape') {
+          closeSidebar();
+          return;
+        }
+      }
+
+      if (session) {
+        if (event.key === 'Tab') {
+          trapModalTab(session.card, event);
+          return;
+        }
+        if (event.key === 'Escape') {
+          close();
+          return;
+        }
+      }
+
+      if (event.key === 'Escape') {
+        hideSeal();
+      }
     });
 
     let resizeFrame = 0;
@@ -1989,7 +2037,7 @@
     to { opacity: 1; transform: none; }
   }
 
-  @media (max-width: 767.98px) {
+  @media (max-width: 1023.98px) {
     .ink-ask-input,
     .ink-ask-drawer-input {
       font-size: 16px;

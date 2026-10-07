@@ -550,8 +550,7 @@ const {
       window.ScrollTrigger = ScrollTrigger;
 
       function initSmoothScroll() {
-        // Force animations for aesthetic priority (bypass OS reduced motion settings)
-        // if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
         const lenis = new Lenis({
           duration: 1.1, // Faster
@@ -1134,7 +1133,7 @@ const {
 
       // Magnetic Micro-interactions
       function initMagneticButtons() {
-        // if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         
         const magneticElements = document.querySelectorAll('.btn-primary, .btn-secondary, .nav-link, .tag-chip, .nav-search-trigger');
         
@@ -1603,8 +1602,8 @@ const {
           overshootScaleY: 0.988,
         };
 
-        // Force animations even if OS reduced motion is active
-        const prefersReducedMotion = false; // window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        // Respect OS reduced motion preference
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const syncScrollbarOffset = () => {
           const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
           document.documentElement.style.setProperty('--scrollbar-offset', `${scrollbarWidth}px`);
@@ -2726,6 +2725,34 @@ const {
           }, { signal });
         }
 
+        function trapFocusInContainer(container, event) {
+          if (event.key !== 'Tab') return;
+          const focusables = Array.from(
+            container.querySelectorAll(
+              'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )
+          ).filter((el) => el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0);
+
+          if (focusables.length === 0) {
+            event.preventDefault();
+            return;
+          }
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+
+          if (event.shiftKey) {
+            if (document.activeElement === first || !container.contains(document.activeElement)) {
+              event.preventDefault();
+              last.focus();
+            }
+          } else {
+            if (document.activeElement === last || !container.contains(document.activeElement)) {
+              event.preventDefault();
+              first.focus();
+            }
+          }
+        }
+
         document.addEventListener('keydown', (event) => {
           const isSearchShortcut =
             event.key.toLowerCase() === 'k' && (event.ctrlKey || event.metaKey);
@@ -2740,17 +2767,38 @@ const {
             return;
           }
 
-          if (event.key === 'Escape' && searchOverlay?.classList.contains('is-open')) {
-            closeSearch();
-            return;
+          if (searchOverlay?.classList.contains('is-open')) {
+            if (event.key === 'Tab') {
+              trapFocusInContainer(searchOverlay, event);
+              return;
+            }
+            if (event.key === 'Escape') {
+              closeSearch();
+              return;
+            }
           }
 
-          if (event.key === 'Escape' && imageOverlay.classList.contains('is-open')) {
-            closeImageViewer();
-            return;
+          if (imageOverlay.classList.contains('is-open')) {
+            if (event.key === 'Tab') {
+              trapFocusInContainer(imageOverlay, event);
+              return;
+            }
+            if (event.key === 'Escape') {
+              closeImageViewer();
+              return;
+            }
           }
 
-          if (event.key === 'Escape' && overlay.classList.contains('is-open')) closePreview();
+          if (overlay.classList.contains('is-open')) {
+            if (event.key === 'Tab') {
+              trapFocusInContainer(overlay, event);
+              return;
+            }
+            if (event.key === 'Escape') {
+              closePreview();
+              return;
+            }
+          }
         }, { signal });
         window[cleanupKey] = () => {
           if (isDisposed) return;
