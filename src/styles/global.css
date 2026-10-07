@@ -639,6 +639,21 @@ img {
   outline-offset: 2px;
 }
 
+/* Structural landmarks and programmatic focus targets must not display visual focus outline boxes */
+h1:focus,
+h1:focus-visible,
+h2:focus,
+h2:focus-visible,
+h3:focus,
+h3:focus-visible,
+#main-content:focus,
+#main-content:focus-visible,
+[tabindex="-1"]:focus,
+[tabindex="-1"]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 /* Skip Navigation Link (WCAG 2.1 AA 2.4.1 Bypass Blocks) */
 .skip-link {
   position: fixed;
@@ -1474,17 +1489,18 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
   height: 2rem;
   flex-shrink: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: 7px;
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   color: var(--muted-strong);
   cursor: pointer;
-  transition: color 280ms var(--ease), transform 280ms var(--ease);
+  transition: color 200ms var(--ease), background 200ms var(--ease), transform 180ms var(--ease);
 }
 
 .cursor-trail-toggle:hover {
   color: var(--text-strong);
+  background: var(--bg-soft, rgba(128, 128, 128, 0.1));
   transform: none;
 }
 
@@ -1619,17 +1635,18 @@ button#resetShadeBtn::-moz-focus-inner {
   height: 2rem;
   flex-shrink: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: 7px;
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   color: var(--muted-strong);
   cursor: pointer;
-  transition: color 280ms var(--ease), transform 280ms var(--ease);
+  transition: color 200ms var(--ease), background 200ms var(--ease), transform 180ms var(--ease);
 }
 
 .theme-toggle:hover {
   color: var(--text-strong);
+  background: var(--bg-soft, rgba(128, 128, 128, 0.1));
   transform: none;
 }
 
@@ -1677,17 +1694,18 @@ button#resetShadeBtn::-moz-focus-inner {
   height: 2rem;
   flex-shrink: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: 7px;
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   color: var(--muted-strong);
   cursor: pointer;
-  transition: color 280ms var(--ease);
+  transition: color 200ms var(--ease), background 200ms var(--ease), transform 180ms var(--ease);
 }
 
 .font-toggle:hover {
   color: var(--text-strong);
+  background: var(--bg-soft, rgba(128, 128, 128, 0.1));
 }
 
 .font-toggle svg {
@@ -1748,17 +1766,18 @@ html[data-font="kai"] .font-toggle .icon-font-pixel { display: none; }
   height: 2rem;
   flex-shrink: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: 7px;
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   color: var(--muted-strong);
   cursor: pointer;
-  transition: color 280ms var(--ease), transform 280ms var(--ease);
+  transition: color 200ms var(--ease), background 200ms var(--ease), transform 180ms var(--ease);
 }
 
 .zen-sound-toggle:hover {
   color: var(--text-strong);
+  background: var(--bg-soft, rgba(128, 128, 128, 0.1));
 }
 
 [data-theme="dark"] .zen-sound-toggle {
@@ -1775,6 +1794,39 @@ html[data-font="kai"] .font-toggle .icon-font-pixel { display: none; }
 
 [data-theme="rice"] .zen-sound-toggle:hover {
   color: var(--vermilion);
+}
+
+/* High Contrast & Differentiation for Moss Theme Controls */
+[data-theme="moss"] .theme-toggle,
+[data-theme="moss"] .font-toggle,
+[data-theme="moss"] .cursor-trail-toggle,
+[data-theme="moss"] .zen-sound-toggle {
+  color: rgba(255, 241, 244, 0.78);
+  border-radius: 7px;
+}
+
+[data-theme="moss"] .theme-toggle {
+  color: var(--accent);
+}
+
+[data-theme="moss"] .theme-toggle:hover,
+[data-theme="moss"] .font-toggle:hover,
+[data-theme="moss"] .cursor-trail-toggle:hover,
+[data-theme="moss"] .zen-sound-toggle:hover {
+  color: #FFFFFF !important;
+  background: rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="moss"] .drawer-control-btn {
+  color: rgba(255, 241, 244, 0.82);
+  border-color: rgba(255, 241, 244, 0.22);
+}
+
+[data-theme="moss"] .drawer-control-btn:hover {
+  color: #FFFFFF !important;
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: rgba(255, 241, 244, 0.45) !important;
 }
 
 .zen-toggle-inner {
@@ -9477,6 +9529,16 @@ body.gallery-lightbox-open {
   word-break: break-word;
   max-height: 240px;
   overflow-y: auto;
+}
+
+/* Eliminate duplicate yellow vertical bars when quoting markdown blockquotes or nested quotes */
+.pinned-quote-body .pinned-quote-body,
+.pinned-quote-body blockquote,
+.pinned-card-body blockquote {
+  border-left: none !important;
+  padding-left: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
 }
 
 .pinned-empty-msg {

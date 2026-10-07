@@ -851,9 +851,15 @@ const tagline = '日常记录 · 技术分享';
     tl.call(finish, undefined, T.end);
     let timeline: gsap.core.Timeline | null = tl;
 
+    let skipFallbackTimer = 0;
+
     // ---------- Skip: everything flies home right now ----------
     function skip() {
-      if (finished || skipping) return;
+      if (finished) return;
+      if (skipping) {
+        finish();
+        return;
+      }
       skipping = true;
       const t = now();
       skipAt = t;
@@ -863,27 +869,33 @@ const tagline = '日常记录 · 技术分享';
       gsap.set(intro, { clearProps: 'transform' });
       lifted = true;
       intro.classList.add('is-lifting');
-      gsap.to([seal, taglineEl, foot], { opacity: 0, duration: 0.25, ease: 'power2.in', overwrite: 'auto' });
+      gsap.to([seal, taglineEl, foot], { opacity: 0, duration: 0.2, ease: 'power2.in', overwrite: 'auto' });
       textMode = 0;
+
+      // Hard safety timer: guarantee finish is ALWAYS called within 300ms,
+      // completely eliminating any possibility of a stuck blank screen
+      window.clearTimeout(skipFallbackTimer);
+      skipFallbackTimer = window.setTimeout(finish, 300);
+
       if (!ready) {
         // Font still loading (well under a second in): nothing to fly yet, just let the page in
-        releasePage();
-        window.setTimeout(finish, 420);
+        releasePage({ timeScale: 3 });
         return;
       }
       if (!spawned) { const p = dropPos(t); spawnAll(p.x, p.y, 4); simT = t; impactAt = -1; }
       if (homesAssigned) {
         // Already on the way home: hurry the stragglers along
-        for (let i = 0; i < N; i += 1) if (mode[i] !== M_DEAD) tH[i] = Math.min(tH[i], t + 0.1 + rnd() * 0.35);
+        for (let i = 0; i < N; i += 1) if (mode[i] !== M_DEAD) tH[i] = Math.min(tH[i], t + 0.05 + rnd() * 0.15);
       } else {
         assignHomes(t, true);
       }
-      releasePage({ timeScale: homeTimeScale });
+      releasePage({ timeScale: Math.max(homeTimeScale, 2.5) });
     }
 
     function finish() {
       if (finished) return;
       finished = true;
+      window.clearTimeout(skipFallbackTimer);
       cancelAnimationFrame(frameId);
       controller.abort();
       timeline?.kill();
@@ -891,7 +903,7 @@ const tagline = '日常记录 · 技术分享';
       gsap.killTweensOf([intro, seal, taglineEl, foot, ring]);
       document.documentElement.classList.remove('site-intro-active');
       (window as any).__siteIntroPending = false;
-      releasePage({ timeScale: homeTimeScale });
+      releasePage({ timeScale: Math.max(homeTimeScale, 2.5) });
       intro.remove();
       try {
         (window as any).lenis?.start();

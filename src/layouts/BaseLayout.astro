@@ -1054,10 +1054,17 @@ const {
         const held = document.querySelector('[data-enter-hold]') || window.__siteIntroPending || (window as any).__postTransitionPending;
         if (held && !releasedEarly) {
           holdRelease = (options) => initPageEnter(options);
-          // Dead-man switch: a broken intro must not leave the page permanently blank. The
-          // curtain itself releases at 8.5s, so this has to sit well past that.
+          // Dead-man switch: a broken intro must not leave the page permanently blank.
           window.clearTimeout(holdTimer);
-          holdTimer = window.setTimeout(() => { if (holdRelease) window.__releasePageEnter(); }, 14000);
+          holdTimer = window.setTimeout(() => {
+            if (holdRelease) {
+              document.documentElement.classList.remove('site-intro-active');
+              (window as any).__siteIntroPending = false;
+              const introEl = document.querySelector('[data-site-intro]');
+              introEl?.remove();
+              window.__releasePageEnter();
+            }
+          }, 6000);
           return;
         }
         releasedEarly = false;

@@ -887,7 +887,7 @@
         title: options.title || '引文片段',
         badge: options.badge || '引文',
         sourceEl: options.sourceEl || null,
-        htmlContent: options.html || `<div class="pinned-quote-body">${escaped}</div>`,
+        htmlContent: options.html || escaped,
         rawText: options.text,
         collapsed: false,
       };
@@ -1031,6 +1031,7 @@
         floatWindow.classList.remove('is-docking', 'is-flying-away', 'is-clearing');
         floatWindow.hidden = false;
         floatWindow.style.display = '';
+        floatWindow.style.pointerEvents = '';
         ensureWindowPosition();
 
         requestAnimationFrame(() => {
@@ -1180,6 +1181,8 @@
       const sheet = document.getElementById('pin-sheet-drawer');
       const sheetHandle = sheet?.querySelector<HTMLElement>('.pin-sheet-handle');
       if (!sheet || !sheetHandle) return;
+      if ((sheetHandle as any).__dragBound) return;
+      (sheetHandle as any).__dragBound = true;
 
       let startY = 0;
       let currentTranslate = 0;
@@ -1211,9 +1214,6 @@
           window.removeEventListener('pointermove', onPointerMove);
           window.removeEventListener('pointerup', onPointerUp);
           window.removeEventListener('pointercancel', onPointerUp);
-          sheetHandle.removeEventListener('pointermove', onPointerMove);
-          sheetHandle.removeEventListener('pointerup', onPointerUp);
-          sheetHandle.removeEventListener('pointercancel', onPointerUp);
           sheet.style.transition = '';
           if (currentTranslate > 70) {
             closeMobileSheet();
@@ -1225,9 +1225,6 @@
         window.addEventListener('pointermove', onPointerMove);
         window.addEventListener('pointerup', onPointerUp);
         window.addEventListener('pointercancel', onPointerUp);
-        sheetHandle.addEventListener('pointermove', onPointerMove);
-        sheetHandle.addEventListener('pointerup', onPointerUp);
-        sheetHandle.addEventListener('pointercancel', onPointerUp);
       });
     }
 
@@ -1236,6 +1233,8 @@
       const floatWindow = document.getElementById('pin-float-window');
       const dragHandle = document.getElementById('pin-window-drag-handle');
       if (!floatWindow || !dragHandle) return;
+      if ((dragHandle as any).__dragBound) return;
+      (dragHandle as any).__dragBound = true;
 
       let isDragging = false;
       let startX = 0;
@@ -1244,7 +1243,7 @@
       let initialTop = 0;
 
       dragHandle.addEventListener('pointerdown', (e: PointerEvent) => {
-        if ((e.target as HTMLElement).closest('button, a, input')) return;
+        if ((e.target as HTMLElement).closest('button, a, input, select, textarea')) return;
         if (e.button !== 0) return;
         if (isMobile()) return;
 
@@ -1258,7 +1257,9 @@
         initialTop = rect.top;
 
         floatWindow.classList.add('is-dragging');
-        dragHandle.setPointerCapture(e.pointerId);
+        try {
+          dragHandle.setPointerCapture(e.pointerId);
+        } catch {}
 
         const onPointerMove = (ev: PointerEvent) => {
           if (!isDragging) return;
@@ -1288,18 +1289,21 @@
           try {
             dragHandle.releasePointerCapture(ev.pointerId);
           } catch {}
-          dragHandle.removeEventListener('pointermove', onPointerMove);
-          dragHandle.removeEventListener('pointerup', onPointerUp);
-          dragHandle.removeEventListener('pointercancel', onPointerUp);
+          window.removeEventListener('pointermove', onPointerMove);
+          window.removeEventListener('pointerup', onPointerUp);
+          window.removeEventListener('pointercancel', onPointerUp);
         };
 
-        dragHandle.addEventListener('pointermove', onPointerMove);
-        dragHandle.addEventListener('pointerup', onPointerUp);
-        dragHandle.addEventListener('pointercancel', onPointerUp);
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', onPointerUp);
       });
     }
 
     function bindEvents() {
+      bindDrag();
+      bindSheetDrag();
+
       if (bound) return;
       bound = true;
 
