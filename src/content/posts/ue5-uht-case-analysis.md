@@ -355,7 +355,7 @@ static UObject* __VTableCtorCaller(FVTableHelper& Helper）
 
 在宏定义展开后，NO_API 通常就是一个“空值（Empty）
 
-1. 通用宏模板的"占位符"
+**1. 通用宏模板的"占位符"**
 ```cpp
 DECLARE_VTABLE_PTR_HELPER_CTOR(NO_API, ADreamGameModeBase);
 // 定义原型：
@@ -376,7 +376,7 @@ DECLARE_VTABLE_PTR_HELPER_CTOR(NO_API, ADreamGameModeBase);
 
 不需要向外导出函数or不需要跨模块调用，通过NO_API来占位
 
-2. 明确语义：不导出符号
+**2. 明确语义：不导出符号**
 
 NO_API：展开为空白，表示本地私有/模块内自用，绝不把符号公开到 DLL 导出表，只在本模块内部可用
 
@@ -386,7 +386,7 @@ NO_API：展开为空白，表示本地私有/模块内自用，绝不把符号�
 
 如果反射宏()内有内容，则由UHT翻译成静态数据写入gen.cpp和反射标志位中
 
-1. 变成运行时的二进制标志位(ClassFlags)
+**1. 变成运行时的二进制标志位(ClassFlags)**
 
 决定这个类在游戏运行时的底层行为规则，会被UHT编译成一个32位整型掩码
 
@@ -409,6 +409,7 @@ NO_API：展开为空白，表示本地私有/模块内自用，绝不把符号�
 
 运行时使用：调用SpawnActor时，用位运算检查
 ```cpp
+// 如检查是否为抽象类，还有CLASS_NewerVersionExists/CLASS_Deprecated，拒绝生成老版本/废弃类
 if (CurrentClass->HasAnyClassFlags(CLASS_Abstract))
 {
     // 如果是抽象类，引擎直接中断生成并弹出警告
@@ -416,7 +417,7 @@ if (CurrentClass->HasAnyClassFlags(CLASS_Abstract))
 }
 ```
 
-2. 变成编辑器元数据键值对表(MetaData)
+**2. 变成编辑器元数据键值对表(MetaData)**
 
 给编辑器看的信息Key，与游戏逻辑运行无关，UHT将转变为静态键值对数组
 
@@ -432,6 +433,12 @@ static constexpr UECodeGen_Private::FMetaDataPairParam Class_MetaDataParams[] = 
 	{ "ShowCategories", "Input|MouseInput Input|TouchInput" },
 };
 #endif // WITH_METADATA
+// 须知：这里分两种，一种是开发者主动声明的业务元数据，一种是UHT自动抓取的工程系统级元数据
+// UCLASS()中声明的DisplayName、HideCategories、Category，用于控制编辑器界面该如何渲染这个类
+// Comment(代码注释)、IncludePath、ModuleRelativePath是解析时打包放入
+// 作用1：编辑器内"打开源码"，通过Class->GetMetaData(TEXT("ModuleRelativePath"))拿到相对路径并唤醒IDE打开
+// 作用2：自动生成代码时的#include插入器，引擎工具或蓝图自动生成关联代码时，代码工具需知引用这个类要用什么#include，通过Class->GetMetaData(TEXT("IncludePath"))拿到头文件路径并自动拼成包含语句
+// 作用3：编辑器悬浮文档与类浏览器显示，弹窗显示Comment元数据，用于描述类的功能，IncludePath元数据显示定义在哪个模块的哪个头文件
 ```
 
 - DisplayName = "玩家模式基类"：在蓝图搜索列表或类下拉框中显示的名字
@@ -439,7 +446,7 @@ static constexpr UECodeGen_Private::FMetaDataPairParam Class_MetaDataParams[] = 
 - ShowCategories = "Input|MouseInput"：强制显示某些特定分类
 - ToolTip = "..."：鼠标悬停在类名上时弹出的注释提示（UHT 甚至会自动抓取你写在类上方的 C++ /** ... */ 注释自动转成这个）
 
-3. 引擎架构的路由配置
+**3. 引擎架构的路由配置**
 
 定义了该类在虚幻对象层级体系中的组织归宿
 
@@ -454,3 +461,14 @@ UHT 把类与父类（AGameModeBase）以及专属包（UPackage__Script_Dream�
 
 - Within = Engine：规定该类的实例必须依附于某类特定的外部对象（Outer），不能随意挂载
 - 模块与包路径：UHT 根据该类所在的文件夹目录，自动推导出它所属的虚拟包路径 /Script/Dream
+
+-----------
+**总结**
+
+引擎启动时，真正的构造函数UECodeGen_Private::ConstructUClass读取：
+
+标志位，存进内存中UClass对象中的ClassFlags成员
+
+Class_MetaDataParams字符串表，存进内存中UClass的元数据字典
+
+DependentSingletions指针，把类挂在到父类继承树和包路径下

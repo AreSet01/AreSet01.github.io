@@ -5702,25 +5702,15 @@ html.font-switching::view-transition-new(root) {
 /* ---------- Generic block ---------- */
 .prose .pr {
   opacity: 0;
-  transform: translate3d(0, 34px, 0);
+  transform: translate3d(0, 20px, 0);
   transition:
-    opacity 1400ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 1700ms cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 500ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .prose .pr.is-in {
   opacity: 1;
   transform: translate3d(0, 0, 0);
-}
-
-/* Re-entering from the top edge (scrolling up), the vertical blocks drop in from above instead.
-   <html data-scroll-dir> is kept current by the choreography in BaseLayout. */
-html[data-scroll-dir="up"] .prose .pr[data-pr="block"]:not(.is-in) {
-  transform: translate3d(0, -34px, 0);
-}
-
-html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
-  transform: translate3d(0, -18px, 0);
 }
 
 /* ---------- h2: rule draws left→right, then text follows ---------- */
@@ -5739,7 +5729,7 @@ html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
   background: var(--rule);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 1500ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .prose .pr[data-pr="heading"] {
@@ -5747,7 +5737,7 @@ html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
 }
 
 .prose .pr[data-pr="heading"].is-in {
-  transition-delay: 160ms;
+  transition-delay: 80ms;
 }
 
 .prose .pr[data-pr="heading"].is-in::before {
@@ -5767,7 +5757,7 @@ html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
 
 .prose .pr[data-pr="code"] > pre {
   clip-path: inset(0 0 100% 0);
-  transition: clip-path 1500ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: clip-path 600ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .prose .pr[data-pr="code"] > pre::after {
@@ -5786,7 +5776,7 @@ html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
 }
 
 .prose .pr[data-pr="code"].is-in > pre::after {
-  animation: codeScan 1500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: codeScan 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes codeScan {
@@ -5803,12 +5793,12 @@ html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
 
 .prose .pr[data-pr="image"] > * {
   clip-path: circle(0% at 50% 50%);
-  transition: clip-path 1700ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: clip-path 650ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .prose .pr[data-pr="image"] img {
   transform: scale(1.05);
-  transition: transform 2000ms cubic-bezier(0.16, 1, 0.3, 1), border-color 280ms var(--ease), filter 280ms var(--ease);
+  transition: transform 700ms cubic-bezier(0.16, 1, 0.3, 1), border-color 280ms var(--ease), filter 280ms var(--ease);
 }
 
 .prose .pr[data-pr="image"].is-in > * {
@@ -5833,12 +5823,12 @@ html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
 
 .prose .pr[data-pr="mermaid"] > .mermaid-block {
   opacity: 0;
-  transform: translate3d(0, 32px, 0) scale(0.97);
-  filter: blur(5px);
+  transform: translate3d(0, 20px, 0) scale(0.98);
+  filter: blur(4px);
   transition:
-    opacity 1000ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 1200ms cubic-bezier(0.16, 1, 0.3, 1),
-    filter 1000ms cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 500ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 600ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 500ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .prose .pr[data-pr="mermaid"].is-in > .mermaid-block {
@@ -5857,9 +5847,9 @@ html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
   opacity: 0;
   transform: translate3d(-12px, 0, 0);
   transition:
-    opacity 1000ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 1300ms cubic-bezier(0.16, 1, 0.3, 1);
-  transition-delay: calc(var(--i, 0) * 95ms);
+    opacity 450ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(var(--i, 0) * 45ms);
 }
 
 .prose .pr[data-pr="table"].is-in tr {
@@ -5877,9 +5867,9 @@ html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
   opacity: 0;
   transform: translate3d(-10px, 0, 0);
   transition:
-    opacity 1000ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 1300ms cubic-bezier(0.16, 1, 0.3, 1);
-  transition-delay: calc(var(--i, 0) * 85ms);
+    opacity 450ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(var(--i, 0) * 40ms);
 }
 
 .prose .pr[data-pr="list"].is-in > li {
@@ -5889,13 +5879,13 @@ html[data-scroll-dir="up"] .prose .pr[data-pr="quote"]:not(.is-in) {
 
 /* ---------- Quote: the big bracket lands first, text follows ---------- */
 .prose .pr[data-pr="quote"] {
-  transform: translate3d(0, 18px, 0);
+  transform: translate3d(0, 16px, 0);
 }
 
 .prose .pr[data-pr="quote"]::before {
-  transform: translate3d(-10px, -8px, 0) scale(1.25);
+  transform: translate3d(-10px, -8px, 0) scale(1.2);
   opacity: 0;
-  transition: transform 1500ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 700ms ease;
+  transition: transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 400ms ease;
 }
 
 .prose .pr[data-pr="quote"].is-in::before {

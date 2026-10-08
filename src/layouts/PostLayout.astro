@@ -602,12 +602,51 @@ const hasToc = tocHeadings.length > 1;
       if (reduceMotion) {
         blocks.forEach((el) => el.classList.add('is-in'));
       } else {
+        const ANIM_LOCK_MS = 650;
+        const animTimers = new WeakMap<Element, number>();
+
         const io = new IntersectionObserver((entries) => {
           entries.forEach((entry) => {
-            // Replays every time a block comes back into view
-            entry.target.classList.toggle('is-in', entry.isIntersecting);
+            const el = entry.target as HTMLElement;
+            if (entry.isIntersecting) {
+              // 进场：清理已有定时器，设置锁定态并添加 is-in
+              const oldTimer = animTimers.get(el);
+              if (oldTimer) {
+                window.clearTimeout(oldTimer);
+                animTimers.delete(el);
+              }
+
+              el.classList.add('is-in');
+              el.dataset.animLocked = 'true';
+
+              const lockTimer = window.setTimeout(() => {
+                delete el.dataset.animLocked;
+                animTimers.delete(el);
+                // 动画完整播放结束后，若此时已滑出可视范围外部，再平稳重置供下次重播
+                const rect = el.getBoundingClientRect();
+                const isOffscreen = rect.bottom < -40 || rect.top > window.innerHeight + 40;
+                if (isOffscreen) {
+                  el.classList.remove('is-in');
+                }
+              }, ANIM_LOCK_MS);
+
+              animTimers.set(el, lockTimer);
+              timers.push(lockTimer);
+            } else {
+              // 离场：动画仍在播放中（锁定态），严禁中途拔除 is-in 造成抽搐与打断
+              if (el.dataset.animLocked === 'true') {
+                return;
+              }
+              // 仅当元素确实完全离开可视窗口时，才重置类名，供下次往返重播
+              const rect = el.getBoundingClientRect();
+              const isOffscreen = rect.bottom < -40 || rect.top > window.innerHeight + 40;
+              if (isOffscreen) {
+                el.classList.remove('is-in');
+              }
+            }
           });
-        }, { rootMargin: '0px 0px -6% 0px', threshold: 0 });
+        }, { rootMargin: '0px 0px -2% 0px', threshold: 0 });
+
         blocks.forEach((el) => io.observe(el));
         signal.addEventListener('abort', () => io.disconnect());
       }
