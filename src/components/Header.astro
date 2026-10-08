@@ -521,12 +521,16 @@ const year = new Date().getFullYear();
       document.documentElement.setAttribute('data-cursor-trail', 'disabled');
       try { localStorage.setItem('cursor-trail', 'disabled'); } catch (e) {}
       clearCursorTrail();
+      if (canvas) canvas.style.display = 'none';
     } else {
       document.documentElement.removeAttribute('data-cursor-trail');
       try { localStorage.removeItem('cursor-trail'); } catch (e) {}
+      if (canvas) canvas.style.removeProperty('display');
     }
     syncToggleButtons();
   }
+  window.__setCursorTrailDisabled = setCursorTrailDisabled;
+  window.__isCursorTrailDisabled = isCursorTrailDisabled;
 
   // ── Init (called on every Astro page-load) ────────────────────────────────
   function init() {
@@ -541,6 +545,12 @@ const year = new Date().getFullYear();
     // Re-acquire canvas (Astro swaps the DOM on navigation)
     canvas = document.getElementById('inkCanvas');
     if (!canvas) return;
+
+    if (isCursorTrailDisabled()) {
+      canvas.style.display = 'none';
+    } else {
+      canvas.style.removeProperty('display');
+    }
 
     // ★ Move canvas to <body> to escape any backdrop-filter containing block
     //   (backdrop-filter on an ancestor breaks position:fixed for children)
@@ -629,6 +639,9 @@ const year = new Date().getFullYear();
         strokeId++;
       }
     }
+    function onPointerUp() {
+      brush.isPressed = false;
+    }
     function onVisibilityChange() {
       if (document.hidden) {
         clearCursorTrail();
@@ -670,8 +683,11 @@ const year = new Date().getFullYear();
   const toggleKey = '__cursorTrailToggleBound__';
   if (!window[toggleKey]) {
     document.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-cursor-trail-toggle]');
+      const target = e.target;
+      const btn = target instanceof Element ? target.closest('[data-cursor-trail-toggle]') : null;
       if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
       setCursorTrailDisabled(!isCursorTrailDisabled());
     });
     window[toggleKey] = true;

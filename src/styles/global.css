@@ -4784,7 +4784,6 @@ html[data-font="kai"] .stats-label {
   border-bottom: 1px solid transparent;
   border-image: linear-gradient(to right, transparent 3%, var(--rule-strong) 50%, transparent 97%) 1;
   user-select: none;
-  cursor: none;
 }
 
 .home-ticker-viewport {
@@ -5191,40 +5190,41 @@ html.font-switching::view-transition-new(root) {
 /* ================= Custom Cursor Controls ================= */
 
 @media (pointer: fine) {
-  html,
-  body {
+  html:not([data-cursor-trail="disabled"]),
+  html:not([data-cursor-trail="disabled"]) body {
     cursor: none !important;
   }
   
-  a,
-  button,
-  select,
-  summary,
-  [role="button"],
-  .btn-primary,
-  .btn-secondary,
-  .tag-chip,
-  .nav-link,
-  .timeline-link,
-  .prose img,
-  .image-viewer-close,
-  .stat-card,
-  .stats-item,
-  .archive-metric-card,
-  [data-post-preview],
-  [data-search-trigger],
-  [data-search-result],
-  .gallery-mat-card,
-  .gallery-cat-tab,
-  .mat-image-window,
-  .mat-tag-chip,
-  .gallery-search-clear,
-  .life-card,
-  .life-cat-tab,
-  .life-chip,
-  .life-search-clear,
-  .about-card,
-  .brand-mark {
+  html:not([data-cursor-trail="disabled"]) a,
+  html:not([data-cursor-trail="disabled"]) button,
+  html:not([data-cursor-trail="disabled"]) select,
+  html:not([data-cursor-trail="disabled"]) summary,
+  html:not([data-cursor-trail="disabled"]) [role="button"],
+  html:not([data-cursor-trail="disabled"]) .btn-primary,
+  html:not([data-cursor-trail="disabled"]) .btn-secondary,
+  html:not([data-cursor-trail="disabled"]) .tag-chip,
+  html:not([data-cursor-trail="disabled"]) .nav-link,
+  html:not([data-cursor-trail="disabled"]) .timeline-link,
+  html:not([data-cursor-trail="disabled"]) .prose img,
+  html:not([data-cursor-trail="disabled"]) .image-viewer-close,
+  html:not([data-cursor-trail="disabled"]) .stat-card,
+  html:not([data-cursor-trail="disabled"]) .stats-item,
+  html:not([data-cursor-trail="disabled"]) .archive-metric-card,
+  html:not([data-cursor-trail="disabled"]) [data-post-preview],
+  html:not([data-cursor-trail="disabled"]) [data-search-trigger],
+  html:not([data-cursor-trail="disabled"]) [data-search-result],
+  html:not([data-cursor-trail="disabled"]) .gallery-mat-card,
+  html:not([data-cursor-trail="disabled"]) .gallery-cat-tab,
+  html:not([data-cursor-trail="disabled"]) .mat-image-window,
+  html:not([data-cursor-trail="disabled"]) .mat-tag-chip,
+  html:not([data-cursor-trail="disabled"]) .gallery-search-clear,
+  html:not([data-cursor-trail="disabled"]) .life-card,
+  html:not([data-cursor-trail="disabled"]) .life-cat-tab,
+  html:not([data-cursor-trail="disabled"]) .life-chip,
+  html:not([data-cursor-trail="disabled"]) .life-search-clear,
+  html:not([data-cursor-trail="disabled"]) .about-card,
+  html:not([data-cursor-trail="disabled"]) .brand-mark,
+  html:not([data-cursor-trail="disabled"]) .home-ticker {
     cursor: none !important;
   }
   
@@ -5261,9 +5261,21 @@ html.font-switching::view-transition-new(root) {
   html[data-cursor-trail="disabled"] [data-post-preview],
   html[data-cursor-trail="disabled"] [data-search-trigger],
   html[data-cursor-trail="disabled"] [data-search-result],
+  html[data-cursor-trail="disabled"] .gallery-mat-card,
+  html[data-cursor-trail="disabled"] .gallery-cat-tab,
+  html[data-cursor-trail="disabled"] .mat-image-window,
+  html[data-cursor-trail="disabled"] .mat-tag-chip,
+  html[data-cursor-trail="disabled"] .gallery-search-clear,
+  html[data-cursor-trail="disabled"] .life-card,
+  html[data-cursor-trail="disabled"] .life-cat-tab,
+  html[data-cursor-trail="disabled"] .life-chip,
+  html[data-cursor-trail="disabled"] .life-search-clear,
+  html[data-cursor-trail="disabled"] .about-card,
+  html[data-cursor-trail="disabled"] .brand-mark,
   html[data-cursor-trail="disabled"] .theme-toggle,
   html[data-cursor-trail="disabled"] .font-toggle,
   html[data-cursor-trail="disabled"] .cursor-trail-toggle,
+  html[data-cursor-trail="disabled"] .zen-sound-toggle,
   html[data-cursor-trail="disabled"] .sidebar-collapse-btn,
   html[data-cursor-trail="disabled"] .sidebar-expand-btn {
     cursor: pointer !important;
