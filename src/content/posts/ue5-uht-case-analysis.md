@@ -55,6 +55,8 @@ ADreamGameModeBase::ADreamGameModeBase()
 ### 1.Dream_GameModeBase.generated.h
 
 ```cpp
+// 检查是否已经被定义了if defined
+// error触发编译报错并中断，在编译器输出日志中打印自定义错误信息提醒
 #ifdef DREAM_Dream_GameModeBase_generated_h
 #error "Dream_GameModeBase.generated.h already included, missing '#pragma once' in Dream_GameModeBase.h"
 #endif
