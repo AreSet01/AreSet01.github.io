@@ -163,8 +163,12 @@ class ADreamGameModeBase;
 
 // End Class ADreamGameModeBase
 
+// 取消宏定义，将之前通过#define创建的宏或标记彻底销毁抹去
+// 清理环境以及绑定当前文件的全局路径上下文
+// 直接，间接包含的头文件都会有CURRENT_FILE_ID，为了防止干扰，先抹掉再重新定义
 #undef CURRENT_FILE_ID
 #define CURRENT_FILE_ID FID_Dream_Source_Dream_Public_Core_Dream_GameModeBase_h
+// 通过BODY_MACRO_COMBINE(CURRENT_FILE_ID,_,x,_PROLOG/_GENERATED_BODY)拼接对应CLASS以及GENERATED_BODY
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
