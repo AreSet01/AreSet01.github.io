@@ -606,21 +606,31 @@ const hasToc = tocHeadings.length > 1;
         // 1. revealObserver (rootMargin: '0px 0px -4% 0px'):
         //    元素滚动进入视口安全区时触发，添加 .is-in 播放 900ms 优雅进场动画。
         //    绝不在视口内或视口边缘拔除 .is-in，彻底杜绝上下滑动与动画播放中途来回拉扯造成的撕裂抽搐。
+        //    从视口上方进入的块（深链接或恢复滚动位置后向上滑）静默显形，绝不逆着手势播位移。
         const revealObserver = new IntersectionObserver((entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
-              entry.target.classList.add('is-in');
+              const el = entry.target as HTMLElement;
+              if (el.classList.contains('is-in')) return;
+              if (entry.boundingClientRect.top < 0) {
+                el.classList.add('pr-instant', 'is-in');
+                requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('pr-instant')));
+              } else {
+                el.classList.add('is-in');
+              }
             }
           });
         }, { rootMargin: '0px 0px -4% 0px', threshold: 0 });
 
         // 2. resetObserver (rootMargin: '120px 0px 120px 0px'):
         //    仅当元素彻底离开视口安全缓冲区（超出屏幕外 >120px）时，才静默重置 .is-in。
-        //    完全在用户视野之外静默重置，既确保往返滚动 100% 完整重放，又拥有 120px+ 物理迟滞死区，
-        //    无需任何 setTimeout 异步定时器，无布局抖动，零抽搐，100% 可靠回放。
+        //    并且只给落到视口「下方」的块重新上膛：留在上方的块保持进场态，
+        //    于是向上滚动全程没有任何内容逆着手势位移，而向下滚动的往返重播完整保留。
+        //    无需任何 setTimeout 异步定时器，无布局抖动，零抽搐。
         const resetObserver = new IntersectionObserver((entries) => {
           entries.forEach((entry) => {
             if (!entry.isIntersecting) {
+              if (entry.boundingClientRect.top <= 0) return;
               entry.target.classList.remove('is-in');
             }
           });
@@ -820,6 +830,24 @@ const hasToc = tocHeadings.length > 1;
 
         let currentActiveId = null;
 
+        // Keep the active link visible inside the TOC's own scroller — and nowhere else.
+        // scrollIntoView() walks up every scrolling box to the viewport, and this TOC is an
+        // inline <details> above the article rather than a sticky rail, so it would drag the
+        // whole page back up to the TOC on every scrollspy change.
+        function revealLinkInToc(link, smooth) {
+          const nav = toc.querySelector('.post-toc-nav');
+          if (!nav || nav.scrollHeight <= nav.clientHeight + 1) return;
+          const navRect = nav.getBoundingClientRect();
+          const linkRect = link.getBoundingClientRect();
+          let delta = 0;
+          if (linkRect.top < navRect.top) delta = linkRect.top - navRect.top;
+          else if (linkRect.bottom > navRect.bottom) delta = linkRect.bottom - navRect.bottom;
+          if (!delta) return;
+          const top = nav.scrollTop + delta;
+          if (smooth) nav.scrollTo({ top, behavior: 'smooth' });
+          else nav.scrollTop = top;
+        }
+
         function setActive(id) {
           if (!id || id === currentActiveId) return;
           currentActiveId = id;
@@ -827,7 +855,7 @@ const hasToc = tocHeadings.length > 1;
             const isCurrent = link.getAttribute('data-toc-link') === id;
             link.classList.toggle('is-active', isCurrent);
             if (isCurrent && toc.open) {
-              link.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+              revealLinkInToc(link, true);
             }
           });
         }
@@ -967,7 +995,7 @@ const hasToc = tocHeadings.length > 1;
                 isOpening = false;
                 const activeLink = toc.querySelector('.post-toc-link.is-active');
                 if (activeLink) {
-                  activeLink.scrollIntoView({ block: 'nearest' });
+                  revealLinkInToc(activeLink, false);
                 }
                 try { window.lenis?.resize(); } catch (_) {}
                 try { window.ScrollTrigger?.refresh(); } catch (_) {}

@@ -169,6 +169,7 @@ class ADreamGameModeBase;
 #undef CURRENT_FILE_ID
 #define CURRENT_FILE_ID FID_Dream_Source_Dream_Public_Core_Dream_GameModeBase_h
 // 通过BODY_MACRO_COMBINE(CURRENT_FILE_ID,_,x,_PROLOG/_GENERATED_BODY)拼接对应CLASS以及GENERATED_BODY
+// 防止在使用原头文件后再引用其它头文件会导致混乱所以需要销毁上一个
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
@@ -222,11 +223,13 @@ UClass* Z_Construct_UClass_ADreamGameModeBase_NoRegister()
 {
 	return ADreamGameModeBase::GetPrivateStaticClass();
 }
+
+// 类外声明，类内初始化
 struct Z_Construct_UClass_ADreamGameModeBase_Statics
 {
-    // 编辑器元数据键值对(Class_MetaDataParams[])
-    // 让Uereal Editor在编辑器中显示类的相关信息(隐藏属性面板HideCategories，头文件路径，依赖路径)
-    // 打包时会被剥离掉(WITH_METADATA)省内存
+  // 编辑器元数据键值对(Class_MetaDataParams[])
+  // 让Uereal Editor在编辑器中显示类的相关信息(隐藏属性面板HideCategories，头文件路径，依赖路径)
+  // 打包时会被剥离掉(WITH_METADATA)省内存
 #if WITH_METADATA
 	static constexpr UECodeGen_Private::FMetaDataPairParam Class_MetaDataParams[] = {
 #if !UE_BUILD_SHIPPING
@@ -239,47 +242,78 @@ struct Z_Construct_UClass_ADreamGameModeBase_Statics
 	};
 #endif // WITH_METADATA
 
-// Begin Class ADreamGameModeBase constinit property declarations 
+  // 反射属性留白区域
+  // 识别源文件中带有UPROPERTY()变量，在注释之间生成关于该变量的内存偏移量和类型描述结构体
+  // Begin Class ADreamGameModeBase constinit property declarations 
 
-// End Class ADreamGameModeBase constinit property declarations 
+
+  // 假设：float Health()被加上了UPROPERTY()
+  // static const UECodeGen_Private::FFloatPropertyParams NewProp_Health;
+  // static const UECodeGen_Private::FPropertyParamsBase* const PropPointers[];
+  // 则下方在类外会有定义
+
+  // End Class ADreamGameModeBase constinit property declarations 
+
+  // 依赖项声明
+  // 一个元素返回值为UObject*的函数指针的常量数组
+  // 声明该类在构建时所依赖的外部单例，后续在类外会具体填入父类和模块包的构造函数指针 
 	static UObject* (*const DependentSingletons[])();
 
-    // 记录这个类在 C++ 层面是不是一个纯虚抽象类
-    // True，蓝图和引擎禁止直接实例化
+  // C++抽象类特征萃取
+  // 记录这个类在 C++ 层面是不是一个纯虚抽象类
+  // True，蓝图和引擎禁止直接实例化
 	static constexpr FCppClassTypeInfoStatic StaticCppClassTypeInfo = {
 		TCppClassTypeTraits<ADreamGameModeBase>::IsAbstract,
 	};
 
-    // 将信息汇总+ClassFlags标志位(0x009002ACu)传递给ConstructUClass
+  // 将信息汇总+ClassFlags标志位(0x009002ACu)传递给ConstructUClass
 	static const UECodeGen_Private::FClassParams ClassParams;
 }; // struct Z_Construct_UClass_ADreamGameModeBase_Statics
 
+
+// 对上面Z_Construct_UClass_ADreamGameModeBase_Statics结构体声明的初始化
+
 // 函数指针，指向依赖的单例对象(父类和模块包)，用于在运行时获取这些对象的引用
+// 连接父类与模块包，保证父类以及虚拟路径先于该类被创建
+// 通过static_assert确保依赖的单例总数不超过16个
 UObject* (*const Z_Construct_UClass_ADreamGameModeBase_Statics::DependentSingletons[])() = {
-    // 父类(AGameModeBase)
+  // 父类(AGameModeBase)
 	(UObject* (*)())Z_Construct_UClass_AGameModeBase,
 	// 所属模块包(Package)，虚拟对象路径(/Script/Dream)
-    // Script：Ue顶级挂载点，用于存放所有C++原生代码编译出来的类、结构体和枚举
-    // Dream：模块名
-    (UObject* (*)())Z_Construct_UPackage__Script_Dream,
-    // 内存中完整的对象路径：/Script/Dream.DreamGameModeBase
+  // Script：Ue顶级挂载点，用于存放所有C++原生代码编译出来的类、结构体和枚举
+  // Dream：模块名
+  (UObject* (*)())Z_Construct_UPackage__Script_Dream,
+  // 内存中完整的对象路径：/Script/Dream.DreamGameModeBase
 };
 static_assert(UE_ARRAY_COUNT(Z_Construct_UClass_ADreamGameModeBase_Statics::DependentSingletons) < 16);
+
+// 打包类信息
 const UECodeGen_Private::FClassParams Z_Construct_UClass_ADreamGameModeBase_Statics::ClassParams = {
+  // 指向类的静态获取函数
 	&ADreamGameModeBase::StaticClass,
+  // 读取并写入Game.ini配置文件
 	"Game",
+	// 算得的抽象特征传入
 	&StaticCppClassTypeInfo,
+	// 传入上面的父类与模块包依赖链
 	DependentSingletons,
+	// 函数列表、属性列表、接口列表
 	nullptr,
 	nullptr,
 	nullptr,
+	// 依赖项数量
 	UE_ARRAY_COUNT(DependentSingletons),
+	// 函数数量、属性数量、接口数量
 	0,
 	0,
 	0,
+	// 所有运行态特征的32位类标志位
 	0x009002ACu,
+	// 编辑元器数据字典
 	METADATA_PARAMS(UE_ARRAY_COUNT(Z_Construct_UClass_ADreamGameModeBase_Statics::Class_MetaDataParams), Z_Construct_UClass_ADreamGameModeBase_Statics::Class_MetaDataParams)
 };
+
+
 void ADreamGameModeBase::StaticRegisterNativesADreamGameModeBase()
 {
 }
@@ -303,18 +337,35 @@ ADreamGameModeBase::~ADreamGameModeBase() {}
 // End Class ADreamGameModeBase
 
 // Begin Registration
+// 由于C++没有遍历DLL所有类的功能，所以需要DLL在加载时主动注册
+// 利用C++特性：所有全局静态变量会在DLL被载入内存的瞬间、在任何普通业务代码运行之前，由操作系统自动执行其初始化构造
+// 下面的struct相当于给你一个表，然后让你按照这个表填信息
+// 可以有ClassInfo，EnumInfo，StructInfo，并且里面的{}取决于定义了多少个类、枚举、结构体
 struct Z_CompiledInDeferFile_FID_Dream_Source_Dream_Public_Core_Dream_GameModeBase_h__Script_Dream_Statics
 {
 	static constexpr FClassRegisterCompiledInInfo ClassInfo[] = {
 		{ Z_Construct_UClass_ADreamGameModeBase, ADreamGameModeBase::StaticClass, TEXT("ADreamGameModeBase"), &Z_Registration_Info_UClass_ADreamGameModeBase, CONSTRUCT_RELOAD_VERSION_INFO(FClassReloadVersionInfo, sizeof(ADreamGameModeBase), 2001584642U) },
 	};
-}; // Z_CompiledInDeferFile_FID_Dream_Source_Dream_Public_Core_Dream_GameModeBase_h__Script_Dream_Statics 
+}; 
+// Z_CompiledInDeferFile_FID_Dream_Source_Dream_Public_Core_Dream_GameModeBase_h__Script_Dream_Statics 
+// ClassInfo静态数组，每一项代表当前头文件定义的一个反射类
+// Z_Construct_UClass_ADreamGameModeBase：创建函数的指针
+// ADreamGameModeBase::StaticClass：静态获取函数的指针
+// TEXT("ADreamGameModeBase")：类名字符串，供引擎通过名字反查类(反射查询)
+// &Z_Registration_Info_UClass_ADreamGameModeBase：保存该类单例指针与注册状态的结构体地址
+// CONSTRUCT_RELOAD_VERSION_INFO：sizeof(ADreamGameModeBase)该类在内存中的字节大小，2001584642U类结构的CRC校验哈希值，UHT根据该类声明的成员变量计算出的唯一哈希码，新增or删除变量都会更改(热重载用于比对)
 static FRegisterCompiledInInfo Z_CompiledInDeferFile_FID_Dream_Source_Dream_Public_Core_Dream_GameModeBase_h__Script_Dream_2698426432{
 	TEXT("/Script/Dream"),
 	Z_CompiledInDeferFile_FID_Dream_Source_Dream_Public_Core_Dream_GameModeBase_h__Script_Dream_Statics::ClassInfo, UE_ARRAY_COUNT(Z_CompiledInDeferFile_FID_Dream_Source_Dream_Public_Core_Dream_GameModeBase_h__Script_Dream_Statics::ClassInfo),
 	nullptr, 0,
 	nullptr, 0,
 };
+// 静态全局变量，system在把dll装在进内存时，操作系统加载器发现有全局变量需要初始化，会调用FRegisterCompiledInInfo的构造函数
+// 变量名构成：前缀Z_ + 行为意图CompiledInDeferFile_ + 来源路径 + 所属模块包 + 神秘数字(校验码)
+// CompiledInDeferFile编译入库文件的延迟注册器
+// 校验码是UBT会把多个cpp打包成一个大的cpp加速编译，防止出现类似名称，用于确保唯一性
+// 模块包路径 + 本文件包含的类列表及数量(ClassInfo和UE_ARRAY_COUNT(ClassInfo)) + 本文件包含的结构体(USTRUCT)及数量 + 本文件包含的枚举(UENUM)及数量
+// 命名空间隔离策略：防止多个文件的ClassInfo数组冲突
 // End Registration
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -478,3 +529,60 @@ UHT 把类与父类（AGameModeBase）以及专属包（UPackage__Script_Dream�
 Class_MetaDataParams字符串表，存进内存中UClass的元数据字典
 
 DependentSingletions指针，把类挂在到父类继承树和包路径下
+
+### UHT的工作
+
+**UHT生成**
+
+代码生成时：
+1. C++编译开始之前，UHT打开原始头文件
+2. 扫描出文件物理路径，推算专属前缀(key)
+3. UHT在生成时generated.h时提前写好define定义
+
+**C++预处理器**
+
+#include物理展开
+将上面生成的文件原封不动放回头文件中
+
+**拼接**
+
+1. 预处理器读到GENERATED_BODY()
+2. 引擎会用BODY_MACRO_COMBINE(CURRENT_FILE_ID, _, \_\_LINE\_\_, _GENERATED_BODY)
+3. 预处理器代入去拼接后查询generated.h有没有已经定义好的宏，有则直接替换进去
+
+**总结**
+
+把通过UHT分析且提前生成需要的宏定义，通过generated.h的引入提前插入到C++头文件中，然后通过拼接的宏定义来确认是否已经有宏定义了
+
+### Defer(延迟)
+
+**CompiledInDeferFile**
+
+不把UClass直接创建出来的原因：DLL载入内存时，UE的核心子系统未初始化完毕，缺少GC，全局对象数组GUObjectArray未分配内存，如果贸然分类内存创建，会导致崩溃闪退
+
+**时序总览**
+```
+1. 操作系统载入 UnrealEditor-Dream.dll
+       │
+       ▼
+2. 触发 static 全局变量 Z_CompiledInDeferFile... 的初始化构造
+       │
+       ▼
+3. 将包含类名、CRC 哈希和创建函数指针的 ClassInfo 提交到引擎全局待办列表
+       │
+       ▼
+4. [延迟等待] 引擎核心组件（GC、内存池、对象系统）初始化完毕
+       │
+       ▼
+5. 引擎统一遍历待办列表，调用 Z_Construct_UClass_ADreamGameModeBase 正式诞生 UClass
+```
+
+**static constexpr**
+
+static constexpr 是 C++11 引入的关键字组合，用于优化性能
+
+- static(静态)：属于类型本身，不属于某个对象实例，通过结构体名称 + ::ClassInfo访问，全局只存在一份
+- constexpr(常量表达式)：在编译时计算出值，而不是在运行时计算
+  - 普通变量：运行且内存分配后，CPU一条条写入(运行时开销)
+  - constexpr 变量：在编译生成DLL时，直接算好硬编码到DLL文件中的只读数据段(.rdata)
+  - CPU无需初始化，在内存加载时就绪，零运行时开销

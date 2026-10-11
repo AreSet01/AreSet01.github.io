@@ -198,6 +198,27 @@
 
   // ---------- 全局事件委托（坚不可摧，永远不会丢失监听） ----------
 
+  function setBlockZoom(block: HTMLElement, zoom: number) {
+    const renderEl = block.querySelector<HTMLElement>('.mermaid-render');
+    const stageEl = block.querySelector<HTMLElement>('.mermaid-stage');
+    const zoomVal = block.querySelector<HTMLElement>('.mermaid-zoom-val');
+    if (!renderEl) return;
+
+    const clamped = Math.min(5.0, Math.max(0.4, Math.round(zoom * 100) / 100));
+    block.dataset.currentZoom = `${clamped}`;
+    if (zoomVal) zoomVal.textContent = `${Math.round(clamped * 100)}%`;
+    renderEl.style.transform = clamped === 1.0 ? '' : `scale(${clamped})`;
+    if (clamped > 1.0) {
+      stageEl?.classList.add('is-zoomed');
+    } else {
+      stageEl?.classList.remove('is-zoomed');
+      if (stageEl) {
+        stageEl.scrollLeft = 0;
+        stageEl.scrollTop = 0;
+      }
+    }
+  }
+
   function ensureGlobalDelegation() {
     if (globalDelegationBound) return;
     globalDelegationBound = true;
@@ -261,27 +282,6 @@
         }
         return;
       }
-
-  function setBlockZoom(block: HTMLElement, zoom: number) {
-    const renderEl = block.querySelector<HTMLElement>('.mermaid-render');
-    const stageEl = block.querySelector<HTMLElement>('.mermaid-stage');
-    const zoomVal = block.querySelector<HTMLElement>('.mermaid-zoom-val');
-    if (!renderEl) return;
-
-    const clamped = Math.min(5.0, Math.max(0.4, Math.round(zoom * 100) / 100));
-    block.dataset.currentZoom = `${clamped}`;
-    if (zoomVal) zoomVal.textContent = `${Math.round(clamped * 100)}%`;
-    renderEl.style.transform = clamped === 1.0 ? '' : `scale(${clamped})`;
-    if (clamped > 1.0) {
-      stageEl?.classList.add('is-zoomed');
-    } else {
-      stageEl?.classList.remove('is-zoomed');
-      if (stageEl) {
-        stageEl.scrollLeft = 0;
-        stageEl.scrollTop = 0;
-      }
-    }
-  }
 
       // 4. 局部缩放（放大、缩小、复位）
       const zoomInBtn = target.closest<HTMLElement>('.mermaid-btn-zoom-in');

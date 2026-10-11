@@ -20,7 +20,7 @@ test('Post Reveal Smooth Scroll, 900ms Transition & Guaranteed Replay Suite (Opt
     );
     assert.match(
       postLayoutContent,
-      /revealObserver[\s\S]*?entry\.isIntersecting[\s\S]*?entry\.target\.classList\.add\('is-in'\)/,
+      /revealObserver[\s\S]*?entry\.isIntersecting[\s\S]*?classList\.add\('is-in'\)/,
       'revealObserver 进场时添加 is-in'
     );
     // 验证 revealObserver 不会在视口内或边缘直接 remove is-in
@@ -33,7 +33,7 @@ test('Post Reveal Smooth Scroll, 900ms Transition & Guaranteed Replay Suite (Opt
     );
   });
 
-  await t.test('2. PostLayout.astro 120px+ 离屏静默重置: 确保往返滚动 100% 完整重播 (解决重放缺失)', () => {
+  await t.test('2. PostLayout.astro 120px+ 离屏静默重置: 仅重置视口下方的块，向上滚动零逆向位移', () => {
     // 验证 resetObserver 离屏观察器
     assert.match(
       postLayoutContent,
@@ -52,11 +52,37 @@ test('Post Reveal Smooth Scroll, 900ms Transition & Guaranteed Replay Suite (Opt
       /resetObserver[\s\S]*?!entry\.isIntersecting[\s\S]*?entry\.target\.classList\.remove\('is-in'\)/,
       'resetObserver 仅在元素彻底移出屏幕 120px 以外时才安全移除 is-in 供下次重播'
     );
+    // 方向守卫：留在视口上方的块必须保持进场态，否则向上滚动时内容会逆着手势重新位移
+    assert.match(
+      postLayoutContent,
+      /resetObserver[\s\S]*?!entry\.isIntersecting[\s\S]*?if\s*\(entry\.boundingClientRect\.top\s*<=\s*0\)\s*return;[\s\S]*?entry\.target\.classList\.remove\('is-in'\)/,
+      'resetObserver 必须跳过视口上方的块，只给落到下方的块重新上膛'
+    );
     // 验证生命周期清理
     assert.match(
       postLayoutContent,
       /revealObserver\.disconnect\(\);[\s\S]*?resetObserver\.disconnect\(\);/,
       '路由跳转与销毁时必须正确断开双观察器'
+    );
+  });
+
+  await t.test('2b. 从视口上方进入的未进场块静默显形，绝不逆着手势播动画', () => {
+    const revealObserverMatch = postLayoutContent.match(/const\s+revealObserver\s*=\s*new\s+IntersectionObserver\([\s\S]*?\},\s*\{\s*rootMargin:\s*'0px 0px -4% 0px'/);
+    assert.ok(revealObserverMatch, '必须找到 revealObserver 定义');
+    assert.match(
+      revealObserverMatch[0],
+      /entry\.boundingClientRect\.top\s*<\s*0[\s\S]*?classList\.add\('pr-instant',\s*'is-in'\)/,
+      'revealObserver 对从上方进入的块必须附加 pr-instant 抑制过渡'
+    );
+    assert.match(
+      revealObserverMatch[0],
+      /requestAnimationFrame\([\s\S]*?classList\.remove\('pr-instant'\)/,
+      'pr-instant 必须在渲染一帧后移除，不得污染后续重播'
+    );
+    assert.match(
+      globalCssContent,
+      /\.prose\s+\.pr\.pr-instant[\s\S]*?transition:\s*none\s*!important;[\s\S]*?animation:\s*none\s*!important;/,
+      'global.css 必须提供 .pr-instant 过渡与动画抑制规则'
     );
   });
 

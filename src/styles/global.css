@@ -5713,6 +5713,16 @@ html.font-switching::view-transition-new(root) {
     transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Entering from above the viewport (scrolling up into a block that never played):
+   land straight on the final state, so nothing ever travels against the gesture. */
+.prose .pr.pr-instant,
+.prose .pr.pr-instant::before,
+.prose .pr.pr-instant *,
+.prose .pr.pr-instant *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
 /* ---------- h2: rule draws left→right, then text follows ---------- */
 .prose .pr[data-pr="heading"] {
   transform: translate3d(-18px, 0, 0);

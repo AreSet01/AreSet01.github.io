@@ -103,7 +103,7 @@ test('4. Smooth Scrolling on TOC Link Click: -70px sticky header offset, prevent
   assert.ok(scriptCode.includes("history.pushState(null, '', '#' + id)"), 'Must update URL hash on link click');
 });
 
-test('5. Scrollspy & Internal Auto-Scroll for Long TOCs: IntersectionObserver, top fallback, scrollIntoView', () => {
+test('5. Scrollspy & Internal Auto-Scroll for Long TOCs: IntersectionObserver, top fallback, container-only scroll', () => {
   const postLayout = readFileNormalized('src/layouts/PostLayout.astro');
   const tocScriptMatch = postLayout.match(/<script is:inline>([\s\S]*?__areSetPostTocCleanup__[\s\S]*?)<\/script>/);
   const scriptCode = tocScriptMatch[1];
@@ -118,10 +118,25 @@ test('5. Scrollspy & Internal Auto-Scroll for Long TOCs: IntersectionObserver, t
     'Must provide initial fallback when window.scrollY < 200 to activate 1st section'
   );
 
-  // Auto-scroll long TOC active item into view
+  // Auto-scroll long TOC active item into view — inside the TOC's own scroller ONLY.
+  // The TOC is an inline <details> above the article, so scrollIntoView() would walk up
+  // to the document and yank the whole page back to the TOC on every scrollspy change.
   assert.ok(
-    scriptCode.includes("link.scrollIntoView({ block: 'nearest', behavior: 'smooth' })"),
-    'Must call link.scrollIntoView with block: nearest and smooth behavior'
+    scriptCode.includes('function revealLinkInToc('),
+    'Must use a dedicated revealLinkInToc helper to scroll the TOC list'
+  );
+  assert.ok(
+    scriptCode.includes('revealLinkInToc(link, true)'),
+    'Scrollspy must keep the active link visible via revealLinkInToc'
+  );
+  assert.ok(
+    /nav\.scrollTo\(\{ top, behavior: 'smooth' \}\)/.test(scriptCode) && scriptCode.includes('nav.scrollTop = top'),
+    'revealLinkInToc must write only the TOC nav scroll offset'
+  );
+  assert.doesNotMatch(
+    scriptCode,
+    /\.scrollIntoView\(/,
+    'TOC script must never call scrollIntoView — it drags the whole page scroll position back to the TOC'
   );
 });
 
@@ -181,10 +196,10 @@ test('7. Edge Cases & Robustness: deduplication of setActive, hash priority, saf
     'Must set toc.open = false before cancelling animation fill to prevent 1-frame flash of open content'
   );
 
-  // Auto-scroll active link when user expands TOC
+  // Auto-scroll active link when user expands TOC — container-only, never the page
   assert.ok(
     scriptCode.includes("const activeLink = toc.querySelector('.post-toc-link.is-active');") &&
-      scriptCode.includes('activeLink.scrollIntoView({ block: \'nearest\' });'),
+      scriptCode.includes('revealLinkInToc(activeLink, false)'),
     'Must scroll active link into view inside scrollable nav when TOC is expanded'
   );
 
