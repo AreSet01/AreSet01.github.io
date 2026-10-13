@@ -184,44 +184,73 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 static_assert(!UE_WITH_CONSTINIT_UOBJECT, "This generated code can only be compiled with !UE_WITH_CONSTINIT_OBJECT");
+// cpp文件编译出来的obj目标文件中全是静态变量、模板或者只在别处被间接调用的内部函数，会被某些优化给去除
+// 防止链接器在打包的时候将整个gen.cpp文件误删
 void EmptyLinkFunctionForGeneratedCodeDream_GameModeBase() {}
 
 // Begin Cross Module References 
+// 跨模块引用，先前置函数声明，编译当前文件，在链接的时候再去配对
 DREAM_API UClass* Z_Construct_UClass_ADreamGameModeBase();
 DREAM_API UClass* Z_Construct_UClass_ADreamGameModeBase_NoRegister();
 ENGINE_API UClass* Z_Construct_UClass_AGameModeBase();
 UPackage* Z_Construct_UPackage__Script_Dream();
 // End Cross Module References 
 
-// Begin Class ADreamGameModeBase 
+// Begin Class ADreamGameModeBase
+// 
+// StaticClass()的底层实现
+// 全局静态结构体变量，充当该类在内存中的”单例指针寄存处与状态注册卡“
+// 核心变量UClass* InnerSingleton 初始化为nullptr，一旦这个类的UClass被创建，则直接锁定存于此
 FClassRegistrationInfo Z_Registration_Info_UClass_ADreamGameModeBase;
+// 写入与获取类的指针
 UClass* ADreamGameModeBase::GetPrivateStaticClass()
 {
-	using TClass = ADreamGameModeBase;
-	if (!Z_Registration_Info_UClass_ADreamGameModeBase.InnerSingleton)
-	{
-		GetPrivateStaticClassBody(
-			TClass::StaticPackage(),
-			TEXT("DreamGameModeBase"),
-			Z_Registration_Info_UClass_ADreamGameModeBase.InnerSingleton,
-			StaticRegisterNativesADreamGameModeBase,
-			sizeof(TClass),
-			alignof(TClass),
-			TClass::StaticClassFlags,
-			TClass::StaticClassCastFlags(),
-			TClass::StaticConfigName(),
-			(UClass::ClassConstructorType)InternalConstructor<TClass>,
-			(UClass::ClassVTableHelperCtorCallerType)InternalVTableHelperCtorCaller<TClass>,
-			UOBJECT_CPPCLASS_STATICFUNCTIONS_FORCLASS(TClass),
-			&TClass::Super::StaticClass,
-			&TClass::WithinClass::StaticClass
-		);
-	}
-	return Z_Registration_Info_UClass_ADreamGameModeBase.InnerSingleton;
+    using TClass = ADreamGameModeBase;
+    // 懒加载，首次调用时InnerSingleton为空，执行GetPrivateStaticClassBody然后写入
+    // 其余调用直接return
+    if (!Z_Registration_Info_UClass_ADreamGameModeBase.InnerSingleton)
+    {
+      // 在堆内存中分配空间，把类的参数写入UClass
+        GetPrivateStaticClassBody(
+          // 传入所属包
+            TClass::StaticPackage(),
+            // 类的内部反射名字
+            TEXT("DreamGameModeBase"),
+            // 传入参数引用，用于接收UClass*
+            Z_Registration_Info_UClass_ADreamGameModeBase.InnerSingleton,
+            // 原生函数注册器
+            StaticRegisterNativesADreamGameModeBase,
+            // 类的物理字节大小(内存分配)
+            sizeof(TClass),
+            // 类的内存对齐字节数
+            alignof(TClass),
+            // 类标志位
+            TClass::StaticClassFlags,
+            // 快速类型转换位掩码
+            TClass::StaticClassCastFlags(),
+            // 配置文件名
+            TClass::StaticConfigName(),
+            // 类的标准C++构造函数调用桩，通过UClass去new一个该类的对象
+            (UClass::ClassConstructorType)InternalConstructor<TClass>,
+            // 热重载/Live Coding修复虚函数表专用的辅助构造器桩
+            (UClass::ClassVTableHelperCtorCallerType)InternalVTableHelperCtorCaller<TClass>,
+            // 类静态函数扩展宏
+            UOBJECT_CPPCLASS_STATICFUNCTIONS_FORCLASS(TClass),
+            // 父类连接器(传入父类的函数指针， 把类继承树串起来)
+            &TClass::Super::StaticClass,
+            // 外部归属限制器(默认UObject)
+            &TClass::WithinClass::StaticClass
+        );
+    }
+    return Z_Registration_Info_UClass_ADreamGameModeBase.InnerSingleton;
 }
+// 跨模块调用接口
+// 解决访问权限问题：GetPrivateStaticClass类私有，但头文件中有友元声明
+// 跨DLL导出：其它模块在没有引入当前具体类的情况下，只想拿到这个类的UClass*，可以直接通过DLL动态链接直接调用这个全局函数
+// NoRegister意味着只保证返回内存中的UClass*指针，不强制触发模块完整级联注册，防止模块间相互依赖引用时产生死锁or循环递归加载
 UClass* Z_Construct_UClass_ADreamGameModeBase_NoRegister()
 {
-	return ADreamGameModeBase::GetPrivateStaticClass();
+    return ADreamGameModeBase::GetPrivateStaticClass();
 }
 
 // 类外声明，类内初始化
@@ -249,9 +278,11 @@ struct Z_Construct_UClass_ADreamGameModeBase_Statics
 
   // 假设：float Health()被加上了UPROPERTY()
   // static const UECodeGen_Private::FFloatPropertyParams NewProp_Health;
+  // 属性指针数组
   // static const UECodeGen_Private::FPropertyParamsBase* const PropPointers[];
-  // 则下方在类外会有定义
-
+  // 这两个会出现在类外定义
+  // 同理还会有函数，接口的指针数组
+  
   // End Class ADreamGameModeBase constinit property declarations 
 
   // 依赖项声明
@@ -275,7 +306,6 @@ struct Z_Construct_UClass_ADreamGameModeBase_Statics
 
 // 函数指针，指向依赖的单例对象(父类和模块包)，用于在运行时获取这些对象的引用
 // 连接父类与模块包，保证父类以及虚拟路径先于该类被创建
-// 通过static_assert确保依赖的单例总数不超过16个
 UObject* (*const Z_Construct_UClass_ADreamGameModeBase_Statics::DependentSingletons[])() = {
   // 父类(AGameModeBase)
 	(UObject* (*)())Z_Construct_UClass_AGameModeBase,
@@ -285,6 +315,11 @@ UObject* (*const Z_Construct_UClass_ADreamGameModeBase_Statics::DependentSinglet
   (UObject* (*)())Z_Construct_UPackage__Script_Dream,
   // 内存中完整的对象路径：/Script/Dream.DreamGameModeBase
 };
+
+// 通过static_assert确保依赖的单例总数不超过16个
+// 依赖项构成精简：设计设想只继承这个类的直接父类、所属模块包以及继承实现的UINTERFACE接口
+// 栈上固定小内存优化：引擎底层ConstructUClass在递归解析依赖单例时，内部使用大小固定为16的紧凑数组直接在CPU栈上跑循环，避免了堆内存分配开销
+// 架构防呆：防止开发者过度设计
 static_assert(UE_ARRAY_COUNT(Z_Construct_UClass_ADreamGameModeBase_Statics::DependentSingletons) < 16);
 
 // 打包类信息
@@ -303,7 +338,7 @@ const UECodeGen_Private::FClassParams Z_Construct_UClass_ADreamGameModeBase_Stat
 	nullptr,
 	// 依赖项数量
 	UE_ARRAY_COUNT(DependentSingletons),
-	// 函数数量、属性数量、接口数量
+	// 函数数量、属性数量、接口数量UE_ARRAY_COUNT
 	0,
 	0,
 	0,
@@ -313,9 +348,22 @@ const UECodeGen_Private::FClassParams Z_Construct_UClass_ADreamGameModeBase_Stat
 	METADATA_PARAMS(UE_ARRAY_COUNT(Z_Construct_UClass_ADreamGameModeBase_Statics::Class_MetaDataParams), Z_Construct_UClass_ADreamGameModeBase_Statics::Class_MetaDataParams)
 };
 
-
+// 将C++注册到蓝图虚拟机
+// 被GetPrivateStaticClass()函数调用
 void ADreamGameModeBase::StaticRegisterNativesADreamGameModeBase()
 {
+  // 识别UFUNCTION()，在此生成：
+  // 取得类的指针地址
+  // UClass* Class = ADreamGameModeBase::StaticClass();
+  // 建立名称-地址映射表
+  // static const FNameNativePtrPair Funcs[] = {
+  //   { "函数名",
+  //     &ADreamGameModeBase::exec函数名
+  //   },
+  // };
+  // 将映射表写入UClass内部的函数查找表中
+  // FNativeFunctionRegistrar::RegisterFunctions(Class, Funcs, UE_ARRAY_COUNT(Funcs));
+  // exec函数名是UHT自动生成的C++包装桩函数地址
 }
 
 // 判断单例是否存在，如果不存在就触发构建
@@ -370,6 +418,43 @@ static FRegisterCompiledInInfo Z_CompiledInDeferFile_FID_Dream_Source_Dream_Publ
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+```
+
+#### 讲解
+static const UECodeGen_Private::FFloatPropertyParams NewProp_Health定义
+```c++
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_ADreamGameModeBase_Statics::NewProp_Health = {
+  // 变量名字符串
+  "Health",
+  // 状态通知函数(RepNotify)
+  nullptr,
+  // 属性修饰标志符
+  (EPropertyFlags)0x0010000000000000,
+  // 类型标签
+  UECodeGen_Private::EPropertyFlags::Float,
+  // 对象标志符
+  RF_Public|RF_Transient|RF_MarkAsNative,
+  // 拥有者
+  nullptr,
+  // 外部元数据
+  nullptr,
+  // 数组元素个数(非数组为1)
+  1,
+  // 计算变量在类内存里的真实字节偏移量
+  // 反射最底层的物理依据，引擎要通过字符串去读写，底层执行就是拿对象的首地址指针this，加上这里算出来的字节偏移量，定位到浮点数内存
+  STRUCT_OFFSET(ADreamGameModeBase, Health),
+  // 属性专属元数据
+  METADATA_PARAMS(0, nullptr)
+};
+```
+
+
+static const UECodeGen_Private::FPropertyParamsBase* const PropPointers[]定义
+```c++
+// 属性指针数组
+const UECodeGen_Private::FPropertyParamsBase* const Z_Construct_UClass_ADreamGameModeBase_Statics::PropPointers[] = {
+  (const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_ADreamGameModeBase_Statics::NewProp_Health,
+};
 ```
 
 ## 部分概念
@@ -577,7 +662,7 @@ DependentSingletions指针，把类挂在到父类继承树和包路径下
 5. 引擎统一遍历待办列表，调用 Z_Construct_UClass_ADreamGameModeBase 正式诞生 UClass
 ```
 
-**static constexpr**
+### static constexpr
 
 static constexpr 是 C++11 引入的关键字组合，用于优化性能
 
@@ -586,3 +671,61 @@ static constexpr 是 C++11 引入的关键字组合，用于优化性能
   - 普通变量：运行且内存分配后，CPU一条条写入(运行时开销)
   - constexpr 变量：在编译生成DLL时，直接算好硬编码到DLL文件中的只读数据段(.rdata)
   - CPU无需初始化，在内存加载时就绪，零运行时开销
+
+### static_assert
+
+static_assert 是 C++11 引入的编译时断言宏，用于在编译时检查条件是否满足
+
+与普通assert区别：
+- **static_assert** 编译时断言，不依赖于运行时条件，因此不会产生运行时开销；如果不满足不会打包成可执行文件，编译时就会报错，生成二进制文件后，语句从程序中消失，不占用开销
+- **普通assert** 运行时断言，依赖于运行时条件，可能会产生运行时开销；如果不满足，会在运行时抛出异常
+
+### 三种指针数组
+
+- **PropPointers**：属性指针数组
+- **FuncInfo**：函数指针数组
+- **InterfaceInfo**：接口指针数组
+
+#### 属性数组构成：
+```c++
+const UECodeGen_Private::FPropertyParamsBase* const ...::PropPointers[] = {
+  (const UECodeGen_Private::FPropertyParamsBase*)&...::NewProp_CardDataTable,
+};
+```
+
+数组类型：基类指针数组 FPropertyParamsBase* const[]
+
+元素实质：根据具体的数据类型，指向不同的特化结构体：
+- 普通对象指针：FObjectPropertyParams
+- 字符串：FStrPropertyParams
+- 结构体：FStructPropertyParams
+- 动态数组：FArrayPropertyParams
+- 布尔值：FBoolPropertyParams
+
+#### 函数数组构成：
+```c++
+static constexpr FClassFunctionLinkInfo FuncInfo[] = {
+  // 函数构造器指针, "函数名" 
+  { &Z_Construct_UFunction_UDreamCardPoolSubsystem_GetArrayCard, "GetArrayCard"},
+}
+```
+
+#### 接口数组构成：
+```c++
+static const UECodeGen_Private::FImplementedInterfaceParams InterfaceInfo[] = {
+    { 
+        // 接口的 UClass 构造函数
+        (UObject* (*)())Z_Construct_UClass_UCombatInterface,
+        // 虚函数表偏移量(VTable Offset)
+        VTABLE_OFFSET(AMyCharacter, ICombatInterface),
+        // 是否由蓝图 K2 纯脚本实现
+        false
+    },
+};
+```
+
+解决多重继承会导致类对象的指针地址发生移动：VTABLE_OFFSET记录偏移插值
+
+作用：
+- 在蓝图或C++中使用Cast<ICombatInterface>(MyActor)时，能瞬间计算正确的接口指针
+- 支撑MyActor->GetClass()->ImplementsInterface(...) 的快速真伪判定
