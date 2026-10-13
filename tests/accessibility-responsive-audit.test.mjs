@@ -5,17 +5,18 @@ import path from 'node:path';
 
 describe('全站界面可视性、无障碍与多端响应式自动化审计守护套件 (Accessibility & Responsive Audit)', () => {
   const rootDir = process.cwd();
-  const globalCss = fs.readFileSync(path.join(rootDir, 'src/styles/global.css'), 'utf8');
-  const baseLayout = fs.readFileSync(path.join(rootDir, 'src/layouts/BaseLayout.astro'), 'utf8');
-  const postLayout = fs.readFileSync(path.join(rootDir, 'src/layouts/PostLayout.astro'), 'utf8');
-  const inkAskAstro = fs.readFileSync(path.join(rootDir, 'src/components/InkAsk.astro'), 'utf8');
-  const headerAstro = fs.readFileSync(path.join(rootDir, 'src/components/Header.astro'), 'utf8');
-  const pinWorkbenchAstro = fs.readFileSync(path.join(rootDir, 'src/components/PinWorkbench.astro'), 'utf8');
-  const zenSoundscapeAstro = fs.readFileSync(path.join(rootDir, 'src/components/ZenSoundscape.astro'), 'utf8');
-  const dockAstro = fs.readFileSync(path.join(rootDir, 'src/components/ArticleSelectionDock.astro'), 'utf8');
-  const settingsAstro = fs.readFileSync(path.join(rootDir, 'src/pages/settings.astro'), 'utf8');
-  const galleryAstro = fs.readFileSync(path.join(rootDir, 'src/pages/gallery.astro'), 'utf8');
-  const lifeAstro = fs.readFileSync(path.join(rootDir, 'src/pages/life.astro'), 'utf8');
+  const readNormalized = (relPath) => fs.readFileSync(path.join(rootDir, relPath), 'utf8').replace(/\r\n/g, '\n');
+  const globalCss = readNormalized('src/styles/global.css');
+  const baseLayout = readNormalized('src/layouts/BaseLayout.astro');
+  const postLayout = readNormalized('src/layouts/PostLayout.astro');
+  const inkAskAstro = readNormalized('src/components/InkAsk.astro');
+  const headerAstro = readNormalized('src/components/Header.astro');
+  const pinWorkbenchAstro = readNormalized('src/components/PinWorkbench.astro');
+  const zenSoundscapeAstro = readNormalized('src/components/ZenSoundscape.astro');
+  const dockAstro = readNormalized('src/components/ArticleSelectionDock.astro');
+  const settingsAstro = readNormalized('src/pages/settings.astro');
+  const galleryAstro = readNormalized('src/pages/gallery.astro');
+  const lifeAstro = readNormalized('src/pages/life.astro');
 
   // ---------- 辅助数学算法：WCAG 2.1 相对亮度与对比度 ----------
   function hexToRgb(hex) {
