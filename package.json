@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build --force",
+    "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && astro build --force",
     "hash:password": "node scripts/hash-password.mjs",
     "ask": "node server/ask.mjs",
     "deploy": "node scripts/deploy-server.mjs",

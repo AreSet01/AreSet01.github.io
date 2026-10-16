@@ -17,7 +17,7 @@
 //      服务器上 nginx 与 blog-ask 已按 server/README.md 装好。
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -36,6 +36,7 @@ if (!server) {
 }
 
 const root = path.resolve(import.meta.dirname, '..');
+const distDir = path.join(root, 'dist');
 const siteDir = process.env.BLOG_SITE_DIR || '/var/www/blog';
 const appDir = process.env.BLOG_APP_DIR || '/opt/blog/server';
 const remoteTmp = process.env.BLOG_REMOTE_TMP || '/tmp';
@@ -63,6 +64,30 @@ const cleanStaleArchives = () => {
   }
 };
 
+const cleanDist = () => {
+  try {
+    if (existsSync(distDir)) {
+      rmSync(distDir, { recursive: true, force: true });
+    }
+  } catch (err) {
+    console.warn(`    [cleanDist] 警告: 清理 dist 失败: ${err.message}`);
+  }
+};
+
+const cleanDsStore = (dir) => {
+  try {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        cleanDsStore(fullPath);
+      } else if (entry.name === '.DS_Store') {
+        try { unlinkSync(fullPath); } catch {}
+      }
+    }
+  } catch {}
+};
+
 const sh = (cmd, args, opts = {}) => spawnSync(cmd, args, { stdio: 'inherit', ...opts });
 function run(cmd, args, what, opts = {}) {
   const result = sh(cmd, args, opts);
@@ -71,7 +96,8 @@ function run(cmd, args, what, opts = {}) {
 }
 
 try {
-  console.log('==> 1/5 构建（本地跑，峰值约 1.9GB 内存，服务器不参与）');
+  console.log('==> 1/5 清理旧残留并构建（本地跑，峰值约 1.9GB 内存，服务器不参与）');
+  cleanDist();
   // 直接跑 Astro 的 CLI，不经过 npm：Windows 上 npm 是 .cmd，Node 18.20.2+ 禁止直接 spawn（EINVAL），
   // 而 process.execPath 是同一个 node，到处都能用。入口从 astro 自己的 package.json 里读。
   const astroEntry = JSON.parse(readFileSync(path.join(root, 'node_modules/astro/package.json'), 'utf8')).bin.astro;
@@ -79,7 +105,16 @@ try {
 
   console.log(`==> 2/5 打包 dist/（${archive}）`);
   cleanStaleArchives();
-  run('tar', ['-czf', archive, '-C', 'dist', '.'], 'tar', { cwd: root });
+  cleanDsStore(distDir);
+  run(
+    'tar',
+    ['--exclude=.DS_Store', '-czf', archive, '-C', 'dist', '.'],
+    'tar',
+    {
+      cwd: root,
+      env: { ...process.env, COPYFILE_DISABLE: '1' }
+    }
+  );
 
   console.log(`==> 3/5 上传到 ${server}:${remoteTmp}`);
   if (dryRun) console.log(`    [dry-run] scp ${localArchive} ${server}:${remoteTmp}/`);
