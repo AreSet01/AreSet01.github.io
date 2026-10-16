@@ -511,12 +511,12 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
                     window.scrollTo({ top: currentY, behavior: 'instant' });
                   }
                 }
-                ScrollTrigger.update();
-                try { (window as any).lenis?.resize(); } catch {}
               },
               onComplete: () => {
                 gsap.set(tableBody, { clearProps: 'height,overflow' });
                 tableTween = null;
+                ScrollTrigger.update();
+                try { (window as any).lenis?.resize(); } catch {}
                 settle();
               },
             });

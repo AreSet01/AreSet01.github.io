@@ -372,8 +372,8 @@
     // Board floor is row 11.
     // Piece 1: J-Piece left foundation (cols 0-2, row 11; col 0, row 10)
     // Piece 2: L-Piece left locking wedge (cols 1-3, row 10; col 3, row 11) -> Solid 4x2 on left!
-    // Piece 3: J-Piece right foundation (cols 6-8, row 10; col 6, row 11)
-    // Piece 4: L-Piece right locking wedge (col 9, row 10; cols 7-9, row 11) -> Solid 4x2 on right!
+    // Piece 3: L-Piece right foundation (col 9, row 10; cols 7-9, row 11) -> Drops directly to floor first!
+    // Piece 4: J-Piece right locking wedge (cols 6-8, row 10; col 6, row 11) -> Solid 4x2 on right!
     // Piece 5: O-Piece Signature Vermilion Seal (cols 4-5, rows 10-11) -> Plugs central channel!
     // -> Row 10 & Row 11 are simultaneously completed (20/20 cells)!
     // -> Double line clear flashes & clears cleanly, leaving ZERO blocks (All Clear)!
@@ -415,24 +415,24 @@
       },
       {
         id: 3,
-        shape: [[0, 0], [1, 0], [2, 0], [0, 1]],
-        col: 6,
+        shape: [[2, 0], [0, 1], [1, 1], [2, 1]],
+        col: 7,
         targetRow: 10,
         spawnTime: 2.7,
         lockTime: 3.15,
-        color: '#b35d33', // 赭石褐
-        ghostColor: 'rgba(179, 93, 51, 0.24)',
+        color: '#233d63', // 黛蓝墨 (右侧底盘，直接落入底行)
+        ghostColor: 'rgba(35, 61, 99, 0.28)',
         settledSplash: false,
       },
       {
         id: 4,
-        shape: [[2, 0], [0, 1], [1, 1], [2, 1]],
-        col: 7,
+        shape: [[0, 0], [1, 0], [2, 0], [0, 1]],
+        col: 6,
         targetRow: 10,
         spawnTime: 3.2,
         lockTime: 3.65,
-        color: '#233d63', // 黛蓝墨
-        ghostColor: 'rgba(35, 61, 99, 0.28)',
+        color: '#b35d33', // 赭石褐 (右侧压顶楔，落在 Piece 3 之上)
+        ghostColor: 'rgba(179, 93, 51, 0.24)',
         settledSplash: false,
       },
       {
@@ -442,7 +442,7 @@
         targetRow: 10,
         spawnTime: 3.75,
         lockTime: 4.25,
-        color: vermilion, // 朱砂红印章
+        color: vermilion, // 朱砂红印章 (中路贯穿压阵)
         ghostColor: withAlpha(vermilion, 0.28),
         settledSplash: false,
       },
@@ -631,13 +631,19 @@
         spawnParticles(cx, gridY + 11 * CELL_SIZE, coarse ? 140 : 300, gridW * 0.45, 280);
       }
 
-      // 3. Render pieces
+      // 3. Render pieces with playfield clipping so blocks emerge cleanly into matrix
+      c.save();
+      c.beginPath();
+      c.rect(gridX - 1, gridY - 1, gridW + 2, gridH + 2);
+      c.clip();
+
       tetrisPieces.forEach((p) => {
         if (t < p.spawnTime) return;
 
         const isLocked = t >= p.lockTime;
         const fallProgress = isLocked ? 1 : clamp01((t - p.spawnTime) / (p.lockTime - p.spawnTime));
-        const curRow = isLocked ? p.targetRow : -3 + (p.targetRow + 3) * easeOutQuad(fallProgress);
+        // Natural gravity drop: steady entry accelerating cleanly into lock
+        const curRow = isLocked ? p.targetRow : -3 + (p.targetRow + 3) * (fallProgress * (0.6 + 0.4 * fallProgress));
 
         // Draw ghost piece if piece is currently falling
         if (!isLocked && t >= p.spawnTime + 0.06) {
@@ -666,6 +672,8 @@
           drawTetrisBlock(c, col, row, p.color, baseAlpha * (0.6 + fallProgress * 0.4), false, false);
         });
       });
+
+      c.restore();
 
       // 4. Double Line clear beam / golden vermilion wave across Rows 10 & 11
       if (t >= CLEAR_FLASH_START && t < CLEAR_END + 0.15) {

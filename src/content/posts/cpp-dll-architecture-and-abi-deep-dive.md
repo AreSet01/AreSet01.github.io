@@ -115,12 +115,12 @@ flowchart LR
 ```mermaid title="带 dllimport 与不带 dllimport 的汇编调用路径对比"
 flowchart TD
     subgraph 情况 A: 声明了 __declspec dllimport 极致优化
-        CodeA[call qword ptr [__imp_DoSomething]] --> DirectIAT[直接查 IAT 读取真实函数指针]
+        CodeA["call qword ptr [__imp_DoSomething]"] --> DirectIAT[直接查 IAT 读取真实函数指针]
         DirectIAT --> TargetA[直达 DLL 内部机器码 执行]
     end
 
     subgraph 情况 B: 漏写 __declspec dllimport 产生额外跳转
-        CodeB[call DoSomething 本地静态函数] --> Thunk[jmp qword ptr [__imp_DoSomething]<br/>编译器生成的辅助跳板 Thunk]
+        CodeB[call DoSomething 本地静态函数] --> Thunk["jmp qword ptr [__imp_DoSomething]<br/>编译器生成的辅助跳板 Thunk"]
         Thunk --> DirectIAT2[查 IAT 读取函数指针]
         DirectIAT2 --> TargetB[到达 DLL 内部机器码 执行]
     end
@@ -214,7 +214,7 @@ extern "C" MYLIB_API void DestroyCombatSystem(ICombatSystem* Instance);
 flowchart LR
     subgraph Host[宿主程序 Main.exe]
         Ptr[ICombatSystem* 指针]
-        Code[调用: Ptr->CastSkill(1001)]
+        Code["调用: Ptr->CastSkill(1001)"]
     end
 
     subgraph Memory[实例内存布局 位于 DLL 堆区]
@@ -285,19 +285,19 @@ int main() {
 
 ```mermaid title="静态链接 CRT (/MT) 导致的跨模块堆隔离与崩溃机理"
 flowchart TD
-    subgraph DLL[MyDll.dll (静态链接 CRT /MT)]
+    subgraph DLL["MyDll.dll (静态链接 CRT /MT)"]
         HeapA[独立 CRT 堆句柄 A]
         Alloc[new char 1024]
         Alloc -->|在堆 A 中分配内存块 0x7FFF1000| HeapA
     end
 
-    subgraph EXE[Main.exe (静态链接 CRT /MT)]
+    subgraph EXE["Main.exe (静态链接 CRT /MT)"]
         HeapB[独立 CRT 堆句柄 B]
         Free[delete Buf 指针 0x7FFF1000]
         Free -. 拿着 0x7FFF1000 强行向堆 B 归还! .-> HeapB
     end
 
-    HeapB --> Crash[💥 崩溃: HEAP CORRUPTION DETECTED<br/>该指针不属于堆 B 的内存控制块!]
+    HeapB --> Crash["💥 崩溃: HEAP CORRUPTION DETECTED<br/>该指针不属于堆 B 的内存控制块!"]
     style Crash fill:#ffdddd,stroke:#ff0000,stroke-width:2px;
 ```
 

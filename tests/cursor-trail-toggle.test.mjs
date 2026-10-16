@@ -8,7 +8,7 @@ const headerPath = path.join(rootDir, 'src/components/Header.astro');
 const globalCssPath = path.join(rootDir, 'src/styles/global.css');
 const baseLayoutPath = path.join(rootDir, 'src/layouts/BaseLayout.astro');
 
-test('Cursor Trail Toggle & Native Pointer Restoration Suite', async (t) => {
+test('Cursor Trail Toggle & Permanent Circle Pointer Suite', async (t) => {
   const headerContent = fs.readFileSync(headerPath, 'utf-8');
   const globalCssContent = fs.readFileSync(globalCssPath, 'utf-8');
   const baseLayoutContent = fs.readFileSync(baseLayoutPath, 'utf-8');
@@ -33,7 +33,7 @@ test('Cursor Trail Toggle & Native Pointer Restoration Suite', async (t) => {
     );
   });
 
-  await t.test('2. Header.astro 指针开关交互与全局 API: setCursorTrailDisabled 与画布休眠', () => {
+  await t.test('2. Header.astro 指针开关交互与全局 API: 仅禁用拖尾，常驻圆圈指针', () => {
     // 验证导出全局 API
     assert.match(
       headerContent,
@@ -58,46 +58,45 @@ test('Cursor Trail Toggle & Native Pointer Restoration Suite', async (t) => {
       '点击开关必须立即切换 isCursorTrailDisabled 状态'
     );
 
-    // 验证 setCursorTrailDisabled 中主动同步 canvas display: none
+    // 验证圆圈指针常驻绘制：无论拖尾开关如何，在 brush.isVisible 时均绘制中心实心墨核与外圈发丝细线
     assert.match(
       headerContent,
-      /if\s*\(canvas\)\s*canvas\.style\.display\s*=\s*'none';/,
-      '禁用指针拖尾时必须主动将 canvas 设为 display: none'
+      /(activeCtx|ctx)\.arc\(mouse\.x,\s*mouse\.y,\s*1\.5,\s*0,\s*Math\.PI\s*\*\s*2\);/,
+      'Header.astro 必须始终在鼠标位置绘制 1.5px 中心墨核'
     );
     assert.match(
       headerContent,
-      /if\s*\(canvas\)\s*canvas\.style\.removeProperty\('display'\);/,
-      '启用指针拖尾时必须移除 display 内联样式'
+      /(activeCtx|ctx)\.arc\(mouse\.x,\s*mouse\.y,\s*brush\.outerRadius,\s*0,\s*Math\.PI\s*\*\s*2\);/,
+      'Header.astro 必须始终在鼠标位置绘制 outerRadius 外圈细线'
+    );
+    // 验证禁用拖尾时仅清空/阻断墨线 points，绝不将 canvas 隐藏为 display: none
+    assert.doesNotMatch(
+      headerContent,
+      /if\s*\(disabled\)[\s\S]*?canvas\.style\.display\s*=\s*'none'/,
+      '禁用拖尾时不得将 canvas 设为 display: none，必须保留圆圈指针渲染'
     );
   });
 
-  await t.test('3. global.css 原生电脑系统指针彻底回归: 作用域隔离与零残留 cursor: none', () => {
-    // 验证 cursor: none 仅对未禁用状态生效
+  await t.test('3. global.css 圆圈指针常驻与原生指针彻底隐藏: 桌面端绝不冒出系统箭头', () => {
+    // 验证桌面端 cursor: none 常驻隐藏原生箭头
     assert.match(
       globalCssContent,
-      /html:not\(\[data-cursor-trail="disabled"\]\),\s*html:not\(\[data-cursor-trail="disabled"\]\)\s+body\s*\{\s*cursor:\s*none\s*!important;\s*\}/,
-      'global.css 必须仅在 html:not([data-cursor-trail="disabled"]) 下隐藏原生指针'
+      /html,\s*html body\s*\{\s*cursor:\s*none\s*!important;\s*\}/,
+      'global.css 必须在 pointer: fine 下常驻隐藏原生指针，保障圆圈指针独占'
     );
 
-    // 验证当 data-cursor-trail="disabled" 时完整恢复系统指针
+    // 验证文本输入框保留 text 提示
     assert.match(
       globalCssContent,
-      /html\[data-cursor-trail="disabled"\],\s*html\[data-cursor-trail="disabled"\]\s+body,\s*html\[data-cursor-trail="disabled"\]\s+\.home-ticker\s*\{\s*cursor:\s*auto\s*!important;\s*\}/,
-      '禁用时 html、body、home-ticker 必须强制恢复 cursor: auto !important'
+      /cursor:\s*text\s*!important;/,
+      '文本输入框必须保留 cursor: text 保证输入体验'
     );
 
-    // 验证核心交互元素恢复 pointer 指针
-    assert.match(
-      globalCssContent,
-      /html\[data-cursor-trail="disabled"\]\s+a,[\s\S]*?html\[data-cursor-trail="disabled"\]\s+button,[\s\S]*?html\[data-cursor-trail="disabled"\]\s+\.cursor-trail-toggle/,
-      '禁用时所有交互按钮与链接必须恢复 cursor: pointer !important'
-    );
-
-    // 验证 .home-ticker 不包含硬编码无条件 cursor: none
+    // 验证禁止出现将 canvas 设置为 display: none 的破坏性规则
     assert.doesNotMatch(
       globalCssContent,
-      /\.home-ticker\s*\{[\s\S]*?cursor:\s*none;/g,
-      '.home-ticker 样式规则中禁止包含硬编码无条件的 cursor: none'
+      /html\[data-cursor-trail="disabled"\]\s+#inkCanvas\s*\{\s*display:\s*none/,
+      'global.css 严禁对 #inkCanvas 施加 display: none'
     );
   });
 

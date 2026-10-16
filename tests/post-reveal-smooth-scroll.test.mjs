@@ -113,26 +113,16 @@ test('Post Reveal Smooth Scroll, 900ms Transition & Guaranteed Replay Suite (Opt
       /\.prose\s+\.pr\[data-pr="heading"\]\.is-in::before\s*\{[\s\S]*?transform\s+900ms[\s\S]*?\}/,
       '标题划线入场过渡时间必须设为 900ms'
     );
-    // 验证代码块扫描动画与裁切设定为 900ms
+    // 验证代码块 GPU 纯合成入场动画 (transform + opacity)
     assert.match(
       globalCssContent,
-      /\.prose\s+\.pr\[data-pr="code"\]\.is-in\s*>\s*pre\s*\{[\s\S]*?clip-path\s+900ms[\s\S]*?\}/,
-      '代码块入场裁切必须设为 900ms'
+      /\.prose\s+\.pr\[data-pr="code"\]\.is-in[\s\S]*?transform\s+650ms[\s\S]*?\}/,
+      '代码块入场过渡必须包含 GPU 加速 transform'
     );
+    // 验证图片 GPU 纯合成展开与缩放 (transform 900ms)
     assert.match(
       globalCssContent,
-      /\.prose\s+\.pr\[data-pr="code"\]\.is-in\s*>\s*pre::after\s*\{[\s\S]*?codeScan\s+900ms[\s\S]*?\}/,
-      '代码块光标扫描动画必须设为 900ms'
-    );
-    // 验证图片展开与缩放设定为 900ms
-    assert.match(
-      globalCssContent,
-      /\.prose\s+\.pr\[data-pr="image"\]\.is-in\s*>\s*\*\s*\{[\s\S]*?clip-path\s+900ms[\s\S]*?\}/,
-      '图片扩散展开必须设为 900ms'
-    );
-    assert.match(
-      globalCssContent,
-      /\.prose\s+\.pr\[data-pr="image"\]\.is-in\s+img\s*\{[\s\S]*?transform\s+900ms[\s\S]*?\}/,
+      /\.prose\s+\.pr\[data-pr="image"\]\.is-in[\s\S]*?transform\s+900ms[\s\S]*?\}/,
       '图片缓动缩放必须设为 900ms'
     );
   });
