@@ -445,7 +445,8 @@ const {
     <a href="#main-content" class="skip-link">跳至主要内容</a>
     <SiteIntro />
     <PostTransition />
-    <canvas id="inkCanvas" transition:persist style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 100005;"></canvas>
+    <canvas id="inkCanvas" transition:persist style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 2147483646;"></canvas>
+    <div id="custom-cursor" aria-hidden="true" transition:persist><span class="cursor-dot"></span><span class="cursor-ring"></span></div>
     <ZenRainscape transition:persist />
     <ZenSoundscape transition:persist />
     <div class:list={['site-shell', { 'site-shell-standalone': standalone }]}>
@@ -558,12 +559,12 @@ const {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
         const lenis = new Lenis({
-          duration: 1.1, // Faster
+          duration: 0.85, // Snappy & responsive, eliminates sluggish dragging feel
           easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // Custom premium easing
           orientation: 'vertical',
           gestureOrientation: 'vertical',
           smoothWheel: true,
-          wheelMultiplier: 0.8, // Make wheel slightly heavier
+          wheelMultiplier: 1.0, // Natural 1:1 wheel response
           allowNestedScroll: false, // Do not let containers (mermaid/code) hijack vertical scroll!
           anchors: { offset: -70 },
           virtualScroll: (data) => {
@@ -603,7 +604,8 @@ const {
         };
         gsap.ticker.add(lenisTickerFn);
 
-        gsap.ticker.lagSmoothing(0);
+        // Smooth out lag spikes instead of jumping
+        gsap.ticker.lagSmoothing(500, 33);
 
         // Store globally for potential destruction
         window.lenis = lenis;
@@ -781,9 +783,26 @@ const {
       // next one. `scrollDir` is null for the first-paint choreography, 'down' | 'up' on re-entries.
       function scheduleEnter(tl, el, at, scrollDir = null) {
         const kind = enterKind(el);
+        const isReplay = el.dataset.enteredOnce === 'true';
         el.dataset.enterState = 'in';
+        el.dataset.enteredOnce = 'true';
         el.classList.remove('is-entered');
         el.classList.add('is-entering');
+
+        // On replay: use ultra-light GPU compositor-only animation (zero filter:blur, zero splash DOM injection)
+        if (isReplay) {
+          const scrollY = scrollDir ? (scrollDir === 'down' ? 1 : -1) : 0;
+          const fromY = scrollY * (kind === 'top' || kind === 'bottom' ? ENTER_OFFSET.bottom * 0.6 : ENTER_SCROLL_BIAS);
+          const fromX = (kind === 'left' || kind === 'right') ? ENTER_OFFSET[kind] * 0.5 : 0;
+          gsap.set(el, { opacity: 0, x: fromX, y: fromY, scale: 0.98 });
+          tl.to(el, {
+            opacity: 1, x: 0, y: 0, scale: 1,
+            duration: 0.45,
+            ease: 'power2.out',
+            onComplete: () => finishEnter(el),
+          }, at);
+          return ENTER_STAGGER.default * 0.6;
+        }
 
         if (kind === 'stamp') {
           // Land on the card's own CSS tilt so clearProps hands back to the stylesheet without a snap
@@ -805,7 +824,7 @@ const {
         }
 
         if (kind === 'bloom') {
-          // 落墨生花：墨韵氤氲渐显，微澜涟漪，清雅破茧
+          // 落墨生花：首次进入墨韵氤氲渐显
           gsap.set(el, {
             opacity: 0,
             y: 20,
@@ -866,7 +885,7 @@ const {
         return ENTER_STAGGER.default;
       }
 
-      // Scroll re-entry: play again, from the edge the element is crossing
+      // Scroll re-entry: play again with lightweight GPU-only animation
       function replayEnter(el, scrollDir) {
         if (el.dataset.enterState === 'in') return;
         if (!isVisibleInFlow(el)) return;
@@ -879,13 +898,9 @@ const {
       function leaveEnter(el) {
         if (el.dataset.enterState !== 'in') return;
         if (el.classList.contains('is-filtered-out')) return;
-        // Triggers are measured once. An element that has grown since (an opened <details>)
-        // can be "past its end" while still very much on screen — never hide that; re-measure.
+        // Never hide an element that is still visible in the viewport!
         const rect = el.getBoundingClientRect();
         if (rect.bottom > 0 && rect.top < window.innerHeight) {
-          if (!(window as any).lenis?.isScrolling) {
-            gsap.delayedCall(0, () => ScrollTrigger.refresh());
-          }
           return;
         }
         el.dataset.enterState = 'out';
@@ -959,9 +974,16 @@ const {
 
         if (immediate.length) {
           // Leave a beat after the page swap so the "page turn" reads before parts fly in
-          const tl = gsap.timeline({ delay: hasNavigated ? 0.14 : 0.06 });
+          const tl = gsap.timeline({
+            delay: hasNavigated ? 0.14 : 0.06,
+            onComplete: () => {
+              document.documentElement.classList.remove('js-enter');
+            },
+          });
           tl.timeScale(timeScale);
           immediate.forEach(({ el, at }) => scheduleEnter(tl, el, at));
+        } else {
+          document.documentElement.classList.remove('js-enter');
         }
 
         deferred.forEach((el) => {
@@ -990,8 +1012,7 @@ const {
         // lands at negative scroll positions (the hero eyebrow measured -1064..-15, which no
         // scroll can cross, so it played once on load and never again).
         const reach = (el) => {
-          const docBottom = el.getBoundingClientRect().bottom + window.scrollY;
-          return Math.round(Math.max(4, Math.min(window.innerHeight * 0.12, el.offsetHeight * 0.6 + 24, docBottom - 4)));
+          return Math.round(Math.max(4, Math.min(window.innerHeight * 0.12, (el.offsetHeight || 60) * 0.5 + 20)));
         };
         replayable.forEach((el, index) => {
           ScrollTrigger.create({
@@ -1055,24 +1076,34 @@ const {
       };
       function runPageEnter() {
         enteredThisDocument = true;
-        const held = document.querySelector('[data-enter-hold]') || window.__siteIntroPending || (window as any).__postTransitionPending;
+        const isIntroCurtain = Boolean(document.querySelector('[data-enter-hold]') || window.__siteIntroPending);
+        const isPostTransition = Boolean((window as any).__postTransitionPending);
+        const held = isIntroCurtain || isPostTransition;
         if (held && !releasedEarly) {
           holdRelease = (options) => initPageEnter(options);
           // Dead-man switch: a broken intro must not leave the page permanently blank.
+          // SiteIntro & AboutIntro release at ~8.5s and end at 10s, so this timeout sits well past that (14s).
+          // PostTransition completes in ~0.5s, so its wait is 2.5s.
+          const maxWait = isIntroCurtain ? 14000 : 2500;
           window.clearTimeout(holdTimer);
           holdTimer = window.setTimeout(() => {
             if (holdRelease) {
               document.documentElement.classList.remove('site-intro-active');
               (window as any).__siteIntroPending = false;
+              (window as any).__postTransitionPending = false;
               const introEl = document.querySelector('[data-site-intro]');
               introEl?.remove();
               window.__releasePageEnter();
             }
-          }, 6000);
+          }, maxWait);
           return;
         }
         releasedEarly = false;
         initPageEnter();
+        // Fallback safety: guarantee js-enter is cleared
+        window.setTimeout(() => {
+          document.documentElement.classList.remove('js-enter');
+        }, 1200);
       }
       runPageEnter();
 
@@ -1089,8 +1120,6 @@ const {
             if (isTargetPost && (window as any).__postTransition) {
               const originalLoader = event.loader;
               event.loader = async () => {
-                // Fetch and parse the article while the ink blooms, not after it: the bloom is
-                // 0.42s of cover that the network round-trip can hide behind
                 await Promise.all([(window as any).__postTransition.enter(), originalLoader()]);
               };
             }
@@ -1147,29 +1176,31 @@ const {
       function initMagneticButtons() {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         
-        const magneticElements = document.querySelectorAll('.btn-primary, .btn-secondary, .nav-link, .tag-chip, .nav-search-trigger');
+        const magneticElements = document.querySelectorAll('.btn-primary, .btn-secondary, .tag-chip, .nav-search-trigger');
         
         magneticElements.forEach(el => {
-          // Store original transform if any
+          let rect: DOMRect | null = null;
+          const xTo = gsap.quickTo(el, 'x', { duration: 0.35, ease: 'power2.out' });
+          const yTo = gsap.quickTo(el, 'y', { duration: 0.35, ease: 'power2.out' });
+
+          el.addEventListener('mouseenter', () => {
+            rect = el.getBoundingClientRect();
+          });
+
           el.addEventListener('mousemove', (e) => {
-            const rect = el.getBoundingClientRect();
-            // Calculate pull distance (0.3 is the magnetic strength)
+            if (!rect) rect = el.getBoundingClientRect();
             const x = (e.clientX - rect.left - rect.width / 2) * 0.25;
             const y = (e.clientY - rect.top - rect.height / 2) * 0.25;
-            
-            gsap.to(el, { 
-              x, y, 
-              duration: 0.6, 
-              ease: 'power3.out',
-              overwrite: "auto"
-            });
+            xTo(x);
+            yTo(y);
           });
           
           el.addEventListener('mouseleave', () => {
+            rect = null;
             gsap.to(el, { 
               x: 0, y: 0, 
-              duration: 0.9, 
-              ease: 'elastic.out(1, 0.4)', // Squish/jelly effect on release
+              duration: 0.7, 
+              ease: 'elastic.out(1, 0.45)',
               clearProps: "x,y",
               overwrite: "auto"
             });
@@ -1288,7 +1319,7 @@ const {
               borderRadius: '50%',
               background: color,
               pointerEvents: 'none',
-              zIndex: '100006',
+              zIndex: '2147483640',
               boxShadow: `0 0 ${size + 3}px ${color}`,
               opacity: '0.78',
               filter: 'blur(0.3px)',
@@ -1330,7 +1361,7 @@ const {
               borderRadius: '50%',
               background: `radial-gradient(circle, ${dColor} 0%, ${dColor} 35%, transparent 75%)`,
               pointerEvents: 'none',
-              zIndex: '100005',
+              zIndex: '2147483639',
               opacity: '0.5',
               filter: 'blur(1.6px)',
               transform: 'scale(0.6)',
@@ -1490,9 +1521,47 @@ const {
             });
           }
 
-          function drawDots(time) {
+          let isRunning = false;
+          let idleTimer = null;
+
+          function startAmbient() {
+            if (isRunning || document.hidden) return;
+            isRunning = true;
+            ambientFrame = requestAnimationFrame(drawDots);
+          }
+
+          function stopAmbient() {
+            if (!isRunning) return;
+            isRunning = false;
+            if (ambientFrame) {
+              cancelAnimationFrame(ambientFrame);
+              ambientFrame = null;
+            }
+          }
+
+          function wakeAmbient() {
+            startAmbient();
+            if (idleTimer) clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => {
+              stopAmbient();
+            }, 3000);
+          }
+
+          ['scroll', 'keydown', 'click', 'touchstart'].forEach((evt) => {
+            window.addEventListener(evt, wakeAmbient, { passive: true, signal });
+          });
+
+          document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-              ambientFrame = requestAnimationFrame(drawDots);
+              stopAmbient();
+            } else {
+              wakeAmbient();
+            }
+          }, { signal });
+
+          function drawDots(time) {
+            if (!isRunning || document.hidden) {
+              isRunning = false;
               return;
             }
             ctx.clearRect(0, 0, viewportWidth, viewportHeight);
@@ -1517,7 +1586,7 @@ const {
             ambientFrame = requestAnimationFrame(drawDots);
           }
 
-          ambientFrame = requestAnimationFrame(drawDots);
+          wakeAmbient();
         }
 
         const overlay = document.createElement('div');
@@ -2978,11 +3047,22 @@ const {
             }
           }
 
-          window.addEventListener('scroll', update, { passive: true });
-          window.addEventListener('resize', update, { passive: true });
+          var progressTicking = false;
+          function onScrollOrResize() {
+            if (!progressTicking) {
+              progressTicking = true;
+              requestAnimationFrame(function() {
+                update();
+                progressTicking = false;
+              });
+            }
+          }
+
+          window.addEventListener('scroll', onScrollOrResize, { passive: true });
+          window.addEventListener('resize', onScrollOrResize, { passive: true });
           cleanupListeners = function() {
-            window.removeEventListener('scroll', update);
-            window.removeEventListener('resize', update);
+            window.removeEventListener('scroll', onScrollOrResize);
+            window.removeEventListener('resize', onScrollOrResize);
           };
           update();
         }

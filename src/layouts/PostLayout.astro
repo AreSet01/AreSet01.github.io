@@ -469,10 +469,10 @@ const hasToc = tocHeadings.length > 1;
             const t0 = performance.now();
             gsap.killTweensOf(chars);
             gsap.fromTo(chars,
-              { y: 46, opacity: 0, rotation: () => gsap.utils.random(-7, 7) },
+              { y: 24, opacity: 0 },
               {
-                y: 0, opacity: 1, rotation: 0,
-                duration: 1.3, ease: 'post-enter', stagger: 0.035, delay: 0.08, overwrite: 'auto',
+                y: 0, opacity: 1,
+                duration: 0.65, ease: 'power2.out', stagger: 0.015, delay: 0.04, overwrite: 'auto',
                 onComplete: () => {
                   gsap.set(chars, { clearProps: 'transform,opacity' });
                   title.classList.remove('is-split-ready');
@@ -510,13 +510,12 @@ const hasToc = tocHeadings.length > 1;
             } else {
               const tid = window.setTimeout(() => {
                 typed.classList.remove('is-typing');
-                console.info(`[perf:typewriter] Completed: ${tickCount} ticks, avg ${(totalTickCpuMs / Math.max(1, tickCount)).toFixed(2)}ms/tick, total CPU ${totalTickCpuMs.toFixed(2)}ms`);
-              }, 900);
+              }, 600);
               typewriterTimers.push(tid);
               timers.push(tid);
             }
           };
-          const tid = window.setTimeout(tick, 180);
+          const tid = window.setTimeout(tick, 120);
           typewriterTimers.push(tid);
           timers.push(tid);
         }
@@ -526,7 +525,7 @@ const hasToc = tocHeadings.length > 1;
         if (title) {
           const chars = title.querySelectorAll('.post-title-char');
           gsap.killTweensOf(chars);
-          gsap.set(chars, { opacity: 0, y: 46 });
+          gsap.set(chars, { opacity: 0, y: 24 });
           title.classList.add('is-split-ready');
         }
         if (typed) {
@@ -567,26 +566,15 @@ const hasToc = tocHeadings.length > 1;
           startTitleAndDate();
         };
         window.addEventListener('post-transition-release', trigger, { signal, once: true });
-        timers.push(window.setTimeout(trigger, 1200));
+        timers.push(window.setTimeout(trigger, 600));
       } else {
         startTitleAndDate();
       }
 
       // ---------- Blocks: tag each direct child, reveal via IntersectionObserver ----------
-      // Code blocks and images animate clip-path, and Chrome's IntersectionObserver treats a
-      // target's own clip-path as clipping — so those get a wrapper that is observed instead.
+      // Direct tagging without DOM mutations (no wrapper insertion) for pure GPU transitions
       const tBlocks0 = performance.now();
-      const blocks = (Array.from(prose.children) as HTMLElement[]).map((el) => {
-        if (el.classList.contains('pr-wrap')) return el;
-        const kind = revealKind(el);
-        if (kind !== 'code' && kind !== 'image' && kind !== 'mermaid') return el;
-        const wrap = document.createElement('div');
-        wrap.className = 'pr-wrap';
-        wrap.dataset.pr = kind;
-        el.replaceWith(wrap);
-        wrap.appendChild(el);
-        return wrap;
-      });
+      const blocks = Array.from(prose.children) as HTMLElement[];
       blocks.forEach((el) => {
         const kind = el.dataset.pr || revealKind(el);
         el.dataset.pr = kind;
@@ -641,6 +629,27 @@ const hasToc = tocHeadings.length > 1;
           resetObserver.observe(el);
         });
 
+        const revealInViewBlocks = () => {
+          const vh = window.innerHeight;
+          blocks.forEach((el) => {
+            if (el.classList.contains('is-in')) return;
+            const rect = el.getBoundingClientRect();
+            if (rect.top < vh * 0.96 && rect.bottom > 0) {
+              el.classList.add('is-in');
+            } else if (rect.bottom <= 0) {
+              el.classList.add('pr-instant', 'is-in');
+            }
+          });
+        };
+        revealInViewBlocks();
+        requestAnimationFrame(revealInViewBlocks);
+
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) {
+            revealInViewBlocks();
+          }
+        }, { signal });
+
         signal.addEventListener('abort', () => {
           revealObserver.disconnect();
           resetObserver.disconnect();
@@ -678,18 +687,16 @@ const hasToc = tocHeadings.length > 1;
       }
 
       if (body && spine && spineLine && !reduceMotion) {
-        placeDots();
+        requestAnimationFrame(() => placeDots());
         // Written straight from scroll progress (pathLength="1", so offset 1 → 0 is empty → full)
-        const spineState = { p: 0 };
-        const paint = () => { spineLine.style.strokeDashoffset = String(1 - spineState.p); };
-        paint();
+        spineLine.style.strokeDashoffset = '1';
         ScrollTrigger.create({
           id: `${TRIGGER_PREFIX}spine`,
           trigger: body,
           start: 'top 65%',
           end: 'bottom 55%',
           onUpdate: (self) => {
-            gsap.to(spineState, { p: self.progress, duration: 0.4, ease: 'power2.out', overwrite: true, onUpdate: paint });
+            spineLine.style.strokeDashoffset = String(1 - self.progress);
           },
         });
 

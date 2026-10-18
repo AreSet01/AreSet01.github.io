@@ -78,10 +78,10 @@ test('Gallery Data: Photo entries schema, EXIF integrity and asset availability'
   assert.ok(locations.length >= 1, 'Must have distinct locations');
 });
 
-test('Navigation: Header.astro contains /gallery with Gallery / 拾影 label', () => {
+test('Navigation: Header.astro contains /gallery with Gallery label', () => {
   const headerContent = fs.readFileSync(path.join(rootDir, 'src/components/Header.astro'), 'utf-8');
   assert.ok(
-    headerContent.includes("{ label: 'Gallery', labelZh: 'Gallery / 拾影', href: '/gallery' }"),
+    headerContent.includes("{ label: 'Gallery', labelZh: 'Gallery', href: '/gallery' }"),
     'Header.astro must contain /gallery navigation item'
   );
 });

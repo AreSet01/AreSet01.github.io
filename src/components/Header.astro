@@ -2,8 +2,8 @@
 const navItems = [
   { label: 'Home', labelZh: 'Main*', href: '/' },
   { label: 'Archive', labelZh: 'All Doc', href: '/archive' },
-  { label: 'Life', labelZh: 'Life / 拾光', href: '/life' },
-  { label: 'Gallery', labelZh: 'Gallery / 拾影', href: '/gallery' },
+  { label: 'Life', labelZh: 'Life', href: '/life' },
+  { label: 'Gallery', labelZh: 'Gallery', href: '/gallery' },
   { label: 'Timeline', labelZh: 'Timeline', href: '/timeline' },
   { label: 'Tags', labelZh: 'Tags', href: '/tags' },
   { label: 'Stats', labelZh: 'Stats', href: '/stats' },
@@ -103,11 +103,13 @@ const year = new Date().getFullYear();
           <span class="nav-search-label">Search<i class="nav-search-caret" aria-hidden="true"></i></span>
           <span class="nav-search-kbd">⌘K</span>
         </button>
-        <nav class="nav-links">
+        <nav class="nav-links" data-nav-links aria-label="主要页面导航">
+          <span class="nav-magnetic-glider" data-nav-glider aria-hidden="true"></span>
           {navItems.map(item => (
             <a
               href={item.href}
               class={`nav-link ${isActive(item.href) ? 'is-active' : ''}`}
+              data-nav-link
             >
               {item.labelZh}
             </a>
@@ -195,7 +197,7 @@ const year = new Date().getFullYear();
         </div>
       </div>
     </div>
-    
+
     <div class="sidebar-colophon hidden lg:flex flex-col gap-1.5 mt-auto pt-2 text-[0.72rem] leading-normal text-[var(--muted)]" style="font-family: var(--font-serif); font-style: italic;">
       <div class="w-8 h-[1px] bg-[var(--rule)] mb-1"></div>
       <p style="line-height: 1.5;">不持续且间断更新<br/>诶嘿？你怎么找到这里来的！！！</p>
@@ -338,6 +340,7 @@ const year = new Date().getFullYear();
 (function () {
   // ── State (re-initialized on every page load) ────────────────────────────
   let canvas, ctx;
+  let customCursorEl = null;
   let points   = [];
   let strokeId = 0;
   let isDrawing = false;
@@ -349,9 +352,22 @@ const year = new Date().getFullYear();
   const brush = {
     x: 0, y: 0, vx: 0, vy: 0,
     radius: 6, isPressed: false, isVisible: false,
+    outerRadius: 6, isHoveringInteractive: false, isOverControl: false,
   };
   const springTension = 0.12;
   const springDamping  = 0.65;
+
+  function updateCursorDOM() {
+    if (!customCursorEl) return;
+    if (!brush.isVisible) {
+      customCursorEl.classList.remove('is-visible');
+      return;
+    }
+    customCursorEl.classList.add('is-visible');
+    customCursorEl.style.transform = `translate3d(${mouse.x}px, ${mouse.y}px, 0)`;
+    customCursorEl.classList.toggle('is-hovering', brush.isHoveringInteractive);
+    customCursorEl.classList.toggle('is-pressed', brush.isPressed);
+  }
 
   // ── InkPoint ─────────────────────────────────────────────────────────────
   class InkPoint {
@@ -374,28 +390,38 @@ const year = new Date().getFullYear();
 
   // ── Canvas resize ─────────────────────────────────────────────────────────
   function resize() {
-    if (!canvas) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.style.width = window.innerWidth + 'px';
-    canvas.style.height = window.innerHeight + 'px';
-    canvas.width  = window.innerWidth  * dpr;
-    canvas.height = window.innerHeight * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // absolute set, never accumulates
+    const dpr = 1; // 1x DPR 渲染水墨流体，显存消耗从 20MB 降至 5MB，大幅减轻合成器带宽
+    if (canvas && ctx) {
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      canvas.width  = window.innerWidth  * dpr;
+      canvas.height = window.innerHeight * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
   }
 
   // ── Drawing ───────────────────────────────────────────────────────────────
   function updateAndDraw() {
-    if (!canvas || !ctx || !hasPointerPosition || isCursorTrailDisabled()) {
+    if (!canvas || !ctx || !hasPointerPosition) {
       isDrawing = false;
       return;
     }
+
+    const trailDisabled = isCursorTrailDisabled();
+    if (trailDisabled || (points.length === 0 && !brush.isVisible)) {
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      points = [];
+      isDrawing = false;
+      return;
+    }
+
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
     const theme = document.documentElement.getAttribute('data-theme') || 'light';
     const color = theme === 'dark' ? '255,255,255' : theme === 'moss' ? '255,241,244' : theme === 'rice' ? '43,36,28' : '26,24,20';
     const [baseR, baseG, baseB] = color.split(',').map(Number);
 
-    // Spring physics
+    // Spring physics for ink flow
     const dx = mouse.x - brush.x;
     const dy = mouse.y - brush.y;
     brush.vx = (brush.vx + dx * springTension) * springDamping;
@@ -405,21 +431,27 @@ const year = new Date().getFullYear();
 
     const speed = Math.hypot(brush.vx, brush.vy);
 
-    if (brush.isVisible && speed > 0.15) {
-      let targetR = Math.max(3, 11 - speed * 0.2);
-      let opacity = 0.85;
-      if (brush.isPressed) { targetR = Math.max(7, 22 - speed * 0.3); opacity = 0.95; }
-      brush.radius = brush.radius * 0.85 + targetR * 0.15;
-      points.push(new InkPoint(brush.x, brush.y, brush.radius, color, opacity, speed));
-    } else if (speed <= 0.15 && points.length > 0) {
-      strokeId += 0.05;
+    if (!trailDisabled && !brush.isOverControl) {
+      if (brush.isVisible && speed > 0.15) {
+        let targetR = Math.max(3, 11 - speed * 0.2);
+        let opacity = 0.85;
+        if (brush.isPressed) { targetR = Math.max(7, 22 - speed * 0.3); opacity = 0.95; }
+        brush.radius = brush.radius * 0.85 + targetR * 0.15;
+        points.push(new InkPoint(brush.x, brush.y, brush.radius, color, opacity, speed));
+      } else if (speed <= 0.15 && points.length > 0) {
+        strokeId += 0.05;
+      }
+    } else if (trailDisabled) {
+      points = [];
     }
 
-    points.forEach(p => p.update());
-    points = points.filter(p => p.age < p.maxAge);
+    if (points.length > 0) {
+      points.forEach(p => p.update());
+      points = points.filter(p => p.age < p.maxAge);
+    }
 
-    // ── Render ──────────────────────────────────────────────────────────────
-    if (points.length >= 2) {
+    // ── Render Trail ────────────────────────────────────────────────────────
+    if (!trailDisabled && points.length >= 2) {
       const N = points.length;
 
       // Compute smooth normals
@@ -456,35 +488,16 @@ const year = new Date().getFullYear();
         ctx.lineTo(px, py);
       }
       ctx.closePath();
-      
+
       const head = points[N - 1];
-      
-      // Apply slight blur to edges
-      ctx.shadowBlur = 2;
-      ctx.shadowColor = `rgba(${baseR},${baseG},${baseB},${head.currentOpacity})`;
-      
-      // Use higher opacity for a more solid look
+
+      // Solid smooth fill without expensive shadowBlur for 60fps compositor
       ctx.fillStyle = `rgba(${baseR},${baseG},${baseB},${head.currentOpacity * 0.9})`;
       ctx.fill();
-      
-      // Reset shadow for subsequent drawings
-      ctx.shadowBlur = 0;
     }
 
-    // Hollow pointer circle at exact mouse location
-    if (brush.isVisible) {
-      ctx.beginPath();
-      ctx.arc(mouse.x, mouse.y, 4, 0, Math.PI * 2);
-      ctx.lineWidth   = 1;
-      ctx.strokeStyle = `rgba(${baseR},${baseG},${baseB},0.5)`;
-      ctx.stroke();
-    }
-
-    const isStationary = points.length === 0 && (!brush.isVisible || speed <= 0.05);
-    if (isStationary) {
-      if (points.length === 0 && !brush.isVisible) {
-        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      }
+    if (points.length === 0) {
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
       isDrawing = false;
     } else if (isDrawing) {
       requestAnimationFrame(updateAndDraw);
@@ -513,6 +526,7 @@ const year = new Date().getFullYear();
     if (ctx && canvas) {
       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
     }
+    updateCursorDOM();
   }
   window.__clearCursorTrail = clearCursorTrail;
 
@@ -520,12 +534,18 @@ const year = new Date().getFullYear();
     if (disabled) {
       document.documentElement.setAttribute('data-cursor-trail', 'disabled');
       try { localStorage.setItem('cursor-trail', 'disabled'); } catch (e) {}
-      clearCursorTrail();
-      if (canvas) canvas.style.display = 'none';
+      points = [];
+      if (ctx && canvas) {
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      }
+      isDrawing = false;
     } else {
       document.documentElement.removeAttribute('data-cursor-trail');
       try { localStorage.removeItem('cursor-trail'); } catch (e) {}
-      if (canvas) canvas.style.removeProperty('display');
+      if (!isDrawing && points.length > 0) {
+        isDrawing = true;
+        requestAnimationFrame(updateAndDraw);
+      }
     }
     syncToggleButtons();
   }
@@ -542,27 +562,35 @@ const year = new Date().getFullYear();
 
     syncToggleButtons();
 
-    // Re-acquire canvas (Astro swaps the DOM on navigation)
+    // Re-acquire canvas and cursor elements (Astro swaps DOM on navigation)
     canvas = document.getElementById('inkCanvas');
+    customCursorEl = document.getElementById('custom-cursor');
+    const legacyCursorCanvas = document.getElementById('cursorCanvas');
+    if (legacyCursorCanvas) {
+      legacyCursorCanvas.remove();
+    }
     if (!canvas) return;
 
-    if (isCursorTrailDisabled()) {
-      canvas.style.display = 'none';
-    } else {
-      canvas.style.removeProperty('display');
-    }
+    canvas.style.removeProperty('display');
 
-    // ★ Move canvas to <body> to escape any backdrop-filter containing block
-    //   (backdrop-filter on an ancestor breaks position:fixed for children)
     if (canvas.parentElement !== document.body) {
       document.body.appendChild(canvas);
     }
-    canvas.style.zIndex = '100005';
+    canvas.style.zIndex = '2147483646';
     canvas.style.pointerEvents = 'none';
+
+    if (customCursorEl) {
+      if (customCursorEl.parentElement !== document.body) {
+        document.body.appendChild(customCursorEl);
+      }
+      customCursorEl.style.zIndex = '2147483647';
+      customCursorEl.style.pointerEvents = 'none';
+    }
 
     ctx = canvas.getContext('2d');
     brush.isVisible = false;
     brush.isPressed = false;
+    brush.isOverControl = false;
     brush.vx = brush.vy = 0;
     hasPointerPosition = false;
 
@@ -570,10 +598,8 @@ const year = new Date().getFullYear();
 
     // ── Event listeners ──────────────────────────────────────────────────
     function updateMouse(e) {
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      mouse.x = e.clientX - rect.left;
-      mouse.y = e.clientY - rect.top;
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
       if (!hasPointerPosition) {
         brush.x = mouse.x;
         brush.y = mouse.y;
@@ -586,7 +612,6 @@ const year = new Date().getFullYear();
     function onResize() { resize(); }
 
     function onPointerEnter(e) {
-      if (isCursorTrailDisabled()) return;
       if (e.pointerType === 'touch' || isMobile || !window.matchMedia('(pointer: fine)').matches) return;
       brush.isVisible = true;
       updateMouse(e);
@@ -594,53 +619,78 @@ const year = new Date().getFullYear();
       brush.vx = brush.vy = 0;
       hasPointerPosition = true;
       strokeId++;
+      updateCursorDOM();
+      if (!isDrawing && !isCursorTrailDisabled()) {
+        isDrawing = true;
+        requestAnimationFrame(updateAndDraw);
+      }
     }
     function onPointerLeave() {
       brush.isVisible = false;
       brush.isPressed = false;
       hasPointerPosition = false;
-      if (points.length > 0 && !isDrawing) {
+      updateCursorDOM();
+      if (points.length > 0 && !isDrawing && !isCursorTrailDisabled()) {
         isDrawing = true;
         requestAnimationFrame(updateAndDraw);
+      } else if (ctx && canvas && points.length === 0) {
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
       }
     }
 
+    function isInteractive(el) {
+      if (!el || typeof el.closest !== 'function') return false;
+      return !!el.closest('a, button, select, summary, [role="button"], .btn-primary, .btn-secondary, .tag-chip, .nav-link, .timeline-link, [data-search-trigger], [data-search-result], [data-post-preview], .gallery-mat-card, .life-card, .theme-toggle, .font-toggle, .cursor-trail-toggle, .zen-sound-toggle, .sidebar-collapse-btn');
+    }
+
     function onPointerMove(e) {
-      if (isCursorTrailDisabled()) return;
       if (e.pointerType === 'touch' || isMobile || !window.matchMedia('(pointer: fine)').matches) return;
       const t = e.target;
-      if (t && (t.matches('input,textarea,[contenteditable="true"],.search-input') || (typeof t.closest === 'function' && t.closest('[data-theme-toggle],[data-font-toggle],[data-cursor-trail-toggle],[data-zen-sound-toggle],.theme-toggle,.font-toggle,.cursor-trail-toggle,.zen-sound-toggle,.drawer-control-btn,[data-moss-shade-card]')))) {
+      const isTextInput = t && t.matches('input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),textarea,[contenteditable="true"],.search-input');
+      const isThemeOrFontToggle = t && typeof t.closest === 'function' && t.closest('[data-theme-toggle],[data-font-toggle]');
+      if (isTextInput) {
         brush.isVisible = false;
-        if (points.length > 0 && !isDrawing) {
+        updateCursorDOM();
+        if (points.length > 0 && !isDrawing && !isCursorTrailDisabled()) {
           isDrawing = true;
           requestAnimationFrame(updateAndDraw);
+        } else if (ctx && canvas && points.length === 0) {
+          ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
         }
         return;
       }
+      brush.isHoveringInteractive = isInteractive(t);
+      brush.isOverControl = !!isThemeOrFontToggle;
       updateMouse(e);
       brush.isVisible = true;
-      if (!isDrawing) {
+      updateCursorDOM();
+      if (!isDrawing && !isCursorTrailDisabled()) {
         isDrawing = true;
         requestAnimationFrame(updateAndDraw);
       }
     }
     function onPointerDown(e) {
-      if (isCursorTrailDisabled()) return;
       if (e.pointerType === 'touch' || isMobile || !window.matchMedia('(pointer: fine)').matches) return;
       const t = e.target;
-      if (t && typeof t.closest === 'function' && t.closest('[data-theme-toggle],[data-font-toggle],[data-cursor-trail-toggle],[data-zen-sound-toggle],.theme-toggle,.font-toggle,.cursor-trail-toggle,.zen-sound-toggle,.drawer-control-btn,[data-moss-shade-card]')) {
-        brush.isVisible = false;
-        brush.isPressed = false;
-        return;
-      }
+      const isThemeOrFontToggle = t && typeof t.closest === 'function' && t.closest('[data-theme-toggle],[data-font-toggle]');
       if (e.button === 0) {
         updateMouse(e);
         brush.isPressed = true;
-        strokeId++;
+        brush.isVisible = true;
+        brush.isOverControl = !!isThemeOrFontToggle;
+        if (!isThemeOrFontToggle) {
+          strokeId++;
+        }
+        updateCursorDOM();
+        if (!isDrawing && !isCursorTrailDisabled()) {
+          isDrawing = true;
+          requestAnimationFrame(updateAndDraw);
+        }
       }
     }
     function onPointerUp() {
       brush.isPressed = false;
+      updateCursorDOM();
     }
     function onVisibilityChange() {
       if (document.hidden) {
@@ -696,6 +746,9 @@ const year = new Date().getFullYear();
   document.addEventListener('astro:before-swap', () => {
      if (typeof ctx !== 'undefined' && ctx) {
        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+     }
+     if (typeof cursorCtx !== 'undefined' && cursorCtx) {
+       cursorCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
      }
      points = [];
      isDrawing = false;
@@ -814,6 +867,162 @@ import gsap from 'gsap';
 
   document.addEventListener('astro:page-load', setupSidebar);
   setupSidebar();
+})();
+</script>
+
+<script>
+import gsap from 'gsap';
+
+(function setupNavMagneticGliderController() {
+  function initGlider() {
+    const nav = document.querySelector<HTMLElement>('[data-nav-links]');
+    const glider = nav?.querySelector<HTMLElement>('[data-nav-glider]');
+    if (!nav || !glider) return;
+
+    const items = Array.from(nav.querySelectorAll<HTMLElement>('[data-nav-link]'));
+    if (items.length === 0) return;
+
+    const isDesktop = () => window.matchMedia('(min-width: 1024px)').matches;
+    const isReduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function getActiveItem() {
+      return nav.querySelector<HTMLElement>('.nav-link.is-active');
+    }
+
+    function positionGlider(target: HTMLElement, immediate = false) {
+      if (!isDesktop()) {
+        glider.style.opacity = '0';
+        return;
+      }
+      const navRect = nav.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const gliderH = glider.offsetHeight || 18;
+      const targetTop = (targetRect.top - navRect.top) + (targetRect.height - gliderH) / 2;
+
+      if (immediate) {
+        glider.style.transition = 'none';
+        glider.style.transform = `translateY(${targetTop}px)`;
+        glider.style.opacity = '1';
+        void glider.offsetHeight;
+        glider.style.transition = '';
+      } else {
+        glider.style.opacity = '1';
+        glider.style.transform = `translateY(${targetTop}px)`;
+      }
+    }
+
+    function resetToActive() {
+      const active = getActiveItem();
+      if (active) {
+        positionGlider(active);
+      } else {
+        glider.style.opacity = '0';
+      }
+
+      if (!isDesktop() || isReduced()) {
+        items.forEach((item) => gsap.set(item, { clearProps: 'x,y' }));
+        return;
+      }
+
+      items.forEach((item) => {
+        const isActive = item.classList.contains('is-active');
+        gsap.to(item, {
+          x: isActive ? 4 : 0,
+          y: 0,
+          duration: 0.85,
+          ease: 'elastic.out(1, 0.45)',
+          overwrite: 'auto',
+        });
+      });
+    }
+
+    // 初始状态：活跃项停驻 +4px，游标对齐
+    const initialActive = getActiveItem();
+    if (initialActive) {
+      requestAnimationFrame(() => {
+        positionGlider(initialActive, true);
+        if (isDesktop() && !isReduced()) {
+          gsap.set(initialActive, { x: 4, y: 0 });
+        }
+      });
+    }
+
+    items.forEach((item) => {
+      if ((item as any).__gliderBound) return;
+      (item as any).__gliderBound = true;
+
+      let cachedRect: DOMRect | null = null;
+      let xTo: ((v: number) => void) | null = null;
+      let yTo: ((v: number) => void) | null = null;
+
+      item.addEventListener('pointerenter', () => {
+        positionGlider(item);
+        if (!isDesktop() || isReduced()) return;
+        cachedRect = item.getBoundingClientRect();
+        if (!xTo) xTo = gsap.quickTo(item, 'x', { duration: 0.3, ease: 'power2.out' });
+        if (!yTo) yTo = gsap.quickTo(item, 'y', { duration: 0.3, ease: 'power2.out' });
+        xTo(8);
+        yTo(0);
+      });
+
+      item.addEventListener('pointermove', (e) => {
+        if (!isDesktop() || isReduced()) return;
+        if (!cachedRect) cachedRect = item.getBoundingClientRect();
+        // 计算鼠标相对文字中心的拉扯微距离，物理微浮范围限制：X: ±4px, Y: ±3px
+        const relX = (e.clientX - cachedRect.left - cachedRect.width / 2) * 0.22;
+        const relY = (e.clientY - cachedRect.top - cachedRect.height / 2) * 0.22;
+        const clampedRelX = Math.max(-4, Math.min(4, relX));
+        const clampedRelY = Math.max(-3, Math.min(3, relY));
+
+        if (xTo && yTo) {
+          xTo(8 + clampedRelX);
+          yTo(clampedRelY);
+        }
+      });
+
+      item.addEventListener('pointerleave', () => {
+        cachedRect = null;
+        if (!isDesktop() || isReduced()) return;
+        const isActive = item.classList.contains('is-active');
+        gsap.to(item, {
+          x: isActive ? 4 : 0,
+          y: 0,
+          duration: 0.85,
+          ease: 'elastic.out(1, 0.45)', // 搜索栏同款果冻弹性回弹
+          overwrite: 'auto',
+        });
+      });
+
+      item.addEventListener('focus', () => {
+        positionGlider(item);
+        if (isDesktop() && !isReduced()) {
+          gsap.to(item, { x: 8, y: 0, duration: 0.3, ease: 'power2.out', overwrite: 'auto' });
+        }
+      });
+
+      item.addEventListener('blur', () => {
+        if (isDesktop() && !isReduced()) {
+          const isActive = item.classList.contains('is-active');
+          gsap.to(item, { x: isActive ? 4 : 0, y: 0, duration: 0.85, ease: 'elastic.out(1, 0.45)', overwrite: 'auto' });
+        }
+      });
+
+      item.addEventListener('click', () => {
+        const rect = item.getBoundingClientRect();
+        (window as any).__inkSplash?.(rect.left + 4, rect.top + rect.height / 2, 6);
+      });
+    });
+
+    nav.addEventListener('pointerleave', resetToActive);
+    window.addEventListener('resize', resetToActive, { passive: true });
+  }
+
+  document.addEventListener('astro:page-load', initGlider);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initGlider);
+  } else {
+    initGlider();
+  }
 })();
 </script>
 
@@ -947,8 +1156,8 @@ import gsap from 'gsap';
     .site-shell {
       padding-left: 0 !important;
       gap: clamp(2.5rem, 5vw, 4.5rem);
-      transition: gap 820ms cubic-bezier(0.22, 1, 0.36, 1),
-                  padding 820ms cubic-bezier(0.22, 1, 0.36, 1);
+      transition: gap 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     /* The reading column keeps the same flex basis in both states; only max-width, margins and
@@ -962,9 +1171,9 @@ import gsap from 'gsap';
       margin-left: 0;
       margin-right: 0;
       padding-right: clamp(2rem, 4vw, 3rem) !important;
-      transition: max-width 820ms cubic-bezier(0.22, 1, 0.36, 1),
-                  margin 820ms cubic-bezier(0.22, 1, 0.36, 1),
-                  padding 820ms cubic-bezier(0.22, 1, 0.36, 1);
+      transition: max-width 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  margin 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .glass-nav {
@@ -982,10 +1191,10 @@ import gsap from 'gsap';
       scrollbar-width: none;
       perspective: 1400px;
       padding: clamp(1.2rem, 2.5vh, 1.8rem) 0 clamp(1.2rem, 2.5vh, 1.8rem) 0 !important;
-      transition: width 820ms cubic-bezier(0.22, 1, 0.36, 1),
-                  min-width 820ms cubic-bezier(0.22, 1, 0.36, 1),
-                  margin-left 820ms cubic-bezier(0.22, 1, 0.36, 1),
-                  opacity 320ms ease !important;
+      transition: width 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  min-width 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  margin-left 420ms cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 280ms ease !important;
     }
 
     @media (max-height: 520px) {
@@ -1018,30 +1227,68 @@ import gsap from 'gsap';
     }
 
     .glass-nav .nav-links {
-      gap: clamp(0.6rem, 1.6vh, 1.15rem) !important;
+      position: relative !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      padding-left: clamp(1.4rem, 2.4vw, 2.8rem) !important;
+      gap: clamp(1.05rem, 2.5vh, 1.7rem) !important;
       width: 100% !important;
+      margin-block: 0.35rem !important;
+    }
+
+    .glass-nav .nav-magnetic-glider {
+      position: absolute;
+      left: clamp(0.45rem, 1.4vw, 1.7rem);
+      width: 2.5px;
+      height: 1.15rem;
+      border-radius: 9999px;
+      background: var(--accent);
+      background: linear-gradient(
+        180deg,
+        var(--accent) 0%,
+        color-mix(in srgb, var(--accent) 75%, black 25%) 100%
+      );
+      box-shadow: 0 0 8px rgba(var(--accent-rgb, 194, 65, 12), 0.4);
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(0);
+      transition:
+        transform 0.34s cubic-bezier(0.18, 0.9, 0.2, 1.15),
+        opacity 0.24s var(--ease);
+      z-index: 2;
+      will-change: transform, opacity;
+    }
+
+    [data-theme="dark"] .glass-nav .nav-magnetic-glider {
+      background: linear-gradient(
+        180deg,
+        var(--accent) 0%,
+        #ff9466 100%
+      );
+      box-shadow: 0 0 10px rgba(var(--accent-rgb, 235, 94, 40), 0.55);
     }
 
     .glass-nav .nav-link {
+      position: relative !important;
       display: inline-flex !important;
       align-items: center !important;
       width: auto !important;
-      padding: 0.32rem 0.6rem 0.32rem 0 !important;
-      font-size: 0.82rem !important;
+      padding: 0.25rem 0.6rem 0.25rem 0 !important;
+      font-size: 0.85rem !important;
       font-weight: 600 !important;
-      letter-spacing: 0.16em !important;
+      letter-spacing: 0.2em !important;
       line-height: 1.4 !important;
       background: transparent !important;
       border-radius: 0 !important;
+      border: 0 !important;
       color: var(--muted-strong) !important;
+      will-change: transform;
       transition: color 240ms ease !important;
     }
 
     .glass-nav .nav-link::after {
-      left: 0 !important;
-      right: 0.15rem !important;
-      bottom: 0.05rem !important;
-      height: 1.5px !important;
+      display: none !important;
     }
 
     .glass-nav .nav-link:hover {
@@ -1049,15 +1296,10 @@ import gsap from 'gsap';
       color: var(--text-strong) !important;
     }
 
-    .glass-nav .nav-link:hover::after,
-    .glass-nav .nav-link.is-active::after {
-      transform: scaleX(1) !important;
-    }
-
     .glass-nav .nav-link.is-active {
       background: transparent !important;
       color: var(--text-strong) !important;
-      font-weight: 600 !important;
+      font-weight: 700 !important;
     }
 
     .glass-nav .sidebar-colophon {

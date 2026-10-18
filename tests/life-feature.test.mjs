@@ -30,10 +30,10 @@ test('Life Data Integrity: Shenzhen Observatory and starter items', () => {
   assert.strictEqual(LIFE_ITEMS.length, 1, 'Only genuine user-added item remains after removing placeholders');
 });
 
-test('Header Navigation contains /life with Life / 拾光 label', () => {
+test('Header Navigation contains /life with Life label', () => {
   const headerContent = fs.readFileSync(path.join(rootDir, 'src/components/Header.astro'), 'utf-8');
   assert.ok(
-    headerContent.includes("{ label: 'Life', labelZh: 'Life / 拾光', href: '/life' }"),
+    headerContent.includes("{ label: 'Life', labelZh: 'Life', href: '/life' }"),
     'Header.astro must contain /life navigation item'
   );
 });

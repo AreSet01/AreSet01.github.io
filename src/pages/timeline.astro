@@ -26,12 +26,12 @@ const entries = posts.map((post, index) => {
 const firstYear = entries[0]?.year ?? new Date().getFullYear();
 ---
 
-<BaseLayout title="年轮 - 梦付千秋" description="按时间展开的一卷手稿">
+<BaseLayout title="Timeline" description="按时间展开的一卷手稿">
   <Header />
   <main id="main-content" tabindex="-1" class="container-wide flex-1 timeline-main pt-6 pb-20 lg:pt-8 outline-none">
     <section class="timeline-head">
-      <p class="eyebrow" data-enter="top">Timeline / 手卷</p>
-      <h1 class="section-title mt-4" data-enter="left">年轮</h1>
+      <p class="eyebrow" data-enter="top">Timeline</p>
+      <h1 class="section-title mt-4" data-enter="left">Timeline</h1>
       <p class="timeline-hint" data-enter="left">
         这里是时间线！好叭就是做来看的压根用不上~
       </p>
@@ -255,27 +255,41 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
     });
 
     // Big year in the corner follows whichever entry sits nearest the viewport centre.
-    // Throttled to every few frames — it forces layout reads, which is the last thing a scrubbed
-    // pin wants on every tick.
+    // Positions are cached relative to track to eliminate getBoundingClientRect layout reads during scrub.
     let currentYear = yearEl?.textContent?.trim() || '';
-    let yearTick = 0;
+    let entryPositions = entries.map((entry) => ({
+      pos: entry.offsetLeft + entry.clientWidth / 2,
+      year: entry.dataset.year || '',
+    }));
+
+    function cachePositions() {
+      entryPositions = entries.map((entry) => ({
+        pos: entry.offsetLeft + entry.clientWidth / 2,
+        year: entry.dataset.year || '',
+      }));
+    }
+    window.addEventListener('resize', cachePositions, { passive: true });
+
     function updateYear() {
-      if (!yearEl || !entries.length) return;
-      if ((yearTick = (yearTick + 1) % 4) !== 0) return;
-      const centre = viewport.getBoundingClientRect().left + viewport.clientWidth / 2;
-      let best = entries[0];
+      if (!yearEl || !entryPositions.length) return;
+      const currentX = (gsap.getProperty(track, 'x') as number) || 0;
+      const targetPos = -currentX + viewport.clientWidth / 2;
+
+      let bestYear = entryPositions[0].year;
       let bestDist = Infinity;
-      for (const entry of entries) {
-        const rect = entry.getBoundingClientRect();
-        const d = Math.abs(rect.left - centre);
-        if (d < bestDist) { bestDist = d; best = entry; }
+      for (let i = 0; i < entryPositions.length; i++) {
+        const d = Math.abs(entryPositions[i].pos - targetPos);
+        if (d < bestDist) {
+          bestDist = d;
+          bestYear = entryPositions[i].year;
+        }
       }
-      const year = best.dataset.year || '';
-      if (year === currentYear) return;
-      currentYear = year;
+
+      if (!bestYear || bestYear === currentYear) return;
+      currentYear = bestYear;
       gsap.fromTo(yearEl, { y: 24, opacity: 0 }, {
         y: 0, opacity: 1, duration: 0.7, ease: 'expo.out', overwrite: true,
-        onStart: () => { yearEl.textContent = year; },
+        onStart: () => { yearEl.textContent = bestYear; },
       });
     }
 

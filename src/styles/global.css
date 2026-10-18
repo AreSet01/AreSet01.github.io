@@ -453,20 +453,18 @@ body {
   }
 }
 
-/* Ambient body — ink wash drifting on aged paper */
+/* Ambient body — ink wash drifting on aged paper (static background for 60fps compositor) */
 body::before {
   content: '';
   position: fixed;
-  inset: -10vmax;
+  inset: 0;
   z-index: -2;
   background:
-    radial-gradient(closest-side at 16% 22%, rgba(26, 24, 20, 0.14) 0%, transparent 56%),
-    radial-gradient(closest-side at 84% 18%, rgba(26, 24, 20, 0.08) 0%, transparent 62%),
-    radial-gradient(closest-side at 72% 78%, rgba(26, 24, 20, 0.11) 0%, transparent 58%),
-    radial-gradient(closest-side at 22% 82%, rgba(120, 90, 60, 0.07) 0%, transparent 60%);
-  filter: blur(60px);
+    radial-gradient(closest-side at 16% 22%, rgba(26, 24, 20, 0.13) 0%, transparent 68%),
+    radial-gradient(closest-side at 84% 18%, rgba(26, 24, 20, 0.07) 0%, transparent 74%),
+    radial-gradient(closest-side at 72% 78%, rgba(26, 24, 20, 0.10) 0%, transparent 70%),
+    radial-gradient(closest-side at 22% 82%, rgba(120, 90, 60, 0.06) 0%, transparent 72%);
   pointer-events: none;
-  animation: ambientDrift 38s ease-in-out infinite alternate;
 }
 
 /* Aged xuan paper texture — fibre lines + sparse ink dust */
@@ -575,12 +573,6 @@ body::after {
   background-size: auto, auto, 6px 6px, 22px 22px;
   background-position: 0 0, 0 0, 0 0, 11px 11px;
   opacity: 0.72;
-}
-
-@keyframes ambientDrift {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  50%  { transform: translate3d(2%, -3%, 0) scale(1.04); }
-  100% { transform: translate3d(-2%, 2%, 0) scale(1); }
 }
 
 a {
@@ -1184,8 +1176,6 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
   z-index: 50;
   margin-top: 0;
   background: var(--bg-base);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border-bottom: 1px solid transparent;
   border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;
 }
@@ -1285,10 +1275,51 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
 
 @media (min-width: 1024px) {
   .nav-links {
+    position: relative;
     flex-direction: column;
     align-items: flex-start;
-    gap: clamp(0.6rem, 1.6vh, 1.15rem);
+    padding-left: clamp(1.4rem, 2.4vw, 2.8rem);
+    gap: clamp(1.05rem, 2.5vh, 1.7rem);
     width: 100%;
+  }
+}
+
+/* 侧边栏水墨磁吸细线游标 (Vertical Magnetic Ink Glider) */
+.nav-magnetic-glider {
+  position: absolute;
+  left: clamp(0.45rem, 1.4vw, 1.7rem);
+  width: 2.5px;
+  height: 1.15rem;
+  border-radius: 9999px;
+  background: var(--accent);
+  background: linear-gradient(
+    180deg,
+    var(--accent) 0%,
+    color-mix(in srgb, var(--accent) 75%, black 25%) 100%
+  );
+  box-shadow: 0 0 8px rgba(var(--accent-rgb, 194, 65, 12), 0.4);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(0);
+  transition:
+    transform 0.34s cubic-bezier(0.18, 0.9, 0.2, 1.15),
+    opacity 0.24s var(--ease);
+  z-index: 2;
+  will-change: transform, opacity;
+}
+
+[data-theme="dark"] .nav-magnetic-glider {
+  background: linear-gradient(
+    180deg,
+    var(--accent) 0%,
+    #ff9466 100%
+  );
+  box-shadow: 0 0 10px rgba(var(--accent-rgb, 235, 94, 40), 0.55);
+}
+
+@media (max-width: 1023px) {
+  .nav-magnetic-glider {
+    display: none !important;
   }
 }
 
@@ -1310,30 +1341,22 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
 
 .nav-link {
   position: relative;
-  padding: 0.38rem 0.85rem;
+  padding: 0.25rem 0.6rem 0.25rem 0;
   white-space: nowrap;
   font-family: var(--font-body);
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--muted-strong);
   background: transparent;
   border-radius: 0;
-  transition: color 280ms var(--ease);
+  will-change: transform;
+  transition: color 260ms var(--ease);
 }
 
 .nav-link::after {
-  content: '';
-  position: absolute;
-  left: 0.85rem;
-  right: 0.85rem;
-  bottom: 0.1rem;
-  height: 1px;
-  transform: scaleX(0);
-  transform-origin: left;
-  background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 58%, transparent 100%);
-  transition: transform 260ms var(--ease);
+  display: none !important;
 }
 
 .nav-link:hover {
@@ -1341,14 +1364,10 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
   background: transparent;
 }
 
-.nav-link:hover::after,
-.nav-link.is-active::after {
-  transform: scaleX(1);
-}
-
 .nav-link.is-active {
   color: var(--text-strong);
   background: transparent;
+  font-weight: 700;
 }
 
 [data-theme="dark"] .nav-link:hover {
@@ -1478,7 +1497,24 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
 .nav-actions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
+  position: relative;
+  z-index: 5;
+}
+
+.theme-toggle,
+.font-toggle,
+.cursor-trail-toggle,
+.zen-sound-toggle {
+  position: relative;
+  z-index: 1;
+}
+
+.theme-toggle:hover,
+.font-toggle:hover,
+.cursor-trail-toggle:hover,
+.zen-sound-toggle:hover {
+  z-index: 2;
 }
 
 .cursor-trail-toggle {
@@ -3684,21 +3720,17 @@ html.theme-switching .prose blockquote {
   pointer-events: none;
   background:
     linear-gradient(180deg, rgba(15, 17, 22, 0.32) 0%, rgba(15, 17, 22, 0.52) 100%);
-  backdrop-filter: blur(12px) saturate(110%) brightness(0.86);
-  -webkit-backdrop-filter: blur(12px) saturate(110%) brightness(0.86);
+  backdrop-filter: blur(16px) saturate(115%) brightness(0.82);
+  -webkit-backdrop-filter: blur(16px) saturate(115%) brightness(0.82);
   transition:
-    opacity 420ms cubic-bezier(0.16, 1, 0.3, 1),
-    visibility 420ms cubic-bezier(0.16, 1, 0.3, 1),
-    backdrop-filter 460ms cubic-bezier(0.16, 1, 0.3, 1),
-    -webkit-backdrop-filter 460ms cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 360ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .search-overlay.is-open {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-  backdrop-filter: blur(20px) saturate(120%) brightness(0.8);
-  -webkit-backdrop-filter: blur(20px) saturate(120%) brightness(0.8);
 }
 
 .search-modal {
@@ -4090,16 +4122,15 @@ html.theme-switching .prose blockquote {
   padding: 1.5rem;
   overflow: hidden;
   isolation: isolate;
-  background: linear-gradient(180deg, rgba(15, 17, 22, 0.1) 0%, rgba(15, 17, 22, 0.16) 100%);
-  backdrop-filter: blur(8px) saturate(92%) brightness(0.88);
-  -webkit-backdrop-filter: blur(8px) saturate(92%) brightness(0.88);
+  background: linear-gradient(180deg, rgba(15, 17, 22, 0.28) 0%, rgba(15, 17, 22, 0.42) 100%);
+  backdrop-filter: blur(14px) saturate(90%) brightness(0.85);
+  -webkit-backdrop-filter: blur(14px) saturate(90%) brightness(0.85);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   transition:
-    background 420ms cubic-bezier(0.22, 0.82, 0.2, 1),
-    backdrop-filter 420ms cubic-bezier(0.22, 0.82, 0.2, 1),
-    -webkit-backdrop-filter 420ms cubic-bezier(0.22, 0.82, 0.2, 1);
+    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .preview-overlay::before {
@@ -4109,13 +4140,10 @@ html.theme-switching .prose blockquote {
   background: rgba(15, 17, 22, 0.06);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 420ms cubic-bezier(0.22, 0.82, 0.2, 1);
+  transition: opacity 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .preview-overlay.is-open {
-  background: linear-gradient(180deg, rgba(15, 17, 22, 0.28) 0%, rgba(15, 17, 22, 0.42) 100%);
-  backdrop-filter: blur(24px) saturate(86%) brightness(0.78);
-  -webkit-backdrop-filter: blur(24px) saturate(86%) brightness(0.78);
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -4398,21 +4426,18 @@ body.image-view-open {
 }
 
 body.search-open .site-shell {
-  filter: blur(18px) saturate(0.8) brightness(0.82);
-  transform: scale(1.01) translateY(-3px);
-  opacity: 0.82;
+  transform: scale(0.995);
+  opacity: 0.85;
 }
 
 body.preview-active .site-shell {
-  filter: blur(12px) saturate(0.84) brightness(0.9);
-  transform: scale(1.008) translateY(-2px);
-  opacity: 0.88;
+  transform: scale(0.998);
+  opacity: 0.9;
 }
 
 body.preview-open .site-shell {
-  filter: blur(22px) saturate(0.72) brightness(0.8);
-  transform: scale(1.014) translateY(-4px);
-  opacity: 0.78;
+  transform: scale(0.995);
+  opacity: 0.85;
 }
 
 /* ================= Editorial Home Layout ================= */
@@ -5190,41 +5215,47 @@ html.font-switching::view-transition-new(root) {
 /* ================= Custom Cursor Controls ================= */
 
 @media (pointer: fine) {
-  html:not([data-cursor-trail="disabled"]),
-  html:not([data-cursor-trail="disabled"]) body {
+  html,
+  html body {
     cursor: none !important;
   }
   
-  html:not([data-cursor-trail="disabled"]) a,
-  html:not([data-cursor-trail="disabled"]) button,
-  html:not([data-cursor-trail="disabled"]) select,
-  html:not([data-cursor-trail="disabled"]) summary,
-  html:not([data-cursor-trail="disabled"]) [role="button"],
-  html:not([data-cursor-trail="disabled"]) .btn-primary,
-  html:not([data-cursor-trail="disabled"]) .btn-secondary,
-  html:not([data-cursor-trail="disabled"]) .tag-chip,
-  html:not([data-cursor-trail="disabled"]) .nav-link,
-  html:not([data-cursor-trail="disabled"]) .timeline-link,
-  html:not([data-cursor-trail="disabled"]) .prose img,
-  html:not([data-cursor-trail="disabled"]) .image-viewer-close,
-  html:not([data-cursor-trail="disabled"]) .stat-card,
-  html:not([data-cursor-trail="disabled"]) .stats-item,
-  html:not([data-cursor-trail="disabled"]) .archive-metric-card,
-  html:not([data-cursor-trail="disabled"]) [data-post-preview],
-  html:not([data-cursor-trail="disabled"]) [data-search-trigger],
-  html:not([data-cursor-trail="disabled"]) [data-search-result],
-  html:not([data-cursor-trail="disabled"]) .gallery-mat-card,
-  html:not([data-cursor-trail="disabled"]) .gallery-cat-tab,
-  html:not([data-cursor-trail="disabled"]) .mat-image-window,
-  html:not([data-cursor-trail="disabled"]) .mat-tag-chip,
-  html:not([data-cursor-trail="disabled"]) .gallery-search-clear,
-  html:not([data-cursor-trail="disabled"]) .life-card,
-  html:not([data-cursor-trail="disabled"]) .life-cat-tab,
-  html:not([data-cursor-trail="disabled"]) .life-chip,
-  html:not([data-cursor-trail="disabled"]) .life-search-clear,
-  html:not([data-cursor-trail="disabled"]) .about-card,
-  html:not([data-cursor-trail="disabled"]) .brand-mark,
-  html:not([data-cursor-trail="disabled"]) .home-ticker {
+  html a,
+  html button,
+  html select,
+  html summary,
+  html [role="button"],
+  html .btn-primary,
+  html .btn-secondary,
+  html .tag-chip,
+  html .nav-link,
+  html .timeline-link,
+  html .prose img,
+  html .image-viewer-close,
+  html .stat-card,
+  html .stats-item,
+  html .archive-metric-card,
+  html [data-post-preview],
+  html [data-search-trigger],
+  html [data-search-result],
+  html .gallery-mat-card,
+  html .gallery-cat-tab,
+  html .mat-image-window,
+  html .mat-tag-chip,
+  html .gallery-search-clear,
+  html .life-card,
+  html .life-cat-tab,
+  html .life-chip,
+  html .life-search-clear,
+  html .about-card,
+  html .brand-mark,
+  html .home-ticker,
+  html .theme-toggle,
+  html .font-toggle,
+  html .cursor-trail-toggle,
+  html .zen-sound-toggle,
+  html .sidebar-collapse-btn,
+  html .sidebar-expand-btn {
     cursor: none !important;
   }
   
@@ -5236,65 +5267,44 @@ html.font-switching::view-transition-new(root) {
     cursor: text !important;
   }
 
-  /* When cursor trail is disabled: restore default system pointers */
-  html[data-cursor-trail="disabled"],
-  html[data-cursor-trail="disabled"] body,
-  html[data-cursor-trail="disabled"] .home-ticker {
-    cursor: auto !important;
-  }
-
-  html[data-cursor-trail="disabled"] a,
-  html[data-cursor-trail="disabled"] button,
-  html[data-cursor-trail="disabled"] select,
-  html[data-cursor-trail="disabled"] summary,
-  html[data-cursor-trail="disabled"] [role="button"],
-  html[data-cursor-trail="disabled"] .btn-primary,
-  html[data-cursor-trail="disabled"] .btn-secondary,
-  html[data-cursor-trail="disabled"] .tag-chip,
-  html[data-cursor-trail="disabled"] .nav-link,
-  html[data-cursor-trail="disabled"] .timeline-link,
-  html[data-cursor-trail="disabled"] .prose img,
-  html[data-cursor-trail="disabled"] .image-viewer-close,
-  html[data-cursor-trail="disabled"] .stat-card,
-  html[data-cursor-trail="disabled"] .stats-item,
-  html[data-cursor-trail="disabled"] .archive-metric-card,
-  html[data-cursor-trail="disabled"] [data-post-preview],
-  html[data-cursor-trail="disabled"] [data-search-trigger],
-  html[data-cursor-trail="disabled"] [data-search-result],
-  html[data-cursor-trail="disabled"] .gallery-mat-card,
-  html[data-cursor-trail="disabled"] .gallery-cat-tab,
-  html[data-cursor-trail="disabled"] .mat-image-window,
-  html[data-cursor-trail="disabled"] .mat-tag-chip,
-  html[data-cursor-trail="disabled"] .gallery-search-clear,
-  html[data-cursor-trail="disabled"] .life-card,
-  html[data-cursor-trail="disabled"] .life-cat-tab,
-  html[data-cursor-trail="disabled"] .life-chip,
-  html[data-cursor-trail="disabled"] .life-search-clear,
-  html[data-cursor-trail="disabled"] .about-card,
-  html[data-cursor-trail="disabled"] .brand-mark,
-  html[data-cursor-trail="disabled"] .theme-toggle,
-  html[data-cursor-trail="disabled"] .font-toggle,
-  html[data-cursor-trail="disabled"] .cursor-trail-toggle,
-  html[data-cursor-trail="disabled"] .zen-sound-toggle,
-  html[data-cursor-trail="disabled"] .sidebar-collapse-btn,
-  html[data-cursor-trail="disabled"] .sidebar-expand-btn {
-    cursor: pointer !important;
-  }
-
-  html[data-cursor-trail="disabled"] input,
-  html[data-cursor-trail="disabled"] textarea,
-  html[data-cursor-trail="disabled"] [contenteditable="true"],
-  html[data-cursor-trail="disabled"] .search-input {
-    cursor: text !important;
-  }
-
-  html[data-cursor-trail="disabled"] .mermaid-viewport,
-  html[data-cursor-trail="disabled"] .mermaid-stage {
+  .mermaid-viewport,
+  .mermaid-stage {
     cursor: grab !important;
   }
 
-  html[data-cursor-trail="disabled"] .mermaid-stage.is-panning {
+  .mermaid-stage.is-panning {
     cursor: grabbing !important;
+  }
+
+  /* ================= Settings Console Cursor Override ================= */
+  html:has(.settings-viewport),
+  html:has(.settings-viewport) body,
+  .settings-viewport,
+  .settings-viewport * {
+    cursor: auto !important;
+  }
+
+  .settings-viewport a,
+  .settings-viewport button,
+  .settings-viewport [role="button"],
+  .settings-viewport select,
+  .settings-viewport summary,
+  .settings-viewport [data-select-model],
+  .settings-viewport [data-test-model],
+  .settings-viewport input[type="range"] {
+    cursor: pointer !important;
+  }
+
+  .settings-viewport input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),
+  .settings-viewport textarea {
+    cursor: text !important;
+  }
+
+  html:has(.settings-viewport) #custom-cursor,
+  html:has(.settings-viewport) #inkCanvas,
+  .settings-viewport ~ #custom-cursor,
+  .settings-viewport ~ #inkCanvas {
+    display: none !important;
   }
 
   #inkCanvas {
@@ -5304,11 +5314,63 @@ html.font-switching::view-transition-new(root) {
     width: 100vw !important;
     height: 100vh !important;
     pointer-events: none !important;
-    z-index: 100005 !important;
+    z-index: 2147483646 !important;
   }
 
-  html[data-cursor-trail="disabled"] #inkCanvas {
-    display: none !important;
+  #custom-cursor {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 32px !important;
+    height: 32px !important;
+    margin-top: -16px !important;
+    margin-left: -16px !important;
+    pointer-events: none !important;
+    z-index: 2147483647 !important;
+    mix-blend-mode: difference !important;
+    transform: translate3d(-100px, -100px, 0);
+    will-change: transform;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  #custom-cursor.is-visible {
+    opacity: 1;
+  }
+
+  #custom-cursor .cursor-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 3px;
+    height: 3px;
+    margin-top: -1.5px;
+    margin-left: -1.5px;
+    background-color: #ffffff;
+    border-radius: 50%;
+  }
+
+  #custom-cursor .cursor-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 12px;
+    height: 12px;
+    margin-top: -6px;
+    margin-left: -6px;
+    border: 1.35px solid #ffffff;
+    border-radius: 50%;
+    box-sizing: border-box;
+    transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1);
+    transform: scale(1);
+  }
+
+  #custom-cursor.is-hovering .cursor-ring {
+    transform: scale(1.5);
+  }
+
+  #custom-cursor.is-pressed .cursor-ring {
+    transform: scale(0.75);
   }
 }
 
@@ -5759,92 +5821,68 @@ html.font-switching::view-transition-new(root) {
   transform: translate3d(-14px, 0, 0);
 }
 
-/* ---------- Code: terminal power-on — wipes top→bottom behind a scan line ---------- */
-.prose .pr[data-pr="code"] {
-  transform: none;
-  opacity: 1;
-}
-
-.prose .pr[data-pr="code"] > pre {
-  clip-path: inset(0 0 100% 0);
-}
-
-.prose .pr[data-pr="code"] > pre::after {
-  /* full-height box whose bottom edge carries the scan line; it slides down through the block */
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, transparent calc(100% - 2px), rgba(232, 227, 213, 0.9) calc(100% - 2px));
+/* ---------- Code: terminal power-on with pure GPU transform & opacity ---------- */
+.prose .pr[data-pr="code"],
+.prose pre.pr {
   opacity: 0;
-  transform: translate3d(0, -100%, 0);
-  pointer-events: none;
+  transform: translate3d(0, 16px, 0);
 }
 
-.prose .pr[data-pr="code"].is-in > pre {
-  clip-path: inset(0 0 0 0);
-  transition: clip-path 900ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.prose .pr[data-pr="code"].is-in > pre::after {
-  animation: codeScan 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes codeScan {
-  0%   { opacity: 0.9; transform: translate3d(0, -100%, 0); }
-  85%  { opacity: 0.9; }
-  100% { opacity: 0; transform: translate3d(0, 0, 0); }
-}
-
-/* ---------- Image: ink drop spreads from the centre ---------- */
-.prose .pr[data-pr="image"] {
-  transform: none;
+.prose .pr[data-pr="code"].is-in,
+.prose pre.pr.is-in {
   opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity 650ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 650ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.prose .pr[data-pr="image"] > * {
-  clip-path: circle(0% at 50% 50%);
+/* ---------- Image: ink drop spreads from the centre with pure GPU scale & opacity ---------- */
+.prose .pr[data-pr="image"],
+.prose p.pr:has(> img),
+.prose figure.pr {
+  opacity: 0;
+  transform: translate3d(0, 16px, 0) scale(0.985);
 }
 
-.prose .pr[data-pr="image"] img {
-  transform: scale(1.05);
+.prose .pr[data-pr="image"].is-in,
+.prose p.pr:has(> img).is-in,
+.prose figure.pr.is-in {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  transition:
+    opacity 650ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 650ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.prose .pr[data-pr="image"].is-in > * {
-  clip-path: circle(75% at 50% 50%);
-  transition: clip-path 900ms cubic-bezier(0.16, 1, 0.3, 1);
+.prose .pr[data-pr="image"].is-in img,
+.prose p.pr:has(> img).is-in img,
+.prose figure.pr.is-in img {
+  transition: transform 280ms var(--ease), border-color 280ms var(--ease);
 }
 
-.prose .pr[data-pr="image"].is-in img {
-  transform: scale(1);
-  transition: transform 900ms cubic-bezier(0.16, 1, 0.3, 1), border-color 280ms var(--ease), filter 280ms var(--ease);
-}
-
-.prose .pr[data-pr="image"].is-in img:hover {
+.prose .pr[data-pr="image"].is-in img:hover,
+.prose p.pr:has(> img).is-in img:hover,
+.prose figure.pr.is-in img:hover {
   transform: translateY(-2px);
 }
 
-/* ---------- Mermaid: ink unfolding, soft blur-fade & subtle elevation ---------- */
-.prose .pr[data-pr="mermaid"] {
-  transform: none;
-  opacity: 1;
+/* ---------- Mermaid: ink unfolding with pure GPU transform & opacity ---------- */
+.prose .pr[data-pr="mermaid"],
+.prose .mermaid-block.pr {
   width: 100%;
   max-width: 100%;
-}
-
-.prose .pr[data-pr="mermaid"] > .mermaid-block {
   opacity: 0;
-  transform: translate3d(0, 20px, 0) scale(0.98);
-  filter: blur(4px);
+  transform: translate3d(0, 16px, 0);
 }
 
-.prose .pr[data-pr="mermaid"].is-in > .mermaid-block {
+.prose .pr[data-pr="mermaid"].is-in,
+.prose .mermaid-block.pr.is-in {
   opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
-  filter: blur(0);
+  transform: translate3d(0, 0, 0);
   transition:
-    opacity 800ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 900ms cubic-bezier(0.16, 1, 0.3, 1),
-    filter 800ms cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 650ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 650ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ---------- Table: rows cascade ---------- */
@@ -8311,7 +8349,6 @@ a.chart-bar-name:hover {
   height: auto;
   margin: 0 auto;
   box-sizing: border-box;
-  will-change: transform, opacity;
 }
 
 /* For complex charts that need horizontal scroll room to prevent text squishing */
