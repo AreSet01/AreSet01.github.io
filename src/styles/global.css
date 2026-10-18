@@ -453,11 +453,11 @@ body {
   }
 }
 
-/* Ambient body — ink wash drifting on aged paper */
+/* Ambient body — ink wash drifting on aged paper (static background for 60fps compositor) */
 body::before {
   content: '';
   position: fixed;
-  inset: -4vmax;
+  inset: 0;
   z-index: -2;
   background:
     radial-gradient(closest-side at 16% 22%, rgba(26, 24, 20, 0.13) 0%, transparent 68%),
@@ -465,7 +465,6 @@ body::before {
     radial-gradient(closest-side at 72% 78%, rgba(26, 24, 20, 0.10) 0%, transparent 70%),
     radial-gradient(closest-side at 22% 82%, rgba(120, 90, 60, 0.06) 0%, transparent 72%);
   pointer-events: none;
-  animation: ambientDrift 38s ease-in-out infinite alternate;
 }
 
 /* Aged xuan paper texture — fibre lines + sparse ink dust */
@@ -574,12 +573,6 @@ body::after {
   background-size: auto, auto, 6px 6px, 22px 22px;
   background-position: 0 0, 0 0, 0 0, 11px 11px;
   opacity: 0.72;
-}
-
-@keyframes ambientDrift {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  50%  { transform: translate3d(2%, -3%, 0) scale(1.04); }
-  100% { transform: translate3d(-2%, 2%, 0) scale(1); }
 }
 
 a {
@@ -4129,16 +4122,15 @@ html.theme-switching .prose blockquote {
   padding: 1.5rem;
   overflow: hidden;
   isolation: isolate;
-  background: linear-gradient(180deg, rgba(15, 17, 22, 0.1) 0%, rgba(15, 17, 22, 0.16) 100%);
-  backdrop-filter: blur(8px) saturate(92%) brightness(0.88);
-  -webkit-backdrop-filter: blur(8px) saturate(92%) brightness(0.88);
+  background: linear-gradient(180deg, rgba(15, 17, 22, 0.28) 0%, rgba(15, 17, 22, 0.42) 100%);
+  backdrop-filter: blur(14px) saturate(90%) brightness(0.85);
+  -webkit-backdrop-filter: blur(14px) saturate(90%) brightness(0.85);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   transition:
-    background 420ms cubic-bezier(0.22, 0.82, 0.2, 1),
-    backdrop-filter 420ms cubic-bezier(0.22, 0.82, 0.2, 1),
-    -webkit-backdrop-filter 420ms cubic-bezier(0.22, 0.82, 0.2, 1);
+    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .preview-overlay::before {
@@ -4148,13 +4140,10 @@ html.theme-switching .prose blockquote {
   background: rgba(15, 17, 22, 0.06);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 420ms cubic-bezier(0.22, 0.82, 0.2, 1);
+  transition: opacity 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .preview-overlay.is-open {
-  background: linear-gradient(180deg, rgba(15, 17, 22, 0.28) 0%, rgba(15, 17, 22, 0.42) 100%);
-  backdrop-filter: blur(24px) saturate(86%) brightness(0.78);
-  -webkit-backdrop-filter: blur(24px) saturate(86%) brightness(0.78);
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -4437,21 +4426,18 @@ body.image-view-open {
 }
 
 body.search-open .site-shell {
-  filter: blur(18px) saturate(0.8) brightness(0.82);
-  transform: scale(1.01) translateY(-3px);
-  opacity: 0.82;
+  transform: scale(0.995);
+  opacity: 0.85;
 }
 
 body.preview-active .site-shell {
-  filter: blur(12px) saturate(0.84) brightness(0.9);
-  transform: scale(1.008) translateY(-2px);
-  opacity: 0.88;
+  transform: scale(0.998);
+  opacity: 0.9;
 }
 
 body.preview-open .site-shell {
-  filter: blur(22px) saturate(0.72) brightness(0.8);
-  transform: scale(1.014) translateY(-4px);
-  opacity: 0.78;
+  transform: scale(0.995);
+  opacity: 0.85;
 }
 
 /* ================= Editorial Home Layout ================= */
@@ -5290,6 +5276,37 @@ html.font-switching::view-transition-new(root) {
     cursor: grabbing !important;
   }
 
+  /* ================= Settings Console Cursor Override ================= */
+  html:has(.settings-viewport),
+  html:has(.settings-viewport) body,
+  .settings-viewport,
+  .settings-viewport * {
+    cursor: auto !important;
+  }
+
+  .settings-viewport a,
+  .settings-viewport button,
+  .settings-viewport [role="button"],
+  .settings-viewport select,
+  .settings-viewport summary,
+  .settings-viewport [data-select-model],
+  .settings-viewport [data-test-model],
+  .settings-viewport input[type="range"] {
+    cursor: pointer !important;
+  }
+
+  .settings-viewport input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),
+  .settings-viewport textarea {
+    cursor: text !important;
+  }
+
+  html:has(.settings-viewport) #custom-cursor,
+  html:has(.settings-viewport) #inkCanvas,
+  .settings-viewport ~ #custom-cursor,
+  .settings-viewport ~ #inkCanvas {
+    display: none !important;
+  }
+
   #inkCanvas {
     position: fixed !important;
     top: 0 !important;
@@ -5300,15 +5317,60 @@ html.font-switching::view-transition-new(root) {
     z-index: 2147483646 !important;
   }
 
-  #cursorCanvas {
+  #custom-cursor {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
+    width: 32px !important;
+    height: 32px !important;
+    margin-top: -16px !important;
+    margin-left: -16px !important;
     pointer-events: none !important;
     z-index: 2147483647 !important;
     mix-blend-mode: difference !important;
+    transform: translate3d(-100px, -100px, 0);
+    will-change: transform;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  #custom-cursor.is-visible {
+    opacity: 1;
+  }
+
+  #custom-cursor .cursor-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 3px;
+    height: 3px;
+    margin-top: -1.5px;
+    margin-left: -1.5px;
+    background-color: #ffffff;
+    border-radius: 50%;
+  }
+
+  #custom-cursor .cursor-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 12px;
+    height: 12px;
+    margin-top: -6px;
+    margin-left: -6px;
+    border: 1.35px solid #ffffff;
+    border-radius: 50%;
+    box-sizing: border-box;
+    transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1);
+    transform: scale(1);
+  }
+
+  #custom-cursor.is-hovering .cursor-ring {
+    transform: scale(1.5);
+  }
+
+  #custom-cursor.is-pressed .cursor-ring {
+    transform: scale(0.75);
   }
 }
 
@@ -8287,7 +8349,6 @@ a.chart-bar-name:hover {
   height: auto;
   margin: 0 auto;
   box-sizing: border-box;
-  will-change: transform, opacity;
 }
 
 /* For complex charts that need horizontal scroll room to prevent text squishing */

@@ -340,7 +340,7 @@ const year = new Date().getFullYear();
 (function () {
   // ── State (re-initialized on every page load) ────────────────────────────
   let canvas, ctx;
-  let cursorCanvas, cursorCtx;
+  let customCursorEl = null;
   let points   = [];
   let strokeId = 0;
   let isDrawing = false;
@@ -356,6 +356,18 @@ const year = new Date().getFullYear();
   };
   const springTension = 0.12;
   const springDamping  = 0.65;
+
+  function updateCursorDOM() {
+    if (!customCursorEl) return;
+    if (!brush.isVisible) {
+      customCursorEl.classList.remove('is-visible');
+      return;
+    }
+    customCursorEl.classList.add('is-visible');
+    customCursorEl.style.transform = `translate3d(${mouse.x}px, ${mouse.y}px, 0)`;
+    customCursorEl.classList.toggle('is-hovering', brush.isHoveringInteractive);
+    customCursorEl.classList.toggle('is-pressed', brush.isPressed);
+  }
 
   // ── InkPoint ─────────────────────────────────────────────────────────────
   class InkPoint {
@@ -378,20 +390,13 @@ const year = new Date().getFullYear();
 
   // ── Canvas resize ─────────────────────────────────────────────────────────
   function resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = 1; // 1x DPR 渲染水墨流体，显存消耗从 20MB 降至 5MB，大幅减轻合成器带宽
     if (canvas && ctx) {
       canvas.style.width = window.innerWidth + 'px';
       canvas.style.height = window.innerHeight + 'px';
       canvas.width  = window.innerWidth  * dpr;
       canvas.height = window.innerHeight * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // absolute set, never accumulates
-    }
-    if (cursorCanvas && cursorCtx) {
-      cursorCanvas.style.width = window.innerWidth + 'px';
-      cursorCanvas.style.height = window.innerHeight + 'px';
-      cursorCanvas.width  = window.innerWidth  * dpr;
-      cursorCanvas.height = window.innerHeight * dpr;
-      cursorCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
   }
 
@@ -401,18 +406,22 @@ const year = new Date().getFullYear();
       isDrawing = false;
       return;
     }
-    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-    if (cursorCtx) {
-      cursorCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+    const trailDisabled = isCursorTrailDisabled();
+    if (trailDisabled || (points.length === 0 && !brush.isVisible)) {
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      points = [];
+      isDrawing = false;
+      return;
     }
+
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
     const theme = document.documentElement.getAttribute('data-theme') || 'light';
     const color = theme === 'dark' ? '255,255,255' : theme === 'moss' ? '255,241,244' : theme === 'rice' ? '43,36,28' : '26,24,20';
     const [baseR, baseG, baseB] = color.split(',').map(Number);
 
-    const trailDisabled = isCursorTrailDisabled();
-
-    // Spring physics
+    // Spring physics for ink flow
     const dx = mouse.x - brush.x;
     const dy = mouse.y - brush.y;
     brush.vx = (brush.vx + dx * springTension) * springDamping;
@@ -482,50 +491,13 @@ const year = new Date().getFullYear();
 
       const head = points[N - 1];
 
-      // Apply slight blur to edges
-      ctx.shadowBlur = 2;
-      ctx.shadowColor = `rgba(${baseR},${baseG},${baseB},${head.currentOpacity})`;
-
-      // Use higher opacity for a more solid look
+      // Solid smooth fill without expensive shadowBlur for 60fps compositor
       ctx.fillStyle = `rgba(${baseR},${baseG},${baseB},${head.currentOpacity * 0.9})`;
       ctx.fill();
-
-      // Reset shadow for subsequent drawings
-      ctx.shadowBlur = 0;
     }
 
-    // Smooth outer ring radius physics: normal: 6px, hovering interactive: 9px, pressed: 4.5px
-    let targetOuterR = 6;
-    if (brush.isPressed) {
-      targetOuterR = 4.5;
-    } else if (brush.isHoveringInteractive) {
-      targetOuterR = 9;
-    }
-    brush.outerRadius += (targetOuterR - brush.outerRadius) * 0.22;
-
-    // ── 极简双环/墨核细圈指针 (Permanent Dual-Ring Inverted Ink Pointer) ────────────
-    if (brush.isVisible) {
-      const activeCtx = cursorCtx || ctx;
-      activeCtx.beginPath();
-      activeCtx.arc(mouse.x, mouse.y, 1.5, 0, Math.PI * 2);
-      activeCtx.fillStyle = '#ffffff';
-      activeCtx.fill();
-
-      activeCtx.beginPath();
-      activeCtx.arc(mouse.x, mouse.y, brush.outerRadius, 0, Math.PI * 2);
-      activeCtx.lineWidth   = 1.35;
-      activeCtx.strokeStyle = '#ffffff';
-      activeCtx.stroke();
-    }
-
-    const isStationary = points.length === 0 && (!brush.isVisible || speed <= 0.05);
-    if (isStationary) {
-      if (points.length === 0 && !brush.isVisible) {
-        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      }
-      if (!brush.isVisible && cursorCtx) {
-        cursorCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      }
+    if (points.length === 0) {
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
       isDrawing = false;
     } else if (isDrawing) {
       requestAnimationFrame(updateAndDraw);
@@ -554,9 +526,7 @@ const year = new Date().getFullYear();
     if (ctx && canvas) {
       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
     }
-    if (cursorCtx && cursorCanvas) {
-      cursorCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-    }
+    updateCursorDOM();
   }
   window.__clearCursorTrail = clearCursorTrail;
 
@@ -565,14 +535,14 @@ const year = new Date().getFullYear();
       document.documentElement.setAttribute('data-cursor-trail', 'disabled');
       try { localStorage.setItem('cursor-trail', 'disabled'); } catch (e) {}
       points = [];
-      if (!isDrawing) {
-        isDrawing = true;
-        requestAnimationFrame(updateAndDraw);
+      if (ctx && canvas) {
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
       }
+      isDrawing = false;
     } else {
       document.documentElement.removeAttribute('data-cursor-trail');
       try { localStorage.removeItem('cursor-trail'); } catch (e) {}
-      if (!isDrawing) {
+      if (!isDrawing && points.length > 0) {
         isDrawing = true;
         requestAnimationFrame(updateAndDraw);
       }
@@ -592,30 +562,29 @@ const year = new Date().getFullYear();
 
     syncToggleButtons();
 
-    // Re-acquire canvas (Astro swaps the DOM on navigation)
+    // Re-acquire canvas and cursor elements (Astro swaps DOM on navigation)
     canvas = document.getElementById('inkCanvas');
-    cursorCanvas = document.getElementById('cursorCanvas');
+    customCursorEl = document.getElementById('custom-cursor');
+    const legacyCursorCanvas = document.getElementById('cursorCanvas');
+    if (legacyCursorCanvas) {
+      legacyCursorCanvas.remove();
+    }
     if (!canvas) return;
 
     canvas.style.removeProperty('display');
 
-    // ★ Move canvas to <body> to escape any backdrop-filter containing block
-    //   (backdrop-filter on an ancestor breaks position:fixed for children)
     if (canvas.parentElement !== document.body) {
       document.body.appendChild(canvas);
     }
     canvas.style.zIndex = '2147483646';
     canvas.style.pointerEvents = 'none';
 
-    if (cursorCanvas) {
-      cursorCanvas.style.removeProperty('display');
-      if (cursorCanvas.parentElement !== document.body) {
-        document.body.appendChild(cursorCanvas);
+    if (customCursorEl) {
+      if (customCursorEl.parentElement !== document.body) {
+        document.body.appendChild(customCursorEl);
       }
-      cursorCanvas.style.zIndex = '2147483647';
-      cursorCanvas.style.pointerEvents = 'none';
-      cursorCanvas.style.mixBlendMode = 'difference';
-      cursorCtx = cursorCanvas.getContext('2d');
+      customCursorEl.style.zIndex = '2147483647';
+      customCursorEl.style.pointerEvents = 'none';
     }
 
     ctx = canvas.getContext('2d');
@@ -650,7 +619,8 @@ const year = new Date().getFullYear();
       brush.vx = brush.vy = 0;
       hasPointerPosition = true;
       strokeId++;
-      if (!isDrawing) {
+      updateCursorDOM();
+      if (!isDrawing && !isCursorTrailDisabled()) {
         isDrawing = true;
         requestAnimationFrame(updateAndDraw);
       }
@@ -659,10 +629,8 @@ const year = new Date().getFullYear();
       brush.isVisible = false;
       brush.isPressed = false;
       hasPointerPosition = false;
-      if (cursorCtx) {
-        cursorCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      }
-      if (points.length > 0 && !isDrawing) {
+      updateCursorDOM();
+      if (points.length > 0 && !isDrawing && !isCursorTrailDisabled()) {
         isDrawing = true;
         requestAnimationFrame(updateAndDraw);
       } else if (ctx && canvas && points.length === 0) {
@@ -682,10 +650,8 @@ const year = new Date().getFullYear();
       const isThemeOrFontToggle = t && typeof t.closest === 'function' && t.closest('[data-theme-toggle],[data-font-toggle]');
       if (isTextInput) {
         brush.isVisible = false;
-        if (cursorCtx) {
-          cursorCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-        }
-        if (points.length > 0 && !isDrawing) {
+        updateCursorDOM();
+        if (points.length > 0 && !isDrawing && !isCursorTrailDisabled()) {
           isDrawing = true;
           requestAnimationFrame(updateAndDraw);
         } else if (ctx && canvas && points.length === 0) {
@@ -697,7 +663,8 @@ const year = new Date().getFullYear();
       brush.isOverControl = !!isThemeOrFontToggle;
       updateMouse(e);
       brush.isVisible = true;
-      if (!isDrawing) {
+      updateCursorDOM();
+      if (!isDrawing && !isCursorTrailDisabled()) {
         isDrawing = true;
         requestAnimationFrame(updateAndDraw);
       }
@@ -714,7 +681,8 @@ const year = new Date().getFullYear();
         if (!isThemeOrFontToggle) {
           strokeId++;
         }
-        if (!isDrawing) {
+        updateCursorDOM();
+        if (!isDrawing && !isCursorTrailDisabled()) {
           isDrawing = true;
           requestAnimationFrame(updateAndDraw);
         }
@@ -722,6 +690,7 @@ const year = new Date().getFullYear();
     }
     function onPointerUp() {
       brush.isPressed = false;
+      updateCursorDOM();
     }
     function onVisibilityChange() {
       if (document.hidden) {
@@ -982,37 +951,37 @@ import gsap from 'gsap';
       if ((item as any).__gliderBound) return;
       (item as any).__gliderBound = true;
 
+      let cachedRect: DOMRect | null = null;
+      let xTo: ((v: number) => void) | null = null;
+      let yTo: ((v: number) => void) | null = null;
+
       item.addEventListener('pointerenter', () => {
         positionGlider(item);
         if (!isDesktop() || isReduced()) return;
-        gsap.to(item, {
-          x: 8,
-          y: 0,
-          duration: 0.28,
-          ease: 'power2.out',
-          overwrite: 'auto',
-        });
+        cachedRect = item.getBoundingClientRect();
+        if (!xTo) xTo = gsap.quickTo(item, 'x', { duration: 0.3, ease: 'power2.out' });
+        if (!yTo) yTo = gsap.quickTo(item, 'y', { duration: 0.3, ease: 'power2.out' });
+        xTo(8);
+        yTo(0);
       });
 
       item.addEventListener('pointermove', (e) => {
         if (!isDesktop() || isReduced()) return;
-        const rect = item.getBoundingClientRect();
+        if (!cachedRect) cachedRect = item.getBoundingClientRect();
         // 计算鼠标相对文字中心的拉扯微距离，物理微浮范围限制：X: ±4px, Y: ±3px
-        const relX = (e.clientX - rect.left - rect.width / 2) * 0.22;
-        const relY = (e.clientY - rect.top - rect.height / 2) * 0.22;
+        const relX = (e.clientX - cachedRect.left - cachedRect.width / 2) * 0.22;
+        const relY = (e.clientY - cachedRect.top - cachedRect.height / 2) * 0.22;
         const clampedRelX = Math.max(-4, Math.min(4, relX));
         const clampedRelY = Math.max(-3, Math.min(3, relY));
 
-        gsap.to(item, {
-          x: 8 + clampedRelX,
-          y: clampedRelY,
-          duration: 0.35,
-          ease: 'power2.out',
-          overwrite: 'auto',
-        });
+        if (xTo && yTo) {
+          xTo(8 + clampedRelX);
+          yTo(clampedRelY);
+        }
       });
 
       item.addEventListener('pointerleave', () => {
+        cachedRect = null;
         if (!isDesktop() || isReduced()) return;
         const isActive = item.classList.contains('is-active');
         gsap.to(item, {

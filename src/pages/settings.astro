@@ -544,6 +544,94 @@ const MOSS_SHADES = [
             </div>
           </div>
 
+          <!-- 模块 3：墨问伴读体验与上下文调优 (Prompt & Context Controls) -->
+          <div class="bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-7 shadow-sm">
+            <div class="flex items-center gap-2.5 mb-6 pb-4 border-b border-neutral-100 dark:border-neutral-800/70">
+              <div class="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">墨问伴读体验与上下文调优</h3>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400">微调读者提文字数上限、模型首字超时、正文上下文范围与 AI 伴读人设</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-5">
+              <div>
+                <label for="askQuestionLimit" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  提文字数上限 (字符)
+                </label>
+                <input
+                  type="number"
+                  id="askQuestionLimit"
+                  name="questionLimit"
+                  min="30"
+                  max="1000"
+                  placeholder="300"
+                  class="w-full px-3.5 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
+                />
+                <span class="text-[11px] text-neutral-400 mt-1 block">划词提问与全文抽屉的字数上限，默认 300</span>
+              </div>
+
+              <div>
+                <label for="askIdleTimeout" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  首字响应超时 (秒)
+                </label>
+                <input
+                  type="number"
+                  id="askIdleTimeout"
+                  name="idleTimeout"
+                  min="10"
+                  max="300"
+                  placeholder="60"
+                  class="w-full px-3.5 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
+                />
+                <span class="text-[11px] text-neutral-400 mt-1 block">等待 AI 返回首字的最长时间，思考型模型建议 ≥60s</span>
+              </div>
+
+              <div>
+                <label for="askContextLength" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  上下文截取范围 (字符)
+                </label>
+                <input
+                  type="number"
+                  id="askContextLength"
+                  name="contextLength"
+                  min="200"
+                  max="4000"
+                  placeholder="700"
+                  class="w-full px-3.5 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
+                />
+                <span class="text-[11px] text-neutral-400 mt-1 block">截取选区周围正文的窗口大小，用于喂给 AI 语境</span>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label for="askSystemPrompt" class="block text-xs font-mono text-neutral-600 dark:text-neutral-400">
+                  AI 伴读人设提示词 (System Prompt)
+                </label>
+                <button
+                  type="button"
+                  id="resetPromptBtn"
+                  class="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline font-mono cursor-pointer"
+                >
+                  恢复默认提示词
+                </button>
+              </div>
+              <textarea
+                id="askSystemPrompt"
+                name="systemPrompt"
+                rows="7"
+                placeholder="设定 AI 伴读的语气、风格与回答准则..."
+                class="w-full px-3.5 py-2.5 rounded-lg text-xs leading-relaxed bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono resize-y"
+              ></textarea>
+              <span class="text-[11px] text-neutral-400 mt-1 block">留空则自动使用默认伴读人设（通俗生动、大白话比喻、老友风）</span>
+            </div>
+          </div>
+
           <!-- 底部悬浮保存栏 -->
           <div class="sticky bottom-6 z-30 p-4 rounded-2xl bg-neutral-900/90 dark:bg-neutral-100/90 text-neutral-100 dark:text-neutral-900 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border border-neutral-800 dark:border-neutral-200">
             <div class="flex items-center gap-2 text-xs">
@@ -817,6 +905,12 @@ const MOSS_SHADES = [
           document.getElementById('askDailyLimit').value = cfg.dailyLimit || 800;
           document.getElementById('askMaxConcurrent').value = cfg.maxConcurrent || 12;
 
+          document.getElementById('askQuestionLimit').value = cfg.questionLimit || 300;
+          document.getElementById('askIdleTimeout').value = cfg.idleTimeout || 60;
+          document.getElementById('askContextLength').value = cfg.contextLength || 700;
+          document.getElementById('askSystemPrompt').value = cfg.systemPrompt || '';
+          defaultPromptCached = cfg.defaultSystemPrompt || '';
+
           // 状态卡片
           document.getElementById('statConfiguredDot').className = status.configured
             ? 'w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50'
@@ -1029,6 +1123,16 @@ const MOSS_SHADES = [
         }
       });
 
+      // 伴读提示词恢复默认
+      let defaultPromptCached = '';
+      const resetPromptBtn = document.getElementById('resetPromptBtn');
+      resetPromptBtn?.addEventListener('click', () => {
+        if (defaultPromptCached) {
+          document.getElementById('askSystemPrompt').value = defaultPromptCached;
+          showToast('已载入默认人设提示词');
+        }
+      });
+
       // 保存设置
       const settingsForm = document.getElementById('settingsForm');
       const saveConfigBtn = document.getElementById('saveConfigBtn');
@@ -1051,6 +1155,10 @@ const MOSS_SHADES = [
           perDay: Number(document.getElementById('askRatePerDay').value) || 60,
           dailyLimit: Number(document.getElementById('askDailyLimit').value) || 800,
           maxConcurrent: Number(document.getElementById('askMaxConcurrent').value) || 12,
+          questionLimit: Number(document.getElementById('askQuestionLimit').value) || 300,
+          idleTimeout: Number(document.getElementById('askIdleTimeout').value) || 60,
+          contextLength: Number(document.getElementById('askContextLength').value) || 700,
+          systemPrompt: document.getElementById('askSystemPrompt').value.trim(),
         };
 
         try {

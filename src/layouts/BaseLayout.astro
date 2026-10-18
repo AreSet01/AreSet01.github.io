@@ -446,7 +446,7 @@ const {
     <SiteIntro />
     <PostTransition />
     <canvas id="inkCanvas" transition:persist style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 2147483646;"></canvas>
-    <canvas id="cursorCanvas" transition:persist style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 2147483647; mix-blend-mode: difference;"></canvas>
+    <div id="custom-cursor" aria-hidden="true" transition:persist><span class="cursor-dot"></span><span class="cursor-ring"></span></div>
     <ZenRainscape transition:persist />
     <ZenSoundscape transition:persist />
     <div class:list={['site-shell', { 'site-shell-standalone': standalone }]}>
@@ -559,12 +559,12 @@ const {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
         const lenis = new Lenis({
-          duration: 1.1, // Faster
+          duration: 0.85, // Snappy & responsive, eliminates sluggish dragging feel
           easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // Custom premium easing
           orientation: 'vertical',
           gestureOrientation: 'vertical',
           smoothWheel: true,
-          wheelMultiplier: 0.8, // Make wheel slightly heavier
+          wheelMultiplier: 1.0, // Natural 1:1 wheel response
           allowNestedScroll: false, // Do not let containers (mermaid/code) hijack vertical scroll!
           anchors: { offset: -70 },
           virtualScroll: (data) => {
@@ -1076,10 +1076,15 @@ const {
       };
       function runPageEnter() {
         enteredThisDocument = true;
-        const held = document.querySelector('[data-enter-hold]') || window.__siteIntroPending || (window as any).__postTransitionPending;
+        const isIntroCurtain = Boolean(document.querySelector('[data-enter-hold]') || window.__siteIntroPending);
+        const isPostTransition = Boolean((window as any).__postTransitionPending);
+        const held = isIntroCurtain || isPostTransition;
         if (held && !releasedEarly) {
           holdRelease = (options) => initPageEnter(options);
           // Dead-man switch: a broken intro must not leave the page permanently blank.
+          // SiteIntro & AboutIntro release at ~8.5s and end at 10s, so this timeout sits well past that (14s).
+          // PostTransition completes in ~0.5s, so its wait is 2.5s.
+          const maxWait = isIntroCurtain ? 14000 : 2500;
           window.clearTimeout(holdTimer);
           holdTimer = window.setTimeout(() => {
             if (holdRelease) {
@@ -1090,7 +1095,7 @@ const {
               introEl?.remove();
               window.__releasePageEnter();
             }
-          }, 2000);
+          }, maxWait);
           return;
         }
         releasedEarly = false;
@@ -1542,7 +1547,7 @@ const {
             }, 3000);
           }
 
-          ['scroll', 'pointermove', 'keydown', 'click', 'touchstart'].forEach((evt) => {
+          ['scroll', 'keydown', 'click', 'touchstart'].forEach((evt) => {
             window.addEventListener(evt, wakeAmbient, { passive: true, signal });
           });
 

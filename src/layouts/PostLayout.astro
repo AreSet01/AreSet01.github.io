@@ -689,16 +689,14 @@ const hasToc = tocHeadings.length > 1;
       if (body && spine && spineLine && !reduceMotion) {
         requestAnimationFrame(() => placeDots());
         // Written straight from scroll progress (pathLength="1", so offset 1 → 0 is empty → full)
-        const spineState = { p: 0 };
-        const paint = () => { spineLine.style.strokeDashoffset = String(1 - spineState.p); };
-        paint();
+        spineLine.style.strokeDashoffset = '1';
         ScrollTrigger.create({
           id: `${TRIGGER_PREFIX}spine`,
           trigger: body,
           start: 'top 65%',
           end: 'bottom 55%',
           onUpdate: (self) => {
-            gsap.to(spineState, { p: self.progress, duration: 0.4, ease: 'power2.out', overwrite: true, onUpdate: paint });
+            spineLine.style.strokeDashoffset = String(1 - self.progress);
           },
         });
 

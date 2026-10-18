@@ -463,7 +463,7 @@
         <button type="button" class="ink-ask-pill" data-ask="为什么要这样设计或书写，有没有易踩坑点？">⚡ 为什么这样写</button>
       </div>
       <form class="ink-ask-form" autocomplete="off">
-        <input class="ink-ask-input" name="question" maxlength="120" placeholder="不懂就问，比如：举个例子、为什么这么写…" enterkeyhint="send" />
+        <input class="ink-ask-input" name="question" maxlength="500" placeholder="不懂就问，比如：举个例子、为什么这么写…" enterkeyhint="send" />
         <button type="submit" class="ink-ask-send" aria-label="追问">问</button>
       </form>
       <p class="ink-ask-foot">AI 伴读 · 按住头部可拖拽窗口</p>`;
@@ -826,7 +826,7 @@
         </div>
         <form class="ink-ask-drawer-form" autocomplete="off">
           <div class="ink-ask-drawer-input-wrap">
-            <textarea class="ink-ask-drawer-input" rows="1" maxlength="300" placeholder="向 AI 伴读提问本文…" enterkeyhint="send"></textarea>
+            <textarea class="ink-ask-drawer-input" rows="1" maxlength="500" placeholder="向 AI 伴读提问本文…" enterkeyhint="send"></textarea>
             <button type="submit" class="ink-ask-drawer-send" aria-label="发送">问</button>
           </div>
           <div class="ink-ask-drawer-foot-row">
@@ -1712,8 +1712,6 @@
     padding: 0.45rem 0.95rem 0.45rem 0.75rem;
     border-radius: 6px;
     background: var(--glass-bg);
-    backdrop-filter: blur(14px) saturate(120%);
-    -webkit-backdrop-filter: blur(14px) saturate(120%);
     border: 1px solid var(--rule-strong);
     box-shadow:
       0 6px 24px rgba(0, 0, 0, 0.08),
@@ -1763,11 +1761,13 @@
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     opacity: 0;
+    visibility: hidden;
     pointer-events: none;
-    transition: opacity 280ms ease;
+    transition: opacity 280ms ease, visibility 280ms ease;
   }
   .ink-ask-drawer-overlay.is-open {
     opacity: 1;
+    visibility: visible;
     pointer-events: auto;
   }
   .ink-ask-drawer {

@@ -24,6 +24,16 @@ const positive = (name, fallback) => {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 };
 
+const DEFAULT_SYSTEM_PROMPT = `你是技术博客「梦付千秋」的专属伴读助手，像一位懂技术、热心且风趣的技术老朋友。
+读者正在阅读技术文章，请结合文章上下文，用通俗生动、接地气的大白话解答读者的疑问。
+
+回答准则：
+1. 【深入浅出，通俗好懂】：拒绝干瘪冰冷的说教和生硬堆砌的专业术语。第一句话先用大白话或生动贴切的生活比喻点透本质（“它其实就像...”），让读者一秒抓住核心；然后再娓娓道来背后的原理。
+2. 【紧扣技术与文章场景】：紧密结合文章实际语境（如 UE5、C++ 游戏引擎底层等），讲清楚它在这里扮演什么角色、解决什么痛点、为什么要这么写。
+3. 【排版清晰有条理】：用精炼语言组织，善用加粗关键结论、\`行内代码\`、精简列表。严格遵守 Markdown 规范：加粗符号 ** 紧贴文字内容，内侧严禁带空格（例如 **结论**，勿写成 ** 结论 **）；反引号代码与加粗组合时写为 **\`Code\`**。
+4. 【亲切自然老友风】：语气真诚温和，不掉书袋，不讲官话。读者追问时直击要害，解答透彻。
+5. 【专注阅读】：紧扣所选内容与当前文章技术主题，礼貌拒绝完全无关的非技术闲聊。`;
+
 const config = {
   baseUrl: (process.env.AI_BASE_URL || '').trim().replace(/\/+$/, ''),
   apiKey: (process.env.AI_API_KEY || '').trim(),
@@ -39,6 +49,10 @@ const config = {
   perDay: positive('ASK_RATE_PER_DAY', 60),
   dailyLimit: positive('ASK_DAILY_LIMIT', 800),
   maxConcurrent: positive('ASK_MAX_CONCURRENT', 12),
+  questionLimit: positive('ASK_QUESTION_LIMIT', 300),
+  systemPrompt: (process.env.ASK_SYSTEM_PROMPT || '').trim() || DEFAULT_SYSTEM_PROMPT,
+  contextLength: positive('ASK_CONTEXT_LENGTH', 700),
+  idleTimeout: positive('ASK_IDLE_TIMEOUT', 60),
 };
 
 const resolveConfigFile = () => {
@@ -66,6 +80,10 @@ function applyRuntimeConfig() {
     if (Number.isFinite(saved.perDay) && saved.perDay > 0) config.perDay = saved.perDay;
     if (Number.isFinite(saved.dailyLimit) && saved.dailyLimit > 0) config.dailyLimit = saved.dailyLimit;
     if (Number.isFinite(saved.maxConcurrent) && saved.maxConcurrent > 0) config.maxConcurrent = saved.maxConcurrent;
+    if (Number.isFinite(saved.questionLimit) && saved.questionLimit > 0) config.questionLimit = saved.questionLimit;
+    if (typeof saved.systemPrompt === 'string' && saved.systemPrompt.trim()) config.systemPrompt = saved.systemPrompt.trim();
+    if (Number.isFinite(saved.contextLength) && saved.contextLength > 0) config.contextLength = saved.contextLength;
+    if (Number.isFinite(saved.idleTimeout) && saved.idleTimeout > 0) config.idleTimeout = saved.idleTimeout;
   } catch (err) {
     console.error('[ask] failed to read runtime config:', err.message);
   }
@@ -86,6 +104,12 @@ function persistRuntimeConfig(updated) {
   if (Number.isFinite(updated.perDay) && updated.perDay > 0) config.perDay = updated.perDay;
   if (Number.isFinite(updated.dailyLimit) && updated.dailyLimit > 0) config.dailyLimit = updated.dailyLimit;
   if (Number.isFinite(updated.maxConcurrent) && updated.maxConcurrent > 0) config.maxConcurrent = updated.maxConcurrent;
+  if (Number.isFinite(updated.questionLimit) && updated.questionLimit > 0) config.questionLimit = updated.questionLimit;
+  if (typeof updated.systemPrompt === 'string') {
+    config.systemPrompt = updated.systemPrompt.trim() || DEFAULT_SYSTEM_PROMPT;
+  }
+  if (Number.isFinite(updated.contextLength) && updated.contextLength > 0) config.contextLength = updated.contextLength;
+  if (Number.isFinite(updated.idleTimeout) && updated.idleTimeout > 0) config.idleTimeout = updated.idleTimeout;
 
   configured = Boolean(config.baseUrl && config.apiKey && config.model);
 
@@ -99,6 +123,10 @@ function persistRuntimeConfig(updated) {
     perDay: config.perDay,
     dailyLimit: config.dailyLimit,
     maxConcurrent: config.maxConcurrent,
+    questionLimit: config.questionLimit,
+    systemPrompt: config.systemPrompt,
+    contextLength: config.contextLength,
+    idleTimeout: config.idleTimeout,
     updatedAt: new Date().toISOString(),
   };
 
@@ -308,20 +336,22 @@ function locate(page, selectionNorm, prefix, suffix) {
   return { pos, first: blockAt(pos), last: blockAt(pos + selectionNorm.length - 1) };
 }
 
-// 选区所在的段落，再向前后扩到约 700 字；太长（大段代码）就截取选区附近的一个窗口
+// 选区所在的段落，再向前后扩到 contextLength 字；太长就截取选区附近的一个窗口
 function contextFor(page, loc, selectionLength) {
   const { blocks } = page;
   let from = loc.first;
   let to = loc.last;
   let size = 0;
+  const targetLen = config.contextLength || 700;
   for (let i = from; i <= to; i++) size += blocks[i].text.length;
-  while (size < 700 && (from > 0 || to < blocks.length - 1)) {
+  while (size < targetLen && (from > 0 || to < blocks.length - 1)) {
     if (from > 0) size += blocks[--from].text.length;
-    if (size < 700 && to < blocks.length - 1) size += blocks[++to].text.length;
+    if (size < targetLen && to < blocks.length - 1) size += blocks[++to].text.length;
   }
 
   let text = blocks.slice(from, to + 1).map((block) => block.text).join('\n');
-  if (text.length > 1600) {
+  const maxTextLen = Math.round(targetLen * 2.3);
+  if (text.length > maxTextLen) {
     // 把「第 n 个可见字符」换算回 text 里的下标
     let remaining = loc.pos - page.offsets[from];
     let index = 0;
@@ -329,8 +359,8 @@ function contextFor(page, loc, selectionLength) {
       if (!INVISIBLE.test(text[index])) remaining--;
       index++;
     }
-    const left = Math.max(0, index - 700);
-    const right = Math.min(text.length, index + selectionLength + 700);
+    const left = Math.max(0, index - targetLen);
+    const right = Math.min(text.length, index + selectionLength + targetLen);
     text = `${left > 0 ? '…' : ''}${text.slice(left, right)}${right < text.length ? '…' : ''}`;
   }
   return { text, heading: blocks[loc.first].heading };
@@ -347,16 +377,6 @@ function contextForArticle(page) {
 }
 
 // ---------- 提示词 ----------
-
-const SYSTEM_PROMPT = `你是技术博客「${config.siteName}」的专属伴读助手，像一位懂技术、热心且风趣的技术老朋友。
-读者正在阅读技术文章，请结合文章上下文，用通俗生动、接地气的大白话解答读者的疑问。
-
-回答准则：
-1. 【深入浅出，通俗好懂】：拒绝干瘪冰冷的说教和生硬堆砌的专业术语。第一句话先用大白话或生动贴切的生活比喻点透本质（“它其实就像...”），让读者一秒抓住核心；然后再娓娓道来背后的原理。
-2. 【紧扣技术与文章场景】：紧密结合文章实际语境（如 UE5、C++ 游戏引擎底层等），讲清楚它在这里扮演什么角色、解决什么痛点、为什么要这么写。
-3. 【排版清晰有条理】：用精炼语言组织，善用加粗关键结论、\`行内代码\`、精简列表。严格遵守 Markdown 规范：加粗符号 ** 紧贴文字内容，内侧严禁带空格（例如 **结论**，勿写成 ** 结论 **）；反引号代码与加粗组合时写为 **\`Code\`**。
-4. 【亲切自然老友风】：语气真诚温和，不掉书袋，不讲官话。读者追问时直击要害，解答透彻。
-5. 【专注阅读】：紧扣所选内容与当前文章技术主题，礼貌拒绝完全无关的非技术闲聊。`;
 
 function buildMessages({ title, context, selection, question, previous, isArticleChat }) {
   const base = isArticleChat
@@ -375,7 +395,7 @@ function buildMessages({ title, context, selection, question, previous, isArticl
     ? '请用通俗生动的大白话概括本文的核心要点，讲讲它解决了什么核心问题。'
     : '请用通俗生动的大白话解释选中的内容，讲清它在这里的作用和核心原理。';
 
-  const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+  const messages = [{ role: 'system', content: config.systemPrompt || DEFAULT_SYSTEM_PROMPT }];
   if (!question) {
     messages.push({ role: 'user', content: `${base}\n${defaultPrompt}` });
   } else if (previous) {
@@ -611,7 +631,8 @@ async function handleAsk(req, res) {
   const suffix = typeof input?.suffix === 'string' ? input.suffix.slice(0, LIMITS.anchor) : '';
   if (!isArticleChat && !selection) return sendJson(res, 400, { error: '没有选中内容' });
   if (selection && [...selection].length > LIMITS.selection) return sendJson(res, 400, { error: `选中的内容太长了，请缩短到 ${LIMITS.selection} 字以内` });
-  if ([...question].length > LIMITS.question) return sendJson(res, 400, { error: `提问请控制在 ${LIMITS.question} 字以内` });
+  const maxQuestionLen = config.questionLimit || 300;
+  if ([...question].length > maxQuestionLen) return sendJson(res, 400, { error: `提问请控制在 ${maxQuestionLen} 字以内` });
 
   const loaded = typeof input.path === 'string' ? await loadPage(input.path) : null;
   if (!loaded) return sendJson(res, 404, { error: '找不到这篇文章' });
@@ -674,7 +695,7 @@ async function handleAsk(req, res) {
     idle = setTimeout(() => {
       timedOut = true;
       upstream.abort();
-    }, IDLE_TIMEOUT_MS);
+    }, (config.idleTimeout || 60) * 1000);
   };
   touch();
   const heartbeat = setInterval(() => write(': ping\n\n'), HEARTBEAT_MS);
@@ -782,6 +803,11 @@ async function handleSettings(req, res, subPath) {
         perDay: config.perDay,
         dailyLimit: config.dailyLimit,
         maxConcurrent: config.maxConcurrent,
+        questionLimit: config.questionLimit,
+        systemPrompt: config.systemPrompt || DEFAULT_SYSTEM_PROMPT,
+        defaultSystemPrompt: DEFAULT_SYSTEM_PROMPT,
+        contextLength: config.contextLength,
+        idleTimeout: config.idleTimeout,
         siteName: config.siteName,
       },
       status: {

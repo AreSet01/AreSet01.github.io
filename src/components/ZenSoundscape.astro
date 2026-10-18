@@ -193,7 +193,7 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
 
     function positionCapsule() {
       const capsule = document.getElementById('zen-sound-capsule');
-      if (!capsule) return;
+      if (!capsule || !capsule.classList.contains('is-open')) return;
       const toggleBtn = document.querySelector('[data-zen-sound-toggle]');
       if (toggleBtn && window.innerWidth >= 1024) {
         const rect = toggleBtn.getBoundingClientRect();
@@ -214,7 +214,7 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
 
     function updateTimerGlider() {
       const capsule = document.getElementById('zen-sound-capsule');
-      if (!capsule) return;
+      if (!capsule || !capsule.classList.contains('is-open')) return;
       const glider = capsule.querySelector('[data-zen-timer-glider]') as HTMLElement | null;
       const pillsContainer = capsule.querySelector('.zen-timer-pills') as HTMLElement | null;
       const activePill = capsule.querySelector('.zen-timer-pill.is-active') as HTMLElement | null;
