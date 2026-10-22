@@ -3242,7 +3242,7 @@ const {
 
           let rect = card.getBoundingClientRect();
           let isInside = false;
-          const maxTilt = 14; // 张力十足角度 (~14 degrees)
+          const maxTilt = 8; // 温润微立体角度 (~8 degrees，杜绝文字图层穿模)
 
           const updateRect = () => {
             rect = card.getBoundingClientRect();

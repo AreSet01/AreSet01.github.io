@@ -509,7 +509,8 @@ const countByCategory = {
     gap: 3.5rem 2.8rem;
     position: relative;
     min-height: 200px;
-    overflow-x: clip;
+    overflow: visible;
+    padding: 0.5rem 0.25rem;
   }
 
   @media (max-width: 640px) {
@@ -536,13 +537,9 @@ const countByCategory = {
     display: none !important;
   }
 
-  /* 仅在卡片完全落定且不在动画中时开启 hover 过渡，杜绝 CSS 过渡与 GSAP 逐帧抢控制权 */
+  /* 由统一 GSAP tilt 引擎管理 3D 变换，杜绝 CSS transform 过渡与 GSAP 逐帧抢控制权 */
   .life-card.is-entered:not(.is-reflowing):not(.is-entering) {
-    transition: transform 240ms var(--ease);
-  }
-
-  .life-card.is-entered:not(.is-reflowing):not(.is-entering):hover {
-    transform: translateY(-2px);
+    transition: box-shadow 240ms var(--ease), border-color 240ms var(--ease);
   }
 
   .life-card.is-reflowing,
