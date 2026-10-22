@@ -155,12 +155,54 @@ test('exportHighlightsAsMarkdown generates grouped, structured study notes', () 
   );
 
   assert.ok(md.includes('# 《虚幻引擎 5 架构》读书笔记与高亮摘要'));
-  assert.ok(md.includes('共 3 条划线高亮'));
+  assert.ok(md.includes('本文共 3 条划线、0 条 AI 摘录、0 条自由笔记'));
   assert.ok(md.includes('## § 1. CDO 基础概念'));
   assert.ok(md.includes('## § 2. 根集与回收机制'));
   assert.ok(md.includes('> CDO 是所有 UClass 实例的模板原型。'));
   assert.ok(md.includes('> RootSet 保护根集对象不受回收。'));
   assert.ok(md.includes('[定位原文](https://areset.me/posts/ue5-arch#section-1)'));
+});
+
+test('export includes comments, AI extracts and free notes', () => {
+  const now = 1727672000000;
+  const records = [
+    {
+      id: 'hl-1',
+      text: '划线原文',
+      prefix: '',
+      suffix: '',
+      headingText: '§ 1. 基础',
+      timestamp: now,
+      comment: '这是我的备注',
+    },
+    {
+      id: 'ai-1',
+      kind: 'ai',
+      text: 'AI 的回答正文',
+      prefix: '',
+      suffix: '',
+      question: '为什么这样？',
+      timestamp: now,
+      comment: 'AI 备注',
+    },
+    {
+      id: 'free-1',
+      kind: 'free',
+      text: '自由笔记正文',
+      prefix: '',
+      suffix: '',
+      timestamp: now,
+    },
+  ];
+
+  const md = exportHighlightsAsMarkdown('测试文章', 'https://example.com/p', records);
+  assert.ok(md.includes('**备注：** 这是我的备注'));
+  assert.ok(md.includes('## AI 问答摘录'));
+  assert.ok(md.includes('### 问：为什么这样？'));
+  assert.ok(md.includes('AI 的回答正文'));
+  assert.ok(md.includes('## 自由笔记'));
+  assert.ok(md.includes('自由笔记正文'));
+  assert.ok(!md.includes('undefined'));
 });
 
 // ---------------------------------------------------------

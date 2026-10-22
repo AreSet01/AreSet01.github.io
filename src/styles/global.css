@@ -402,27 +402,52 @@ html {
   font-size: var(--font-size-base);
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
+  scrollbar-gutter: auto;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  -webkit-overflow-scrolling: touch;
 }
 
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+/* ==========================================================================
+   Universal Scrollbar Suppression (Zero Scrollbars Globally Across Web)
+   Guarantees clean, distraction-free reading while preserving 100% smooth
+   scrolling via wheel, trackpad, touch gestures, and keyboard navigation.
+   ========================================================================== */
+html,
+body,
+*,
+*::before,
+*::after {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
 }
-::-webkit-scrollbar-thumb {
-  background: var(--rule-strong);
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--ink-light);
+
+::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track,
+::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-corner,
+*::-webkit-scrollbar-corner {
+  display: none !important;
+  background: transparent !important;
+  border: none !important;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  overflow-x: hidden;
+  overflow-x: visible;
+  overflow-y: visible;
   cursor: default;
   caret-color: transparent;
   font-family: var(--font-body);
@@ -610,18 +635,105 @@ img {
   display: block;
 }
 
+/* ================= Text Selection Palette (WCAG Contrast & High Legibility) ================= */
+
+/* Default / Paper theme: warm vermilion tint with crisp contrast */
 ::selection {
-  background: rgba(0, 0, 0, 0.12);
+  background: rgba(194, 74, 44, 0.22);
   color: inherit;
 }
 
+/* Dark theme: warm amber glow with high legibility */
 [data-theme="dark"] ::selection {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(235, 94, 40, 0.32);
   color: inherit;
 }
 
-[data-theme="moss"] ::selection {
-  background: rgba(120, 160, 120, 0.22);
+/* Moss theme & all sub-shades: delicate soft rose-pink veil */
+[data-theme="moss"] ::selection,
+[data-theme="moss"][data-moss-shade] ::selection {
+  background: rgba(255, 194, 209, 0.38);
+  color: inherit;
+}
+
+/* Rice theme: warm golden ochre */
+[data-theme="rice"] ::selection {
+  background: rgba(168, 72, 36, 0.22);
+  color: inherit;
+}
+
+/* Code blocks across ALL themes (Shiki/pre/code have dark background):
+   Ensures crystal-clear visibility and preserves syntax token readability */
+pre ::selection,
+pre *::selection,
+code::selection,
+code *::selection,
+.shiki ::selection,
+.shiki *::selection,
+.astro-code ::selection,
+.astro-code *::selection {
+  background: rgba(255, 255, 255, 0.26) !important;
+  color: inherit !important;
+}
+
+[data-theme="dark"] pre ::selection,
+[data-theme="dark"] pre *::selection,
+[data-theme="dark"] code::selection,
+[data-theme="dark"] code *::selection,
+[data-theme="dark"] .shiki ::selection,
+[data-theme="dark"] .shiki *::selection,
+[data-theme="dark"] .astro-code ::selection,
+[data-theme="dark"] .astro-code *::selection {
+  background: rgba(235, 94, 40, 0.38) !important;
+  color: inherit !important;
+}
+
+[data-theme="moss"] pre ::selection,
+[data-theme="moss"] pre *::selection,
+[data-theme="moss"] code::selection,
+[data-theme="moss"] code *::selection,
+[data-theme="moss"] .shiki ::selection,
+[data-theme="moss"] .shiki *::selection,
+[data-theme="moss"] .astro-code ::selection,
+[data-theme="moss"] .astro-code *::selection {
+  background: rgba(255, 194, 209, 0.35) !important;
+  color: inherit !important;
+}
+
+[data-theme="rice"] pre ::selection,
+[data-theme="rice"] pre *::selection,
+[data-theme="rice"] code::selection,
+[data-theme="rice"] code *::selection,
+[data-theme="rice"] .shiki ::selection,
+[data-theme="rice"] .shiki *::selection,
+[data-theme="rice"] .astro-code ::selection,
+[data-theme="rice"] .astro-code *::selection {
+  background: rgba(255, 255, 255, 0.26) !important;
+  color: inherit !important;
+}
+
+/* Interactive inputs selection */
+input::selection,
+textarea::selection {
+  background: rgba(194, 74, 44, 0.25);
+  color: inherit;
+}
+
+[data-theme="dark"] input::selection,
+[data-theme="dark"] textarea::selection {
+  background: rgba(235, 94, 40, 0.35);
+  color: inherit;
+}
+
+[data-theme="moss"] input::selection,
+[data-theme="moss"] textarea::selection {
+  background: rgba(255, 194, 209, 0.38);
+  color: inherit;
+}
+
+[data-theme="rice"] input::selection,
+[data-theme="rice"] textarea::selection {
+  background: rgba(168, 72, 36, 0.25);
   color: inherit;
 }
 
@@ -1054,6 +1166,8 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted);
+  white-space: nowrap !important;
+  flex-shrink: 0;
 }
 
 .archive-metrics-grid {
@@ -1178,6 +1292,7 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
   background: var(--bg-base);
   border-bottom: 1px solid transparent;
   border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;
+  transition: opacity 400ms cubic-bezier(0.16, 1, 0.3, 1), transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (min-width: 1024px) {
@@ -3051,29 +3166,38 @@ html.theme-switching .prose blockquote {
   border-top: 1px solid var(--rule-strong);
 }
 
-.prose table {
-  display: block;
+/* 表格：由外层 .table-scroll 负责横向滚动，table 本身保持 table 布局。
+   这样列宽会按内容自动分配、长段落能正常换行，不会把最后一列挤成一条超长单行。 */
+.prose .table-scroll {
   width: 100%;
-  min-width: 100%;
+  margin: 2em 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   touch-action: pan-x pan-y;
-  margin: 2em 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.prose table {
+  width: 100%;
+  margin: 0;
   border-collapse: collapse;
+  table-layout: auto;
   font-size: 0.95em;
   background: transparent;
   border: 0;
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
   border-radius: 0;
-  -webkit-overflow-scrolling: touch;
 }
 
 .prose th,
 .prose td {
-  padding: 0.85em 1.2em;
+  padding: 0.85em 1.1em;
   text-align: left;
+  vertical-align: top;
   border-bottom: 1px solid var(--rule);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .prose th {
@@ -3088,49 +3212,37 @@ html.theme-switching .prose blockquote {
   border-bottom: 1px solid var(--rule-strong);
 }
 
+/* 行内代码/标识符不拆开；过长时由外层容器横向滚动承接 */
 .prose table td code,
 .prose table th code {
   white-space: nowrap;
 }
 
+/* 首列通常是维度/标签，保持单行；其余列一律允许换行 */
 .prose table td:first-child {
   white-space: nowrap;
 }
 
-.prose table td:nth-child(2) {
-  white-space: nowrap;
-}
-
-.prose table td:nth-child(3) {
-  min-width: 300px;
-  line-height: 1.6;
-}
-
-.prose table td:last-child {
-  white-space: nowrap;
-  text-align: center;
-}
-
-.prose table::-webkit-scrollbar {
+.prose .table-scroll::-webkit-scrollbar {
   height: 6px;
 }
 
-.prose table::-webkit-scrollbar-track {
+.prose .table-scroll::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.05);
   border-radius: 3px;
 }
 
-[data-theme="dark"] .prose table::-webkit-scrollbar-track,
-[data-theme="moss"] .prose table::-webkit-scrollbar-track {
+[data-theme="dark"] .prose .table-scroll::-webkit-scrollbar-track,
+[data-theme="moss"] .prose .table-scroll::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.05);
 }
 
-.prose table::-webkit-scrollbar-thumb {
+.prose .table-scroll::-webkit-scrollbar-thumb {
   background: var(--rule-strong);
   border-radius: 3px;
 }
 
-.prose table::-webkit-scrollbar-thumb:hover {
+.prose .table-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--ink-light);
 }
 
@@ -3644,16 +3756,21 @@ html.theme-switching .prose blockquote {
     word-break: break-word !important;
   }
 
-  .prose table {
-    display: block !important;
+  .prose .table-scroll {
     width: 100% !important;
     max-width: 100% !important;
     overflow-x: auto !important;
     overscroll-behavior-x: contain !important;
     touch-action: pan-x pan-y !important;
     -webkit-overflow-scrolling: touch !important;
-    font-size: 0.82em !important;
     margin: 1.2em 0 !important;
+  }
+
+  .prose table {
+    width: 100% !important;
+    max-width: none !important;
+    font-size: 0.82em !important;
+    margin: 0 !important;
   }
 
   .prose th,
@@ -3661,8 +3778,8 @@ html.theme-switching .prose blockquote {
     padding: 0.6em 0.85em !important;
   }
 
-  .prose table td:nth-child(3) {
-    min-width: 160px !important;
+  .prose th {
+    white-space: normal !important;
   }
 
   .prose pre {
@@ -3714,7 +3831,7 @@ html.theme-switching .prose blockquote {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 5.5rem 1.5rem 1.5rem;
+  padding: clamp(1.8rem, 4.5vh, 2.6rem) 1.5rem 1.5rem;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -3735,8 +3852,8 @@ html.theme-switching .prose blockquote {
 
 .search-modal {
   width: min(100%, 44rem);
-  max-height: calc(100vh - 7rem);
-  max-height: calc(100dvh - 7rem);
+  max-height: calc(100vh - 4.2rem);
+  max-height: calc(100dvh - 4.2rem);
   opacity: 0;
   transform-origin: center;
   will-change: transform, opacity;
@@ -4072,13 +4189,13 @@ html.theme-switching .prose blockquote {
 
 @media (max-width: 768px) {
   .search-overlay {
-    padding: 4.5rem 0.85rem 0.85rem;
+    padding: 1.25rem 0.85rem 0.85rem;
   }
 
   .search-modal {
     width: 100%;
-    max-height: calc(100vh - 5.35rem);
-    max-height: calc(100dvh - 5.35rem);
+    max-height: calc(100vh - 2.5rem);
+    max-height: calc(100dvh - 2.5rem);
   }
 
   .search-panel {
@@ -5120,14 +5237,13 @@ html[data-font="kai"] .stats-label {
   display: flex;
   min-height: 100%;
   flex-direction: column;
-  padding: 1.2rem 1.4rem;
+  padding: 1.4rem 1.6rem;
   color: inherit;
-  border: none !important;
-  border-left: 2px solid transparent !important;
-  box-shadow: none !important;
-  background: transparent;
-  border-radius: 0;
-  transition: color 260ms var(--ease), border-color 320ms var(--ease);
+  background: rgba(248, 246, 242, 0.9);
+  border: 1px solid var(--rule);
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.04);
+  border-radius: 12px;
+  transition: transform 320ms var(--ease-bounce), background 260ms var(--ease), box-shadow 320ms var(--ease), border-color 260ms var(--ease), color 260ms var(--ease);
 }
 
 .note-card::after {
@@ -5135,12 +5251,77 @@ html[data-font="kai"] .stats-label {
 }
 
 .note-card:hover {
-  border-color: var(--accent) !important;
-  transform: translateX(4px);
+  background: var(--bg-soft) !important;
+  border-radius: 8px;
+  border-radius: 12px;
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px -4px rgba(var(--accent-rgb), 0.08), 0 4px 12px -2px rgba(var(--accent-rgb), 0.04) !important;
+}
+
+.note-card .arrow-indicator,
+.note-card [data-card-arrow] {
+  display: inline-block;
+  transition: transform 260ms var(--ease);
+}
+
+.note-card:hover .arrow-indicator,
+.note-card:hover [data-card-arrow] {
+  transform: translateX(3px);
 }
 
 .note-card::before {
   display: none !important;
+}
+
+/* ================= 3D Tilt Card (物理透视跟随 · 优雅微立体 · 统一 12px 圆角) ================= */
+[data-tilt] {
+  transform-style: preserve-3d;
+  perspective: 1000px;
+  border-radius: 12px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-tilt] {
+    will-change: transform;
+  }
+
+  /* 仅主标题在倾斜时拥有精巧微立体层高 (translateZ: 12px)，层次跃然纸上且绝不引起排版失真与标签错位 */
+  [data-tilt]:hover h2,
+  [data-tilt]:hover .life-card-title,
+  [data-tilt]:hover .mat-photo-title,
+  [data-tilt]:hover .about-card-heading {
+    transform: translateZ(12px);
+    transform-style: preserve-3d;
+  }
+
+  /* 画册照片微浮立体 */
+  [data-tilt]:hover .mat-image-window {
+    transform: translateZ(10px);
+    transform-style: preserve-3d;
+  }
+
+  /* 生活 / 时间线卡片：标题层高更明显，配合轻微纸面投影形成分层 */
+  [data-tilt] .life-card-title,
+  [data-tilt] .timeline-card h2 {
+    transition: transform 280ms var(--ease), text-shadow 280ms var(--ease), color 240ms ease;
+  }
+
+  [data-tilt]:hover .life-card-title,
+  [data-tilt]:hover .timeline-card h2 {
+    transform: translateZ(30px);
+    text-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.95),
+      0 4px 0 rgba(120, 96, 68, 0.38),
+      0 8px 0 rgba(120, 96, 68, 0.18),
+      0 14px 22px rgba(60, 45, 30, 0.28);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-tilt] {
+    transform: none !important;
+    perspective: none !important;
+  }
 }
 
 @media (min-width: 768px) {
@@ -5577,33 +5758,189 @@ html.font-switching::view-transition-new(root) {
   transform: rotate(-180deg);
 }
 
-/* Hover tilt cards — JS drives rotateX/rotateY, CSS only sets up the 3D stage */
+/* Hover tilt cards — equal height, 12px radius, pure 3D depth without glare */
 .about-tilt-stage {
-  perspective: 900px;
+  perspective: 1000px;
 }
 
 .about-tilt {
   transform-style: preserve-3d;
   will-change: transform;
+  height: 100%;
 }
 
-.about-tilt-glare {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle at var(--glare-x, 50%) var(--glare-y, 50%), rgba(var(--accent-rgb), 0.12), transparent 55%);
-  opacity: 0;
-  transition: opacity 300ms var(--ease);
-  pointer-events: none;
-}
-
-.about-tilt:hover .about-tilt-glare {
-  opacity: 1;
+.about-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: var(--bg-soft);
+  color: var(--text-strong);
+  border: 1px solid var(--rule-soft);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  white-space: nowrap !important;
+  flex-shrink: 0;
 }
 
 .about-tilt .stat-card {
   position: relative;
-  padding-block: 1rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.25rem 1.15rem;
+  background: rgba(248, 246, 242, 0.9);
+  border: 1px solid var(--rule-strong, rgba(0, 0, 0, 0.18));
+  border-radius: 12px !important;
+  box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: transform 300ms var(--ease-bounce), border-color 280ms var(--ease), box-shadow 280ms var(--ease);
+}
+
+.about-tilt .stat-card:hover {
+  border-color: var(--text-strong);
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.08);
+}
+
+/* Card Theme Surface Elevations & Contrast Enhancements */
+[data-theme="dark"] .note-card,
+[data-theme="dark"] .stat-card,
+[data-theme="dark"] .about-tilt .stat-card {
+  background: #1a1a1d !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 4px 22px -2px rgba(0, 0, 0, 0.5) !important;
+}
+
+[data-theme="dark"] .note-card:hover,
+[data-theme="dark"] .stat-card:hover,
+[data-theme="dark"] .about-tilt .stat-card:hover {
+  background: #222226 !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 10px 32px -4px rgba(0, 0, 0, 0.7) !important;
+}
+
+[data-theme="dark"] .about-card-badge {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--text-strong);
+}
+
+[data-theme="moss"] .note-card,
+[data-theme="moss"] .stat-card,
+[data-theme="moss"] .about-tilt .stat-card {
+  background: rgba(0, 77, 64, 0.38) !important;
+  border-color: rgba(255, 241, 244, 0.18) !important;
+  box-shadow: 0 4px 18px -2px rgba(0, 30, 20, 0.35) !important;
+}
+
+[data-theme="moss"] .about-card-badge {
+  background: rgba(255, 241, 244, 0.12);
+  border-color: rgba(255, 241, 244, 0.22);
+  color: var(--text-strong);
+}
+
+[data-theme="rice"] .note-card,
+[data-theme="rice"] .stat-card,
+[data-theme="rice"] .about-tilt .stat-card {
+  background: rgba(235, 224, 203, 0.55) !important;
+  border-color: rgba(107, 91, 69, 0.22) !important;
+  box-shadow: 0 4px 16px -2px rgba(80, 60, 40, 0.06) !important;
+}
+
+[data-theme="rice"] .note-card:hover,
+[data-theme="rice"] .stat-card:hover,
+[data-theme="rice"] .about-tilt .stat-card:hover {
+  background: rgba(228, 216, 194, 0.85) !important;
+  border-color: rgba(107, 91, 69, 0.38) !important;
+  box-shadow: 0 8px 24px -4px rgba(80, 60, 40, 0.1) !important;
+}
+
+[data-theme="rice"] .about-card-badge {
+  background: rgba(107, 91, 69, 0.09);
+  border-color: rgba(107, 91, 69, 0.22);
+  color: var(--text-strong);
+  white-space: nowrap !important;
+}
+
+/* Rice Theme Card Hierarchy & Deep Ink Contrast */
+[data-theme="rice"] .note-card h2,
+[data-theme="rice"] .life-card-title,
+[data-theme="rice"] .mat-photo-title,
+[data-theme="rice"] .timeline-card h2,
+[data-theme="rice"] .about-card-heading {
+  color: #1A130C !important;
+}
+
+[data-theme="rice"] .life-card-title,
+[data-theme="rice"] .timeline-card h2 {
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95),
+    0 2px 0 rgba(120, 96, 68, 0.4),
+    0 3px 0 rgba(120, 96, 68, 0.28),
+    0 5px 0 rgba(120, 96, 68, 0.16),
+    0 8px 12px rgba(60, 45, 30, 0.22);
+}
+
+[data-theme="rice"] .note-card p,
+[data-theme="rice"] .life-card-summary,
+[data-theme="rice"] .life-card-tips-list li,
+[data-theme="rice"] .mat-photo-story,
+[data-theme="rice"] .timeline-card p {
+  color: #2E2419 !important;
+}
+
+[data-theme="rice"] .note-card .tag-chip,
+[data-theme="rice"] .life-card-city,
+[data-theme="rice"] .life-chip,
+[data-theme="rice"] .life-card-best-time,
+[data-theme="rice"] .mat-location-text,
+[data-theme="rice"] .mat-date-text,
+[data-theme="rice"] .mat-exif-tag,
+[data-theme="rice"] .mat-plaque-footer,
+[data-theme="rice"] .timeline-card time,
+[data-theme="rice"] .timeline-card-tags {
+  color: #524332 !important;
+}
+
+[data-theme="rice"] .life-card,
+[data-theme="rice"] .timeline-card {
+  background: rgba(247, 240, 226, 0.82) !important;
+  box-shadow:
+    0 14px 30px -8px rgba(80, 60, 40, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55) !important;
+}
+
+[data-theme="rice"] .life-card {
+  border-color: rgba(107, 91, 69, 0.26) !important;
+}
+
+[data-theme="rice"] .timeline-card {
+  border-color: rgba(107, 91, 69, 0.26) !important;
+  border-left-color: var(--accent) !important;
+}
+
+[data-theme="rice"] .life-card:hover,
+[data-theme="rice"] .timeline-card:hover {
+  background: rgba(240, 230, 212, 0.92) !important;
+  box-shadow:
+    0 20px 38px -10px rgba(80, 60, 40, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+}
+
+[data-theme="rice"] .gallery-mat-card {
+  border-bottom-color: rgba(107, 91, 69, 0.22) !important;
+}
+
+/* Unified 12px Card Border Radius across the blog */
+.gallery-mat-card,
+.timeline-card,
+.stat-card,
+.about-card,
+.account-card,
+.chart-card {
+  border-radius: 12px !important;
 }
 
 /* Timeline — draws its spine as you scroll (stroke-dashoffset, cheapest animation there is) */
@@ -5730,15 +6067,166 @@ html.font-switching::view-transition-new(root) {
 
 .post-body {
   position: relative;
+  transition: opacity 320ms var(--ease), visibility 320ms var(--ease);
+}
+
+/* While article title entrance is running in optical center, keep sidebar, header details, prose body, TOC, and floating actions cleanly hidden */
+html:has(article[data-post-title-hold="true"]) .glass-nav,
+body:has(article[data-post-title-hold="true"]) .glass-nav,
+html[data-post-title-hold="true"] .glass-nav,
+body[data-post-title-hold="true"] .glass-nav,
+article[data-post-title-hold="true"] header > *:not([data-post-title]),
+article[data-post-title-hold="true"] header p,
+article[data-post-title-hold="true"] header [data-enter],
+article[data-post-title-hold="true"] .series-strip,
+article[data-post-title-hold="true"] .post-toc,
+article[data-post-title-hold="true"] [data-locked-content],
+article[data-post-title-hold="true"] .lock-panel,
+article[data-post-title-hold="true"] [data-post-body],
+article[data-post-title-hold="true"] .post-body,
+article[data-post-title-hold="true"] > *:not(header),
+html.js-enter #article-floating-actions,
+html.js-enter .article-floating-actions,
+body:has(article[data-post-title-hold="true"]) #article-floating-actions,
+body:has(article[data-post-title-hold="true"]) .article-floating-actions,
+html[data-post-title-hold="true"] #article-floating-actions,
+html[data-post-title-hold="true"] .article-floating-actions,
+body:has(article[data-post-title-hold="true"]) #article-selection-dock,
+body:has(article[data-post-title-hold="true"]) .article-selection-dock,
+html[data-post-title-hold="true"] #article-selection-dock,
+html[data-post-title-hold="true"] .article-selection-dock,
+body:has(article[data-post-title-hold="true"]) .back-to-top,
+body:has(article[data-post-title-hold="true"]) #back-to-top,
+html[data-post-title-hold="true"] .back-to-top,
+html[data-post-title-hold="true"] #back-to-top,
+body:has(article[data-post-title-hold="true"]) .sidebar-expand-btn,
+html[data-post-title-hold="true"] .sidebar-expand-btn,
+body:has(article[data-post-title-hold="true"]) .seal-floating,
+html[data-post-title-hold="true"] .seal-floating,
+body:has(article[data-post-title-hold="true"]) #zen-soundscape-panel,
+body:has(article[data-post-title-hold="true"]) .zen-soundscape-panel,
+html[data-post-title-hold="true"] #zen-soundscape-panel,
+html[data-post-title-hold="true"] .zen-soundscape-panel,
+body:has(article[data-post-title-hold="true"]) .mobile-drawer-panel,
+html[data-post-title-hold="true"] .mobile-drawer-panel,
+body:has(article[data-post-title-hold="true"]) .mobile-drawer-overlay,
+html[data-post-title-hold="true"] .mobile-drawer-overlay,
+body:has(article[data-post-title-hold="true"]) .search-overlay,
+html[data-post-title-hold="true"] .search-overlay,
+article[data-post-title-hold="true"] .post-spine {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Lock scroll during post title optical center stage while preserving scrollbar gutter */
+html,
+html[data-post-title-hold="true"],
+html:has(article[data-post-title-hold="true"]) {
+  scrollbar-gutter: auto !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+}
+
+body,
+body[data-post-title-hold="true"],
+body:has(article[data-post-title-hold="true"]) {
+  overflow: visible !important;
 }
 
 /* ---------- Title: split into chars by JS; keep glyphs boxed so transforms don't reflow ---------- */
+[data-post-header] {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.post-title {
+  padding-bottom: 0.6rem;
+  margin-bottom: 1.6rem !important;
+  width: fit-content;
+  max-width: 100% !important;
+  overflow-wrap: break-word !important;
+  word-break: normal !important;
+  text-wrap: wrap !important;
+}
+
+@media (max-width: 640px) {
+  .post-title {
+    font-size: clamp(1.65rem, 6.5vw, 2.2rem) !important;
+    line-height: 1.35 !important;
+  }
+}
+
+html[data-font="kai"] .post-title {
+  line-height: 1.48 !important;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1.85rem !important;
+}
+
+.post-title-word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
 .post-title-char {
   display: inline-block;
+  white-space: pre-wrap;
+  backface-visibility: hidden;
+}
+
+.post-title-space {
+  display: inline-block;
+  white-space: pre-wrap;
 }
 
 .post-title.is-split-ready {
   will-change: transform, opacity;
+}
+
+/* ==========================================================================
+   Post Title Calligraphy Stage: 【错落淡入 · Stagger Fade】字韵流转
+   Living Calligraphy: Word & Character Staggered Unhurried Focus
+   Supports all single-line, 2-line & 3-line titles seamlessly without clipping
+   ========================================================================== */
+.post-title-calligraphy {
+  display: block;
+  position: relative;
+  overflow: visible;
+  will-change: transform, opacity;
+}
+
+.post-title-brush-canvas {
+  display: none !important;
+}
+
+.post-title-text {
+  display: block;
+  width: 100%;
+  position: relative;
+  z-index: 2;
+  text-wrap: balance;
+}
+
+.post-title-char {
+  display: inline-block;
+  white-space: pre-wrap;
+  backface-visibility: hidden;
+  will-change: transform, opacity, filter;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .post-title-calligraphy,
+  .post-title-text,
+  .post-title-char {
+    transform: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+  .post-title-brush-canvas {
+    display: none !important;
+  }
 }
 
 /* ---------- Date typewriter: isolate layout to eliminate flex reflow during typing ---------- */
@@ -6371,13 +6859,19 @@ html.site-intro-active .site-intro {
   left: -0.6rem;
   display: block;
   width: 21rem;
-  padding: 1rem 1.1rem 1.1rem;
+  padding: 1.15rem 1.3rem 1.3rem;
   color: inherit;
-  border-left: 2px solid transparent;
+  background: rgba(248, 246, 242, 0.9);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px !important;
+  box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.05);
   clip-path: circle(0% at 0.6rem 100%);
   transition:
     clip-path 1100ms cubic-bezier(0.16, 1, 0.3, 1),
     border-color 300ms var(--ease),
+    box-shadow 300ms var(--ease),
+    background 260ms var(--ease),
     transform 380ms var(--ease-bounce);
 }
 
@@ -6388,21 +6882,24 @@ html.site-intro-active .site-intro {
 
 .timeline-card:hover {
   border-left-color: var(--accent);
-  transform: translateX(4px);
+  box-shadow: 0 8px 24px -2px rgba(0, 0, 0, 0.08);
 }
 
 .timeline-card time {
   display: block;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   letter-spacing: 0.08em;
-  color: var(--muted);
+  color: var(--muted-strong);
+  font-weight: 600;
 }
 
 .timeline-card h2 {
   margin-top: 0.4rem;
   font-family: var(--font-hand-title);
-  font-size: 1.15rem;
+  font-size: 1.2rem;
+  font-weight: 500;
+  font-synthesis: none;
   line-height: 1.4;
   color: var(--text-strong);
   transition: color 240ms var(--ease);
@@ -6416,9 +6913,10 @@ html.site-intro-active .site-intro {
   margin-top: 0.5rem;
   font-family: var(--font-serif);
   font-style: italic;
-  font-size: 0.86rem;
-  line-height: 1.65;
-  color: var(--muted-strong);
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.68;
+  color: var(--text);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -6429,9 +6927,9 @@ html.site-intro-active .site-intro {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem 0.9rem;
-  margin-top: 0.7rem;
+  margin-top: 0.75rem;
   font-family: var(--font-body);
-  font-size: 0.66rem;
+  font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -6443,6 +6941,20 @@ html.site-intro-active .site-intro {
   margin-right: 0.15rem;
   color: var(--accent);
   font-weight: 700;
+}
+
+[data-theme="dark"] .timeline-card {
+  background: #1a1a1d !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  border-left-color: var(--accent) !important;
+  box-shadow: 0 4px 22px -2px rgba(0, 0, 0, 0.5) !important;
+}
+
+[data-theme="moss"] .timeline-card {
+  background: rgba(0, 77, 64, 0.42) !important;
+  border-color: rgba(255, 241, 244, 0.2) !important;
+  border-left-color: var(--accent) !important;
+  box-shadow: 0 4px 18px -2px rgba(0, 30, 20, 0.35) !important;
 }
 
 .timeline-end {
@@ -6791,6 +7303,12 @@ html[data-pixel="true"] body::after {
 @media (prefers-reduced-motion: reduce) {
   html[data-pixel="true"] body::after { animation: none; }
   .home-rant { transition: none; }
+  .note-card,
+  .note-card .arrow-indicator,
+  .note-card [data-card-arrow] {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 /* ================= Post cards — stretched link ================= */
@@ -9082,8 +9600,10 @@ body.gallery-lightbox-open {
 /* Draggable Floating Window (浮动覆盖在文章上方) */
 .pin-float-window {
   position: fixed;
-  z-index: 75;
-  width: clamp(360px, 36vw, 540px);
+  z-index: 100032;
+  min-width: 350px;
+  width: clamp(350px, 36vw, 540px);
+  height: auto; /* Auto-hug content height without dead void */
   max-height: min(80vh, 760px);
   display: flex;
   flex-direction: column;
@@ -9247,11 +9767,28 @@ body.gallery-lightbox-open {
   color: var(--accent);
 }
 
+.pin-window-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  min-height: 40px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--rule);
+  user-select: none;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .pin-window-lead {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-right: auto;
+  gap: 0.45rem;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .pin-count-badge {
@@ -9286,26 +9823,43 @@ body.gallery-lightbox-open {
   color: #F7F0E2 !important;
 }
 
+.pin-window-title {
+  font-family: var(--font-hand-title);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-strong);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
 .pin-window-actions {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .pin-action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.28rem 0.65rem;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.22rem 0.5rem;
   border: 1px solid var(--rule);
   border-radius: 5px;
   background: var(--bg-elev);
   color: var(--muted-strong);
   font-family: var(--font-hand-title);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: normal;
-  line-height: 1;
-  letter-spacing: 0.04em;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   transition: all 180ms ease;
 }
@@ -9327,23 +9881,69 @@ body.gallery-lightbox-open {
 
 /* Window Body */
 .pin-window-body {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0.85rem;
+  padding: 0.85rem 0.85rem 1.4rem 0.85rem;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--rule) transparent;
+  scrollbar-width: none !important; -ms-overflow-style: none !important;
+  
 }
 
 .pin-window-body::-webkit-scrollbar {
-  width: 5px;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
-.pin-window-body::-webkit-scrollbar-thumb {
-  background: var(--rule);
-  border-radius: 4px;
+
+/* 拖拽右下角缩放（双击恢复默认） */
+.pin-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  cursor: nwse-resize;
+  touch-action: none;
+  z-index: 6;
+}
+
+.pin-resize-handle::before,
+.pin-resize-handle::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  opacity: 0.55;
+}
+
+.pin-resize-handle::after {
+  right: 9px;
+  bottom: 9px;
+  width: 3px;
+  height: 3px;
+}
+
+.pin-resize-handle:hover::before,
+.pin-resize-handle:hover::after {
+  opacity: 0.95;
+}
+
+.pin-float-window.is-resizing {
+  user-select: none;
+}
+
+@media (max-width: 767.98px) {
+  .pin-resize-handle {
+    display: none;
+  }
 }
 
 @keyframes pinCardStampIn {
@@ -9456,25 +10056,28 @@ body.gallery-lightbox-open {
 .pinned-card-actions {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.25rem;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .pinned-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
-  padding: 0.24rem 0.5rem;
+  gap: 0.2rem;
+  padding: 0.2rem 0.42rem;
   border: 1px solid var(--rule);
   border-radius: 4px;
   background: var(--bg-soft);
   color: var(--muted-strong);
   font-family: var(--font-hand-title);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: normal;
-  line-height: 1;
-  letter-spacing: 0.03em;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   transition: all 180ms ease;
 }
@@ -9529,16 +10132,19 @@ body.gallery-lightbox-open {
 /* Card Body: Crisp font display without scaleY distortion */
 .pinned-card-body {
   min-height: 0;
-  max-height: 480px;
-  overflow-y: auto;
-  overflow-x: auto;
-  background: #0d1117;
-  scrollbar-width: thin;
-  scrollbar-color: var(--rule) transparent;
+  max-height: none !important;
+  overflow-y: visible !important;
+  overflow-x: visible;
+  background: transparent !important;
+  scrollbar-width: none !important;
   transform-origin: top center;
   transition: opacity 620ms cubic-bezier(0.16, 1, 0.3, 1),
               transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform, opacity;
+}
+
+.pinned-card-body::-webkit-scrollbar {
+  display: none !important;
 }
 
 .pinned-card:not(.is-collapsed) .pinned-card-body {
@@ -9559,6 +10165,19 @@ body.gallery-lightbox-open {
   font-size: 0.8rem !important;
   line-height: 1.55 !important;
   padding: 0.75rem 0.95rem !important;
+  overflow-x: auto;
+  overflow-y: hidden !important;
+}
+
+.pinned-card-body pre::-webkit-scrollbar {
+  height: 4px;
+}
+.pinned-card-body pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pinned-card-body pre::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 99px;
 }
 
 .pinned-mermaid-stage {
@@ -9576,7 +10195,7 @@ body.gallery-lightbox-open {
 }
 
 .pinned-quote-body {
-  padding: 0.85rem 1.05rem;
+  padding: 0.85rem 1rem;
   background: var(--bg-soft);
   border-left: 3px solid rgba(215, 150, 20, 0.85);
   font-family: var(--font-serif);
@@ -9585,8 +10204,13 @@ body.gallery-lightbox-open {
   color: var(--text-strong);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 240px;
-  overflow-y: auto;
+  max-height: none !important;
+  overflow-y: visible !important;
+  scrollbar-width: none !important;
+}
+
+.pinned-quote-body::-webkit-scrollbar {
+  display: none !important;
 }
 
 /* Eliminate duplicate yellow vertical bars when quoting markdown blockquotes or nested quotes */
@@ -9756,3 +10380,46 @@ body.gallery-lightbox-open {
 
 
 
+
+/* ================= Dual-Pane Push Reading Mode (左文右注 / 双卷展阅) ================= */
+@media (min-width: 1024px) {
+  .site-shell > main {
+    transition:
+      padding-right 400ms cubic-bezier(0.16, 1, 0.3, 1),
+      margin-right 400ms cubic-bezier(0.16, 1, 0.3, 1),
+      max-width 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  body.notes-drawer-open .site-shell > main,
+  body.ink-ask-drawer-open .site-shell > main {
+    padding-right: clamp(420px, 30vw, 480px) !important;
+  }
+
+  html[data-sidebar-collapsed="true"] body.notes-drawer-open .site-shell > main,
+  html[data-sidebar-collapsed="true"] body.ink-ask-drawer-open .site-shell > main {
+    margin-right: clamp(420px, 30vw, 480px) !important;
+    padding-right: clamp(1.5rem, 3vw, 2.5rem) !important;
+  }
+}
+
+/* =========================================================
+   悬浮面板与抽屉滚动边界隔离 (Scroll Chaining Containment)
+   ========================================================= */
+.article-notes-drawer,
+.notes-drawer-body,
+.ink-ask-drawer,
+.ink-ask-drawer-body,
+.pin-float-window,
+.pin-window-body,
+.pin-sheet-drawer,
+.pin-sheet-content {
+  overscroll-behavior: contain !important;
+}
+
+@media (max-width: 1023.98px) {
+  body.notes-drawer-open,
+  body.ink-ask-drawer-open {
+    overflow: hidden !important;
+    overscroll-behavior: none !important;
+  }
+}

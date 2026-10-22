@@ -40,7 +40,7 @@ test('2. BaseLayout & global.css: Lenis virtualScroll whitelist & horizontal tou
   assert.ok(layoutContent.includes('.pin-sheet-drawer, .pin-window-body, .ink-ask-card'), 'Must prevent Lenis scroll on pin sheet and ink ask card');
 
   // Whitelist table, pre, mermaid horizontal containers
-  assert.ok(layoutContent.includes('.prose table, table, .table-wrapper, [data-table-wrap], .prose pre, pre, .mermaid-stage, [data-scrollable]'), 'Must whitelist horizontal scrollable elements');
+  assert.ok(layoutContent.includes('.table-scroll, .prose table, table, .table-wrapper, [data-table-wrap], .prose pre, pre, .mermaid-stage, [data-scrollable]'), 'Must whitelist horizontal scrollable elements');
   assert.ok(layoutContent.includes('Math.abs(data.deltaX) > Math.abs(data.deltaY) && Math.abs(data.deltaX) > 1'), 'Must allow horizontal swipe when deltaX dominates');
 
   // CSS overscroll and touch-action on tables and pre

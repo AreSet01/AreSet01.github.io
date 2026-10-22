@@ -63,7 +63,7 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
               )}
               <span class="timeline-dot" aria-hidden="true"></span>
               <span class="timeline-stem" aria-hidden="true"></span>
-              <a class="timeline-card" href={`/posts/${entry.id}`} data-post-preview={`/posts/${entry.id}`}>
+              <a class="timeline-card" data-tilt href={`/posts/${entry.id}`} data-post-preview={`/posts/${entry.id}`}>
                 <time>{entry.dateLabel}</time>
                 <h2>
                   {entry.title}

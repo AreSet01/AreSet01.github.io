@@ -103,6 +103,8 @@ const items: TickerItem[] = [
     let idleTimer = 0;
     let resizeTimer = 0;
     let ticking = false;
+    let smoothedVelocity = 0;
+    let setSkew: ReturnType<typeof gsap.quickTo> | null = null;
     const clones: HTMLElement[] = [];
 
     // Clone the group until it covers the viewport twice, so the wrap seam is never visible
@@ -137,6 +139,14 @@ const items: TickerItem[] = [
       state.boost += (state.boostTarget - state.boost) * Math.min(1, dt * 5);
       state.hover += (state.hoverTarget - state.hover) * Math.min(1, dt * 6);
 
+      // Deadband early exit: avoid continuous sub-pixel jitter
+      if (Math.abs(state.boost - 1) < 0.005 && state.boostTarget === 1) {
+        state.boost = 1;
+      }
+      if (Math.abs(state.skew) < 0.008 && !gsap.isTweening(state)) {
+        state.skew = 0;
+      }
+
       const velocity = BASE_SPEED * state.boost * state.hover * state.dir;
       state.x = gsap.utils.wrap(-groupWidth, 0, state.x + velocity * dt);
 
@@ -158,6 +168,11 @@ const items: TickerItem[] = [
     // Snap the skew back with a jelly overshoot once scrolling settles
     function settle() {
       state.boostTarget = 1;
+      smoothedVelocity = 0;
+      if (setSkew?.tween) {
+        setSkew.tween.kill();
+        setSkew = null;
+      }
       gsap.to(state, {
         skew: 0,
         duration: 1.1,
@@ -173,29 +188,35 @@ const items: TickerItem[] = [
 
     const scrollWatcher = ScrollTrigger.create({
       onUpdate(self) {
-        const velocity = self.getVelocity();
-        const magnitude = Math.abs(velocity);
+        const rawVelocity = self.getVelocity();
+        // EWMA: low-pass velocity filtering to eliminate trackpad jitter and hardware spikes
+        smoothedVelocity = smoothedVelocity * 0.35 + rawVelocity * 0.65;
+        const magnitude = Math.abs(smoothedVelocity);
         if (magnitude < 40) return;
 
-        state.dirTarget = velocity > 0 ? -1 : 1;
+        state.dirTarget = smoothedVelocity > 0 ? -1 : 1;
         state.boostTarget = gsap.utils.clamp(1, MAX_BOOST, 1 + magnitude / 350);
 
-        gsap.to(state, {
-          skew: gsap.utils.clamp(-MAX_SKEW, MAX_SKEW, -velocity / 160),
-          duration: 0.35,
-          ease: 'power3.out',
-          overwrite: true,
-        });
+        if (!setSkew) {
+          gsap.killTweensOf(state, 'skew');
+          setSkew = gsap.quickTo(state, 'skew', { duration: 0.35, ease: 'power3.out' });
+        }
+        setSkew(gsap.utils.clamp(-MAX_SKEW, MAX_SKEW, -smoothedVelocity / 160));
 
         scheduleSettle(140);
       },
     });
 
-    // Only spend frames while the strip is actually on screen
+    // Only spend frames and scroll listeners while the strip is actually on screen
     const visibility = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
-        if (entry.isIntersecting) startTicking();
-        else stopTicking();
+        if (entry.isIntersecting) {
+          startTicking();
+          scrollWatcher.enable();
+        } else {
+          stopTicking();
+          scrollWatcher.disable();
+        }
       });
     }, { rootMargin: '80px 0px' });
     visibility.observe(root);
@@ -205,8 +226,14 @@ const items: TickerItem[] = [
 
     // Clicking empty strip gives it a shove; clicking a title just follows the link
     function shove() {
+      if (setSkew?.tween) {
+        setSkew.tween.kill();
+        setSkew = null;
+      }
+      gsap.killTweensOf(state, 'skew');
       state.boost = MAX_BOOST * 0.8;
       state.boostTarget = 1;
+      smoothedVelocity = 0;
       gsap.to(state, {
         skew: state.dir * 10,
         duration: 0.14,
@@ -237,6 +264,10 @@ const items: TickerItem[] = [
       (window as any).__tickerShove = undefined;
       scrollWatcher.kill();
       visibility.disconnect();
+      if (setSkew?.tween) {
+        setSkew.tween.kill();
+        setSkew = null;
+      }
       gsap.killTweensOf(state);
       window.clearTimeout(idleTimer);
       window.clearTimeout(resizeTimer);

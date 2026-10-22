@@ -8,6 +8,7 @@ const navItems = [
   { label: 'Tags', labelZh: 'Tags', href: '/tags' },
   { label: 'Stats', labelZh: 'Stats', href: '/stats' },
   { label: 'About', labelZh: 'About Me', href: '/about' },
+  { label: 'Account', labelZh: 'Account', href: '/account' },
 ];
 
 const normalizePath = (path: string) =>
@@ -496,8 +497,26 @@ const year = new Date().getFullYear();
       ctx.fill();
     }
 
-    if (points.length === 0) {
-      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    if (brush.isVisible && !brush.isOverControl && !customCursorEl) {
+      ctx.beginPath();
+      ctx.arc(mouse.x, mouse.y, 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(mouse.x, mouse.y, brush.outerRadius, 0, Math.PI * 2);
+      ctx.lineWidth   = 1.35;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+    }
+
+    const isStationary = points.length === 0 && (!brush.isVisible || speed <= 0.05);
+    if (isStationary || points.length === 0) {
+      if (points.length === 0 && !brush.isVisible) {
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      } else if (points.length === 0) {
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      }
       isDrawing = false;
     } else if (isDrawing) {
       requestAnimationFrame(updateAndDraw);

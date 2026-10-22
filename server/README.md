@@ -229,3 +229,74 @@ npm run dev                                # astro dev 已经把 /api 代理到 
 - **答案缓存**：同一篇、同一处、同一个问题直接复用，写盘保存，重启不丢。
 
 想更严一点：给 `location = /api/ask` 加一条 `limit_req`（nginx 层再挡一道），或者把 `ASK_DAILY_LIMIT` 调小。
+
+## 十、账号、邀请码与笔记同步
+
+> **升级检查（两个最容易漏的步骤）**：
+> 1. nginx 的 API `location` 必须包含 `auth` 和 `notes`，否则注册请求会拿到 nginx 的 404 HTML，页面只显示「注册失败」；
+> 2. `/etc/blog-ask.env` 必须设置 `ASK_DATA_DIR=/var/lib/blog-ask`（可写目录），否则服务仍能启动，但账号/邀请码只存在内存里，重启即丢。
+>
+> 改完分别执行 `nginx -t && systemctl reload nginx` 和 `systemctl restart blog-ask`。
+
+读者账号是**邀请制**：管理员在 `/settings` 控制台生成一次性邀请码，读者在 `/account` 用「邀请码 + 用户名 + 密码」注册。每个码只能注册一个账号，默认 7 天过期，可作废。
+
+### 1. 新增环境变量
+
+```bash
+# 会话签名密钥（必填，重启后登录态才不会失效）
+AUTH_SECRET=用下面的命令生成
+# node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# 账号/邀请码/笔记的 JSON 数据目录
+ASK_DATA_DIR=/var/lib/blog-ask
+
+# 登录态有效期（天）
+AUTH_SESSION_DAYS=30
+```
+
+`/var/lib/blog-ask` 下会多出两个文件：
+
+- `accounts.json`：用户 + 邀请码；
+- `notes.json`：按用户隔离的笔记 + 同步版本号。
+
+建议把这两个文件和 `cache.json` 一起纳入每日备份；文件权限保持 `blogask:blogask 600`。
+
+### 2. nginx 增加两个反代路径
+
+把原来的 `location ~ ^/api/(ask|settings(/.*)?)$` 改成：
+
+```nginx
+location ~ ^/api/(ask|settings(/.*)?|auth(/.*)?|notes(/.*)?)$ {
+    proxy_pass http://127.0.0.1:8787;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Connection "";
+    client_max_body_size 2m;
+    proxy_buffering off;
+    proxy_read_timeout 180s;
+}
+```
+
+`X-Forwarded-Proto` 用来让服务端判断是否给 Cookie 加 `Secure`；HTTPS 站点必须带。
+
+### 3. 使用流程
+
+1. 打开 `/settings`，输入管理员密码；
+2. 在「邀请码与账号」里点「生成邀请码」，码会自动复制；
+3. 把码发给朋友；
+4. 朋友在 `/account` 注册，自动登录；
+5. 之后文章里的划线、备注、自由笔记、墨问「存入笔记」都会自动同步。
+
+未登录时笔记仍然保存在本机 `localStorage`；第一次登录会把本机已有笔记合并到服务端（按 `updatedAt` 做 last-write-wins）。
+
+### 4. 接口与安全
+
+- `/api/auth/register|login|logout|me|password`：读者账号；会话在 HttpOnly Cookie 里，不用 `localStorage` 存 token。
+- `/api/notes/sync`：增量同步，支持删除墓碑与冲突回传。
+- `/api/settings/invites`、`/api/settings/users`：仅管理员 Bearer Token 可访问。
+- 密码用 `crypto.scrypt` + 随机盐；登录/注册按 IP 限流；写操作校验 `Origin`；笔记接口只认 Cookie 里的用户，不接受客户端传 `userId`。
+
+忘记密码：在 `/settings` 的「已注册账号」里点「重置密码」，会生成一个临时密码并自动复制。

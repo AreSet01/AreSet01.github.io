@@ -79,28 +79,31 @@ const timeline = [
         </div>
 
         <div
-          class="about-tilt-stage mt-12 grid gap-4 sm:grid-cols-3 pt-8 border-t border-[var(--rule)]"
+          class="about-tilt-stage mt-12 grid gap-4 sm:grid-cols-3 items-stretch pt-8 border-t border-[var(--rule)]"
           style="border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;"
         >
-          <div class="about-tilt" data-tilt data-enter="left">
-            <div class="stat-card">
-              <span class="about-tilt-glare"></span>
-              <p class="stat-label">写作主题</p>
-              <p class="mt-3 font-display text-[1.05rem] text-[var(--text-strong)]">游戏 / 日常 / 笔记</p>
+          <div class="about-tilt h-full" data-tilt data-enter="left">
+            <div class="stat-card h-full flex flex-col justify-center px-4 py-5 sm:px-5 sm:py-6">
+              <p class="stat-label text-xs tracking-wider">写作主题</p>
+              <h3 class="about-card-heading font-display text-[0.96rem] sm:text-[1rem] font-semibold text-[var(--text-strong)] tracking-tight mt-2.5 whitespace-nowrap overflow-hidden text-ellipsis">
+                Game
+              </h3>
             </div>
           </div>
-          <div class="about-tilt" data-tilt data-enter="bottom">
-            <div class="stat-card">
-              <span class="about-tilt-glare"></span>
-              <p class="stat-label">当前栈</p>
-              <p class="mt-3 font-display text-[1.05rem] text-[var(--text-strong)]">Astro + Tailwind</p>
+          <div class="about-tilt h-full" data-tilt data-enter="bottom">
+            <div class="stat-card h-full flex flex-col justify-center px-4 py-5 sm:px-5 sm:py-6">
+              <p class="stat-label text-xs tracking-wider">当前栈</p>
+              <h3 class="about-card-heading font-display text-[0.96rem] sm:text-[1rem] font-semibold text-[var(--text-strong)] tracking-tight mt-2.5 whitespace-nowrap overflow-hidden text-ellipsis">
+                Astro
+              </h3>
             </div>
           </div>
-          <div class="about-tilt" data-tilt data-enter="right">
-            <div class="stat-card">
-              <span class="about-tilt-glare"></span>
-              <p class="stat-label">写作习惯</p>
-              <p class="mt-3 font-display text-[1.05rem] text-[var(--text-strong)]">边学边记，慢慢打磨</p>
+          <div class="about-tilt h-full" data-tilt data-enter="right">
+            <div class="stat-card h-full flex flex-col justify-center px-4 py-5 sm:px-5 sm:py-6">
+              <p class="stat-label text-xs tracking-wider">写作习惯</p>
+              <h3 class="about-card-heading font-display text-[0.96rem] sm:text-[1rem] font-semibold text-[var(--text-strong)] tracking-tight mt-2.5 whitespace-nowrap overflow-hidden text-ellipsis">
+                AI+手写（
+              </h3>
             </div>
           </div>
         </div>
@@ -292,30 +295,7 @@ const timeline = [
       });
     });
 
-    // ---------- 3D tilt cards (pointer only, transform only) ----------
-    if (window.matchMedia('(pointer: fine)').matches && !reduceMotion) {
-      document.querySelectorAll<HTMLElement>('[data-tilt]').forEach((card) => {
-        const setRX = gsap.quickTo(card, 'rotationX', { duration: 0.5, ease: 'power3.out' });
-        const setRY = gsap.quickTo(card, 'rotationY', { duration: 0.5, ease: 'power3.out' });
-        const glare = card.querySelector<HTMLElement>('.about-tilt-glare');
-
-        card.addEventListener('pointermove', (event) => {
-          const rect = card.getBoundingClientRect();
-          const px = (event.clientX - rect.left) / rect.width;
-          const py = (event.clientY - rect.top) / rect.height;
-          setRY((px - 0.5) * 16);
-          setRX((0.5 - py) * 12);
-          if (glare) {
-            glare.style.setProperty('--glare-x', `${px * 100}%`);
-            glare.style.setProperty('--glare-y', `${py * 100}%`);
-          }
-        }, { signal });
-
-        card.addEventListener('pointerleave', () => {
-          gsap.to(card, { rotationX: 0, rotationY: 0, duration: 0.9, ease: 'elastic.out(1, 0.5)', overwrite: 'auto' });
-        }, { signal });
-      });
-    }
+    // 3D tilt cards are handled globally by BaseLayout.astro via unified [data-tilt] engine
 
     // ---------- Timeline: spine draws with scroll, nodes light up ----------
     const spine = document.querySelector<SVGLineElement>('[data-about-spine]');

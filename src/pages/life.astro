@@ -110,6 +110,7 @@ const countByCategory = {
         return (
           <article
             class="life-card"
+            data-tilt
             data-enter={enterFrom}
             data-life-id={item.id}
             data-category={item.category}
@@ -518,20 +519,17 @@ const countByCategory = {
     }
   }
 
-  /* 卡片本体（纯粹无框文人手札） */
+  /* 卡片本体（文人雅集生活卡片，统一 12px 圆角与柔和底色） */
   .life-card {
     position: relative;
     display: flex;
     flex-direction: column;
-    padding: 0 0 2.2rem 0;
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-    border-bottom: 1px solid transparent;
-    border-image: linear-gradient(to right, transparent 3%, var(--rule) 20%, var(--rule) 80%, transparent 97%) 1;
-    will-change: transform, opacity, clip-path;
-    clip-path: inset(0 0% 0 0);
+    padding: 1.6rem 1.8rem;
+    background: rgba(248, 246, 242, 0.9);
+    border: 1px solid var(--rule);
+    border-radius: 12px !important;
+    box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.04);
+    will-change: transform, opacity;
   }
 
   .life-card.is-filtered-out {
@@ -582,8 +580,8 @@ const countByCategory = {
     align-items: center;
     padding: 0;
     font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--accent);
+    font-weight: 700;
+    color: var(--accent-strong);
     background: transparent;
     border: none;
     letter-spacing: 0.06em;
@@ -598,7 +596,8 @@ const countByCategory = {
   .life-card-city {
     font-size: 0.76rem;
     font-family: var(--font-mono);
-    color: var(--muted);
+    color: var(--muted-strong);
+    font-weight: 600;
   }
 
 
@@ -613,7 +612,8 @@ const countByCategory = {
   .life-card-title {
     font-family: var(--font-hand-title);
     font-size: 1.42rem;
-    font-weight: 600;
+    font-weight: 500;
+    font-synthesis: none;
     color: var(--text-strong);
     line-height: 1.35;
     letter-spacing: 0.02em;
@@ -653,9 +653,10 @@ const countByCategory = {
     border-left: 2px solid var(--accent);
     font-family: var(--font-serif);
     font-style: italic;
-    font-size: 0.94rem;
-    line-height: 1.72;
-    color: var(--muted-strong);
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1.74;
+    color: var(--text);
   }
 
   /* 避坑建议（古籍眉批式排版，彻底消灭灰底方盒） */
@@ -672,11 +673,11 @@ const countByCategory = {
     display: flex;
     align-items: center;
     gap: 0.35rem;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     font-family: var(--font-serif);
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.08em;
-    color: var(--accent);
+    color: var(--text-strong);
     margin-bottom: 0.45rem;
   }
 
@@ -699,9 +700,10 @@ const countByCategory = {
   .life-card-tips-list li {
     position: relative;
     padding-left: 0.85rem;
-    line-height: 1.6;
-    font-size: 0.82rem;
-    color: var(--muted-strong);
+    line-height: 1.65;
+    font-size: 0.84rem;
+    font-weight: 500;
+    color: var(--text);
   }
 
   .life-card-tips-list li::before {
@@ -717,9 +719,10 @@ const countByCategory = {
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    font-size: 0.75rem;
+    font-size: 0.76rem;
     font-family: var(--font-mono);
-    color: var(--muted);
+    color: var(--muted-strong);
+    font-weight: 600;
     margin: 0.6rem 0 0.85rem;
   }
 
@@ -748,9 +751,10 @@ const countByCategory = {
   /* 标签：纯文字排印，消灭灰底方块 */
   .life-chip {
     display: inline-block;
-    font-size: 0.74rem;
+    font-size: 0.75rem;
     font-family: var(--font-body);
-    color: var(--muted);
+    color: var(--muted-strong);
+    font-weight: 600;
     padding: 0;
     background: transparent;
     border: none;
@@ -894,7 +898,7 @@ const countByCategory = {
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;
-    scrollbar-width: thin;
+    scrollbar-width: none !important; -ms-overflow-style: none !important; -webkit-overflow-scrolling: touch;
     background: var(--bg-base);
     border: 1px solid var(--rule-strong);
     border-radius: 14px;

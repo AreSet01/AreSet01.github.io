@@ -38,6 +38,7 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
   let ctx: CanvasRenderingContext2D | null = null;
   let animId: number | null = null;
   let isRunning = false;
+  let isModalActive = false;
   let currentOpacity = 0;
   let targetOpacity = 0;
   let width = 0;
@@ -185,7 +186,7 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
   }
 
   function loop() {
-    if (!ctx || !canvas) return;
+    if (!ctx || !canvas || isModalActive) return;
 
     // Smooth alpha transition
     currentOpacity += (targetOpacity - currentOpacity) * 0.05;
@@ -336,7 +337,9 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
       isRunning = true;
       if (drops.length === 0) initDrops();
       if (animId) cancelAnimationFrame(animId);
-      animId = requestAnimationFrame(loop);
+      if (!isModalActive) {
+        animId = requestAnimationFrame(loop);
+      }
     }
   }
 
@@ -386,6 +389,19 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
   function init() {
     ensureCanvas();
     window.addEventListener('resize', resize, { passive: true });
+    window.addEventListener('app:modal-enter', () => {
+      isModalActive = true;
+      if (animId) {
+        cancelAnimationFrame(animId);
+        animId = null;
+      }
+    });
+    window.addEventListener('app:modal-leave', () => {
+      isModalActive = false;
+      if (isRunning && !animId && !document.hidden) {
+        animId = requestAnimationFrame(loop);
+      }
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         if (animId) {
@@ -393,7 +409,7 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
           animId = null;
         }
       } else {
-        if (isRunning && !animId) {
+        if (isRunning && !animId && !isModalActive) {
           animId = requestAnimationFrame(loop);
         }
       }
@@ -404,6 +420,7 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
 
   // Astro View Transitions 生命周期持久化监听
   document.addEventListener('astro:page-load', () => {
+    isModalActive = false;
     ensureCanvas();
     syncWithAudio();
   });

@@ -211,6 +211,7 @@
   aria-label="文章高亮笔记"
   data-lenis-prevent
 >
+  <div class="drawer-drag-handle max-lg:block hidden" aria-hidden="true"></div>
   <!-- 抽屉头部 -->
   <div class="notes-drawer-header">
     <div class="notes-drawer-title-area">
@@ -247,6 +248,13 @@
 
   <!-- 抽屉底栏导出 -->
   <div class="notes-drawer-footer">
+    <button type="button" class="notes-new-btn" id="notes-new-btn" title="新建一条不绑定正文位置的笔记">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+      <span>新建笔记</span>
+    </button>
     <button type="button" class="notes-export-btn" id="notes-export-btn" title="将所有高亮整理导出为 Markdown">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
@@ -272,6 +280,11 @@
     exportHighlightsAsMarkdown,
     type ArticleHighlightRecord,
   } from '../utils/articleHighlightEngine';
+  import { initNotesSync } from '../utils/notesSync';
+  import { renderMarkdown } from '../utils/inkAskMarkdown';
+  import { bindScrollIsolation } from '../utils/scrollIsolation';
+
+  initNotesSync();
 
   const CLEANUP_KEY = '__areSetArticleHighlightsCleanup__';
   const LISTENER_KEY = '__areSetArticleHighlightsBound__';
@@ -288,6 +301,21 @@
 
     const postSlug = window.location.pathname;
     let storedRecords: ArticleHighlightRecord[] = loadHighlights(postSlug);
+    const postTitle = () => document.querySelector<HTMLElement>('[data-post-title]')?.textContent?.trim() || document.title;
+
+    function saveRecords() {
+      saveHighlights(postSlug, storedRecords);
+      updateBadges();
+      const currentDrawer = drawer || document.getElementById('article-notes-drawer');
+      if (currentDrawer?.classList.contains('is-open')) {
+        renderDrawerNotes();
+      }
+      window.dispatchEvent(new CustomEvent('article-notes:changed'));
+    }
+
+    function createId(prefix: string) {
+      return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    }
 
     // DOM Elements
     const dock = document.getElementById('article-selection-dock');
@@ -302,9 +330,16 @@
     const backdrop = document.getElementById('article-notes-backdrop');
     const drawerList = document.getElementById('notes-drawer-list');
     const drawerCloseBtn = document.getElementById('notes-drawer-close-btn');
+    let unbindDrawerScroll: (() => void) | null = null;
+    if (drawer) {
+      unbindDrawerScroll = bindScrollIsolation(drawer, {
+        scrollableSelector: '.notes-drawer-body',
+      });
+    }
     const exportBtn = document.getElementById('notes-export-btn');
     const exportBtnText = document.getElementById('notes-export-btn-text');
     const clearAllBtn = document.getElementById('notes-clear-all-btn');
+    const newNoteBtn = document.getElementById('notes-new-btn');
 
     let currentSelectedRange: Range | null = null;
     let activeHighlightId: string | null = null;
@@ -316,9 +351,20 @@
     rehydrateHighlights(storedRecords, prose);
     updateBadges();
 
+    window.addEventListener('article-notes:synced', () => {
+      // 服务端可能带来别的设备新增/删除的划线：先卸掉旧标记再按最新记录重挂
+      for (const record of storedRecords) {
+        if ((record.kind || 'highlight') === 'highlight') removeHighlightFromDOM(record.id, prose);
+      }
+      storedRecords = loadHighlights(postSlug);
+      rehydrateHighlights(storedRecords, prose);
+      updateBadges();
+      if (drawer?.classList.contains('is-open')) renderDrawerNotes();
+    }, { signal });
+
     // ---------- UI 状态同步 ----------
     function updateBadges() {
-      const count = storedRecords.length;
+      const count = storedRecords.filter((r) => !r.deleted).length;
       document.querySelectorAll<HTMLElement>('[data-notes-count]').forEach((badge) => {
         badge.textContent = String(count);
         badge.classList.remove('has-bump');
@@ -328,7 +374,7 @@
 
       const headerCount = document.getElementById('notes-header-count');
       if (headerCount) {
-        headerCount.textContent = `${count} 条划线`;
+        headerCount.textContent = `${count} 条笔记`;
       }
 
       if (floatingPill) {
@@ -520,9 +566,17 @@
 
       const marks = applyHighlightToRange(currentSelectedRange, record);
       if (marks.length > 0) {
-        storedRecords.push(record);
-        saveHighlights(postSlug, storedRecords);
-        updateBadges();
+        const now = Date.now();
+        storedRecords.push({
+          ...record,
+          kind: 'highlight',
+          comment: '',
+          postSlug,
+          postTitle: postTitle(),
+          updatedAt: now,
+          dirty: true,
+        });
+        saveRecords();
 
         // 柔和微波反馈
         marks[0]?.classList.add('has-pulse');
@@ -674,23 +728,29 @@
       }, 700);
     }
 
-    // 6. 🗑️ 取消划线
+    // 6. 🗑️ 取消划线 / 删除笔记
     function triggerDeleteHighlight(targetId?: string, skipDrawerSync = false) {
       const id = targetId || activeHighlightId;
       if (!id) return;
 
+      const target = storedRecords.find((r) => r.id === id);
       removeHighlightFromDOM(id, prose);
-      storedRecords = storedRecords.filter((r) => r.id !== id);
-      saveHighlights(postSlug, storedRecords);
-      updateBadges();
+      if (target) {
+        target.deleted = true;
+        target.updatedAt = Date.now();
+        target.dirty = true;
+      } else {
+        storedRecords = storedRecords.filter((r) => r.id !== id);
+      }
+      saveRecords();
 
       if (drawer?.classList.contains('is-open')) {
-        if (!skipDrawerSync || storedRecords.length === 0) {
+        if (!skipDrawerSync || storedRecords.filter((r) => !r.deleted).length === 0) {
           renderDrawerNotes();
         }
       }
 
-      showStamp('已取消划线');
+      showStamp((target?.kind || 'highlight') === 'highlight' ? '已取消划线' : '已删除笔记');
       hideDock();
     }
 
@@ -808,7 +868,8 @@
       if (!drawerList) return;
       drawerList.innerHTML = '';
 
-      if (storedRecords.length === 0) {
+      const visible = storedRecords.filter((r) => !r.deleted);
+      if (visible.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'notes-empty-state';
         empty.innerHTML = `
@@ -818,56 +879,122 @@
               <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
             </svg>
           </div>
-          <p class="notes-empty-title">暂无高亮划线</p>
-          <p class="notes-empty-desc">在正文中选中任意文字或代码，即可快速划线、批注与对照～</p>
+          <p class="notes-empty-title">暂无笔记</p>
+          <p class="notes-empty-desc">在正文中选中文字划线、写备注，或把墨问的回答存入笔记～</p>
         `;
         drawerList.appendChild(empty);
         return;
       }
 
-      // 按小节分组展示
-      const sectionMap = new Map<string, ArticleHighlightRecord[]>();
-      for (const rec of storedRecords) {
-        const sec = rec.headingText || '§ 导言 / 正文';
-        const list = sectionMap.get(sec) || [];
-        list.push(rec);
-        sectionMap.set(sec, list);
+      const highlights = visible.filter((r) => (r.kind || 'highlight') === 'highlight');
+      const aiNotes = visible.filter((r) => r.kind === 'ai');
+      const freeNotes = visible.filter((r) => r.kind === 'free');
+
+      const formatTime = (ts: number) => new Date(ts).toLocaleDateString('zh-CN', {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const COMMENT_CODE_RE = /[{};]|\b(?:class|struct|virtual|void|public|private|protected|return|template|namespace|#include)\b/;
+
+      function splitComment(comment: string): { prose: string; code: string } {
+        const lines = comment.split(/\r?\n/);
+        const firstCode = lines.findIndex((line, index) => index > 0 && COMMENT_CODE_RE.test(line));
+        if (firstCode > 0) {
+          const code = lines.slice(firstCode).join('\n').trim();
+          if (code) return { prose: lines.slice(0, firstCode).join('\n').trim(), code };
+        }
+        // 整段都是代码（没有中文说明）时也走代码块，避免逐行软换行
+        if (firstCode === 0 && lines.length > 1 && !/[\u4e00-\u9fff]/.test(comment)) {
+          return { prose: '', code: comment.trim() };
+        }
+        return { prose: comment.trim(), code: '' };
       }
 
-      for (const [section, items] of sectionMap.entries()) {
-        const secEl = document.createElement('div');
-        secEl.className = 'notes-section-group';
+      function appendCodeWithBreakPoints(target: HTMLElement, code: string) {
+        let buffer = '';
+        const flush = () => {
+          if (buffer) {
+            target.appendChild(document.createTextNode(buffer));
+            buffer = '';
+          }
+        };
+        for (const ch of code) {
+          buffer += ch;
+          if ('(),{};&*'.includes(ch)) {
+            flush();
+            target.appendChild(document.createElement('wbr'));
+          }
+        }
+        flush();
+      }
 
-        const headEl = document.createElement('div');
-        headEl.className = 'notes-section-head';
-        headEl.textContent = section;
-        secEl.appendChild(headEl);
+      function paintComment(container: HTMLElement, comment: string) {
+        container.replaceChildren();
+        container.hidden = !comment;
+        if (!comment) return;
 
-        for (const item of items) {
-          const card = document.createElement('div');
-          card.className = 'notes-item-card';
-          card.dataset.noteId = item.id;
+        const { prose, code } = splitComment(comment);
+        if (prose) {
+          const text = document.createElement('p');
+          text.className = 'notes-item-comment-text';
+          const label = document.createElement('span');
+          label.className = 'notes-item-comment-label';
+          label.textContent = '备注：';
+          text.append(label, document.createTextNode(prose));
+          container.appendChild(text);
+        } else {
+          const label = document.createElement('span');
+          label.className = 'notes-item-comment-label';
+          label.textContent = '备注：';
+          container.appendChild(label);
+        }
+        if (code) {
+          const pre = document.createElement('pre');
+          pre.className = 'notes-item-comment-code';
+          const codeEl = document.createElement('code');
+          appendCodeWithBreakPoints(codeEl, code);
+          pre.appendChild(codeEl);
+          container.appendChild(pre);
+        }
+      }
 
-          const quoteText = document.createElement('p');
-          quoteText.className = 'notes-item-text';
-          quoteText.textContent = item.text;
+      function buildCard(item: ArticleHighlightRecord, jumpable: boolean, index = 0): HTMLElement {
+        const card = document.createElement('div');
+        card.className = 'notes-item-card';
+        card.dataset.noteId = item.id;
+        card.style.animationDelay = `${Math.min(index, 8) * 35}ms`;
 
-          const metaRow = document.createElement('div');
-          metaRow.className = 'notes-item-meta';
+        if (item.kind === 'ai' && item.question) {
+          const questionEl = document.createElement('p');
+          questionEl.className = 'notes-item-question';
+          questionEl.textContent = `问：${item.question}`;
+          card.appendChild(questionEl);
+        }
 
-          const timeSpan = document.createElement('span');
-          timeSpan.className = 'notes-item-time';
-          timeSpan.textContent = new Date(item.timestamp).toLocaleDateString('zh-CN', {
-            month: 'numeric',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          });
+        const body = document.createElement('div');
+        body.className = 'notes-item-text notes-item-markdown' + (item.kind === 'highlight' ? ' is-highlight-quote' : '');
+        body.innerHTML = renderMarkdown(item.text);
+        card.appendChild(body);
 
-          const actGroup = document.createElement('div');
-          actGroup.className = 'notes-item-actions';
+        const commentEl = document.createElement('div');
+        commentEl.className = 'notes-item-comment';
+        paintComment(commentEl, item.comment || '');
+        card.appendChild(commentEl);
 
-          // 定位按钮
+        const metaRow = document.createElement('div');
+        metaRow.className = 'notes-item-meta';
+
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'notes-item-time';
+        timeSpan.textContent = formatTime(item.timestamp);
+
+        const actGroup = document.createElement('div');
+        actGroup.className = 'notes-item-actions';
+
+        if (jumpable) {
           const jumpBtn = document.createElement('button');
           jumpBtn.type = 'button';
           jumpBtn.className = 'notes-btn notes-btn-jump';
@@ -877,76 +1004,189 @@
             e.stopPropagation();
             jumpToHighlight(item.id);
           });
-
-          // 钉住按钮
-          const pinBtn = document.createElement('button');
-          pinBtn.type = 'button';
-          pinBtn.className = 'notes-btn notes-btn-pin';
-          pinBtn.title = '钉入对照工作台';
-          pinBtn.innerHTML = `<span>钉住</span>`;
-          pinBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            activeHighlightId = item.id;
-            triggerPin(pinBtn);
-            const span = pinBtn.querySelector('span') || pinBtn;
-            const original = span.textContent;
-            span.textContent = '已钉住!';
-            setTimeout(() => { span.textContent = original; }, 1400);
-          });
-
-          // 复制按钮
-          const copyBtn = document.createElement('button');
-          copyBtn.type = 'button';
-          copyBtn.className = 'notes-btn notes-btn-copy';
-          copyBtn.title = '复制 Markdown 引用';
-          copyBtn.innerHTML = `<span>复制</span>`;
-          copyBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            activeHighlightId = item.id;
-            triggerCopy();
-            const span = copyBtn.querySelector('span') || copyBtn;
-            const original = span.textContent;
-            span.textContent = '已复制!';
-            setTimeout(() => { span.textContent = original; }, 1400);
-          });
-
-          // 删除按钮
-          const delBtn = document.createElement('button');
-          delBtn.type = 'button';
-          delBtn.className = 'notes-btn notes-btn-del';
-          delBtn.title = '删除此条高亮';
-          delBtn.innerHTML = `
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          `;
-          delBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (card.dataset.deleting === 'true') return;
-            card.dataset.deleting = 'true';
-
-            const isSoleCard = (secEl.querySelectorAll('.notes-item-card').length <= 1);
-            const targetEl = isSoleCard ? secEl : card;
-
-            smoothRemoveNoteCard(targetEl, isSoleCard, () => {
-              if (!isSoleCard && secEl.querySelectorAll('.notes-item-card').length === 0) {
-                secEl.remove();
-              }
-              triggerDeleteHighlight(item.id, true);
-            });
-          });
-
-          actGroup.append(jumpBtn, pinBtn, copyBtn, delBtn);
-          metaRow.append(timeSpan, actGroup);
-
-          card.append(quoteText, metaRow);
-          card.addEventListener('click', () => jumpToHighlight(item.id));
-          secEl.appendChild(card);
+          actGroup.appendChild(jumpBtn);
         }
 
-        drawerList.appendChild(secEl);
+        const pinBtn = document.createElement('button');
+        pinBtn.type = 'button';
+        pinBtn.className = 'notes-btn notes-btn-pin';
+        pinBtn.title = '钉入对照工作台';
+        pinBtn.innerHTML = `<span>钉住</span>`;
+        pinBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          activeHighlightId = item.id;
+          triggerPin(pinBtn);
+          const span = pinBtn.querySelector('span') || pinBtn;
+          const original = span.textContent;
+          span.textContent = '已钉住!';
+          setTimeout(() => { span.textContent = original; }, 1400);
+        });
+        actGroup.appendChild(pinBtn);
+
+        const commentBtn = document.createElement('button');
+        commentBtn.type = 'button';
+        commentBtn.className = 'notes-btn notes-btn-comment';
+        commentBtn.title = '添加或修改备注';
+        commentBtn.innerHTML = `<span>${item.comment ? '改备注' : '备注'}</span>`;
+        commentBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (card.querySelector('.notes-item-comment-editor')) return;
+
+          const editor = document.createElement('div');
+          editor.className = 'notes-item-comment-editor';
+          const inner = document.createElement('div');
+          inner.className = 'notes-item-comment-editor-inner';
+          const textarea = document.createElement('textarea');
+          textarea.className = 'notes-item-comment-input';
+          textarea.maxLength = 2000;
+          textarea.placeholder = '写点备注，比如自己的理解、疑问或补充…';
+          textarea.value = item.comment || '';
+
+          const actions = document.createElement('div');
+          actions.className = 'notes-item-comment-actions';
+          const saveBtn = document.createElement('button');
+          saveBtn.type = 'button';
+          saveBtn.className = 'notes-btn notes-btn-save';
+          saveBtn.textContent = '保存';
+          const cancelBtn = document.createElement('button');
+          cancelBtn.type = 'button';
+          cancelBtn.className = 'notes-btn';
+          cancelBtn.textContent = '取消';
+          actions.append(saveBtn, cancelBtn);
+          inner.append(textarea, actions);
+          editor.append(inner);
+          card.appendChild(editor);
+
+          // Smooth accordion open animation
+          requestAnimationFrame(() => {
+            editor.classList.add('is-open');
+            textarea.focus();
+          });
+
+          let isClosing = false;
+          const closeEditor = () => {
+            if (isClosing) return;
+            isClosing = true;
+            editor.classList.remove('is-open');
+            editor.classList.add('is-closing');
+            let removed = false;
+            const onEnd = () => {
+              if (removed) return;
+              removed = true;
+              editor.removeEventListener('transitionend', onEnd);
+              editor.remove();
+            };
+            editor.addEventListener('transitionend', onEnd);
+            setTimeout(onEnd, 320);
+          };
+          const commit = () => {
+            const value = textarea.value.trim();
+            item.comment = value;
+            item.updatedAt = Date.now();
+            item.dirty = true;
+            commentEl.hidden = !value;
+            paintComment(commentEl, value);
+            if (value) {
+              commentEl.classList.remove('is-pop');
+              void commentEl.offsetWidth;
+              commentEl.classList.add('is-pop');
+            }
+            commentBtn.innerHTML = `<span>${value ? '改备注' : '备注'}</span>`;
+            saveRecords();
+            closeEditor();
+          };
+
+          saveBtn.addEventListener('click', commit);
+          cancelBtn.addEventListener('click', closeEditor);
+          textarea.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Escape') closeEditor();
+            if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) {
+              ev.preventDefault();
+              commit();
+            }
+          });
+        });
+        actGroup.appendChild(commentBtn);
+
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'notes-btn notes-btn-copy';
+        copyBtn.title = '复制 Markdown 引用';
+        copyBtn.innerHTML = `<span>复制</span>`;
+        copyBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          activeHighlightId = item.id;
+          triggerCopy();
+          const span = copyBtn.querySelector('span') || copyBtn;
+          const original = span.textContent;
+          span.textContent = '已复制!';
+          setTimeout(() => { span.textContent = original; }, 1400);
+        });
+        actGroup.appendChild(copyBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'notes-btn notes-btn-del';
+        delBtn.title = '删除这条笔记';
+        delBtn.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        `;
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (card.dataset.deleting === 'true') return;
+          card.dataset.deleting = 'true';
+
+          const groupEl = card.closest('.notes-section-group');
+          const isSoleCard = (groupEl ? groupEl.querySelectorAll('.notes-item-card').length : 1) <= 1;
+          const targetEl = isSoleCard ? (groupEl || card) : card;
+
+          smoothRemoveNoteCard(targetEl, isSoleCard, () => {
+            if (!isSoleCard && groupEl && groupEl.querySelectorAll('.notes-item-card').length === 0) {
+              groupEl.remove();
+            }
+            triggerDeleteHighlight(item.id, true);
+          });
+        });
+        actGroup.appendChild(delBtn);
+
+        metaRow.append(timeSpan, actGroup);
+        card.append(metaRow);
+
+        if (jumpable) {
+          card.addEventListener('click', () => jumpToHighlight(item.id));
+        }
+        return card;
       }
+
+      const appendGroup = (title: string, items: ArticleHighlightRecord[], jumpable: boolean) => {
+        if (!items.length) return;
+        const secEl = document.createElement('div');
+        secEl.className = 'notes-section-group';
+
+        const headEl = document.createElement('div');
+        headEl.className = 'notes-section-head';
+        headEl.textContent = title;
+        secEl.appendChild(headEl);
+
+        for (const [index, item] of items.entries()) secEl.appendChild(buildCard(item, jumpable, index));
+        drawerList.appendChild(secEl);
+      };
+
+      appendGroup('AI 问答摘录', aiNotes, false);
+      appendGroup('自由笔记', freeNotes, false);
+
+      // 划线笔记仍按小节分组
+      const sectionMap = new Map<string, ArticleHighlightRecord[]>();
+      for (const rec of highlights) {
+        const sec = rec.headingText || '§ 导言 / 正文';
+        const list = sectionMap.get(sec) || [];
+        list.push(rec);
+        sectionMap.set(sec, list);
+      }
+      for (const [section, items] of sectionMap.entries()) appendGroup(section, items, true);
     }
 
     function jumpToHighlight(id: string) {
@@ -991,10 +1231,135 @@
       setTimeout(() => mark.classList.remove('has-pulse'), 2200);
     }
 
+    // ---------- 新建 / 追加笔记（不绑定正文位置） ----------
+
+    function addNote(input: { text: string; kind?: 'ai' | 'free'; question?: string; headingText?: string }): ArticleHighlightRecord | null {
+      const text = String(input?.text || '').trim().slice(0, 20000);
+      if (!text) return null;
+
+      const now = Date.now();
+      const kind = input.kind === 'ai' ? 'ai' : 'free';
+      const record: ArticleHighlightRecord = {
+        id: createId(kind === 'ai' ? 'ai' : 'note'),
+        text,
+        prefix: '',
+        suffix: '',
+        headingText: input.headingText || (kind === 'ai' ? 'AI 问答摘录' : '自由笔记'),
+        timestamp: now,
+        kind,
+        comment: '',
+        postSlug,
+        postTitle: postTitle(),
+        updatedAt: now,
+        dirty: true,
+      };
+      if (kind === 'ai') {
+        record.source = 'inkask';
+        record.question = String(input.question || '').trim().slice(0, 500);
+      }
+
+      storedRecords.push(record);
+      saveRecords();
+      if (drawer?.classList.contains('is-open')) renderDrawerNotes();
+      return record;
+    }
+
+    function openNoteComposer() {
+      if (!drawerList) return;
+      openNotesDrawer();
+
+      const existing = drawerList.querySelector<HTMLElement>('.notes-composer');
+      if (existing) {
+        existing.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+        return;
+      }
+
+      const composer = document.createElement('div');
+      composer.className = 'notes-composer';
+      const inner = document.createElement('div');
+      inner.className = 'notes-composer-inner';
+      const textarea = document.createElement('textarea');
+      textarea.className = 'notes-composer-input';
+      textarea.maxLength = 20000;
+      textarea.placeholder = '写一条不绑定正文位置的笔记…（Ctrl/Cmd + Enter 保存）';
+
+      const actions = document.createElement('div');
+      actions.className = 'notes-composer-actions';
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.className = 'notes-btn notes-btn-save';
+      saveBtn.textContent = '保存笔记';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'notes-btn';
+      cancelBtn.textContent = '取消';
+      actions.append(saveBtn, cancelBtn);
+      inner.append(textarea, actions);
+      composer.append(inner);
+      drawerList.prepend(composer);
+
+      // Smooth accordion open animation
+      requestAnimationFrame(() => {
+        composer.classList.add('is-open');
+        textarea.focus();
+      });
+
+      let isClosing = false;
+      const close = () => {
+        if (isClosing) return;
+        isClosing = true;
+        composer.classList.remove('is-open');
+        composer.classList.add('is-closing');
+        let removed = false;
+        const onEnd = () => {
+          if (removed) return;
+          removed = true;
+          composer.removeEventListener('transitionend', onEnd);
+          composer.remove();
+        };
+        composer.addEventListener('transitionend', onEnd);
+        setTimeout(onEnd, 350);
+      };
+      const commit = () => {
+        const value = textarea.value.trim();
+        if (!value) { close(); return; }
+        addNote({ kind: 'free', text: value });
+        close();
+        showStamp('已保存笔记');
+      };
+      saveBtn.addEventListener('click', commit);
+      cancelBtn.addEventListener('click', close);
+      textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') close();
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          commit();
+        }
+      });
+    }
+
+    // ---------- 抽屉开合 ----------
+
     function openNotesDrawer() {
       if (!drawer || !backdrop) return;
       hideDock();
       renderDrawerNotes();
+
+      window.dispatchEvent(new CustomEvent('article-notes:open'));
+
+      const floatWindow = document.getElementById('pin-float-window');
+      if (floatWindow && !floatWindow.hidden && floatWindow.style.display !== 'none' && window.innerWidth >= 1024) {
+        const fwRect = floatWindow.getBoundingClientRect();
+        const drawerThreshold = window.innerWidth - 480;
+        if (fwRect.right > drawerThreshold) {
+          const targetLeft = Math.max(16, drawerThreshold - fwRect.width - 24);
+          floatWindow.style.transition = 'left 320ms cubic-bezier(0.16, 1, 0.3, 1)';
+          floatWindow.style.left = `${Math.round(targetLeft)}px`;
+          setTimeout(() => {
+            floatWindow.style.transition = '';
+          }, 350);
+        }
+      }
 
       drawer.hidden = false;
       drawer.style.display = 'flex';
@@ -1025,6 +1390,19 @@
     floatingPill?.addEventListener('click', openNotesDrawer, { signal });
     drawerCloseBtn?.addEventListener('click', closeNotesDrawer, { signal });
     backdrop?.addEventListener('click', closeNotesDrawer, { signal });
+    newNoteBtn?.addEventListener('click', openNoteComposer, { signal });
+    window.addEventListener('ink-ask:open', closeNotesDrawer, { signal });
+    drawer?.addEventListener('pointerdown', () => {
+      drawer.style.zIndex = '100045';
+      const floatWindow = document.getElementById('pin-float-window');
+      if (floatWindow) floatWindow.style.zIndex = '100035';
+    }, { signal });
+
+    window.addEventListener('article-note:add', ((event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail?.text) return;
+      addNote(detail);
+    }) as EventListener, { signal });
 
     // 委派支持页面内其它触发按钮 (如 PostLayout TOC 上的笔记按钮)
     document.addEventListener('click', (e) => {
@@ -1059,11 +1437,16 @@
 
     // 清空全部高亮
     clearAllBtn?.addEventListener('click', () => {
-      if (!storedRecords.length) return;
-      if (!window.confirm('确定要清空本文的所有高亮划线吗？')) return;
+      if (!storedRecords.some((r) => !r.deleted)) return;
+      if (!window.confirm('确定要清空本文的所有笔记吗？')) return;
 
+      const now = Date.now();
       for (const rec of storedRecords) {
+        if (rec.deleted) continue;
         removeHighlightFromDOM(rec.id, prose);
+        rec.deleted = true;
+        rec.dirty = true;
+        rec.updatedAt = now;
       }
       const orphanMarks = prose.querySelectorAll<HTMLElement>('mark.article-highlight-mark');
       orphanMarks.forEach((mark) => {
@@ -1075,11 +1458,9 @@
         }
       });
 
-      storedRecords = [];
-      saveHighlights(postSlug, []);
-      updateBadges();
+      saveRecords();
       renderDrawerNotes();
-      showStamp('已清空全部划线');
+      showStamp('已清空全部笔记');
     }, { signal });
 
     // 对外暴露 API 以供外部组件/测试交互
@@ -1089,21 +1470,30 @@
       removeHighlight: triggerDeleteHighlight,
       openDrawer: openNotesDrawer,
       closeDrawer: closeNotesDrawer,
+      addNote,
       exportMarkdown: () => exportHighlightsAsMarkdown(
-        document.querySelector<HTMLElement>('[data-post-title]')?.textContent?.trim() || document.title,
+        postTitle(),
         window.location.href,
         storedRecords
       ),
     };
 
+    (window as any).__articleNotes = {
+      addNote,
+      openDrawer: openNotesDrawer,
+      getNotes: () => [...storedRecords],
+    };
+
     // astro 换页清理
     (window as any)[CLEANUP_KEY] = () => {
+      if (unbindDrawerScroll) unbindDrawerScroll();
       document.body.classList.remove('has-selection-dock-open');
       controller.abort();
       if (dockTimeoutId) window.clearTimeout(dockTimeoutId);
       if (stampTimeoutId) window.clearTimeout(stampTimeoutId);
       (window as any)[CLEANUP_KEY] = undefined;
       (window as any).__articleHighlights = undefined;
+      (window as any).__articleNotes = undefined;
     };
   }
 
@@ -1215,6 +1605,13 @@
     100% {
       box-shadow: 0 0 0 0 rgba(255, 197, 61, 0);
     }
+  }
+
+  mark.article-highlight-mark:empty {
+    display: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
   }
 
   /* =========================================================
@@ -1669,52 +2066,126 @@
   }
 
   /* =========================================================
-     3. 右侧高亮笔记抽屉 (Slide-Over Notes Drawer)
+     3. 右侧高亮笔记抽屉 (Dual-Pane Companion Island & Bottom Sheet)
      ========================================================= */
-  .article-notes-drawer-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 100030;
-    background: rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 300ms ease;
+
+  /* 桌面端：无遮罩独立悬浮画卷卡片 (Floating Companion Island) */
+  @media (min-width: 1024px) {
+    .article-notes-drawer-backdrop {
+      display: none !important;
+      pointer-events: none !important;
+      opacity: 0 !important;
+      visibility: hidden !important;
+    }
+
+    .article-notes-drawer {
+      position: fixed;
+      top: clamp(1rem, 2.5vh, 1.8rem);
+      bottom: clamp(1rem, 2.5vh, 1.8rem);
+      right: clamp(1rem, 1.6vw, 1.8rem);
+      z-index: 100031;
+      display: flex;
+      flex-direction: column;
+      width: clamp(390px, 28vw, 450px);
+      max-width: calc(100vw - 2.5rem);
+      height: auto;
+      max-height: calc(100vh - 2 * clamp(1rem, 2.5vh, 1.8rem));
+      max-height: calc(100dvh - 2 * clamp(1rem, 2.5vh, 1.8rem));
+      background: var(--glass-bg-strong, var(--bg-elev));
+      border: 1px solid var(--rule-strong, rgba(0, 0, 0, 0.18));
+      border-radius: 16px;
+      box-shadow:
+        0 20px 50px rgba(0, 0, 0, 0.12),
+        0 4px 16px rgba(0, 0, 0, 0.04);
+      backdrop-filter: blur(24px) saturate(160%);
+      -webkit-backdrop-filter: blur(24px) saturate(160%);
+      transform: translate3d(calc(100% + 2.5rem), 0, 0) scale(0.98);
+      opacity: 0;
+      transition:
+        transform 380ms cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 300ms cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: var(--font-body);
+      overflow: hidden;
+      overscroll-behavior: contain;
+    }
+
+    [data-theme="dark"] .article-notes-drawer {
+      background: rgba(24, 24, 24, 0.95);
+      border-color: rgba(255, 255, 255, 0.16);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    }
+
+    .article-notes-drawer.is-open {
+      transform: translate3d(0, 0, 0) scale(1);
+      opacity: 1;
+    }
   }
 
-  .article-notes-drawer-backdrop.is-open {
-    opacity: 1;
-    pointer-events: auto;
+  /* 移动端/平板窄屏：底部优雅手卷抽屉 (Bottom Sheet) */
+  @media (max-width: 1023.98px) {
+    .article-notes-drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 100030;
+      background: rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 300ms ease;
+    }
+
+    .article-notes-drawer-backdrop.is-open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .article-notes-drawer {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: auto;
+      z-index: 100031;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 100%;
+      height: 82vh;
+      height: 82dvh;
+      max-height: 85vh;
+      max-height: 85dvh;
+      background: var(--glass-bg-strong, var(--bg-elev));
+      border-top: 1px solid var(--rule-strong, rgba(0, 0, 0, 0.18));
+      border-radius: 20px 20px 0 0;
+      box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.16);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      transform: translate3d(0, 100%, 0);
+      transition: transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: var(--font-body);
+      overflow: hidden;
+    }
+
+    [data-theme="dark"] .article-notes-drawer {
+      background: rgba(24, 24, 24, 0.98);
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6);
+    }
+
+    .article-notes-drawer.is-open {
+      transform: translate3d(0, 0, 0);
+    }
   }
 
-  .article-notes-drawer {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 100031;
-    display: flex;
-    flex-direction: column;
-    width: min(460px, 100vw);
-    background: var(--glass-bg-strong, rgba(252, 250, 246, 0.96));
-    border-left: 1px solid var(--rule-strong, rgba(0, 0, 0, 0.18));
-    box-shadow: var(--glass-shadow-lg, 0 30px 80px rgba(0, 0, 0, 0.22));
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    transform: translateX(100%);
-    transition: transform 340ms cubic-bezier(0.16, 1, 0.3, 1);
-    font-family: var(--font-body);
-  }
-
-  [data-theme="dark"] .article-notes-drawer {
-    background: rgba(24, 24, 24, 0.95);
-    border-color: rgba(255, 255, 255, 0.16);
-    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
-  }
-
-  .article-notes-drawer.is-open {
-    transform: translateX(0);
+  .drawer-drag-handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 9999px;
+    background: var(--rule-strong, rgba(0, 0, 0, 0.25));
+    margin: 10px auto 2px auto;
+    opacity: 0.5;
+    flex-shrink: 0;
   }
 
   /* Drawer Header */
@@ -1790,19 +2261,31 @@
   .notes-drawer-body {
     flex: 1;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 1rem 1.3rem;
     display: flex;
     flex-direction: column;
     gap: 1.2rem;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  .notes-drawer-body::-webkit-scrollbar,
+  .notes-drawer-list::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
   }
 
   .notes-empty-state {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 4rem 1.5rem;
+    padding: 2.5rem 1.5rem;
+    margin: auto 0;
     color: var(--muted);
   }
 
@@ -1851,6 +2334,26 @@
     padding: 0.85rem 1rem;
     cursor: pointer;
     transition: all 200ms ease;
+    animation: notesCardIn 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes notesCardIn {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 10px, 0) scale(0.985);
+      filter: blur(2px);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+      filter: blur(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .notes-item-card {
+      animation: none;
+    }
   }
 
   [data-theme="dark"] .notes-item-card {
@@ -1865,15 +2368,323 @@
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
   }
 
-  .notes-item-text {
+  .notes-item-text,
+  .notes-item-markdown {
     margin: 0 0 0.65rem 0;
     font-size: 0.88rem;
-    line-height: 1.6;
+    line-height: 1.66;
     color: var(--text-strong);
+    display: block;
+    -webkit-line-clamp: unset;
+    max-height: none;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .notes-item-markdown.is-highlight-quote {
+    padding-left: 0.15rem;
+  }
+
+  .notes-item-markdown > :first-child {
+    margin-top: 0;
+  }
+
+  .notes-item-markdown > :last-child {
+    margin-bottom: 0;
+  }
+
+  .notes-item-markdown p {
+    margin: 0.4em 0;
+  }
+
+  .notes-item-markdown ul,
+  .notes-item-markdown ol {
+    margin: 0.4em 0;
+    padding-left: 1.25em;
+  }
+
+  .notes-item-markdown li {
+    margin: 0.15em 0;
+  }
+
+  .notes-item-markdown .md-heading {
+    margin: 0.6em 0 0.3em;
+    font-weight: 700;
+    color: var(--text-strong);
+  }
+
+  .notes-item-markdown code {
+    padding: 0.08em 0.34em;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--bg-soft);
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    color: var(--ink-strong);
+  }
+
+  .notes-item-markdown pre {
+    margin: 0.5em 0;
+    padding: 0.6rem 0.75rem;
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--bg-soft);
+  }
+
+  .notes-item-markdown pre code {
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: 0.82em;
+  }
+
+  .notes-item-markdown blockquote {
+    margin: 0.5em 0;
+    padding-left: 0.7em;
+    border-left: 2px solid var(--rule-strong);
+    color: var(--muted-strong);
+  }
+
+  .notes-item-markdown a {
+    color: var(--accent-strong);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .notes-item-question {
+    margin: 0 0 0.45rem 0;
+    font-size: 0.76rem;
+    line-height: 1.5;
+    color: var(--muted-strong);
+    font-weight: 600;
     display: -webkit-box;
-    -webkit-line-clamp: 4;
+    -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  .notes-item-comment {
+    margin: 0 0 0.6rem 0;
+    padding: 0.45rem 0.6rem;
+    border-left: 2px solid var(--accent, #8b6f47);
+    background: var(--bg-soft, rgba(0, 0, 0, 0.03));
+    border-radius: 0 4px 4px 0;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  .notes-item-comment-label {
+    color: var(--muted-strong);
+    font-weight: 600;
+  }
+
+  .notes-item-comment-text {
+    margin: 0;
+    white-space: pre-line;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  .notes-item-comment-code {
+    margin: 0.45rem 0 0;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    background: var(--bg-elev, #fff);
+    color: var(--text);
+    overflow-x: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: normal;
+    word-break: normal;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    line-height: 1.6;
+    tab-size: 2;
+  }
+
+  .notes-item-comment-code code {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+  }
+
+  .notes-item-comment[hidden] {
+    display: none;
+  }
+
+  .notes-item-comment.is-pop {
+    animation: notesCommentIn 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes notesCommentIn {
+    from {
+      opacity: 0;
+      transform: translate3d(-4px, 0, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  /* 备注编辑框：平滑折叠展开/收起与舒展呼吸感排版 */
+  .notes-item-comment-editor {
+    display: grid;
+    grid-template-rows: 0fr;
+    margin: 0;
+    transition:
+      grid-template-rows 280ms cubic-bezier(0.16, 1, 0.3, 1),
+      margin 280ms cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+  }
+
+  .notes-item-comment-editor.is-open {
+    grid-template-rows: 1fr;
+    margin: 0.75rem 0 0.65rem 0;
+  }
+
+  .notes-item-comment-editor.is-closing {
+    grid-template-rows: 0fr;
+    margin: 0;
+  }
+
+  .notes-item-comment-editor-inner {
+    min-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transform: translate3d(0, -8px, 0);
+    transition:
+      opacity 220ms ease,
+      transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .notes-item-comment-editor.is-open .notes-item-comment-editor-inner {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .notes-item-comment-editor.is-closing .notes-item-comment-editor-inner {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+    transition:
+      opacity 180ms ease,
+      transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .notes-item-comment-input,
+  .notes-composer-input {
+    width: 100%;
+    min-height: 74px;
+    resize: vertical;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--bg-elev, #fff);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    outline: none;
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+  }
+
+  .notes-item-comment-input:focus,
+  .notes-composer-input:focus {
+    border-color: var(--accent, #8b6f47);
+    box-shadow: 0 0 0 3px var(--accent-soft, rgba(194, 65, 12, 0.12));
+  }
+
+  .notes-item-comment-actions,
+  .notes-composer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .notes-btn-save {
+    background: var(--ink-strong, #111);
+    color: var(--bg-elev, #fff);
+    border-color: transparent;
+  }
+
+  .notes-btn-save:hover {
+    opacity: 0.88;
+    color: var(--bg-elev, #fff);
+  }
+
+  /* 新建笔记框：顶部平滑折叠展开/收起与虚线光晕 */
+  .notes-composer {
+    display: grid;
+    grid-template-rows: 0fr;
+    margin: 0;
+    transition:
+      grid-template-rows 300ms cubic-bezier(0.16, 1, 0.3, 1),
+      margin 300ms cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+  }
+
+  .notes-composer.is-open {
+    grid-template-rows: 1fr;
+    margin-bottom: 0.85rem;
+  }
+
+  .notes-composer.is-closing {
+    grid-template-rows: 0fr;
+    margin-bottom: 0;
+  }
+
+  .notes-composer-inner {
+    min-height: 0;
+    overflow: hidden;
+    border: 1px dashed var(--rule-strong, rgba(0, 0, 0, 0.25));
+    border-radius: 8px;
+    padding: 0.75rem;
+    background: var(--bg-soft, rgba(0, 0, 0, 0.02));
+    opacity: 0;
+    transform: translate3d(0, -8px, 0);
+    transition:
+      opacity 240ms ease,
+      transform 300ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 200ms ease,
+      box-shadow 200ms ease;
+  }
+
+  .notes-composer.is-open .notes-composer-inner {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .notes-composer:focus-within .notes-composer-inner {
+    border-color: var(--accent, #8b6f47);
+    border-style: solid;
+    box-shadow: 0 0 0 3px var(--accent-soft, rgba(194, 65, 12, 0.12));
+  }
+
+  .notes-composer.is-closing .notes-composer-inner {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+    transition:
+      opacity 180ms ease,
+      transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .notes-item-comment-editor,
+    .notes-item-comment-editor-inner,
+    .notes-composer,
+    .notes-composer-inner {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
   }
 
   .notes-item-meta {
@@ -1934,6 +2745,27 @@
     padding: 0.9rem 1.3rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--rule-soft, rgba(0, 0, 0, 0.1));
     background: var(--bg-soft, rgba(0, 0, 0, 0.02));
+  }
+
+  .notes-new-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 9px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--rule);
+    background: transparent;
+    color: var(--text);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 180ms ease;
+    flex-shrink: 0;
+  }
+
+  .notes-new-btn:hover {
+    background: var(--bg-soft, rgba(0, 0, 0, 0.04));
+    border-color: var(--rule-strong);
   }
 
   .notes-export-btn {

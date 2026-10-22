@@ -171,6 +171,7 @@ const tagline = '日常记录 · 技术分享';
     const releasePage = (options?: { timeScale?: number }) => {
       if (released) return;
       released = true;
+      document.documentElement.classList.remove('js-enter');
       (window as any).__releasePageEnter?.(options);
     };
     const splash = (x: number, y: number, n: number) => { (window as any).__inkSplash?.(x, y, n); };
@@ -254,62 +255,76 @@ const tagline = '日常记录 · 技术分享';
       for (let i = 0; i < charX.length; i += 1) c.fillText(TITLE[i], charX[i] + dx, cy + dy);
     }
 
+    let readyWatchdog = 0;
     async function prepare() {
-      try { await Promise.race([document.fonts.load(font, TITLE), sleep(1500)]); } catch {}
+      try {
+        if (document.fonts && document.fonts.load) {
+          await Promise.race([document.fonts.load(font, TITLE), sleep(200)]);
+        }
+      } catch {}
       if (signal.aborted) return;
-      const meas = document.createElement('canvas').getContext('2d')!;
-      meas.font = font;
-      const gap = fontSize * 0.08;
-      const advances = [...TITLE].map((ch) => meas.measureText(ch).width);
-      const total = advances.reduce((a, b) => a + b, 0) + gap * (TITLE.length - 1);
-      let x = cx - total / 2;
-      charX = advances.map((w) => { const here = x; x += w + gap; return here; });
+      try {
+        const off = document.createElement('canvas');
+        const meas = off.getContext('2d');
+        if (!meas) throw new Error('Canvas 2D unavailable');
+        meas.font = font;
+        const gap = fontSize * 0.08;
+        const advances = [...TITLE].map((ch) => meas.measureText(ch).width);
+        const total = advances.reduce((a, b) => a + b, 0) + gap * (TITLE.length - 1);
+        let x = cx - total / 2;
+        charX = advances.map((w) => { const here = x; x += w + gap; return here; });
 
-      // Coarser cells until the title fits the particle budget
-      cell = Math.max(3, Math.min(5, Math.round(fontSize / 64)));
-      let cells: number[] = [];
-      for (;;) {
-        const pad = cell * 2;
-        const box = { x: Math.floor(cx - total / 2 - pad), y: Math.floor(cy - fontSize * 0.75), w: Math.ceil(total + pad * 2), h: Math.ceil(fontSize * 1.5) };
-        cells = rasterCells(box, cell, (c) => drawTitle(c));
-        if (cells.length / 2 <= MAX * 0.92 || cell >= 8) break;
-        cell += 1;
+        // Coarser cells until the title fits the particle budget
+        cell = Math.max(3, Math.min(5, Math.round(fontSize / 64)));
+        let cells: number[] = [];
+        for (;;) {
+          const pad = cell * 2;
+          const box = { x: Math.floor(cx - total / 2 - pad), y: Math.floor(cy - fontSize * 0.75), w: Math.ceil(total + pad * 2), h: Math.ceil(fontSize * 1.5) };
+          cells = rasterCells(box, cell, (c) => drawTitle(c));
+          if (cells.length / 2 <= MAX * 0.92 || cell >= 8) break;
+          cell += 1;
+        }
+        G = cells.length / 2;
+        N = Math.max(G + 320, MIN);
+
+        px = new Float32Array(N); py = new Float32Array(N); vx = new Float32Array(N); vy = new Float32Array(N);
+        tx = new Float32Array(N); ty = new Float32Array(N); hx = new Float32Array(N); hy = new Float32Array(N);
+        tA = new Float32Array(N); tH = new Float32Array(N); life = new Float32Array(N); pref = new Float32Array(N); splitAt = new Float32Array(N);
+        kind = new Uint8Array(N); mode = new Uint8Array(N); homeKind = new Uint8Array(N);
+        leader = new Int32Array(N).fill(-1);
+
+        bx0 = Infinity; by0 = Infinity; bx1 = -Infinity; by1 = -Infinity;
+        for (let i = 0; i < G; i += 1) {
+          tx[i] = cells[i * 2];
+          ty[i] = cells[i * 2 + 1];
+          if (tx[i] < bx0) bx0 = tx[i];
+          if (ty[i] < by0) by0 = ty[i];
+          if (tx[i] + cell > bx1) bx1 = tx[i] + cell;
+          if (ty[i] + cell > by1) by1 = ty[i] + cell;
+        }
+        const stains = Math.min(N - G, Math.round(N * 0.03));
+        for (let i = G; i < N; i += 1) kind[i] = i < G + stains ? K_STAIN : K_FREE;
+        for (let i = 0; i < N; i += 1) pref[i] = vortexR * (0.6 + rnd() * 0.9);
+
+        // Glyph cells fill left to right (with a slight top-first lean), so 梦 → 付 → 千 → 秋
+        const order = Array.from({ length: G }, (_, i) => i).sort((a, b) => (tx[a] + ty[a] * 0.12) - (tx[b] + ty[b] * 0.12));
+        order.forEach((i, rank) => { tA[i] = T.form + (rank / G) * (T.formEnd - T.form) + (rnd() - 0.5) * 0.1; });
+
+        // Every 16th pixel is a chunk that carries the next three hidden inside it and splits mid-flight
+        for (let i = 0; i < G; i += 1) {
+          const m = i % 16;
+          if (m === 0) splitAt[i] = T.impact + 0.15 + rnd() * 0.4;
+          else if (m <= 3) leader[i] = i - m;
+        }
+
+        placeStage();
+        ready = true;
+        window.clearTimeout(readyWatchdog);
+      } catch (err) {
+        console.warn('[SiteIntro] prepare error, auto-skipping:', err);
+        releasePage({ timeScale: 2.5 });
+        finish();
       }
-      G = cells.length / 2;
-      N = Math.max(G + 320, MIN);
-
-      px = new Float32Array(N); py = new Float32Array(N); vx = new Float32Array(N); vy = new Float32Array(N);
-      tx = new Float32Array(N); ty = new Float32Array(N); hx = new Float32Array(N); hy = new Float32Array(N);
-      tA = new Float32Array(N); tH = new Float32Array(N); life = new Float32Array(N); pref = new Float32Array(N); splitAt = new Float32Array(N);
-      kind = new Uint8Array(N); mode = new Uint8Array(N); homeKind = new Uint8Array(N);
-      leader = new Int32Array(N).fill(-1);
-
-      bx0 = Infinity; by0 = Infinity; bx1 = -Infinity; by1 = -Infinity;
-      for (let i = 0; i < G; i += 1) {
-        tx[i] = cells[i * 2];
-        ty[i] = cells[i * 2 + 1];
-        if (tx[i] < bx0) bx0 = tx[i];
-        if (ty[i] < by0) by0 = ty[i];
-        if (tx[i] + cell > bx1) bx1 = tx[i] + cell;
-        if (ty[i] + cell > by1) by1 = ty[i] + cell;
-      }
-      const stains = Math.min(N - G, Math.round(N * 0.03));
-      for (let i = G; i < N; i += 1) kind[i] = i < G + stains ? K_STAIN : K_FREE;
-      for (let i = 0; i < N; i += 1) pref[i] = vortexR * (0.6 + rnd() * 0.9);
-
-      // Glyph cells fill left to right (with a slight top-first lean), so 梦 → 付 → 千 → 秋
-      const order = Array.from({ length: G }, (_, i) => i).sort((a, b) => (tx[a] + ty[a] * 0.12) - (tx[b] + ty[b] * 0.12));
-      order.forEach((i, rank) => { tA[i] = T.form + (rank / G) * (T.formEnd - T.form) + (rnd() - 0.5) * 0.1; });
-
-      // Every 16th pixel is a chunk that carries the next three hidden inside it and splits mid-flight
-      for (let i = 0; i < G; i += 1) {
-        const m = i % 16;
-        if (m === 0) splitAt[i] = T.impact + 0.15 + rnd() * 0.4;
-        else if (m <= 3) leader[i] = i - m;
-      }
-
-      placeStage();
-      ready = true;
     }
 
     // Seal to the right of the title, bottom-aligned; above it when there is no room. Tagline below.
@@ -896,12 +911,14 @@ const tagline = '日常记录 · 技术分享';
       if (finished) return;
       finished = true;
       window.clearTimeout(skipFallbackTimer);
+      window.clearTimeout(readyWatchdog);
       cancelAnimationFrame(frameId);
       controller.abort();
       timeline?.kill();
       timeline = null;
       gsap.killTweensOf([intro, seal, taglineEl, foot, ring]);
       document.documentElement.classList.remove('site-intro-active');
+      document.documentElement.classList.remove('js-enter');
       (window as any).__siteIntroPending = false;
       releasePage({ timeScale: Math.max(homeTimeScale, 2.5) });
       intro.remove();
@@ -915,8 +932,9 @@ const tagline = '日常记录 · 技术分享';
 
     skipBtn.addEventListener('click', skip, { signal });
     intro.addEventListener('click', skip, { signal });
-    // Lenis refuses wheel/touch while stopped; the keyboard scrolls natively, so it is refused here
-    intro.addEventListener('wheel', (event) => event.preventDefault(), { passive: false, signal });
+    // Wheel and touchskip handlers to never swallow user intent
+    intro.addEventListener('wheel', (event) => { event.preventDefault(); skip(); }, { passive: false, signal });
+    intro.addEventListener('touchstart', () => skip(), { passive: true, signal });
     document.addEventListener('keydown', (event) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (SKIP_KEYS.has(event.key)) {
@@ -934,6 +952,14 @@ const tagline = '日常记录 · 技术分享';
     }
     // A resize mid-curtain would leave every home and glyph cell aiming at stale coordinates
     window.addEventListener('resize', () => { if (!finished) skip(); }, { signal, once: true });
+
+    // Ready watchdog: if font or canvas doesn't report ready within 600ms, auto-skip to avoid blank screen
+    readyWatchdog = window.setTimeout(() => {
+      if (!ready && !finished) {
+        console.warn('[SiteIntro] Ready watchdog timed out, skipping intro');
+        skip();
+      }
+    }, 600);
 
     prepare().catch(() => {});
     frameId = requestAnimationFrame(loop);

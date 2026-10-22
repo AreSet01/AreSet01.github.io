@@ -39,6 +39,7 @@
         </svg>
       </div>
       <span class="pin-count-badge" data-pin-count title="已钉住项数">0</span>
+      <span class="pin-window-title">对照工作台</span>
     </div>
     <div class="pin-window-actions">
       <button type="button" class="pin-action-btn" id="pin-toggle-all-btn" title="全部折叠/展开">
@@ -60,6 +61,14 @@
   <div class="pin-window-body pin-window-content pin-cards-container" id="pin-window-list" data-lenis-prevent>
     <!-- Dynamic cards rendered here -->
   </div>
+
+  <div
+    class="pin-resize-handle"
+    id="pin-resize-handle"
+    role="separator"
+    aria-label="拖拽调整对照工作台大小"
+    title="拖拽调整大小（双击恢复默认）"
+  ></div>
 </div>
 
 <!-- Mobile Bottom Sheet (仅移动端启用，默认 hidden，绝对不影响桌面端) -->
@@ -93,6 +102,9 @@
 </div>
 
 <script>
+  import { makeResizable } from '../utils/panelResize';
+  import { bindScrollIsolation } from '../utils/scrollIsolation';
+
   interface PinnedItem {
     id: string;
     type: 'code' | 'mermaid' | 'quote';
@@ -156,6 +168,33 @@
         backdrop.classList.remove('is-open');
       }
       document.body.classList.remove('pin-sheet-open');
+
+      if (floatWindow && !(floatWindow as any).__scrollIsolated) {
+        (floatWindow as any).__scrollIsolated = true;
+        bindScrollIsolation(floatWindow, { scrollableSelector: '.pin-window-body' });
+      }
+      if (sheet && !(sheet as any).__scrollIsolated) {
+        (sheet as any).__scrollIsolated = true;
+        bindScrollIsolation(sheet, { scrollableSelector: '.pin-sheet-content' });
+      }
+
+      const resizeHandle = document.getElementById('pin-resize-handle');
+      if (floatWindow && resizeHandle) {
+        const previous = (floatWindow as any).__pinResize;
+        if (previous && typeof previous.destroy === 'function') previous.destroy();
+        (floatWindow as any).__pinResize = makeResizable(floatWindow, resizeHandle, {
+          storageKey: 'pin-panel-size',
+          minWidth: 350,
+          minHeight: 220,
+          maxWidth: () => Math.min(window.innerWidth - 24, 1000),
+          maxHeight: () => Math.max(260, window.innerHeight - 24),
+          fallback: { width: 480, height: 540 },
+          fitContentHeight: true,
+          onChange: () => {
+            if (isWindowOpen && floatWindow.classList.contains('is-open')) ensureWindowPosition();
+          },
+        });
+      }
 
       syncUIState();
       bindEvents();
@@ -262,9 +301,13 @@
       const winWidth = floatWindow.offsetWidth || 440;
       const winHeight = floatWindow.offsetHeight || 380;
 
+      const notesDrawer = document.getElementById('article-notes-drawer');
+      const isNotesDrawerOpen = Boolean(notesDrawer && notesDrawer.classList.contains('is-open') && !notesDrawer.hidden && notesDrawer.style.display !== 'none');
+      const drawerWidth = isNotesDrawerOpen ? Math.max(380, (notesDrawer?.offsetWidth || 440)) + 24 : 0;
+
       if (userPos) {
         const minX = 12;
-        const maxX = Math.max(minX, window.innerWidth - winWidth - 12);
+        const maxX = Math.max(minX, window.innerWidth - winWidth - 12 - (isNotesDrawerOpen ? drawerWidth : 0));
         const minY = 12;
         const maxY = Math.max(minY, window.innerHeight - winHeight - 12);
 
@@ -274,8 +317,8 @@
         floatWindow.style.left = `${Math.round(left)}px`;
         floatWindow.style.top = `${Math.round(top)}px`;
       } else {
-        // Default: right-aligned floating overlay
-        const defaultLeft = Math.max(16, window.innerWidth - winWidth - 28);
+        // Default: right-aligned floating overlay, dodging notes drawer if open
+        const defaultLeft = Math.max(16, window.innerWidth - winWidth - 28 - drawerWidth);
         const defaultTop = Math.min(110, Math.max(16, (window.innerHeight - winHeight) / 2));
         floatWindow.style.left = `${Math.round(defaultLeft)}px`;
         floatWindow.style.top = `${Math.round(defaultTop)}px`;
@@ -1235,6 +1278,12 @@
       if (!floatWindow || !dragHandle) return;
       if ((dragHandle as any).__dragBound) return;
       (dragHandle as any).__dragBound = true;
+
+      floatWindow.addEventListener('pointerdown', () => {
+        floatWindow.style.zIndex = '100045';
+        const notesDrawer = document.getElementById('article-notes-drawer');
+        if (notesDrawer) notesDrawer.style.zIndex = '100035';
+      });
 
       let isDragging = false;
       let startX = 0;

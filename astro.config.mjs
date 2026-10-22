@@ -1,6 +1,8 @@
 import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
 import { visit } from 'unist-util-visit';
+import remarkCjkFriendly from 'remark-cjk-friendly';
+import { rehypeTableScroll } from './src/utils/rehypeTableScroll.ts';
 
 /**
  * Fence meta we understand, e.g.
@@ -66,8 +68,7 @@ const codeMetaTransformer = {
   },
 };
 
-function remarkMermaid() {
-  return (tree) => {
+function remarkMermaid() {  return (tree) => {
     visit(tree, 'code', (node, index, parent) => {
       if (!node || node.lang !== 'mermaid') return;
 
@@ -155,7 +156,10 @@ function remarkMermaid() {
 export default defineConfig({
   site: 'https://AreSet01.github.io',
   markdown: {
-    remarkPlugins: [remarkMermaid],
+    // 让 **…** 在中文全角标点旁也能正确解析（CommonMark 的 flanking 规则在 CJK 下会失效）；
+    // 必须放在 remarkMermaid 之前，确保解析阶段就挂上 micromark 扩展。
+    remarkPlugins: [remarkCjkFriendly, remarkMermaid],
+    rehypePlugins: [rehypeTableScroll],
     shikiConfig: {
       transformers: [codeMetaTransformer],
     },

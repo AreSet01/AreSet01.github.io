@@ -632,7 +632,57 @@ const MOSS_SHADES = [
             </div>
           </div>
 
-          <!-- 底部悬浮保存栏 -->
+          <!-- 模块 4：邀请码与账号 -->
+          <div class="bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-7 shadow-sm">
+            <div class="flex items-center gap-2.5 mb-6 pb-4 border-b border-neutral-100 dark:border-neutral-800/70">
+              <div class="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">邀请码与账号</h3>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400">每个邀请码只能注册 1 个账号；生成后复制给朋友，过期 / 未用的码可以作废</p>
+              </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-3 mb-5">
+              <input
+                type="text"
+                id="inviteNote"
+                maxlength="100"
+                placeholder="给这个码写个备注，比如：给老王"
+                class="flex-1 px-3.5 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 focus:outline-none"
+              />
+              <select
+                id="inviteTtl"
+                class="px-3 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
+              >
+                <option value="7">7 天有效</option>
+                <option value="30">30 天有效</option>
+                <option value="90">90 天有效</option>
+              </select>
+              <button
+                type="button"
+                id="generateInviteBtn"
+                class="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold tracking-wide font-mono transition-all cursor-pointer active:scale-95"
+              >
+                生成邀请码
+              </button>
+            </div>
+
+            <div id="inviteList" class="space-y-2 mb-6 text-xs text-neutral-500 dark:text-neutral-400">
+              正在读取邀请码…
+            </div>
+
+            <div class="pt-5 border-t border-neutral-100 dark:border-neutral-800/70">
+              <h4 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-3">已注册账号</h4>
+              <div id="accountList" class="space-y-2 text-xs text-neutral-500 dark:text-neutral-400">
+                正在读取账号…
+              </div>
+            </div>
+          </div>
+
           <div class="sticky bottom-6 z-30 p-4 rounded-2xl bg-neutral-900/90 dark:bg-neutral-100/90 text-neutral-100 dark:text-neutral-900 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border border-neutral-800 dark:border-neutral-200">
             <div class="flex items-center gap-2 text-xs">
               <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -857,6 +907,8 @@ const MOSS_SHADES = [
           setAuthedState(true);
           showToast('解锁成功，正在加载服务器配置...');
           await loadConfig();
+          await loadInvites();
+          await loadAccounts();
         } catch (err) {
           loginError.textContent = err.message || '网络连接异常';
           loginError.classList.remove('hidden');
@@ -1009,6 +1061,184 @@ const MOSS_SHADES = [
 
       modelFilterInput?.addEventListener('input', (e) => {
         renderModels(e.target.value);
+      });
+
+      // ---------- 邀请码与账号 ----------
+      const inviteListEl = document.getElementById('inviteList');
+      const accountListEl = document.getElementById('accountList');
+      const inviteNoteInput = document.getElementById('inviteNote');
+      const inviteTtlSelect = document.getElementById('inviteTtl');
+      const generateInviteBtn = document.getElementById('generateInviteBtn');
+
+      const escapeHtml = (value) =>
+        String(value ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+
+      const formatDate = (value) => {
+        if (!value) return '—';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '—';
+        return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+      };
+
+      function inviteStateLabel(state) {
+        if (state === 'used') return '已使用';
+        if (state === 'expired') return '已过期';
+        return '未使用';
+      }
+
+      async function loadInvites() {
+        if (!inviteListEl) return;
+        try {
+          const res = await apiFetch('/api/settings/invites');
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error || '读取失败');
+          const invites = Array.isArray(data.invites) ? data.invites : [];
+          if (!invites.length) {
+            inviteListEl.innerHTML = '<div class="py-3 text-center text-neutral-400">还没有邀请码，点上方按钮生成一个。</div>';
+            return;
+          }
+          inviteListEl.innerHTML = invites
+            .map((invite) => {
+              const state = invite.state;
+              const stateClass =
+                state === 'unused'
+                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40'
+                  : 'text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800';
+              return `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-neutral-200/80 dark:border-neutral-800/80 bg-white/60 dark:bg-neutral-950/30">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <code class="font-mono text-sm tracking-wider text-neutral-900 dark:text-neutral-100">${escapeHtml(invite.code)}</code>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-mono ${stateClass}">${inviteStateLabel(state)}</span>
+                    ${invite.note ? `<span class="text-[11px] text-neutral-400 truncate">${escapeHtml(invite.note)}</span>` : ''}
+                  </div>
+                  <div class="flex items-center gap-3 text-[11px] text-neutral-400 font-mono shrink-0">
+                    <span>到期 ${formatDate(invite.expiresAt)}</span>
+                    ${invite.usedByName ? `<span>使用者 ${escapeHtml(invite.usedByName)}</span>` : ''}
+                    <button type="button" data-copy-invite="${escapeHtml(invite.code)}" class="px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 transition-colors cursor-pointer">复制</button>
+                    ${state === 'unused' ? `<button type="button" data-revoke-invite="${escapeHtml(invite.code)}" class="px-2 py-0.5 rounded text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer">作废</button>` : ''}
+                  </div>
+                </div>`;
+            })
+            .join('');
+        } catch (err) {
+          inviteListEl.innerHTML = `<div class="py-3 text-center text-rose-500">${escapeHtml(err.message || '读取失败')}</div>`;
+        }
+      }
+
+      async function loadAccounts() {
+        if (!accountListEl) return;
+        try {
+          const res = await apiFetch('/api/settings/users');
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error || '读取失败');
+          const users = Array.isArray(data.users) ? data.users : [];
+          if (!users.length) {
+            accountListEl.innerHTML = '<div class="py-3 text-center text-neutral-400">还没有注册账号。</div>';
+            return;
+          }
+          accountListEl.innerHTML = users
+            .map(
+              (user) => `
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-neutral-200/80 dark:border-neutral-800/80 bg-white/60 dark:bg-neutral-950/30">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">${escapeHtml(user.username)}</span>
+                  <span class="text-[11px] text-neutral-400 font-mono">注册于 ${formatDate(user.createdAt)}</span>
+                  ${user.inviteCode ? `<span class="text-[10px] text-neutral-400 font-mono">码 ${escapeHtml(user.inviteCode)}</span>` : ''}
+                </div>
+                <button type="button" data-reset-user="${escapeHtml(user.id)}" data-username="${escapeHtml(user.username)}" class="self-start sm:self-auto px-2 py-0.5 rounded text-[11px] font-mono text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors cursor-pointer">重置密码</button>
+              </div>`
+            )
+            .join('');
+        } catch (err) {
+          accountListEl.innerHTML = `<div class="py-3 text-center text-rose-500">${escapeHtml(err.message || '读取失败')}</div>`;
+        }
+      }
+
+      generateInviteBtn?.addEventListener('click', async () => {
+        generateInviteBtn.disabled = true;
+        try {
+          const res = await apiFetch('/api/settings/invites', {
+            method: 'POST',
+            body: JSON.stringify({
+              note: inviteNoteInput?.value.trim() || '',
+              ttlDays: Number(inviteTtlSelect?.value) || 7,
+            }),
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            showToast(data.error || '生成失败', 'error');
+            return;
+          }
+          const code = data.invite.code;
+          try {
+            await navigator.clipboard.writeText(code);
+            showToast(`邀请码 ${code} 已生成并复制（仅可注册 1 个账号）`);
+          } catch {
+            showToast(`邀请码 ${code} 已生成（复制失败，请手动选中）`);
+          }
+          if (inviteNoteInput) inviteNoteInput.value = '';
+          await loadInvites();
+        } catch (err) {
+          showToast(err.message || '生成失败', 'error');
+        } finally {
+          generateInviteBtn.disabled = false;
+        }
+      });
+
+      inviteListEl?.addEventListener('click', async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+
+        const copyCode = target.closest('[data-copy-invite]')?.getAttribute('data-copy-invite');
+        if (copyCode) {
+          try {
+            await navigator.clipboard.writeText(copyCode);
+            showToast(`已复制邀请码 ${copyCode}`);
+          } catch {
+            showToast('复制失败，请手动选中', 'error');
+          }
+          return;
+        }
+
+        const revokeCode = target.closest('[data-revoke-invite]')?.getAttribute('data-revoke-invite');
+        if (revokeCode) {
+          const res = await apiFetch(`/api/settings/invites/${encodeURIComponent(revokeCode)}`, { method: 'DELETE' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) showToast(data.error || '作废失败', 'error');
+          else showToast(`已作废 ${revokeCode}`);
+          await loadInvites();
+        }
+      });
+
+      accountListEl?.addEventListener('click', async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const btn = target.closest('[data-reset-user]');
+        if (!btn) return;
+        const userId = btn.getAttribute('data-reset-user');
+        const username = btn.getAttribute('data-username') || '';
+        if (!userId) return;
+        if (!window.confirm(`确定重置 ${username} 的密码？旧密码会立即失效。`)) return;
+
+        const res = await apiFetch(`/api/settings/users/${encodeURIComponent(userId)}/reset-password`, {
+          method: 'POST',
+          body: '{}',
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          showToast(data.error || '重置失败', 'error');
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(data.temporaryPassword);
+          showToast(`临时密码：${data.temporaryPassword}（已复制）`);
+        } catch {
+          showToast(`临时密码：${data.temporaryPassword}`);
+        }
       });
 
       fetchModelsBtn?.addEventListener('click', async () => {
@@ -1186,7 +1416,9 @@ const MOSS_SHADES = [
       // 初始化：若已有 token，尝试自动加载
       if (currentToken) {
         setAuthedState(true);
-        loadConfig().catch(() => setAuthedState(false));
+        loadConfig()
+          .then(() => Promise.all([loadInvites(), loadAccounts()]))
+          .catch(() => setAuthedState(false));
       }
     })();
   </script>
@@ -1217,6 +1449,41 @@ const MOSS_SHADES = [
     html:has(.settings-viewport) .sidebar-expand-btn,
     html:has(.settings-viewport) .seal-floating {
       display: none !important;
+    }
+
+    /* 邀请码 / 账号列表入场动效 */
+    #inviteList > div,
+    #accountList > div {
+      animation: settingsRowIn 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    #inviteList > div:nth-child(1),
+    #accountList > div:nth-child(1) { animation-delay: 20ms; }
+    #inviteList > div:nth-child(2),
+    #accountList > div:nth-child(2) { animation-delay: 50ms; }
+    #inviteList > div:nth-child(3),
+    #accountList > div:nth-child(3) { animation-delay: 80ms; }
+    #inviteList > div:nth-child(4),
+    #accountList > div:nth-child(4) { animation-delay: 110ms; }
+    #inviteList > div:nth-child(n + 5),
+    #accountList > div:nth-child(n + 5) { animation-delay: 140ms; }
+
+    @keyframes settingsRowIn {
+      from {
+        opacity: 0;
+        transform: translate3d(0, 7px, 0);
+      }
+      to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #inviteList > div,
+      #accountList > div {
+        animation: none;
+      }
     }
   </style>
 </BaseLayout>

@@ -64,10 +64,11 @@ const hasToc = tocHeadings.length > 1;
   <main id="main-content" tabindex="-1" class="container-medium flex-1 pt-6 pb-28 lg:pt-8 outline-none">
     <article
       class="space-y-14"
+      data-post-title-hold="true"
       data-locked-post={isLocked ? 'true' : undefined}
       data-lock-key={isLocked ? passwordHash : undefined}
     >
-      <header class="panel" data-post-header>
+      <header class="panel flex flex-col" data-post-header>
         <div class="flex flex-wrap items-center gap-3 font-mono text-[0.72rem] tracking-[0.1em] uppercase text-[var(--muted)]" data-enter="left">
           <a href="/archive" class="transition hover:text-[var(--accent)]">Archive</a>
           <span class="opacity-40">/</span>
@@ -88,12 +89,14 @@ const hasToc = tocHeadings.length > 1;
           )}
           {isLocked && <span class="lock-mark">Locked</span>}
         </div>
-        <h1 class="section-title post-title mt-7 max-w-3xl" style="font-size: clamp(2.2rem, 4.5vw, 3.2rem);" data-post-title>
-          {title}
+        <h1 class="section-title post-title mt-7 mb-6 max-w-3xl" style="font-size: clamp(2.2rem, 4.5vw, 3.2rem);" data-post-title>
+          <span class="post-title-calligraphy" data-post-title-calligraphy>
+            <span class="post-title-text" data-post-title-text>{title}</span>
+          </span>
         </h1>
         {description && (
           <p
-            class="mt-6 max-w-2xl text-[1.05rem] leading-[1.78] text-[var(--muted-strong)]"
+            class="mt-7 max-w-2xl text-[1.05rem] leading-[1.78] text-[var(--muted-strong)]"
             style="font-family: var(--font-serif); font-style: italic;"
             data-enter="left"
           >
@@ -396,6 +399,7 @@ const hasToc = tocHeadings.length > 1;
     // Which reveal each direct child of the article gets — everything else is a plain block
     function revealKind(el: Element): string {
       if (el.classList.contains('mermaid-block') || el.hasAttribute('data-mermaid-code')) return 'mermaid';
+      if (el.classList.contains('table-scroll')) return 'table';
       const tag = el.tagName;
       if (tag === 'H2') return 'heading';
       if (tag === 'H3' || tag === 'H4') return 'subheading';
@@ -425,10 +429,14 @@ const hasToc = tocHeadings.length > 1;
         if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
       });
 
-      // ---------- Title: characters drop in one by one ----------
+      // ---------- Decoupled Title & Date Entrance (Optical Center -> Header Dock) ----------
       const title = document.querySelector<HTMLElement>('[data-post-title]');
       const header = document.querySelector<HTMLElement>('[data-post-header]') || title?.closest('header');
       const typed = document.querySelector<HTMLElement>('[data-post-typed]');
+      const article = title?.closest('article') || document.querySelector<HTMLElement>('article');
+      if (article && !reduceMotion && !window.location.hash) {
+        article.setAttribute('data-post-title-hold', 'true');
+      }
 
       if (typed) {
         const full = typed.dataset.full || typed.textContent || '';
@@ -440,95 +448,410 @@ const hasToc = tocHeadings.length > 1;
         }
       }
 
-      if (title && !title.dataset.split) {
-        const t0 = performance.now();
-        const text = title.textContent?.trim() || '';
-        title.textContent = '';
-        title.dataset.split = 'true';
-        const frag = document.createDocumentFragment();
-        for (const ch of text) {
-          const span = document.createElement('span');
-          span.className = 'post-title-char';
-          span.textContent = ch === ' ' ? ' ' : ch;
-          frag.appendChild(span);
+      // Living Calligraphy: 【错落淡入 · Stagger Fade】字韵流转
+      const titleText = title?.querySelector<HTMLElement>('[data-post-title-text]');
+      let charNodes: HTMLElement[] = [];
+      const chars: HTMLElement[] = []; // backward compatibility
+      let cancelActiveSpatters: (() => void) | null = null;
+
+      function splitTitleToStaggerNodes(el: HTMLElement): HTMLElement[] {
+        const raw = el.dataset.fullTitle || el.textContent || '';
+        el.dataset.fullTitle = raw;
+        el.innerHTML = '';
+        const tokens = raw.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]|[^\s\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+|\s+/gu) || [raw];
+        const nodes: HTMLElement[] = [];
+
+        tokens.forEach((token) => {
+          if (/^\s+$/.test(token)) {
+            const space = document.createElement('span');
+            space.className = 'post-title-space';
+            space.innerHTML = '&nbsp;';
+            el.appendChild(space);
+          } else {
+            const span = document.createElement('span');
+            span.className = 'post-title-char';
+            span.textContent = token;
+            el.appendChild(span);
+            nodes.push(span);
+          }
+        });
+
+        return nodes;
+      }
+
+      function startTypewriterDate(immediate = false) {
+        if (!typed) return;
+        typewriterTimers.forEach((id) => window.clearTimeout(id));
+        typewriterTimers.length = 0;
+        const full = typed.dataset.full || typed.textContent || '';
+        if (immediate || reduceMotion) {
+          typed.textContent = full;
+          typed.classList.remove('is-typing');
+          return;
         }
-        title.appendChild(frag);
-        const splitTime = performance.now() - t0;
-        if (splitTime > 1) {
-          console.debug(`[perf:title-split] Split ${text.length} chars in ${splitTime.toFixed(2)}ms`);
+        typed.textContent = '';
+        typed.classList.add('is-typing');
+        let i = 0;
+        let totalTickCpuMs = 0;
+        let tickCount = 0;
+        const tick = () => {
+          if (signal.aborted) return;
+          const t0 = performance.now();
+          i += 1;
+          typed.textContent = full.slice(0, i);
+          totalTickCpuMs += performance.now() - t0;
+          tickCount += 1;
+          if (i < full.length) {
+            const tid = window.setTimeout(tick, 48);
+            typewriterTimers.push(tid);
+            timers.push(tid);
+          } else {
+            const tid = window.setTimeout(() => {
+              typed.classList.remove('is-typing');
+            }, 500);
+            typewriterTimers.push(tid);
+            timers.push(tid);
+          }
+        };
+        const tid = window.setTimeout(tick, 80);
+        typewriterTimers.push(tid);
+        timers.push(tid);
+      }
+
+      let isTitleDocked = false;
+      let titleEntranceTimeline: gsap.core.Timeline | null = null;
+      let removeInterruptListeners: (() => void) | null = null;
+      let isScrollLocked = false;
+      let preventScrollCleanup: (() => void) | null = null;
+
+      function lockScroll() {
+        if (isScrollLocked) return;
+        isScrollLocked = true;
+        document.documentElement.setAttribute('data-post-title-hold', 'true');
+        document.body.setAttribute('data-post-title-hold', 'true');
+        document.documentElement.style.overflow = 'hidden';
+        try {
+          (window as any).lenis?.stop();
+        } catch {}
+
+        const preventScroll = (e: Event) => {
+          if (e.cancelable) e.preventDefault();
+        };
+        window.addEventListener('wheel', preventScroll, { passive: false, capture: true });
+        window.addEventListener('touchmove', preventScroll, { passive: false, capture: true });
+        preventScrollCleanup = () => {
+          window.removeEventListener('wheel', preventScroll, { capture: true } as any);
+          window.removeEventListener('touchmove', preventScroll, { capture: true } as any);
+        };
+      }
+
+      function unlockScroll() {
+        if (!isScrollLocked) return;
+        isScrollLocked = false;
+        if (preventScrollCleanup) {
+          preventScrollCleanup();
+          preventScrollCleanup = null;
+        }
+        document.documentElement.removeAttribute('data-post-title-hold');
+        document.body.removeAttribute('data-post-title-hold');
+        document.documentElement.style.overflow = '';
+        try {
+          (window as any).lenis?.start();
+        } catch {}
+      }
+
+      function cleanupInterrupt() {
+        if (removeInterruptListeners) {
+          removeInterruptListeners();
+          removeInterruptListeners = null;
         }
       }
 
-      function startTitleAndDate() {
-        if (signal.aborted) return;
+      function fastForwardTitle() {
+        if (isTitleDocked || signal.aborted) return;
+        isTitleDocked = true;
+        cleanupInterrupt();
+        unlockScroll();
 
+        if (titleEntranceTimeline) {
+          titleEntranceTimeline.kill();
+          titleEntranceTimeline = null;
+        }
         if (title) {
-          title.classList.add('is-split-ready');
-          const chars = title.querySelectorAll('.post-title-char');
-          if (chars.length && !reduceMotion) {
-            const t0 = performance.now();
-            gsap.killTweensOf(chars);
-            gsap.fromTo(chars,
-              { y: 24, opacity: 0 },
-              {
-                y: 0, opacity: 1,
-                duration: 0.65, ease: 'power2.out', stagger: 0.015, delay: 0.04, overwrite: 'auto',
-                onComplete: () => {
-                  gsap.set(chars, { clearProps: 'transform,opacity' });
-                  title.classList.remove('is-split-ready');
-                },
-              }
-            );
-            const setupTime = performance.now() - t0;
-            if (setupTime > 2) {
-              console.debug(`[perf:title-tween] Setup ${chars.length} char tweens in ${setupTime.toFixed(2)}ms`);
-            }
-          }
+          gsap.killTweensOf(title);
+          gsap.set(title, { clearProps: 'transform,position,zIndex' });
+          title.classList.remove('is-split-ready');
+        }
+        if (cancelActiveSpatters) {
+          cancelActiveSpatters();
+          cancelActiveSpatters = null;
+        }
+        if (titleText) {
+          gsap.killTweensOf(titleText);
+          gsap.set(titleText, { clearProps: 'transform,opacity,filter' });
+        }
+        if (charNodes.length) {
+          gsap.killTweensOf(charNodes);
+          gsap.set(charNodes, { clearProps: 'transform,opacity,filter' });
+        }
+        if (chars.length) {
+          gsap.killTweensOf(chars);
+          gsap.set(chars, { clearProps: 'transform,opacity' });
         }
 
-        // ---------- Date: typewriter ----------
-        if (typed && !reduceMotion) {
-          typewriterTimers.forEach((id) => window.clearTimeout(id));
-          typewriterTimers.length = 0;
-          const full = typed.dataset.full || typed.textContent || '';
-          typed.textContent = '';
-          typed.classList.add('is-typing');
-          let i = 0;
-          let totalTickCpuMs = 0;
-          let tickCount = 0;
-          const tick = () => {
-            if (signal.aborted) return;
-            const t0 = performance.now();
-            i += 1;
-            typed.textContent = full.slice(0, i);
-            totalTickCpuMs += performance.now() - t0;
-            tickCount += 1;
-            if (i < full.length) {
-              const tid = window.setTimeout(tick, 42);
-              typewriterTimers.push(tid);
-              timers.push(tid);
-            } else {
-              const tid = window.setTimeout(() => {
-                typed.classList.remove('is-typing');
-              }, 600);
-              typewriterTimers.push(tid);
-              timers.push(tid);
-            }
-          };
-          const tid = window.setTimeout(tick, 120);
-          typewriterTimers.push(tid);
-          timers.push(tid);
+        const art = article || document.querySelector('article');
+        art?.removeAttribute('data-post-title-hold');
+        document.documentElement.removeAttribute('data-post-title-hold');
+        document.body.removeAttribute('data-post-title-hold');
+        (window as any).__postTitleHoldPending = false;
+
+        // Release BaseLayout page entrance immediately
+        (window as any).__releasePageEnter?.();
+
+        startTypewriterDate(true);
+        if (typeof (window as any).__revealInViewBlocks__ === 'function') {
+          (window as any).__revealInViewBlocks__();
+          requestAnimationFrame(() => {
+            (window as any).__revealInViewBlocks__?.();
+          });
         }
+      }
+
+      function setupInterruptHandlers() {
+        cleanupInterrupt();
+        const onInterrupt = () => {
+          fastForwardTitle();
+        };
+        const onKey = (ke: KeyboardEvent) => {
+          if ([' ', 'Enter', 'Escape', 'Spacebar'].includes(ke.key)) {
+            fastForwardTitle();
+          }
+        };
+
+        window.addEventListener('wheel', onInterrupt, { passive: true, capture: true, signal });
+        window.addEventListener('touchstart', onInterrupt, { passive: true, capture: true, signal });
+        window.addEventListener('touchmove', onInterrupt, { passive: true, capture: true, signal });
+        window.addEventListener('pointerdown', onInterrupt, { passive: true, capture: true, signal });
+        window.addEventListener('click', onInterrupt, { passive: true, capture: true, signal });
+        window.addEventListener('keydown', onKey, { capture: true, signal });
+        window.addEventListener('resize', onInterrupt, { passive: true, signal, once: true });
+
+        removeInterruptListeners = () => {
+          window.removeEventListener('wheel', onInterrupt as any);
+          window.removeEventListener('touchstart', onInterrupt as any);
+          window.removeEventListener('touchmove', onInterrupt as any);
+          window.removeEventListener('pointerdown', onInterrupt as any);
+          window.removeEventListener('click', onInterrupt as any);
+          window.removeEventListener('keydown', onKey as any);
+          window.removeEventListener('resize', onInterrupt as any);
+        };
+      }
+
+      // Compute In-Flow FLIP delta for full-screen optical center
+      function prepareOpticalCenter() {
+        if (!title || reduceMotion) return { deltaX: 0, deltaY: 0 };
+
+        // Ensure title is measured at natural layout position
+        gsap.set(title, { clearProps: 'transform,position,zIndex,transformOrigin' });
+        const targetRect = title.getBoundingClientRect();
+        const vpW = window.innerWidth;
+        const vpH = window.innerHeight;
+
+        if (vpH < 300 || vpW < 300) return { deltaX: 0, deltaY: 0 };
+
+        // Optical center: horizontally centered in viewport, vertically at ~40% of viewport height
+        const targetCenterX = Math.round((vpW - targetRect.width) / 2);
+        const targetCenterY = Math.round(vpH * 0.40 - targetRect.height / 2);
+
+        const deltaX = targetCenterX - targetRect.left;
+        const deltaY = Math.max(0, targetCenterY - targetRect.top);
+
+        const titleScale = window.innerWidth < 640
+          ? Math.min(1.08, Math.max(1, (window.innerWidth - 48) / Math.max(1, targetRect.width)))
+          : 1.25;
+
+        return { deltaX, deltaY, titleScale };
+      }
+
+      function startDecoupledTitleEntrance() {
+        if (signal.aborted || isTitleDocked) return;
+
+        if (reduceMotion || !title || Boolean(window.location.hash)) {
+          fastForwardTitle();
+          return;
+        }
+
+        // 旧页 cleanup 可能在换页后把新文章的 hold 一起清掉；进入中央阶段前重新挂上，
+        // 让 header 里的 description / tags 在标题回位前始终保持隐藏。
+        article?.setAttribute('data-post-title-hold', 'true');
+        lockScroll();
+
+        const { deltaX, deltaY, titleScale = 1 } = prepareOpticalCenter();
+        title.classList.add('is-split-ready');
+
+        // Position title at optical center in normal flow via GPU translate3d (constant container width)
+        gsap.set(title, {
+          x: deltaX,
+          y: deltaY,
+          force3D: true,
+          position: 'relative',
+          zIndex: 30,
+        });
+        gsap.set(title, {
+          scale: titleScale,
+          transformOrigin: 'center center',
+        });
+
+        // Living Calligraphy setup: 【错落淡入 · Stagger Fade】
+        if (titleText) {
+          charNodes = splitTitleToStaggerNodes(titleText);
+          gsap.set(charNodes, {
+            y: 14,
+            opacity: 0,
+            filter: 'blur(6px)',
+            force3D: true,
+          });
+        }
+
+        // Set pending hold flag so PostTransition doesn't prematurely release page enter
+        (window as any).__postTitleHoldPending = true;
+
+        // Start animation: relaxed and elegant cadence (~0.5s drop + ~0.46s slide)
+        const isFreezeCenter = /[?&]freeze=title-center/.test(location.search);
+        if (!isFreezeCenter) {
+          setupInterruptHandlers();
+          // Safety fallback timer (1.8s): fast-forward if anything stalls (disabled when inspecting frozen center)
+          timers.push(window.setTimeout(() => {
+            if (!isTitleDocked) fastForwardTitle();
+          }, 1800));
+        }
+        const tl = gsap.timeline({
+          onComplete: () => {
+            if (isFreezeCenter || isTitleDocked) return;
+            isTitleDocked = true;
+            cleanupInterrupt();
+            unlockScroll();
+
+            gsap.set(title, { clearProps: 'transform,position,zIndex' });
+            title.classList.remove('is-split-ready');
+            if (cancelActiveSpatters) {
+              cancelActiveSpatters();
+              cancelActiveSpatters = null;
+            }
+            if (titleText) {
+              gsap.set(titleText, { clearProps: 'transform,opacity,filter' });
+            }
+            if (charNodes.length) gsap.set(charNodes, { clearProps: 'transform,opacity,filter' });
+            if (chars.length) gsap.set(chars, { clearProps: 'transform,opacity' });
+
+            const art = article || document.querySelector('article');
+            art?.removeAttribute('data-post-title-hold');
+            document.documentElement.removeAttribute('data-post-title-hold');
+            document.body.removeAttribute('data-post-title-hold');
+            (window as any).__postTitleHoldPending = false;
+
+            // Trigger remaining components' entrance
+            (window as any).__releasePageEnter?.();
+            startTypewriterDate(false);
+            if (typeof (window as any).__revealInViewBlocks__ === 'function') {
+              (window as any).__revealInViewBlocks__();
+              requestAnimationFrame(() => {
+                (window as any).__revealInViewBlocks__?.();
+              });
+            }
+          },
+        });
+        titleEntranceTimeline = tl;
+
+        // Living Calligraphy Choreography: 【错落淡入 · Stagger Fade】字韵流转
+        const charDuration = 0.48;
+        const totalStagger = Math.min(0.32, 0.02 * charNodes.length);
+        const staggerEach = charNodes.length > 0 ? totalStagger / charNodes.length : 0.02;
+
+        // Step 1: Stagger Fade across all word & character units
+        if (charNodes.length) {
+          tl.fromTo(charNodes,
+            {
+              y: 12,
+              opacity: 0,
+              filter: 'blur(5px)',
+            },
+            {
+              y: 0,
+              opacity: 1,
+              filter: 'blur(0px)',
+              duration: charDuration,
+              stagger: staggerEach, // Stagger Fade!
+              ease: 'power3.out',
+              force3D: true,
+            },
+            0.04
+          );
+        } else if (titleText) {
+          tl.fromTo(titleText,
+            { y: 12, opacity: 0, filter: 'blur(5px)' },
+            { y: 0, opacity: 1, filter: 'blur(0px)', duration: charDuration, ease: 'power3.out' },
+            0.04
+          );
+        }
+
+        if (isFreezeCenter) {
+          // Freeze optical center title state with other components held in pre-enter
+          tl.addPause();
+        } else {
+          // In-Flow FLIP slide to docked layout position in Header (~460ms)
+          tl.to(title, {
+            x: 0,
+            y: 0,
+            duration: 0.46,
+            ease: 'power3.out',
+            scale: 1,
+          }, '+=0.20');
+        }
+      }
+
+      function replayTitleInPlace() {
+        if (signal.aborted || !title || reduceMotion) return;
+        if (charNodes.length) {
+          gsap.killTweensOf(charNodes);
+          gsap.fromTo(charNodes,
+            { y: 10, opacity: 0.2, filter: 'blur(4px)' },
+            {
+              y: 0, opacity: 1, filter: 'blur(0px)',
+              duration: 0.55, ease: 'power2.out', stagger: 0.03,
+              onComplete: () => {
+                gsap.set(charNodes, { clearProps: 'transform,opacity,filter' });
+              },
+            }
+          );
+        } else if (titleText) {
+          gsap.killTweensOf(titleText);
+          gsap.fromTo(titleText,
+            { y: 10, opacity: 0.2, filter: 'blur(4px)' },
+            {
+              y: 0, opacity: 1, filter: 'blur(0px)',
+              duration: 0.55, ease: 'power2.out',
+              onComplete: () => {
+                gsap.set(titleText, { clearProps: 'transform,opacity,filter' });
+              },
+            }
+          );
+        }
+        startTypewriterDate(false);
       }
 
       function resetTitleAndDate() {
-        if (title) {
-          const chars = title.querySelectorAll('.post-title-char');
-          gsap.killTweensOf(chars);
-          gsap.set(chars, { opacity: 0, y: 24 });
+        if (charNodes.length && isTitleDocked) {
+          gsap.killTweensOf(charNodes);
+          gsap.set(charNodes, { opacity: 0.2, y: 10, filter: 'blur(4px)' });
+        } else if (titleText && isTitleDocked) {
+          gsap.killTweensOf(titleText);
+          gsap.set(titleText, { opacity: 0.3, y: 12, filter: 'blur(4px)' });
+        }
+        if (title && isTitleDocked) {
           title.classList.add('is-split-ready');
         }
-        if (typed) {
+        if (typed && isTitleDocked) {
           typewriterTimers.forEach((id) => window.clearTimeout(id));
           typewriterTimers.length = 0;
           typed.classList.remove('is-typing');
@@ -546,9 +869,9 @@ const hasToc = tocHeadings.length > 1;
               headerCanReplay = true;
               resetTitleAndDate();
             } else if (entry.isIntersecting && headerCanReplay) {
-              // Scrolled back up to top: replay title and date entrance
+              // Scrolled back up to top: replay title and date entrance in-place
               headerCanReplay = false;
-              startTitleAndDate();
+              replayTitleInPlace();
             }
           });
         }, { threshold: 0 });
@@ -556,19 +879,53 @@ const hasToc = tocHeadings.length > 1;
         signal.addEventListener('abort', () => headerObserver.disconnect());
       }
 
-      const isPendingTransition = Boolean((window as any).__postTransitionPending);
-      if (isPendingTransition && !reduceMotion) {
-        resetTitleAndDate();
-        let fired = false;
-        const trigger = () => {
-          if (fired || signal.aborted) return;
-          fired = true;
-          startTitleAndDate();
-        };
-        window.addEventListener('post-transition-release', trigger, { signal, once: true });
-        timers.push(window.setTimeout(trigger, 600));
-      } else {
-        startTitleAndDate();
+      try {
+        const isPendingTransition = Boolean((window as any).__postTransitionPending);
+        if (isPendingTransition && !reduceMotion && !window.location.hash) {
+          // Pre-position title at optical center right away so it never flashes in header
+          if (title) {
+            lockScroll();
+            const { deltaX, deltaY, titleScale = 1 } = prepareOpticalCenter();
+            title.classList.add('is-split-ready');
+            gsap.set(title, {
+              x: deltaX,
+              y: deltaY,
+              force3D: true,
+              position: 'relative',
+              zIndex: 30,
+            });
+            gsap.set(title, {
+              scale: titleScale,
+              transformOrigin: 'center center',
+            });
+            if (titleText) {
+              charNodes = splitTitleToStaggerNodes(titleText);
+              gsap.set(charNodes, {
+                y: 14,
+                opacity: 0,
+                filter: 'blur(6px)',
+                force3D: true,
+              });
+            }
+            (window as any).__postTitleHoldPending = true;
+            if (!/[?&]freeze=title-center/.test(location.search)) {
+              setupInterruptHandlers();
+            }
+          }
+          let fired = false;
+          const trigger = () => {
+            if (fired || signal.aborted) return;
+            fired = true;
+            startDecoupledTitleEntrance();
+          };
+          window.addEventListener('post-transition-release', trigger, { signal, once: true });
+          timers.push(window.setTimeout(trigger, 500));
+        } else {
+          startDecoupledTitleEntrance();
+        }
+      } catch (err) {
+        console.error('[PostLayout] Transition setup error, falling back to instant dock:', err);
+        fastForwardTitle();
       }
 
       // ---------- Blocks: tag each direct child, reveal via IntersectionObserver ----------
@@ -591,69 +948,89 @@ const hasToc = tocHeadings.length > 1;
         blocks.forEach((el) => el.classList.add('is-in'));
       } else {
         // 方案 B 完整落地：双阈值迟滞（Dual-threshold Hysteresis）观察器架构
-        // 1. revealObserver (rootMargin: '0px 0px -4% 0px'):
-        //    元素滚动进入视口安全区时触发，添加 .is-in 播放 900ms 优雅进场动画。
-        //    绝不在视口内或视口边缘拔除 .is-in，彻底杜绝上下滑动与动画播放中途来回拉扯造成的撕裂抽搐。
-        //    从视口上方进入的块（深链接或恢复滚动位置后向上滑）静默显形，绝不逆着手势播位移。
-        const revealObserver = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              const el = entry.target as HTMLElement;
-              if (el.classList.contains('is-in')) return;
-              if (entry.boundingClientRect.top < 0) {
-                el.classList.add('pr-instant', 'is-in');
-                requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('pr-instant')));
-              } else {
-                el.classList.add('is-in');
-              }
-            }
-          });
-        }, { rootMargin: '0px 0px -4% 0px', threshold: 0 });
-
-        // 2. resetObserver (rootMargin: '120px 0px 120px 0px'):
-        //    仅当元素彻底离开视口安全缓冲区（超出屏幕外 >120px）时，才静默重置 .is-in。
-        //    并且只给落到视口「下方」的块重新上膛：留在上方的块保持进场态，
-        //    于是向上滚动全程没有任何内容逆着手势位移，而向下滚动的往返重播完整保留。
-        //    无需任何 setTimeout 异步定时器，无布局抖动，零抽搐。
-        const resetObserver = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => {
-            if (!entry.isIntersecting) {
-              if (entry.boundingClientRect.top <= 0) return;
-              entry.target.classList.remove('is-in');
-            }
-          });
-        }, { rootMargin: '120px 0px 120px 0px', threshold: 0 });
-
-        blocks.forEach((el) => {
-          revealObserver.observe(el);
-          resetObserver.observe(el);
-        });
+        let observersAttached = false;
 
         const revealInViewBlocks = () => {
-          const vh = window.innerHeight;
-          blocks.forEach((el) => {
+          if (!isTitleDocked && !reduceMotion) return;
+          const vh = window.innerHeight || document.documentElement.clientHeight;
+          blocks.forEach((el, index) => {
             if (el.classList.contains('is-in')) return;
             const rect = el.getBoundingClientRect();
-            if (rect.top < vh * 0.96 && rect.bottom > 0) {
+            if ((rect.top < vh * 0.96 && rect.bottom > 0) || (index < 3 && rect.top < vh)) {
               el.classList.add('is-in');
-            } else if (rect.bottom <= 0) {
+            } else if (rect.bottom <= 0 && rect.top !== 0) {
               el.classList.add('pr-instant', 'is-in');
             }
           });
         };
-        revealInViewBlocks();
-        requestAnimationFrame(revealInViewBlocks);
+
+        const initProseObservers = () => {
+          if (observersAttached || signal.aborted) return;
+          observersAttached = true;
+
+          // 1. revealObserver (rootMargin: '0px 0px -4% 0px'):
+          //    元素滚动进入视口安全区时触发，添加 .is-in 播放 900ms 优雅进场动画。
+          //    绝不在视口内或视口边缘拔除 .is-in，彻底杜绝上下滑动与动画播放中途来回拉扯造成的撕裂抽搐。
+          //    从视口上方进入的块（深链接或恢复滚动位置后向上滑）静默显形，绝不逆着手势播位移。
+          const revealObserver = new IntersectionObserver((entries) => {
+            if (!isTitleDocked && !reduceMotion) return;
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                const el = entry.target as HTMLElement;
+                if (el.classList.contains('is-in')) return;
+                if (entry.boundingClientRect.top < 0) {
+                  el.classList.add('pr-instant', 'is-in');
+                  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('pr-instant')));
+                } else {
+                  el.classList.add('is-in');
+                }
+              }
+            });
+          }, { rootMargin: '0px 0px -4% 0px', threshold: 0 });
+
+          // 2. resetObserver (rootMargin: '120px 0px 120px 0px'):
+          //    仅当元素彻底离开视口安全缓冲区（超出屏幕外 >120px）时，才静默重置 .is-in。
+          //    并且只给落到视口「下方」的块重新上膛：留在上方的块保持进场态，
+          //    于是向上滚动全程没有任何内容逆着手势位移，而向下滚动的往返重播完整保留。
+          //    无需任何 setTimeout 异步定时器，无布局抖动，零抽搐。
+          const resetObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) {
+                if (entry.boundingClientRect.top <= 0) return;
+                entry.target.classList.remove('is-in');
+              }
+            });
+          }, { rootMargin: '120px 0px 120px 0px', threshold: 0 });
+
+          blocks.forEach((el) => {
+            revealObserver.observe(el);
+            resetObserver.observe(el);
+          });
+
+          revealInViewBlocks();
+          requestAnimationFrame(revealInViewBlocks);
+
+          signal.addEventListener('abort', () => {
+            revealObserver.disconnect();
+            resetObserver.disconnect();
+          });
+        };
+
+        (window as any).__revealInViewBlocks__ = () => {
+          initProseObservers();
+          revealInViewBlocks();
+        };
+
+        // If title is already docked or reduced motion, reveal right away; otherwise wait for docking
+        if (isTitleDocked) {
+          initProseObservers();
+        }
 
         document.addEventListener('visibilitychange', () => {
-          if (!document.hidden) {
+          if (!document.hidden && (isTitleDocked || reduceMotion)) {
             revealInViewBlocks();
           }
         }, { signal });
-
-        signal.addEventListener('abort', () => {
-          revealObserver.disconnect();
-          resetObserver.disconnect();
-        });
       }
 
       // ---------- Reading spine: draws with scroll, ink dots per h2 ----------
@@ -773,34 +1150,69 @@ const hasToc = tocHeadings.length > 1;
 
       (window as any)[CLEANUP_KEY] = () => {
         controller.abort();
+        cleanupInterrupt();
+        unlockScroll();
         timers.forEach((id) => window.clearTimeout(id));
         typewriterTimers.forEach((id) => window.clearTimeout(id));
+        if (titleEntranceTimeline) {
+          titleEntranceTimeline.kill();
+          titleEntranceTimeline = null;
+        }
         if (title) {
-          const chars = title.querySelectorAll('.post-title-char');
-          gsap.killTweensOf(chars);
+          gsap.killTweensOf(title);
+          gsap.set(title, { clearProps: 'transform,position,zIndex' });
+        }
+        if (cancelActiveSpatters) {
+          cancelActiveSpatters();
+          cancelActiveSpatters = null;
+        }
+        if (titleText) {
+          gsap.killTweensOf(titleText);
+          gsap.set(titleText, { clearProps: 'clipPath,filter,transform,opacity' });
         }
         dots.forEach((d) => d.remove());
         ScrollTrigger.getAll().forEach((trigger) => {
           if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
         });
+        (window as any).__revealInViewBlocks__ = undefined;
+        (window as any).__postTitleHoldPending = false;
         (window as any)[CLEANUP_KEY] = undefined;
       };
     }
 
-    let initializedThisDocument = false;
+    // 用“当前 prose 元素”做去重，而不是 document / URL。
+    // ClientRouter 切换文章时脚本可能在旧 DOM 上先执行一次；page-load 时新 prose
+    // 已经是另一个元素，必须重新初始化，标题动画才会在每篇文章各播一次。
+    let initializedProse: HTMLElement | null = null;
 
     function runPostReveal(force = false) {
-      if (initializedThisDocument && !force) return;
-      initializedThisDocument = true;
+      const prose = document.querySelector<HTMLElement>('[data-post-prose]');
+      if (!prose) {
+        // 切到非文章页：清掉上一篇文章遗留的滚动锁 / 定时器 / ScrollTrigger
+        const previousCleanup = (window as any)[CLEANUP_KEY];
+        if (typeof previousCleanup === 'function') previousCleanup();
+        initializedProse = null;
+        return;
+      }
+      if (!force && initializedProse === prose) return;
+      initializedProse = prose;
       initPostReveal();
     }
 
     runPostReveal();
 
     if (!(window as any)[LISTENER_KEY]) {
-      document.addEventListener('astro:page-load', () => runPostReveal());
+      let swapPending = false;
       document.addEventListener('astro:after-swap', () => {
-        initializedThisDocument = false;
+        // 新 DOM 已经就位；用 rAF 等样式/布局稳定后强制重跑。
+        swapPending = true;
+        requestAnimationFrame(() => {
+          swapPending = false;
+          runPostReveal(true);
+        });
+      });
+      document.addEventListener('astro:page-load', () => {
+        if (!swapPending) runPostReveal();
       });
       // Locked posts reveal their body only after the password check
       window.addEventListener('post-unlocked', () => runPostReveal(true));

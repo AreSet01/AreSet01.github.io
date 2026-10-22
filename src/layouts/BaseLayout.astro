@@ -42,11 +42,25 @@ const {
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+      media="print"
+      onload="this.media='all'"
     />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+      />
+      <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css"
+      />
+    </noscript>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <ClientRouter />
     <script is:inline>
@@ -411,7 +425,7 @@ const {
         window[runtimeKey] = true;
       })();
     </script>
-    <script is:inline>
+    <script is:inline define:vars={{ baseUrl: import.meta.env.BASE_URL ?? '/' }}>
       (function(){
         // Decide the site-entry curtain before first paint, so a session that has already seen it
         // never flashes the overlay. The markup ships on every page but stays display:none until
@@ -421,6 +435,12 @@ const {
         // latched on window so client navigations (which re-run this script) can't re-arm it.
         if (window.__siteIntroDecided) return;
         window.__siteIntroDecided = true;
+
+        var base = typeof baseUrl !== 'undefined' ? baseUrl : '/';
+        var rawBase = (base || '/').replace(/\/$/, '');
+        var curPath = (window.location.pathname || '/').replace(/\/index\.html$/, '').replace(/\/$/, '');
+        var isHome = curPath === rawBase;
+        if (!isHome) return;
 
         var isAboutIntroForced = /[?&]about-intro=1(&|$)/.test(location.search) ||
                                  location.hash === '#about-intro' ||
@@ -571,12 +591,12 @@ const {
             // When Shift key is held, completely bypass Lenis to permit horizontal scroll!
             if (data.event.shiftKey) return false;
             // If any modal (e.g. Mermaid fullscreen modal, Life lottery modal, Gallery lightbox, Pin sheet) is open, completely block page scroll!
-            if (document.body.classList.contains('mermaid-modal-open') || document.body.classList.contains('life-modal-open') || document.body.classList.contains('gallery-lightbox-open') || document.body.classList.contains('pin-sheet-open')) return false;
+            if (document.body.classList.contains('mermaid-modal-open') || document.body.classList.contains('life-modal-open') || document.body.classList.contains('gallery-lightbox-open') || document.body.classList.contains('pin-sheet-open') || ((window.innerWidth < 1024) && (document.body.classList.contains('notes-drawer-open') || document.body.classList.contains('ink-ask-drawer-open')))) return false;
 
             const target = data.event.target;
             if (target instanceof Element) {
               // Completely prevent Lenis from scrolling page when interacting with TOC, modals, or sheets
-              if (target.closest('.post-toc, .post-toc-inner, .post-toc-nav, .mermaid-modal-overlay, #mermaid-modal, #gallery-lightbox, .gallery-lightbox, .pin-sheet-drawer, .pin-window-body, .ink-ask-card, [data-lenis-prevent]')) {
+              if (target.closest('.post-toc, .post-toc-inner, .post-toc-nav, .mermaid-modal-overlay, #mermaid-modal, #gallery-lightbox, .gallery-lightbox, .pin-sheet-drawer, .pin-window-body, .ink-ask-card, .article-notes-drawer, #article-notes-drawer, .ink-ask-drawer, #ink-ask-drawer, [data-lenis-prevent]')) {
                 return false;
               }
               // When an inline diagram is zoomed, allow native pan/scroll without page hijacking
@@ -585,7 +605,7 @@ const {
               }
               // On trackpad / touch horizontal drag, allow native horizontal swipe over horizontal containers
               if (Math.abs(data.deltaX) > Math.abs(data.deltaY) && Math.abs(data.deltaX) > 1) {
-                if (target.closest('.prose table, table, .table-wrapper, [data-table-wrap], .prose pre, pre, .mermaid-stage, [data-scrollable]')) {
+                if (target.closest('.table-scroll, .prose table, table, .table-wrapper, [data-table-wrap], .prose pre, pre, .mermaid-stage, [data-scrollable]')) {
                   return false;
                 }
               }
@@ -1066,6 +1086,12 @@ const {
       let releasedEarly = false;
       window.__releasePageEnter = (options) => {
         window.clearTimeout(holdTimer);
+        document.documentElement.classList.remove('js-enter');
+        document.documentElement.removeAttribute('data-post-title-hold');
+        document.body.removeAttribute('data-post-title-hold');
+        document.querySelectorAll('article[data-post-title-hold]').forEach((a) => a.removeAttribute('data-post-title-hold'));
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
         if (holdRelease) {
           const release = holdRelease;
           holdRelease = null;
@@ -1076,26 +1102,42 @@ const {
       };
       function runPageEnter() {
         enteredThisDocument = true;
-        const isIntroCurtain = Boolean(document.querySelector('[data-enter-hold]') || window.__siteIntroPending);
+        const isIntroCurtain = Boolean(document.querySelector('[data-site-intro]') && (document.documentElement.classList.contains('site-intro-active') || window.__siteIntroPending));
+        const isAboutIntro = Boolean(document.querySelector('[data-about-intro]'));
         const isPostTransition = Boolean((window as any).__postTransitionPending);
-        const held = isIntroCurtain || isPostTransition;
+        const isPostTitleHold = Boolean(document.querySelector('[data-post-title-hold]') || (window as any).__postTitleHoldPending);
+        const isHeldIntro = isIntroCurtain || isAboutIntro || Boolean(document.querySelector('[data-enter-hold]:not([data-post-title-hold])'));
+        const held = isHeldIntro || isPostTransition || isPostTitleHold;
         if (held && !releasedEarly) {
           holdRelease = (options) => initPageEnter(options);
-          // Dead-man switch: a broken intro must not leave the page permanently blank.
-          // SiteIntro & AboutIntro release at ~8.5s and end at 10s, so this timeout sits well past that (14s).
-          // PostTransition completes in ~0.5s, so its wait is 2.5s.
-          const maxWait = isIntroCurtain ? 14000 : 2500;
+          if (/[?&]freeze=title-center/.test(location.search)) return;
+          // Sound dead-man switch:
+          // SiteIntro & AboutIntro take ~10s to play full particle curtain; allow 14000ms safety timeout so animation is never cut off.
+          // Post title entrance completes in ~1.8s, so its safety wait is 3500ms.
+          // PostTransition completes in ~0.5s, so its safety wait is 1200ms.
+          const maxWait = (isIntroCurtain || isAboutIntro) ? 14000 : isPostTitleHold ? 3500 : isPostTransition ? 1200 : 3000;
           window.clearTimeout(holdTimer);
           holdTimer = window.setTimeout(() => {
             if (holdRelease) {
               document.documentElement.classList.remove('site-intro-active');
+              document.documentElement.classList.remove('js-enter');
               (window as any).__siteIntroPending = false;
               (window as any).__postTransitionPending = false;
+              (window as any).__postTitleHoldPending = false;
+              document.documentElement.removeAttribute('data-post-title-hold');
+              document.body.removeAttribute('data-post-title-hold');
+              document.querySelectorAll('article[data-post-title-hold]').forEach((a) => a.removeAttribute('data-post-title-hold'));
+              document.documentElement.style.overflow = '';
+              document.body.style.overflow = '';
               const introEl = document.querySelector('[data-site-intro]');
               introEl?.remove();
               window.__releasePageEnter();
             }
           }, maxWait);
+          // Global safety: guarantee js-enter is never stuck indefinitely
+          window.setTimeout(() => {
+            document.documentElement.classList.remove('js-enter');
+          }, maxWait + 500);
           return;
         }
         releasedEarly = false;
@@ -1130,6 +1172,11 @@ const {
       }
 
       document.addEventListener('astro:before-swap', () => {
+        try {
+          if (typeof (window as any).__areSetPostRevealCleanup__ === 'function') {
+            (window as any).__areSetPostRevealCleanup__();
+          }
+        } catch {}
         document.querySelectorAll('[data-enter]').forEach((el) => {
           gsap.killTweensOf(el);
         });
@@ -1143,6 +1190,17 @@ const {
         releasedEarly = false;
         // Astro resets <html> attributes on swap — re-arm the pre-paint hide
         document.documentElement.classList.add('js-enter');
+        if (document.querySelector('article[data-post-title-hold]') || (window as any).__postTitleHoldPending) {
+          document.documentElement.setAttribute('data-post-title-hold', 'true');
+          document.documentElement.style.overflow = 'hidden';
+          document.body.setAttribute('data-post-title-hold', 'true');
+          document.body.style.overflow = 'hidden';
+        } else {
+          document.documentElement.removeAttribute('data-post-title-hold');
+          document.body.removeAttribute('data-post-title-hold');
+          document.documentElement.style.overflow = '';
+          document.body.style.overflow = '';
+        }
 
         if ((window as any).__postTransitionPending && (window as any).__postTransition) {
           try {
@@ -1169,42 +1227,67 @@ const {
         initScrollableContainers();
       });
 
-      // Also initialize scrollables on first load
+      // Also initialize scrollables and magnetic micro-interactions on first load
       initScrollableContainers();
+      initMagneticButtons();
 
-      // Magnetic Micro-interactions
+      // Magnetic Micro-interactions (Continuous zero-drift multi-hover physics)
       function initMagneticButtons() {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         
         const magneticElements = document.querySelectorAll('.btn-primary, .btn-secondary, .tag-chip, .nav-search-trigger');
         
         magneticElements.forEach(el => {
-          let rect: DOMRect | null = null;
-          const xTo = gsap.quickTo(el, 'x', { duration: 0.35, ease: 'power2.out' });
-          const yTo = gsap.quickTo(el, 'y', { duration: 0.35, ease: 'power2.out' });
+          if ((el as any).__magneticBound) return;
+          (el as any).__magneticBound = true;
 
-          el.addEventListener('mouseenter', () => {
-            rect = el.getBoundingClientRect();
-          });
+          let restCenterX = 0;
+          let restCenterY = 0;
 
-          el.addEventListener('mousemove', (e) => {
-            if (!rect) rect = el.getBoundingClientRect();
-            const x = (e.clientX - rect.left - rect.width / 2) * 0.25;
-            const y = (e.clientY - rect.top - rect.height / 2) * 0.25;
-            xTo(x);
-            yTo(y);
-          });
+          const updateRestCenter = () => {
+            const currentRect = el.getBoundingClientRect();
+            const currentX = (gsap.getProperty(el, 'x') as number) || 0;
+            const currentY = (gsap.getProperty(el, 'y') as number) || 0;
+            restCenterX = (currentRect.left - currentX) + currentRect.width / 2;
+            restCenterY = (currentRect.top - currentY) + currentRect.height / 2;
+          };
+
+          const onEnter = () => {
+            updateRestCenter();
+          };
+
+          const onMove = (e: MouseEvent | PointerEvent) => {
+            if (!restCenterX || !restCenterY) {
+              updateRestCenter();
+            }
+            const x = (e.clientX - restCenterX) * 0.25;
+            const y = (e.clientY - restCenterY) * 0.25;
+            gsap.to(el, {
+              x,
+              y,
+              duration: 0.32,
+              ease: 'power2.out',
+              overwrite: 'auto'
+            });
+          };
           
-          el.addEventListener('mouseleave', () => {
-            rect = null;
+          const onLeave = () => {
+            restCenterX = 0;
+            restCenterY = 0;
             gsap.to(el, { 
-              x: 0, y: 0, 
+              x: 0, 
+              y: 0, 
               duration: 0.7, 
               ease: 'elastic.out(1, 0.45)',
-              clearProps: "x,y",
+              clearProps: "transform",
               overwrite: "auto"
             });
-          });
+          };
+
+          el.addEventListener('pointerenter', onEnter as EventListener);
+          el.addEventListener('pointermove', onMove as EventListener);
+          el.addEventListener('pointerleave', onLeave as EventListener);
+          el.addEventListener('pointercancel', onLeave as EventListener);
         });
       }
 
@@ -1434,11 +1517,11 @@ const {
             return;
           }
 
-          if (event.target.closest('.preview-overlay, .preview-close-btn, .preview-read-full, .search-overlay, .search-close-btn, [data-theme-toggle], [data-font-toggle], .theme-toggle, .font-toggle, [data-moss-shade-card]')) {
+          if (event.target.closest('.preview-overlay, .preview-close-btn, .preview-read-full, .search-overlay, .search-close-btn, [data-theme-toggle], [data-font-toggle], .theme-toggle, .font-toggle, [data-moss-shade-card], [data-tilt], .stat-card')) {
             return;
           }
 
-          const el = event.target.closest('a, button, .tag-chip, .nav-link, .timeline-link, .btn-primary, .btn-secondary, .stat-card');
+          const el = event.target.closest('a, button, .tag-chip, .nav-link, .timeline-link, .btn-primary, .btn-secondary');
           if (!el) return;
 
           el.classList.remove('pop-active');
@@ -1523,9 +1606,15 @@ const {
 
           let isRunning = false;
           let idleTimer = null;
+          let scrollWakeTimer = null;
+          let isModalActive = false;
+
+          function isIntroActive() {
+            return document.documentElement.classList.contains('site-intro-active') || Boolean(window.__siteIntroPending);
+          }
 
           function startAmbient() {
-            if (isRunning || document.hidden) return;
+            if (isRunning || document.hidden || isModalActive || isIntroActive() || isDisposed) return;
             isRunning = true;
             ambientFrame = requestAnimationFrame(drawDots);
           }
@@ -1540,6 +1629,7 @@ const {
           }
 
           function wakeAmbient() {
+            if (isDisposed) return;
             startAmbient();
             if (idleTimer) clearTimeout(idleTimer);
             idleTimer = setTimeout(() => {
@@ -1547,9 +1637,42 @@ const {
             }, 3000);
           }
 
-          ['scroll', 'keydown', 'click', 'touchstart'].forEach((evt) => {
+          // Debounce ambient canvas wake on scroll settle (280ms) to eliminate background rAF contention during fast scrolling
+          function onScrollWake() {
+            if (isRunning) {
+              stopAmbient();
+            }
+            if (scrollWakeTimer) clearTimeout(scrollWakeTimer);
+            scrollWakeTimer = setTimeout(() => {
+              wakeAmbient();
+            }, 280);
+          }
+
+          signal.addEventListener('abort', () => {
+            if (scrollWakeTimer) clearTimeout(scrollWakeTimer);
+            if (idleTimer) clearTimeout(idleTimer);
+            stopAmbient();
+          });
+
+          window.addEventListener('scroll', onScrollWake, { passive: true, signal });
+
+          ['keydown', 'click', 'touchstart'].forEach((evt) => {
             window.addEventListener(evt, wakeAmbient, { passive: true, signal });
           });
+
+          window.addEventListener('app:modal-enter', () => {
+            isModalActive = true;
+            stopAmbient();
+          }, { signal });
+
+          window.addEventListener('app:modal-leave', () => {
+            isModalActive = false;
+            wakeAmbient();
+          }, { signal });
+
+          window.addEventListener('post-transition-release', () => {
+            if (!isModalActive) wakeAmbient();
+          }, { signal });
 
           document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
@@ -1560,7 +1683,7 @@ const {
           }, { signal });
 
           function drawDots(time) {
-            if (!isRunning || document.hidden) {
+            if (!isRunning || document.hidden || isModalActive || isIntroActive()) {
               isRunning = false;
               return;
             }
@@ -1586,7 +1709,9 @@ const {
             ambientFrame = requestAnimationFrame(drawDots);
           }
 
-          wakeAmbient();
+          if (!isIntroActive()) {
+            wakeAmbient();
+          }
         }
 
         const overlay = document.createElement('div');
@@ -1691,6 +1816,22 @@ const {
 
         // Respect OS reduced motion preference
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const activeModals = new Set();
+        function notifyModalState(id, isOpen) {
+          const wasOpen = activeModals.size > 0;
+          if (isOpen) {
+            activeModals.add(id);
+          } else {
+            activeModals.delete(id);
+          }
+          const nowOpen = activeModals.size > 0;
+          if (!wasOpen && nowOpen) {
+            window.dispatchEvent(new CustomEvent('app:modal-enter'));
+          } else if (wasOpen && !nowOpen) {
+            window.dispatchEvent(new CustomEvent('app:modal-leave'));
+          }
+        }
+
         const syncScrollbarOffset = () => {
           const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
           document.documentElement.style.setProperty('--scrollbar-offset', `${scrollbarWidth}px`);
@@ -1745,6 +1886,7 @@ const {
           if (window.lenis) window.lenis.stop();
           document.body.classList.add('image-view-open');
           imageOverlay.classList.add('is-open');
+          notifyModalState('imageViewer', true);
           rememberSourceImageHidden(sourceEl);
           setImageViewerMotion(sourceEl);
           applyImageViewerStartStyles();
@@ -2012,6 +2154,7 @@ const {
           requestAnimationFrame(() => {
             searchOverlay.classList.add('is-open');
             document.body.classList.add('search-open');
+            notifyModalState('search', true);
             animateSearchModal(true);
           });
 
@@ -2041,8 +2184,9 @@ const {
             }
 
             if (window.lenis) window.lenis.start();
-          searchSourceEl = null;
+            searchSourceEl = null;
             searchCloseTimer = 0;
+            notifyModalState('search', false);
           };
 
           if (prefersReducedMotion) {
@@ -2277,6 +2421,7 @@ const {
           resetImageViewerMotion();
           imageViewerState = 'closed';
           imageViewerSourceEl = null;
+          notifyModalState('imageViewer', false);
           if (window.lenis) window.lenis.start();
 
           if (restoreFocusEl instanceof HTMLElement && restoreFocusEl.isConnected && restoreFocusEl.tabIndex >= 0) {
@@ -2548,6 +2693,7 @@ const {
           document.body.classList.add('preview-active');
           if (window.lenis) window.lenis.stop();
           overlay.classList.add('is-open');
+          notifyModalState('preview', true);
           applyPreviewStartStyles();
 
           previewOpenFrame = requestAnimationFrame(() => {
@@ -2623,6 +2769,7 @@ const {
           currentUrl = '';
           previewState = 'closed';
           previewSourceEl = null;
+          notifyModalState('preview', false);
 
           if (window.lenis) window.lenis.start();
           if (restoreFocusEl instanceof HTMLElement && restoreFocusEl.isConnected) {
@@ -2891,6 +3038,7 @@ const {
           if (isDisposed) return;
           isDisposed = true;
           controller.abort();
+          activeModals.clear();
           stopImageViewerAnimations();
           restoreSourceImageHidden(imageViewerSourceEl);
           revealObserver?.disconnect();
@@ -3074,6 +3222,90 @@ const {
         }
         document.addEventListener('astro:page-load', setup);
       })();
+    </script>
+
+    <!-- 3D Tilt Card System (张力十足 · 层高物理透视跟随 · 无光晕无溢出缩放) -->
+    <script>
+      import gsap from 'gsap';
+
+      function initTiltCards() {
+        if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        const cards = document.querySelectorAll<HTMLElement>('[data-tilt]');
+        if (!cards.length) return;
+
+        cards.forEach((card) => {
+          if ((card as any).__tiltActive) return;
+          (card as any).__tiltActive = true;
+          card.style.transformStyle = 'preserve-3d';
+
+          let rect = card.getBoundingClientRect();
+          let isInside = false;
+          const maxTilt = 14; // 张力十足角度 (~14 degrees)
+
+          const updateRect = () => {
+            rect = card.getBoundingClientRect();
+          };
+
+          const onPointerEnter = () => {
+            isInside = true;
+            updateRect();
+          };
+
+          const onPointerMove = (e: PointerEvent) => {
+            if (!isInside) {
+              isInside = true;
+              updateRect();
+            }
+
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const xPct = Math.max(0, Math.min(1, x / Math.max(1, rect.width))) - 0.5;
+            const yPct = Math.max(0, Math.min(1, y / Math.max(1, rect.height))) - 0.5;
+
+            const rotX = -yPct * maxTilt * 2;
+            const rotY = xPct * maxTilt * 2;
+
+            // 保持无放大倍率 (scale: 1)，杜绝卡片尺寸放大超出网格，采用平滑位移与三维角度透视
+            gsap.to(card, {
+              rotateX: rotX,
+              rotateY: rotY,
+              y: -3,
+              transformPerspective: 1000,
+              duration: 0.22,
+              ease: 'power1.out',
+              overwrite: 'auto',
+            });
+          };
+
+          const onPointerLeave = () => {
+            isInside = false;
+
+            gsap.to(card, {
+              rotateX: 0,
+              rotateY: 0,
+              y: 0,
+              transformPerspective: 1000,
+              duration: 0.65,
+              ease: 'power2.out',
+              overwrite: 'auto',
+            });
+          };
+
+          card.addEventListener('pointerenter', onPointerEnter);
+          card.addEventListener('pointermove', onPointerMove);
+          card.addEventListener('pointerleave', onPointerLeave);
+        });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTiltCards);
+      } else {
+        initTiltCards();
+      }
+      document.addEventListener('astro:page-load', initTiltCards);
     </script>
   </body>
 </html>

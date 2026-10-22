@@ -20,7 +20,7 @@ const enterFrom = (['left', 'bottom', 'right'] as const)[index % 3];
 <article class="h-full" data-enter={enterFrom}>
   <!-- The card body is a plain element so the tag links inside can be real links; the post link
        is stretched over the whole card via ::after, keeping the preview-modal behaviour. -->
-  <div class="note-card group">
+  <div class="note-card group" data-tilt>
     <a
       href={`/posts/${slug}`}
       data-post-preview={`/posts/${slug}`}
@@ -60,8 +60,8 @@ const enterFrom = (['left', 'bottom', 'right'] as const)[index % 3];
     )}
 
     <div class="mt-auto flex items-center justify-between gap-3 pt-8">
-      <span class="whitespace-nowrap font-mono text-[0.72rem] tracking-[0.16em] uppercase text-[var(--accent)]">
-        Read →
+      <span class="whitespace-nowrap font-mono text-[0.72rem] tracking-[0.16em] uppercase text-[var(--accent)] inline-flex items-center gap-1.5">
+        Read <span class="arrow-indicator inline-block" data-card-arrow aria-hidden="true">&rarr;</span>
       </span>
       <span class="surface-pill shrink-0">
         {String(tags.length).padStart(2, '0')} / TAGS

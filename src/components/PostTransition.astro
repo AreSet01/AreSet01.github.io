@@ -253,13 +253,13 @@
           (window as any).lenis?.stop();
         } catch {}
 
-        // Dead-man safety switch (2.5s) to guarantee UI never gets stuck
+        // Dead-man safety switch (0.8s) to guarantee UI never gets stuck
         if (safetyTimer) window.clearTimeout(safetyTimer);
         safetyTimer = window.setTimeout(() => {
           if (isTransitioning) {
             postTransition.leave();
           }
-        }, 2500);
+        }, 800);
 
         return new Promise<void>((resolve) => {
           const state = { p: 0 };
@@ -291,7 +291,9 @@
       async leave(): Promise<void> {
         if (!isTransitioning && !overlay.classList.contains('is-active')) {
           (window as any).__postTransitionPending = false;
-          (window as any).__releasePageEnter?.();
+          if (!(window as any).__postTitleHoldPending) {
+            (window as any).__releasePageEnter?.();
+          }
           return;
         }
         if (safetyTimer) {
@@ -323,11 +325,15 @@
             if (released) return;
             released = true;
             (window as any).__postTransitionPending = false;
-            // Handover: release page enter and trigger post-reveal simultaneously
-            (window as any).__releasePageEnter?.();
+            // Handover: release page enter directly if title is not holding it
+            if (!(window as any).__postTitleHoldPending) {
+              (window as any).__releasePageEnter?.();
+            }
             window.dispatchEvent(new CustomEvent('post-transition-release'));
             try {
-              (window as any).lenis?.start();
+              if (!(window as any).__postTitleHoldPending) {
+                (window as any).lenis?.start();
+              }
             } catch {}
           };
 
@@ -344,8 +350,10 @@
             ease: 'power2.out',
             onUpdate: () => {
               renderScene(state.p, true);
-              // At ~20% of the leave phase (~0.05s), begin revealing the title & content
-              if (state.p >= 0.20 && !released) {
+              // Defer handover to state.p >= 0.75 (~200ms) for pipeline de-confliction:
+              // At p = 0.75, ink is >75% dispersed and faded, allowing DOM-heavy post-reveal
+              // and title descent to start smoothly without competing with GPU ink expansion.
+              if (state.p >= 0.75 && !released) {
                 triggerHandover();
               }
             },

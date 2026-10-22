@@ -4,98 +4,98 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { marked } from 'marked';
+import { preprocessMarkdown, strongifyMarkdown, renderMarkdown } from '../src/utils/inkAskMarkdown.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 
-test('1. InkAsk preprocessMarkdown and system prompt alignment', () => {
+marked.setOptions({ gfm: true, breaks: true });
+
+const render = (src) => marked.parse(preprocessMarkdown(src)).trim();
+
+test('1. InkAsk shares the markdown preprocessor and the prompt has a pairing rule', () => {
   const inkAskPath = path.resolve(ROOT, 'src', 'components', 'InkAsk.astro');
   assert.ok(existsSync(inkAskPath), 'src/components/InkAsk.astro must exist');
   const inkAskContent = readFileSync(inkAskPath, 'utf8');
-
-  // Verify regex transformation converts bold inline code directly to strong tag
-  assert.ok(
-    inkAskContent.includes('text.replace(/\\*\\*\\s*(`[^`\\n]+`)\\s*\\*\\*/g, \'<strong>$1</strong>\')') ||
-    inkAskContent.includes('text = text.replace(/\\*\\*\\s*(`[^`\\n]+`)\\s*\\*\\*/g, \'<strong>$1</strong>\')'),
-    'InkAsk must replace bold inline code with <strong>$1</strong>'
+  assert.match(
+    inkAskContent,
+    /import\s*\{[^}]*\b(?:preprocessMarkdown|renderMarkdown)\b[^}]*\}\s*from\s*['"]\.\.\/utils\/inkAskMarkdown['"]/,
+    'InkAsk must import the shared markdown helper',
+  );
+  assert.doesNotMatch(
+    inkAskContent,
+    /stars % 2/,
+    'InkAsk must not append ** by counting stars per line anymore',
   );
 
-  // Verify ask.mjs system prompt aligns
   const askPath = path.resolve(ROOT, 'server', 'ask.mjs');
   assert.ok(existsSync(askPath), 'server/ask.mjs must exist');
   const askContent = readFileSync(askPath, 'utf8');
   assert.match(
     askContent,
     /反引号代码与加粗组合时写为\s*\*\*\\?`Code\\?`\*\*/,
-    'server/ask.mjs system prompt must guide model to use **`Code`**'
+    'server/ask.mjs system prompt must guide model to use **`Code`**',
+  );
+  assert.match(askContent, /必须成对闭合/, 'server/ask.mjs prompt must forbid unpaired **');
+});
+
+test('2. CJK punctuation next to ** no longer leaks raw asterisks', () => {
+  const cases = [
+    '虚幻引擎走出了一条极富工业哲学的**“第三条道路”**：',
+    '任何标记清除算法的第一步，都是确定**“世界树的根（Root Set）”**。如果一个对象在引用链路上，它就是**可达的（Reachable）**。',
+    '如果把 Java、C# 那些全托管语言的 GC 比作**“大包大揽的保姆”**，那**虚幻引擎（UE）的 GC 策略就像一个“极其克制且讲究规矩的特种部队保洁”** -- 它只在特定时间干活。',
+    '- **UE 的做法：** 不用计数器，改用**“顺藤摸瓜”**。',
+  ];
+
+  for (const input of cases) {
+    const html = render(input);
+    assert.ok(!html.includes('**'), `raw ** left in: ${html}`);
+    assert.match(html, /<strong>/, `expected <strong> in: ${html}`);
+  }
+
+  assert.strictEqual(
+    render('任何标记清除算法的第一步，都是确定**“世界树的根（Root Set）”**。'),
+    '<p>任何标记清除算法的第一步，都是确定<strong>“世界树的根（Root Set）”</strong>。</p>',
   );
 });
 
-test('2. Markdown rendering: Bold inline code inside Chinese text parses cleanly without raw asterisks', () => {
-  // Replicate preprocessMarkdown from InkAsk.astro
-  function preprocessMarkdown(src) {
-    if (!src) return '';
-    let text = src.replace(/\r\n?/g, '\n');
+test('3. Stray / unbalanced markers are cleaned instead of leaking', () => {
+  // 模型在引号后多写了一个 **（截图里的 GC 段）
+  const gc = '**GC 启动时**，先拉出一个“绝对活着的名单” **（比如全局引擎对象、当前打开的世界关卡）。';
+  const html = render(gc);
+  assert.ok(!html.includes('**'), `raw ** left in: ${html}`);
+  assert.match(html, /<strong>GC 启动时<\/strong>/);
 
-    // 1. 中文圆点列表符
-    text = text.replace(/^[ \t]*[•·][ \t]+/gm, '- ');
+  // 只有开头没有结尾
+  const odd = '这是**没闭合的粗体，后面还有正常文字。';
+  const oddHtml = render(odd);
+  assert.ok(!oddHtml.includes('**'), `raw ** left in: ${oddHtml}`);
+  assert.match(oddHtml, /这是没闭合的粗体/);
+});
 
-    // 2. 补齐孤立未闭合粗体
-    const lines = text.split('\n');
-    let inCodeFence = false;
-    text = lines.map((line) => {
-      if (/^\s*```/.test(line)) {
-        inCodeFence = !inCodeFence;
-        return line;
-      }
-      if (inCodeFence) return line;
-      const stars = (line.match(/\*\*/g) || []).length;
-      if (stars % 2 === 1) {
-        return line + '**';
-      }
-      return line;
-    }).join('\n');
+test('4. Code fences and inline code are never rewritten', () => {
+  const fence = '```cpp\nint** p = nullptr;\n**not bold**\n```';
+  const fenceHtml = render(fence);
+  assert.ok(fenceHtml.includes('int** p = nullptr;'));
+  assert.ok(fenceHtml.includes('**not bold**'));
 
-    // 3. 粗体代码转换
-    text = text.replace(/\*\*\s*(`[^`\n]+`)\s*\*\*/g, '<strong>$1</strong>');
+  const inline = '为什么必须用**`CreateDefaultSubobject`**？另外 `int**` 是二级指针。';
+  const inlineHtml = render(inline);
+  assert.ok(!inlineHtml.replace(/<code>[\s\S]*?<\/code>/g, '').includes('**'), `raw ** left in: ${inlineHtml}`);
+  assert.match(inlineHtml, /<strong><code>CreateDefaultSubobject<\/code><\/strong>/);
+  assert.ok(inlineHtml.includes('<code>int**</code>'));
 
-    // 4. 清理粗体内部多余空格（不注入外侧空格）
-    text = text.replace(/\*\*([^\n]+?)\*\*/g, (match, inner) => {
-      const trimmed = inner.trim();
-      return trimmed ? `**${trimmed}**` : match;
-    });
+  // 正文里裸露的 C++ 指针不当作定界符吃掉
+  assert.ok(strongifyMarkdown('这里直接写 int** 指针。').includes('int**'));
+});
 
-    // 5. 清理连续水平空格
-    text = text.replace(/[ \t]{2,}/g, ' ');
+test('5. renderMarkdown renders bold / inline code for notes and answers', () => {
+  const html = renderMarkdown('这是 **加粗结论** 和 `inline code`。');
+  assert.match(html, /<strong>加粗结论<\/strong>/);
+  assert.match(html, /<code>inline code<\/code>/);
+  assert.ok(!html.includes('**'));
 
-    return text;
-  }
-
-  // Case A: Bold inline code in Chinese text (the reported bug)
-  const inputA = '为什么必须用**`CreateDefaultSubobject`**？';
-  const htmlA = marked.parse(preprocessMarkdown(inputA)).trim();
-  assert.ok(!htmlA.includes('**'), 'Must not leave raw asterisks in rendered output');
-  assert.ok(htmlA.includes('<strong><code>CreateDefaultSubobject</code></strong>'), 'Must render as <strong><code>...</code></strong>');
-  assert.strictEqual(htmlA, '<p>为什么必须用<strong><code>CreateDefaultSubobject</code></strong>？</p>');
-
-  // Case B: Bold inline code with internal spaces
-  const inputB = '为什么必须用** `CreateDefaultSubobject` **？';
-  const htmlB = marked.parse(preprocessMarkdown(inputB)).trim();
-  assert.ok(!htmlB.includes('**'));
-  assert.strictEqual(htmlB, '<p>为什么必须用<strong><code>CreateDefaultSubobject</code></strong>？</p>');
-
-  // Case C: Standard Chinese bold text (should NOT inject extra spaces around Chinese text)
-  const inputC = '这是**关键结论**部分。';
-  const htmlC = marked.parse(preprocessMarkdown(inputC)).trim();
-  assert.strictEqual(htmlC, '<p>这是<strong>关键结论</strong>部分。</p>');
-
-  // Case D: Bold text with leading/trailing spaces inside asterisks
-  const inputD = '这是 ** 内部带空格 ** 测试。';
-  const htmlD = marked.parse(preprocessMarkdown(inputD)).trim();
-  assert.ok(htmlD.includes('<strong>内部带空格</strong>'));
-
-  // Case E: Multiple bold code occurrences in one line
-  const inputE = '请对比**`UObject`**和**`AActor`**的生命周期。';
-  const htmlE = marked.parse(preprocessMarkdown(inputE)).trim();
-  assert.strictEqual(htmlE, '<p>请对比<strong><code>UObject</code></strong>和<strong><code>AActor</code></strong>的生命周期。</p>');
+  const list = renderMarkdown('- 一\n- 二');
+  assert.match(list, /<li>一<\/li>/);
+  assert.match(list, /<li>二<\/li>/);
 });

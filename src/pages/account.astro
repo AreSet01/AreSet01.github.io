@@ -1,0 +1,712 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+---
+
+<BaseLayout title="账号与同步 - 梦付千秋">
+  <Header />
+  <main id="main-content" tabindex="-1" class="container-medium flex-1 pt-6 pb-16 lg:pt-8 outline-none" style="position: relative;">
+    <section class="account-shell" data-account-shell>
+      <header class="account-head">
+        <p class="account-kicker">Account / Sync</p>
+        <h1 class="account-title">账号与笔记同步</h1>
+        <p class="account-desc">登录后，划词笔记、备注和「存入笔记」的墨问回答会跨设备同步。未登录时仍然只保存在本机。</p>
+      </header>
+
+      <div id="authView" class="account-card">
+        <div class="account-tabs" role="tablist" aria-label="登录或注册">
+          <button type="button" id="tabLogin" class="account-tab is-active" role="tab" aria-selected="true">登录</button>
+          <button type="button" id="tabRegister" class="account-tab" role="tab" aria-selected="false">用邀请码注册</button>
+        </div>
+
+        <p id="authServiceHint" class="account-service-hint" role="status" hidden></p>
+
+        <form id="loginForm" class="account-form" autocomplete="on">
+          <label class="account-label" for="loginUsername">用户名</label>
+          <input id="loginUsername" name="username" class="account-input" autocomplete="username" maxlength="24" required />
+          <label class="account-label" for="loginPassword">密码</label>
+          <input id="loginPassword" name="password" type="password" class="account-input" autocomplete="current-password" maxlength="128" required />
+          <button type="submit" class="account-submit" id="loginSubmit">登录</button>
+        </form>
+
+        <form id="registerForm" class="account-form" autocomplete="off" hidden>
+          <label class="account-label" for="registerInvite">邀请码</label>
+          <input id="registerInvite" name="inviteCode" class="account-input account-input--mono" maxlength="16" placeholder="向站主要一个邀请码" required />
+          <label class="account-label" for="registerUsername">用户名</label>
+          <input id="registerUsername" name="username" class="account-input" autocomplete="username" maxlength="24" placeholder="3–24 位字母、数字、_ 或 -" required />
+          <label class="account-label" for="registerPassword">密码</label>
+          <input id="registerPassword" name="password" type="password" class="account-input" autocomplete="new-password" maxlength="128" placeholder="至少 8 位" required />
+          <label class="account-label" for="registerConfirm">确认密码</label>
+          <input id="registerConfirm" name="confirm" type="password" class="account-input" autocomplete="new-password" maxlength="128" required />
+          <button type="submit" class="account-submit" id="registerSubmit">注册并登录</button>
+        </form>
+
+        <p id="authMessage" class="account-message" role="status" hidden></p>
+      </div>
+
+      <div id="profileView" class="account-card" hidden>
+        <div class="account-profile-head">
+          <div>
+            <p class="account-kicker">Signed in</p>
+            <p class="account-username" id="profileUsername">—</p>
+          </div>
+          <button type="button" id="logoutBtn" class="account-ghost-btn">退出登录</button>
+        </div>
+
+        <div class="account-sync-box">
+          <div>
+            <p class="account-label">同步状态</p>
+            <p class="account-sync-status" id="syncStatus">正在检查…</p>
+          </div>
+          <button type="button" id="syncNowBtn" class="account-primary-btn">立即同步</button>
+        </div>
+
+        <div class="account-actions">
+          <button type="button" id="exportNotesBtn" class="account-ghost-btn">导出全部笔记 (JSON)</button>
+          <a href="/" class="account-ghost-btn account-link-btn">返回首页</a>
+        </div>
+
+        <p class="account-hint">提示：文章里的「笔记」抽屉可以直接添加备注、新建自由笔记；墨问回答结束后的「存入笔记」也会同步到这里。</p>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<script>
+  import { initNotesSync } from '../utils/notesSync';
+
+  initNotesSync();
+
+  const CLEANUP_KEY = '__areSetAccountCleanup__';
+
+  function initAccountPage() {
+    const previousCleanup = (window as any)[CLEANUP_KEY];
+    if (typeof previousCleanup === 'function') previousCleanup();
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    (window as any)[CLEANUP_KEY] = () => controller.abort();
+
+    const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
+
+    const shell = document.querySelector<HTMLElement>('[data-account-shell]');
+    const authView = $('authView');
+    const profileView = $('profileView');
+    const authMessage = $('authMessage') as HTMLParagraphElement | null;
+    const tabLogin = $('tabLogin');
+    const tabRegister = $('tabRegister');
+    const loginForm = $('loginForm') as HTMLFormElement | null;
+    const registerForm = $('registerForm') as HTMLFormElement | null;
+    const profileUsername = $('profileUsername');
+    const syncStatus = $('syncStatus');
+    const serviceHint = $('authServiceHint') as HTMLParagraphElement | null;
+
+    // 入场：下一帧挂 is-ready，让 CSS 过渡跑起来
+    requestAnimationFrame(() => shell?.classList.add('is-ready'));
+
+    type JsonResult = { res: Response; data: any };
+
+    async function api(path: string, options: RequestInit = {}): Promise<JsonResult> {
+      const res = await fetch(path, {
+        ...options,
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      });
+      const text = await res.text();
+      let data: any = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { error: `服务返回了非 JSON 响应（HTTP ${res.status}）` };
+        }
+      }
+      return { res, data };
+    }
+
+    function setServiceHint(message: string) {
+      if (!serviceHint) return;
+      serviceHint.hidden = !message;
+      serviceHint.textContent = message;
+      if (message) {
+        serviceHint.classList.remove('is-pop');
+        void serviceHint.offsetWidth;
+        serviceHint.classList.add('is-pop');
+      }
+    }
+
+    const AUTH_PROXY_HINT = '账号接口没有生效：请确认服务器 nginx 已把 /api/auth 转发到 blog-ask，并执行 nginx -t && systemctl reload nginx。';
+
+    function setMessage(message: string, type: 'error' | 'ok' = 'error') {
+      if (!authMessage) return;
+      authMessage.hidden = !message;
+      authMessage.textContent = message;
+      authMessage.dataset.type = type;
+      if (message) {
+        authMessage.classList.remove('is-pop');
+        void authMessage.offsetWidth;
+        authMessage.classList.add('is-pop');
+      }
+    }
+
+    function switchTab(tab: 'login' | 'register') {
+      if (!tabLogin || !tabRegister || !loginForm || !registerForm) return;
+      const login = tab === 'login';
+      tabLogin.classList.toggle('is-active', login);
+      tabRegister.classList.toggle('is-active', !login);
+      tabLogin.setAttribute('aria-selected', String(login));
+      tabRegister.setAttribute('aria-selected', String(!login));
+      loginForm.hidden = !login;
+      registerForm.hidden = login;
+      setMessage('');
+    }
+
+    tabLogin?.addEventListener('click', () => switchTab('login'), { signal });
+    tabRegister?.addEventListener('click', () => switchTab('register'), { signal });
+
+    async function refreshSyncStatus() {
+      if (!syncStatus) return;
+      const sync = (window as any).__notesSync;
+      if (sync && typeof sync.status === 'function') {
+        const status = sync.status();
+        const last = status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString('zh-CN') : '从未同步';
+        const pending = Number(status.pending) || 0;
+        syncStatus.textContent = `${last}${pending ? ` · ${pending} 条待同步` : ''}`;
+        return;
+      }
+      const { res, data } = await api('/api/notes/export');
+      if (!res.ok) {
+        syncStatus.textContent = '同步服务暂不可用';
+        return;
+      }
+      const count = Array.isArray(data.notes) ? data.notes.length : 0;
+      syncStatus.textContent = `服务端已有 ${count} 条笔记`;
+    }
+
+    function showProfile(user: { username: string }) {
+      authView?.setAttribute('hidden', '');
+      profileView?.removeAttribute('hidden');
+      setServiceHint('');
+      if (profileUsername) profileUsername.textContent = user.username;
+      requestAnimationFrame(() => profileView?.classList.add('is-in'));
+      void refreshSyncStatus();
+    }
+
+    function showAuth() {
+      profileView?.setAttribute('hidden', '');
+      profileView?.classList.remove('is-in');
+      authView?.removeAttribute('hidden');
+      requestAnimationFrame(() => authView?.classList.add('is-in'));
+    }
+
+    async function checkSession() {
+      const { res, data } = await api('/api/auth/me');
+      if (res.ok && data.user) {
+        showProfile(data.user);
+        return;
+      }
+      showAuth();
+      if (res.status === 404) setServiceHint(AUTH_PROXY_HINT);
+      else if (res.status >= 500) setServiceHint('账号服务暂时不可用，请检查 blog-ask 是否在运行。');
+      else if (data.error && res.status !== 401) setServiceHint(String(data.error));
+    }
+
+    loginForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      setMessage('');
+      const username = (($('loginUsername') as HTMLInputElement | null)?.value || '').trim();
+      const password = ($('loginPassword') as HTMLInputElement | null)?.value || '';
+      if (!username || !password) {
+        setMessage('请填写用户名和密码');
+        return;
+      }
+      const submit = $('loginSubmit') as HTMLButtonElement | null;
+      if (submit) submit.disabled = true;
+      try {
+        const { res, data } = await api('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ username, password }),
+        });
+        if (!res.ok) {
+          setMessage(data.error || `登录失败（HTTP ${res.status}）`);
+          if (res.status === 404) setServiceHint(AUTH_PROXY_HINT);
+          return;
+        }
+        showProfile(data.user);
+        await (window as any).__notesSync?.syncNow?.({ migrate: true });
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    }, { signal });
+
+    registerForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      setMessage('');
+      const inviteCode = (($('registerInvite') as HTMLInputElement | null)?.value || '').trim();
+      const username = (($('registerUsername') as HTMLInputElement | null)?.value || '').trim();
+      const password = ($('registerPassword') as HTMLInputElement | null)?.value || '';
+      const confirm = ($('registerConfirm') as HTMLInputElement | null)?.value || '';
+      if (!inviteCode) return setMessage('请填写邀请码');
+      if (password.length < 8) return setMessage('密码至少 8 位');
+      if (password !== confirm) return setMessage('两次输入的密码不一致');
+
+      const submit = $('registerSubmit') as HTMLButtonElement | null;
+      if (submit) submit.disabled = true;
+      try {
+        const { res, data } = await api('/api/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({ username, password, inviteCode }),
+        });
+        if (!res.ok) {
+          setMessage(data.error || `注册失败（HTTP ${res.status}）`);
+          if (res.status === 404) setServiceHint(AUTH_PROXY_HINT);
+          return;
+        }
+        showProfile(data.user);
+        await (window as any).__notesSync?.syncNow?.({ migrate: true });
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    }, { signal });
+
+    $('logoutBtn')?.addEventListener('click', async () => {
+      await api('/api/auth/logout', { method: 'POST', body: '{}' });
+      showAuth();
+      switchTab('login');
+    }, { signal });
+
+    $('syncNowBtn')?.addEventListener('click', async () => {
+      const sync = (window as any).__notesSync;
+      if (!sync || typeof sync.syncNow !== 'function') {
+        if (syncStatus) syncStatus.textContent = '同步模块尚未加载';
+        return;
+      }
+      if (syncStatus) syncStatus.textContent = '同步中…';
+      try {
+        await sync.syncNow({ migrate: true });
+        await refreshSyncStatus();
+      } catch {
+        if (syncStatus) syncStatus.textContent = '同步失败，请稍后再试';
+      }
+    }, { signal });
+
+    $('exportNotesBtn')?.addEventListener('click', async () => {
+      const { res, data } = await api('/api/notes/export');
+      if (!res.ok) {
+        if (syncStatus) syncStatus.textContent = data.error || '导出失败';
+        return;
+      }
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `notes-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }, { signal });
+
+    void checkSession();
+  }
+
+  initAccountPage();
+  document.addEventListener('astro:page-load', initAccountPage);
+</script>
+
+<style>
+  .account-shell {
+    max-width: 44rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+    transition:
+      opacity 700ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 760ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .account-shell.is-ready {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .account-head {
+    text-align: center;
+    padding: 2rem 1rem 0.5rem;
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+    transition:
+      opacity 700ms cubic-bezier(0.16, 1, 0.3, 1) 80ms,
+      transform 760ms cubic-bezier(0.16, 1, 0.3, 1) 80ms;
+  }
+
+  .account-shell.is-ready .account-head {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .account-kicker {
+    margin: 0 0 0.35rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .account-title {
+    position: relative;
+    display: inline-block;
+    margin: 0;
+    font-family: var(--font-hand-title);
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    color: var(--text-strong);
+    letter-spacing: var(--font-letter-title);
+  }
+
+  .account-title::after {
+    content: "";
+    position: absolute;
+    left: 8%;
+    right: 8%;
+    bottom: -7px;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform 900ms cubic-bezier(0.16, 1, 0.3, 1) 420ms;
+    opacity: 0.65;
+  }
+
+  .account-shell.is-ready .account-title::after {
+    transform: scaleX(1);
+  }
+
+  .account-desc {
+    margin: 0.7rem auto 0;
+    max-width: 34rem;
+    color: var(--muted-strong);
+    font-size: 0.9rem;
+    line-height: 1.75;
+  }
+
+  .account-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--rule-strong);
+    border-radius: 14px;
+    background: var(--bg-elev);
+    padding: 1.4rem;
+    box-shadow: var(--glass-shadow);
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+    transition:
+      opacity 700ms cubic-bezier(0.16, 1, 0.3, 1) 150ms,
+      transform 760ms cubic-bezier(0.16, 1, 0.3, 1) 150ms,
+      box-shadow 260ms ease,
+      border-color 260ms ease;
+  }
+
+  .account-shell.is-ready .account-card {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .account-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .account-card:hover {
+    border-color: var(--accent);
+    box-shadow: var(--glass-shadow-lg);
+  }
+
+  .account-tabs {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.25rem;
+    margin-bottom: 1.2rem;
+    border-radius: 10px;
+    background: var(--bg-soft);
+  }
+
+  .account-tab {
+    position: relative;
+    flex: 1;
+    padding: 0.55rem 0.8rem;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted-strong);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition:
+      background 240ms cubic-bezier(0.16, 1, 0.3, 1),
+      color 240ms ease,
+      transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 240ms ease;
+  }
+
+  .account-tab:hover {
+    color: var(--text-strong);
+  }
+
+  .account-tab.is-active {
+    background: var(--bg-elev);
+    color: var(--text-strong);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+
+  .account-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .account-form[hidden] {
+    display: none;
+  }
+
+  .account-form:not([hidden]) {
+    animation: accountPanelIn 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes accountPanelIn {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 8px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  .account-label {
+    margin-top: 0.35rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--muted-strong);
+  }
+
+  .account-input {
+    width: 100%;
+    padding: 0.66rem 0.75rem;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    background: var(--bg-base);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    outline: none;
+    transition:
+      border-color 200ms ease,
+      box-shadow 220ms ease,
+      transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .account-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    transform: translateY(-1px);
+  }
+
+  .account-input--mono {
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .account-submit,
+  .account-primary-btn {
+    margin-top: 0.8rem;
+    padding: 0.7rem 1rem;
+    border: 0;
+    border-radius: 8px;
+    background: var(--ink-strong);
+    color: var(--bg-elev);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition:
+      opacity 200ms ease,
+      transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 220ms ease;
+  }
+
+  .account-submit:hover,
+  .account-primary-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.45);
+  }
+
+  .account-submit:active,
+  .account-primary-btn:active {
+    transform: scale(0.98);
+  }
+
+  .account-submit:disabled,
+  .account-primary-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .account-message {
+    margin: 0.9rem 0 0;
+    font-size: 0.82rem;
+    color: #c0392b;
+  }
+
+  .account-service-hint {
+    margin: 0 0 1rem;
+    padding: 0.62rem 0.78rem;
+    border-left: 3px solid var(--accent);
+    border-radius: 0 7px 7px 0;
+    background: var(--accent-soft);
+    color: var(--text);
+    font-size: 0.78rem;
+    line-height: 1.65;
+  }
+
+  .account-service-hint[hidden] {
+    display: none;
+  }
+
+  .account-service-hint.is-pop {
+    animation: accountMessageIn 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .account-message[data-type='ok'] {
+    color: var(--accent-strong);
+  }
+
+  .account-message.is-pop {
+    animation: accountMessageIn 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes accountMessageIn {
+    from {
+      opacity: 0;
+      transform: translate3d(0, -4px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  .account-profile-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+
+  .account-username {
+    margin: 0.2rem 0 0;
+    font-family: var(--font-hand-title);
+    font-size: 1.5rem;
+    color: var(--text-strong);
+  }
+
+  .account-sync-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 0;
+  }
+
+  .account-sync-status {
+    margin: 0.3rem 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--muted-strong);
+  }
+
+  .account-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--rule-soft);
+  }
+
+  .account-ghost-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0.85rem;
+    border: 1px solid var(--rule-strong);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font-size: 0.8rem;
+    font-family: var(--font-body);
+    cursor: pointer;
+    text-decoration: none;
+    transition:
+      background 200ms ease,
+      border-color 200ms ease,
+      transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .account-ghost-btn:hover {
+    background: var(--bg-soft);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+
+  .account-ghost-btn:active {
+    transform: scale(0.98);
+  }
+
+  .account-hint {
+    margin: 1rem 0 0;
+    font-size: 0.78rem;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+
+  #profileView:not([hidden]) {
+    animation: accountPanelIn 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @media (max-width: 640px) {
+    .account-card {
+      padding: 1rem;
+    }
+    .account-sync-box {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .account-shell,
+    .account-head,
+    .account-card,
+    .account-form:not([hidden]),
+    .account-message.is-pop,
+    #profileView:not([hidden]) {
+      animation: none !important;
+      transition: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
+</style>

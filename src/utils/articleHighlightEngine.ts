@@ -8,6 +8,8 @@
  * 4. 纯净 DOM 还原：取消高亮时完全解除包裹并调用 normalize() 恢复原生文本节点
  */
 
+export type NoteKind = 'highlight' | 'free' | 'ai';
+
 export interface ArticleHighlightRecord {
   id: string;
   text: string;
@@ -17,6 +19,23 @@ export interface ArticleHighlightRecord {
   headingText?: string;
   color?: string;
   timestamp: number;
+
+  /** 笔记类型；旧数据缺省视为 highlight */
+  kind?: NoteKind;
+  /** 用户备注（划线、自由笔记、AI 摘录都可有） */
+  comment?: string;
+  /** 所属文章路径（同步用；旧数据可能缺省） */
+  postSlug?: string;
+  postTitle?: string;
+  /** AI 笔记来源与对应提问 */
+  source?: 'inkask';
+  question?: string;
+  /** 同步用时间戳；旧数据回退到 timestamp */
+  updatedAt?: number;
+  deleted?: boolean;
+  serverRev?: number;
+  /** 本地改动待同步标记（不落服务端） */
+  dirty?: boolean;
 }
 
 export interface HighlightTextEntry {
@@ -49,6 +68,22 @@ export function getStorageKey(postSlug: string): string {
 }
 
 /**
+ * 兼容旧数据：补齐 kind / updatedAt / comment 等字段
+ */
+export function normalizeNoteRecord(item: ArticleHighlightRecord, postSlug = ''): ArticleHighlightRecord {
+  const kind: NoteKind = item.kind === 'free' || item.kind === 'ai' ? item.kind : 'highlight';
+  return {
+    ...item,
+    kind,
+    prefix: typeof item.prefix === 'string' ? item.prefix : '',
+    suffix: typeof item.suffix === 'string' ? item.suffix : '',
+    comment: typeof item.comment === 'string' ? item.comment : '',
+    postSlug: item.postSlug || postSlug || '',
+    updatedAt: item.updatedAt || item.timestamp || Date.now(),
+  };
+}
+
+/**
  * 从 localStorage 安全加载指定文章的高亮记录
  */
 export function loadHighlights(postSlug: string): ArticleHighlightRecord[] {
@@ -58,9 +93,11 @@ export function loadHighlights(postSlug: string): ArticleHighlightRecord[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item) => item && typeof item.id === 'string' && typeof item.text === 'string'
-    );
+    return parsed
+      .filter(
+        (item) => item && typeof item.id === 'string' && typeof item.text === 'string'
+      )
+      .map((item) => normalizeNoteRecord(item, postSlug));
   } catch (err) {
     console.warn('[highlightEngine] Failed to load highlights from storage:', err);
     return [];
@@ -82,6 +119,28 @@ export function saveHighlights(postSlug: string, records: ArticleHighlightRecord
   } catch (err) {
     console.warn('[highlightEngine] Failed to save highlights to storage:', err);
   }
+}
+
+/**
+ * 读取当前浏览器里所有文章的笔记（同步 / 迁移时使用）
+ */
+export function loadAllStoredNotes(): Array<{ postSlug: string; records: ArticleHighlightRecord[] }> {
+  if (typeof window === 'undefined' || !window.localStorage) return [];
+  const prefix = 'areSet_article_highlights_';
+  const buckets: Array<{ postSlug: string; records: ArticleHighlightRecord[] }> = [];
+  try {
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (!key || !key.startsWith(prefix)) continue;
+      const suffix = key.slice(prefix.length);
+      const derivedSlug = suffix === 'default' ? '' : `/${suffix.replace(/_/g, '/')}/`;
+      const records = loadHighlights(derivedSlug);
+      if (records.length) buckets.push({ postSlug: derivedSlug, records });
+    }
+  } catch (err) {
+    console.warn('[highlightEngine] Failed to enumerate notes:', err);
+  }
+  return buckets;
 }
 
 /**
@@ -180,6 +239,10 @@ export function collectTextEntries(root: Element): { combinedText: string; entri
       const parent = node.parentElement;
       if (!parent) return NodeFilter.FILTER_REJECT;
       if (parent.closest(SKIP_SELECTOR)) return NodeFilter.FILTER_REJECT;
+      const parentTag = (parent.tagName || '').toUpperCase();
+      if (['UL', 'OL', 'TABLE', 'TBODY', 'THEAD', 'TFOOT', 'TR', 'DL'].includes(parentTag)) {
+        return NodeFilter.FILTER_REJECT;
+      }
       return NodeFilter.FILTER_ACCEPT;
     },
   });
@@ -378,11 +441,18 @@ export function getTextNodesInRange(range: Range): HighlightNodeRange[] {
 
   if (startNode === endNode && startNode.nodeType === Node.TEXT_NODE) {
     if (range.startOffset < range.endOffset) {
-      ranges.push({
-        textNode: startNode as Text,
-        localStart: range.startOffset,
-        localEnd: range.endOffset,
-      });
+      let localStart = range.startOffset;
+      let localEnd = range.endOffset;
+      const val = (startNode as Text).nodeValue || '';
+      while (localStart < localEnd && /\s/.test(val[localStart])) localStart++;
+      while (localEnd > localStart && /\s/.test(val[localEnd - 1])) localEnd--;
+      if (localStart < localEnd) {
+        ranges.push({
+          textNode: startNode as Text,
+          localStart,
+          localEnd,
+        });
+      }
     }
     return ranges;
   }
@@ -396,6 +466,10 @@ export function getTextNodesInRange(range: Range): HighlightNodeRange[] {
       if (!parent || parent.closest(SKIP_SELECTOR)) {
         return NodeFilter.FILTER_REJECT;
       }
+      const parentTag = (parent.tagName || '').toUpperCase();
+      if (['UL', 'OL', 'TABLE', 'TBODY', 'THEAD', 'TFOOT', 'TR', 'DL'].includes(parentTag)) {
+        return NodeFilter.FILTER_REJECT;
+      }
       if (range.intersectsNode(node)) {
         return NodeFilter.FILTER_ACCEPT;
       }
@@ -405,14 +479,24 @@ export function getTextNodesInRange(range: Range): HighlightNodeRange[] {
 
   let currentNode: Text | null;
   while ((currentNode = walker.nextNode() as Text | null)) {
+    const val = currentNode.nodeValue || '';
+    if (!val.trim() && (val.includes('\n') || val.includes('\r'))) continue;
+
     let localStart = 0;
-    let localEnd = currentNode.nodeValue ? currentNode.nodeValue.length : 0;
+    let localEnd = val.length;
 
     if (currentNode === startNode) {
       localStart = range.startOffset;
     }
     if (currentNode === endNode) {
       localEnd = range.endOffset;
+    }
+
+    while (localStart < localEnd && /[\r\n]/.test(val[localStart])) {
+      localStart++;
+    }
+    while (localEnd > localStart && /[\r\n]/.test(val[localEnd - 1])) {
+      localEnd--;
     }
 
     if (localStart < localEnd) {
@@ -453,6 +537,16 @@ export function applyRangesAsHighlight(
     for (const r of list) {
       try {
         const fullLen = node.nodeValue ? node.nodeValue.length : 0;
+        const seg = (node.nodeValue || '').slice(r.localStart, r.localEnd);
+        if (!seg.trim() && (seg.includes('\n') || seg.includes('\r'))) {
+          continue;
+        }
+
+        const parentTag = (node.parentElement?.tagName || '').toUpperCase();
+        if (['UL', 'OL', 'TABLE', 'TBODY', 'THEAD', 'TFOOT', 'TR', 'DL'].includes(parentTag)) {
+          continue;
+        }
+
         let matchNode: Text;
 
         if (r.localStart === 0 && r.localEnd >= fullLen) {
@@ -535,6 +629,8 @@ export function rehydrateHighlights(
   if (!records.length || !proseRoot) return resultMap;
 
   for (const record of records) {
+    if (record.deleted) continue;
+    if ((record.kind || 'highlight') !== 'highlight') continue;
     const { combinedText, entries } = collectTextEntries(proseRoot);
     if (!combinedText || !entries.length) break;
 
@@ -590,15 +686,18 @@ export function exportHighlightsAsMarkdown(
 ): string {
   const dateStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
   const cleanUrl = articleUrl.replace(/#.*$/, '');
+  const highlights = records.filter((r) => !r.deleted && (r.kind || 'highlight') === 'highlight');
+  const aiNotes = records.filter((r) => !r.deleted && r.kind === 'ai');
+  const freeNotes = records.filter((r) => !r.deleted && r.kind === 'free');
 
   let md = `# 《${articleTitle}》读书笔记与高亮摘要\n\n`;
-  md += `> 本文共 ${records.length} 条划线高亮 · 导出时间：${dateStr}\n`;
+  md += `> 本文共 ${highlights.length} 条划线、${aiNotes.length} 条 AI 摘录、${freeNotes.length} 条自由笔记 · 导出时间：${dateStr}\n`;
   md += `> 原文链接：${cleanUrl}\n\n`;
   md += `---\n\n`;
 
   // 按小节分组
   const sectionMap = new Map<string, ArticleHighlightRecord[]>();
-  for (const rec of records) {
+  for (const rec of highlights) {
     const sec = rec.headingText || '§ 导言 / 正文';
     const list = sectionMap.get(sec) || [];
     list.push(rec);
@@ -621,7 +720,39 @@ export function exportHighlightsAsMarkdown(
       });
 
       md += `${quoteText}\n`;
+      if (item.comment) md += `> **备注：** ${item.comment.trim()}\n`;
       md += `— [定位原文](${itemUrl}) · *${timeTag}*\n\n`;
+    }
+  }
+
+  if (aiNotes.length) {
+    md += `## AI 问答摘录\n\n`;
+    for (const item of aiNotes) {
+      const timeTag = new Date(item.timestamp).toLocaleDateString('zh-CN', {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      if (item.question) md += `### 问：${item.question}\n\n`;
+      md += `${item.text.trim()}\n`;
+      if (item.comment) md += `\n**备注：** ${item.comment.trim()}\n`;
+      md += `\n— *${timeTag}*\n\n`;
+    }
+  }
+
+  if (freeNotes.length) {
+    md += `## 自由笔记\n\n`;
+    for (const item of freeNotes) {
+      const timeTag = new Date(item.timestamp).toLocaleDateString('zh-CN', {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      md += `${item.text.trim()}\n`;
+      if (item.comment) md += `\n**备注：** ${item.comment.trim()}\n`;
+      md += `\n— *${timeTag}*\n\n`;
     }
   }
 

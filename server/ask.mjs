@@ -6,8 +6,16 @@
 //                  → text/event-stream：{"d":"文字"} … {"done":true} | {"error":"…"}
 
 import http from 'node:http';
-import { createHash, randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import {
+  createHash,
+  randomBytes,
+  createHmac,
+  timingSafeEqual,
+  scryptSync,
+  randomInt,
+  randomUUID,
+} from 'node:crypto';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +38,7 @@ const DEFAULT_SYSTEM_PROMPT = `你是技术博客「梦付千秋」的专属伴�
 回答准则：
 1. 【深入浅出，通俗好懂】：拒绝干瘪冰冷的说教和生硬堆砌的专业术语。第一句话先用大白话或生动贴切的生活比喻点透本质（“它其实就像...”），让读者一秒抓住核心；然后再娓娓道来背后的原理。
 2. 【紧扣技术与文章场景】：紧密结合文章实际语境（如 UE5、C++ 游戏引擎底层等），讲清楚它在这里扮演什么角色、解决什么痛点、为什么要这么写。
-3. 【排版清晰有条理】：用精炼语言组织，善用加粗关键结论、\`行内代码\`、精简列表。严格遵守 Markdown 规范：加粗符号 ** 紧贴文字内容，内侧严禁带空格（例如 **结论**，勿写成 ** 结论 **）；反引号代码与加粗组合时写为 **\`Code\`**。
+3. 【排版清晰有条理】：用精炼语言组织，善用加粗关键结论、\`行内代码\`、精简列表。严格遵守 Markdown 规范：加粗符号 ** 紧贴文字内容，内侧严禁带空格（例如 **结论**，勿写成 ** 结论 **）；反引号代码与加粗组合时写为 **\`Code\`**；每个 ** 必须成对闭合，禁止出现单边、多余或跨段的 **。
 4. 【亲切自然老友风】：语气真诚温和，不掉书袋，不讲官话。读者追问时直击要害，解答透彻。
 5. 【专注阅读】：紧扣所选内容与当前文章技术主题，礼貌拒绝完全无关的非技术闲聊。`;
 
@@ -53,7 +61,13 @@ const config = {
   systemPrompt: (process.env.ASK_SYSTEM_PROMPT || '').trim() || DEFAULT_SYSTEM_PROMPT,
   contextLength: positive('ASK_CONTEXT_LENGTH', 700),
   idleTimeout: positive('ASK_IDLE_TIMEOUT', 60),
+  authEnabled: process.env.AUTH_ENABLED !== '0',
+  dataDir: path.resolve(HERE, process.env.ASK_DATA_DIR || '.data'),
+  sessionDays: positive('AUTH_SESSION_DAYS', 30),
 };
+
+const AUTH_SECRET_FROM_ENV = Boolean((process.env.AUTH_SECRET || '').trim());
+const AUTH_SECRET = AUTH_SECRET_FROM_ENV ? process.env.AUTH_SECRET.trim() : randomBytes(32).toString('hex');
 
 const resolveConfigFile = () => {
   if (process.env.ASK_CONFIG_FILE) return path.resolve(HERE, process.env.ASK_CONFIG_FILE);
@@ -192,6 +206,306 @@ function maskApiKey(key) {
   if (!key) return '';
   if (key.length <= 8) return '****';
   return `${key.slice(0, 3)}...${key.slice(-4)}`;
+}
+
+// ---------- 账号 / 邀请码 / 笔记（JSON Store） ----------
+const DATA_DIR = config.dataDir;
+const ACCOUNTS_FILE = path.join(DATA_DIR, 'accounts.json');
+const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
+const SESSION_COOKIE = 'blog_notes_session';
+const SESSION_TTL_MS = config.sessionDays * 24 * 3600 * 1000;
+const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const NOTE_LIMITS = {
+  id: 80,
+  text: 20_000,
+  comment: 2_000,
+  postSlug: 300,
+  postTitle: 200,
+  headingText: 300,
+  question: 500,
+  batch: 200,
+  perUser: 5_000,
+};
+
+try {
+  mkdirSync(DATA_DIR, { recursive: true });
+} catch (err) {
+  console.error(`[ask] 无法创建数据目录 ${DATA_DIR}: ${err.message}`);
+}
+
+function loadJsonFile(file, fallback) {
+  try {
+    if (!existsSync(file)) return fallback;
+    const parsed = JSON.parse(readFileSync(file, 'utf8'));
+    return parsed && typeof parsed === 'object' ? parsed : fallback;
+  } catch (err) {
+    console.error(`[ask] 读取 ${file} 失败: ${err.message}`);
+    return fallback;
+  }
+}
+
+const accounts = loadJsonFile(ACCOUNTS_FILE, { users: {}, invites: {} });
+accounts.users = accounts.users && typeof accounts.users === 'object' ? accounts.users : {};
+accounts.invites = accounts.invites && typeof accounts.invites === 'object' ? accounts.invites : {};
+const notesDb = loadJsonFile(NOTES_FILE, { users: {} });
+notesDb.users = notesDb.users && typeof notesDb.users === 'object' ? notesDb.users : {};
+
+function atomicWriteJson(file, value) {
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify(value, null, 2), { encoding: 'utf8', mode: 0o600 });
+  try {
+    renameSync(tmp, file);
+  } catch {
+    // Windows 上 rename 不能覆盖已有文件，退化处理
+    try {
+      unlinkSync(file);
+    } catch {}
+    renameSync(tmp, file);
+  }
+}
+
+function saveAccounts() {
+  try {
+    atomicWriteJson(ACCOUNTS_FILE, accounts);
+  } catch (err) {
+    console.error(`[ask] 保存账号数据失败: ${err.message}`);
+  }
+}
+
+let notesSaveTimer = null;
+function saveNotesNow() {
+  if (notesSaveTimer) {
+    clearTimeout(notesSaveTimer);
+    notesSaveTimer = null;
+  }
+  try {
+    atomicWriteJson(NOTES_FILE, notesDb);
+  } catch (err) {
+    console.error(`[ask] 保存笔记数据失败: ${err.message}`);
+  }
+}
+function scheduleNotesSave() {
+  if (notesSaveTimer) clearTimeout(notesSaveTimer);
+  notesSaveTimer = setTimeout(saveNotesNow, 250);
+  notesSaveTimer.unref?.();
+}
+
+// ---------- 密码 / 会话 ----------
+const SCRYPT_N = 16_384;
+const SCRYPT_R = 8;
+const SCRYPT_P = 1;
+const SCRYPT_KEYLEN = 64;
+const SCRYPT_MAXMEM = 64 * 1024 * 1024;
+
+function hashPassword(password) {
+  const salt = randomBytes(16);
+  const key = scryptSync(password, salt, SCRYPT_KEYLEN, {
+    N: SCRYPT_N,
+    r: SCRYPT_R,
+    p: SCRYPT_P,
+    maxmem: SCRYPT_MAXMEM,
+  });
+  return `scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${salt.toString('base64url')}$${key.toString('base64url')}`;
+}
+
+function verifyPassword(password, stored) {
+  try {
+    const parts = String(stored || '').split('$');
+    if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
+    const [, n, r, p, saltB64, keyB64] = parts;
+    const salt = Buffer.from(saltB64, 'base64url');
+    const expected = Buffer.from(keyB64, 'base64url');
+    const actual = scryptSync(password, salt, expected.length, {
+      N: Number(n),
+      r: Number(r),
+      p: Number(p),
+      maxmem: SCRYPT_MAXMEM,
+    });
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  } catch {
+    return false;
+  }
+}
+
+function createUserSession(userId) {
+  const exp = Date.now() + SESSION_TTL_MS;
+  const payload = `${userId}.${exp}`;
+  const sig = createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+function verifyUserSession(token) {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [userId, expStr, sig] = parts;
+  const exp = Number(expStr);
+  if (!userId || !Number.isFinite(exp) || Date.now() > exp) return null;
+  const expected = createHmac('sha256', AUTH_SECRET).update(`${userId}.${expStr}`).digest();
+  try {
+    const actual = Buffer.from(sig, 'base64url');
+    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
+  } catch {
+    return null;
+  }
+  return userId;
+}
+
+function parseCookies(req) {
+  const header = req.headers.cookie || '';
+  const out = {};
+  for (const part of String(header).split(';')) {
+    const idx = part.indexOf('=');
+    if (idx < 0) continue;
+    const key = part.slice(0, idx).trim();
+    const value = part.slice(idx + 1).trim();
+    if (!key) continue;
+    try {
+      out[key] = decodeURIComponent(value);
+    } catch {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+function isSecureRequest(req) {
+  return req.headers['x-forwarded-proto'] === 'https' || Boolean(req.socket?.encrypted);
+}
+
+function sessionCookie(req, token, maxAgeSeconds) {
+  const secure = isSecureRequest(req) ? '; Secure' : '';
+  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`;
+}
+
+function clearSessionCookie(req) {
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isSecureRequest(req) ? '; Secure' : ''}`;
+}
+
+function currentUser(req) {
+  const token = parseCookies(req)[SESSION_COOKIE];
+  const userId = verifyUserSession(token);
+  if (!userId) return null;
+  const user = accounts.users[userId];
+  if (!user || user.disabled) return null;
+  return user;
+}
+
+function publicUser(user) {
+  return { id: user.id, username: user.username, createdAt: user.createdAt };
+}
+
+function sameOrigin(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    const originHost = new URL(origin).hostname;
+    const requestHost = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(':')[0];
+    if (originHost === requestHost) return true;
+    // 本地开发时 Vite 代理会把 Host 改写成 127.0.0.1:8787，这里放行 loopback
+    const loopback = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+    return loopback.has(originHost) && loopback.has(requestHost);
+  } catch {
+    return false;
+  }
+}
+
+// ---------- 邀请码 ----------
+function generateInviteCode() {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    let code = '';
+    for (let i = 0; i < 10; i += 1) code += INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)];
+    if (!accounts.invites[code]) return code;
+  }
+  throw new Error('邀请码生成失败，请重试');
+}
+
+function inviteState(invite) {
+  if (!invite) return 'missing';
+  if (invite.usedAt) return 'used';
+  if (invite.expiresAt && Date.now() > invite.expiresAt) return 'expired';
+  return 'unused';
+}
+
+function normalizeInviteCode(value) {
+  return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function normalizeUsername(value) {
+  return String(value || '').trim();
+}
+
+function isValidUsername(value) {
+  return /^[A-Za-z0-9_-]{3,24}$/.test(value);
+}
+
+function isValidPassword(value) {
+  return typeof value === 'string' && value.length >= 8 && value.length <= 128;
+}
+
+// ---------- 简易限流 ----------
+const authAttempts = new Map();
+function authRateLimit(key, limit = 10, windowMs = 60_000) {
+  const now = Date.now();
+  const record = authAttempts.get(key);
+  if (!record || record.resetAt <= now) {
+    authAttempts.set(key, { count: 1, resetAt: now + windowMs });
+    return null;
+  }
+  record.count += 1;
+  if (record.count > limit) {
+    return `操作太频繁，请 ${Math.ceil((record.resetAt - now) / 1000)} 秒后再试`;
+  }
+  return null;
+}
+
+// ---------- 笔记 ----------
+function getUserNotes(userId) {
+  if (!notesDb.users[userId] || typeof notesDb.users[userId] !== 'object') {
+    notesDb.users[userId] = { rev: 0, notes: {} };
+  }
+  const bucket = notesDb.users[userId];
+  bucket.notes = bucket.notes && typeof bucket.notes === 'object' ? bucket.notes : {};
+  bucket.rev = Number(bucket.rev) || 0;
+  return bucket;
+}
+
+const NOTE_KINDS = new Set(['highlight', 'free', 'ai']);
+
+function sanitizeNote(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = String(raw.id || '').trim();
+  if (!id || id.length > NOTE_LIMITS.id || !/^[A-Za-z0-9_-]+$/.test(id)) return null;
+
+  const kind = NOTE_KINDS.has(raw.kind) ? raw.kind : 'highlight';
+  const text = String(raw.text || '').slice(0, NOTE_LIMITS.text);
+  if (!text.trim()) return null;
+
+  const numberOr = (value, fallback) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  };
+  const timestamp = numberOr(raw.timestamp, Date.now());
+  const updatedAt = numberOr(raw.updatedAt, timestamp);
+
+  return {
+    id,
+    kind,
+    text,
+    comment: String(raw.comment || '').slice(0, NOTE_LIMITS.comment),
+    prefix: String(raw.prefix || '').slice(0, 200),
+    suffix: String(raw.suffix || '').slice(0, 200),
+    headingId: raw.headingId ? String(raw.headingId).slice(0, 200) : '',
+    headingText: raw.headingText ? String(raw.headingText).slice(0, NOTE_LIMITS.headingText) : '',
+    color: raw.color ? String(raw.color).slice(0, 40) : '',
+    postSlug: String(raw.postSlug || '').slice(0, NOTE_LIMITS.postSlug),
+    postTitle: String(raw.postTitle || '').slice(0, NOTE_LIMITS.postTitle),
+    source: raw.source === 'inkask' ? 'inkask' : '',
+    question: String(raw.question || '').slice(0, NOTE_LIMITS.question),
+    timestamp,
+    updatedAt,
+    deleted: Boolean(raw.deleted),
+  };
 }
 
 const LIMITS = { selection: 400, question: 120, anchor: 64, body: 8 * 1024 };
@@ -396,7 +710,8 @@ function buildMessages({ title, context, selection, question, previous, isArticl
     : '请用通俗生动的大白话解释选中的内容，讲清它在这里的作用和核心原理。';
 
   const messages = [{ role: 'system', content: config.systemPrompt || DEFAULT_SYSTEM_PROMPT }];
-  if (!question) {
+  const isDefault = !question || (selection && question.trim() === selection.trim());
+  if (isDefault) {
     messages.push({ role: 'user', content: `${base}\n${defaultPrompt}` });
   } else if (previous) {
     messages.push(
@@ -591,17 +906,21 @@ function clientIp(req) {
   return peer;
 }
 
-function sendJson(res, status, body) {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+function sendJson(res, status, body, headers = {}) {
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    ...headers,
+  });
   res.end(JSON.stringify(body));
 }
 
-async function readJson(req) {
+async function readJson(req, limit = LIMITS.body) {
   let size = 0;
   const chunks = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > LIMITS.body) throw Object.assign(new Error('too large'), { status: 413 });
+    if (size > limit) throw Object.assign(new Error('too large'), { status: 413 });
     chunks.push(chunk);
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -631,7 +950,7 @@ async function handleAsk(req, res) {
   const suffix = typeof input?.suffix === 'string' ? input.suffix.slice(0, LIMITS.anchor) : '';
   if (!isArticleChat && !selection) return sendJson(res, 400, { error: '没有选中内容' });
   if (selection && [...selection].length > LIMITS.selection) return sendJson(res, 400, { error: `选中的内容太长了，请缩短到 ${LIMITS.selection} 字以内` });
-  const maxQuestionLen = config.questionLimit || 300;
+  const maxQuestionLen = Math.max(1000, config.questionLimit || 300);
   if ([...question].length > maxQuestionLen) return sendJson(res, 400, { error: `提问请控制在 ${maxQuestionLen} 字以内` });
 
   const loaded = typeof input.path === 'string' ? await loadPage(input.path) : null;
@@ -748,6 +1067,204 @@ async function handleAsk(req, res) {
   log(`${outcome} ${Date.now() - started}ms ${summary}`);
 }
 
+// ---------- /api/auth/* ----------
+
+async function handleAuth(req, res, pathname) {
+  if (!config.authEnabled) return sendJson(res, 404, { error: '账号系统未开启' });
+  const ip = clientIp(req);
+  const method = req.method || 'GET';
+
+  if (method !== 'GET' && !sameOrigin(req)) {
+    return sendJson(res, 403, { error: '请求来源不合法' });
+  }
+
+  // 注册：邀请码一次性消费
+  if (pathname === '/api/auth/register' && method === 'POST') {
+    const limited = authRateLimit(`register:${ip}`, 10, 10 * 60_000);
+    if (limited) return sendJson(res, 429, { error: limited });
+
+    let body;
+    try {
+      body = await readJson(req, 16 * 1024);
+    } catch {
+      return sendJson(res, 400, { error: '请求数据格式有误' });
+    }
+
+    const username = normalizeUsername(body?.username);
+    if (!isValidUsername(username)) {
+      return sendJson(res, 400, { error: '用户名需为 3–24 位字母、数字、下划线或短横线' });
+    }
+    if (!isValidPassword(body?.password)) {
+      return sendJson(res, 400, { error: '密码至少 8 位' });
+    }
+
+    const inviteCode = normalizeInviteCode(body?.inviteCode);
+    const invite = accounts.invites[inviteCode];
+    const state = inviteState(invite);
+    if (state !== 'unused') {
+      return sendJson(res, 400, { error: state === 'used' ? '这个邀请码已经被使用过了' : state === 'expired' ? '邀请码已过期' : '邀请码无效' });
+    }
+
+    const exists = Object.values(accounts.users).some(
+      (user) => String(user.username || '').toLowerCase() === username.toLowerCase()
+    );
+    if (exists) return sendJson(res, 409, { error: '用户名已被占用' });
+
+    const user = {
+      id: `u_${randomUUID().replace(/-/g, '').slice(0, 16)}`,
+      username,
+      passwordHash: hashPassword(body.password),
+      createdAt: Date.now(),
+      inviteCode,
+      disabled: false,
+    };
+    accounts.users[user.id] = user;
+    invite.usedAt = Date.now();
+    invite.usedBy = user.id;
+    saveAccounts();
+
+    const token = createUserSession(user.id);
+    log(`user registered: ${username} from ${ip}`);
+    return sendJson(
+      res,
+      200,
+      { ok: true, user: publicUser(user) },
+      { 'Set-Cookie': sessionCookie(req, token, Math.floor(SESSION_TTL_MS / 1000)) }
+    );
+  }
+
+  // 登录
+  if (pathname === '/api/auth/login' && method === 'POST') {
+    const limited = authRateLimit(`login:${ip}`, 15, 60_000);
+    if (limited) return sendJson(res, 429, { error: limited });
+
+    let body;
+    try {
+      body = await readJson(req, 16 * 1024);
+    } catch {
+      return sendJson(res, 400, { error: '请求数据格式有误' });
+    }
+
+    const username = normalizeUsername(body?.username);
+    const password = typeof body?.password === 'string' ? body.password : '';
+    const user = Object.values(accounts.users).find(
+      (item) => String(item.username || '').toLowerCase() === username.toLowerCase()
+    );
+    if (!user || user.disabled || !verifyPassword(password, user.passwordHash)) {
+      return sendJson(res, 401, { error: '用户名或密码错误' });
+    }
+
+    authAttempts.delete(`login:${ip}`);
+    const token = createUserSession(user.id);
+    log(`user login: ${username} from ${ip}`);
+    return sendJson(
+      res,
+      200,
+      { ok: true, user: publicUser(user) },
+      { 'Set-Cookie': sessionCookie(req, token, Math.floor(SESSION_TTL_MS / 1000)) }
+    );
+  }
+
+  // 退出
+  if (pathname === '/api/auth/logout' && method === 'POST') {
+    return sendJson(res, 200, { ok: true }, { 'Set-Cookie': clearSessionCookie(req) });
+  }
+
+  // 当前用户
+  if (pathname === '/api/auth/me' && method === 'GET') {
+    const user = currentUser(req);
+    if (!user) return sendJson(res, 401, { error: '未登录', user: null });
+    return sendJson(res, 200, { ok: true, user: publicUser(user) });
+  }
+
+  // 修改密码
+  if (pathname === '/api/auth/password' && method === 'POST') {
+    const user = currentUser(req);
+    if (!user) return sendJson(res, 401, { error: '未登录' });
+    let body;
+    try {
+      body = await readJson(req, 16 * 1024);
+    } catch {
+      return sendJson(res, 400, { error: '请求数据格式有误' });
+    }
+    if (!verifyPassword(String(body?.oldPassword || ''), user.passwordHash)) {
+      return sendJson(res, 400, { error: '原密码不正确' });
+    }
+    if (!isValidPassword(body?.newPassword)) {
+      return sendJson(res, 400, { error: '新密码至少 8 位' });
+    }
+    user.passwordHash = hashPassword(body.newPassword);
+    saveAccounts();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 404, { error: 'not found' });
+}
+
+// ---------- /api/notes/* ----------
+
+async function handleNotes(req, res, pathname) {
+  const user = currentUser(req);
+  if (!user) return sendJson(res, 401, { error: '未登录' });
+  const method = req.method || 'GET';
+  if (method !== 'GET' && !sameOrigin(req)) {
+    return sendJson(res, 403, { error: '请求来源不合法' });
+  }
+
+  const bucket = getUserNotes(user.id);
+
+  if (pathname === '/api/notes/export' && method === 'GET') {
+    return sendJson(res, 200, {
+      ok: true,
+      rev: bucket.rev,
+      notes: Object.values(bucket.notes).filter((note) => !note.deleted),
+    });
+  }
+
+  if (pathname === '/api/notes/sync' && method === 'POST') {
+    let body;
+    try {
+      body = await readJson(req, 2 * 1024 * 1024);
+    } catch {
+      return sendJson(res, 400, { error: '请求数据格式有误或数据太大' });
+    }
+
+    const since = Number(body?.since);
+    const sinceRev = Number.isFinite(since) && since > 0 ? since : 0;
+    const changes = Array.isArray(body?.changes) ? body.changes.slice(0, NOTE_LIMITS.batch) : [];
+
+    const forced = new Set();
+    for (const raw of changes) {
+      const note = sanitizeNote(raw);
+      if (!note) continue;
+      const existing = bucket.notes[note.id];
+      if (existing && Number(existing.updatedAt) > note.updatedAt) {
+        forced.add(note.id);
+        continue;
+      }
+      if (!existing && Object.keys(bucket.notes).length >= NOTE_LIMITS.perUser) {
+        return sendJson(res, 413, { error: '笔记数量已达上限' });
+      }
+      bucket.notes[note.id] = { ...note, serverRev: ++bucket.rev };
+    }
+
+    if (changes.length) scheduleNotesSave();
+
+    const allChanges = Object.values(bucket.notes)
+      .filter((note) => Number(note.serverRev) > sinceRev || forced.has(note.id))
+      .sort((a, b) => Number(a.serverRev) - Number(b.serverRev));
+    const changesToSend = allChanges.slice(0, 2000);
+    const hasMore = changesToSend.length < allChanges.length;
+    const nextRev = hasMore && changesToSend.length
+      ? Number(changesToSend[changesToSend.length - 1].serverRev)
+      : bucket.rev;
+
+    return sendJson(res, 200, { ok: true, rev: nextRev, hasMore, changes: changesToSend });
+  }
+
+  return sendJson(res, 404, { error: 'not found' });
+}
+
 async function handleSettings(req, res, subPath) {
   const ip = clientIp(req);
 
@@ -786,6 +1303,80 @@ async function handleSettings(req, res, subPath) {
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   if (!verifySessionToken(token)) {
     return sendJson(res, 401, { error: '未授权或登录已过期，请重新登录' });
+  }
+
+  // 邀请码管理
+  if (subPath === '/invites' && req.method === 'GET') {
+    const list = Object.values(accounts.invites)
+      .sort((a, b) => Number(b.createdAt) - Number(a.createdAt))
+      .map((invite) => ({
+        code: invite.code,
+        createdAt: invite.createdAt,
+        expiresAt: invite.expiresAt,
+        usedAt: invite.usedAt || null,
+        usedBy: invite.usedBy || null,
+        usedByName: invite.usedBy && accounts.users[invite.usedBy] ? accounts.users[invite.usedBy].username : '',
+        note: invite.note || '',
+        state: inviteState(invite),
+      }));
+    return sendJson(res, 200, { ok: true, invites: list });
+  }
+
+  if (subPath === '/invites' && req.method === 'POST') {
+    let body = {};
+    try {
+      body = await readJson(req, 8 * 1024);
+    } catch {}
+    const ttlDays = Math.min(90, Math.max(1, Number(body?.ttlDays) || 7));
+    const code = generateInviteCode();
+    const now = Date.now();
+    accounts.invites[code] = {
+      code,
+      createdAt: now,
+      createdBy: 'admin',
+      expiresAt: now + ttlDays * 24 * 3600 * 1000,
+      usedAt: null,
+      usedBy: null,
+      note: String(body?.note || '').slice(0, 100),
+    };
+    saveAccounts();
+    log(`admin generated invite ${code}`);
+    return sendJson(res, 200, { ok: true, invite: accounts.invites[code] });
+  }
+
+  if (subPath.startsWith('/invites/') && req.method === 'DELETE') {
+    const code = normalizeInviteCode(decodeURIComponent(subPath.slice('/invites/'.length)));
+    const invite = accounts.invites[code];
+    if (!invite) return sendJson(res, 404, { error: '邀请码不存在' });
+    if (invite.usedAt) return sendJson(res, 409, { error: '邀请码已被使用，不能作废' });
+    delete accounts.invites[code];
+    saveAccounts();
+    log(`admin revoked invite ${code}`);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  // 账号管理：列表 / 重置密码
+  if (subPath === '/users' && req.method === 'GET') {
+    return sendJson(res, 200, {
+      ok: true,
+      users: Object.values(accounts.users).map((user) => ({
+        ...publicUser(user),
+        disabled: Boolean(user.disabled),
+        inviteCode: user.inviteCode || '',
+      })),
+    });
+  }
+
+  if (subPath.startsWith('/users/') && subPath.endsWith('/reset-password') && req.method === 'POST') {
+    const userId = decodeURIComponent(subPath.slice('/users/'.length, -'/reset-password'.length)).replace(/\/$/, '');
+    const user = accounts.users[userId];
+    if (!user) return sendJson(res, 404, { error: '用户不存在' });
+    let temp = '';
+    for (let i = 0; i < 12; i += 1) temp += INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)].toLowerCase();
+    user.passwordHash = hashPassword(temp);
+    saveAccounts();
+    log(`admin reset password for ${user.username}`);
+    return sendJson(res, 200, { ok: true, username: user.username, temporaryPassword: temp });
   }
 
   // 3. 获取配置
@@ -977,6 +1568,22 @@ const server = http.createServer((req, res) => {
     });
   }
 
+  if (pathname.startsWith('/api/auth/')) {
+    return handleAuth(req, res, pathname).catch((error) => {
+      log('auth crash:', error?.stack || error);
+      if (!res.headersSent) sendJson(res, 500, { error: '服务出错了' });
+      else res.end();
+    });
+  }
+
+  if (pathname.startsWith('/api/notes/')) {
+    return handleNotes(req, res, pathname).catch((error) => {
+      log('notes crash:', error?.stack || error);
+      if (!res.headersSent) sendJson(res, 500, { error: '服务出错了' });
+      else res.end();
+    });
+  }
+
   if (pathname.startsWith('/api/settings')) {
     const subPath = pathname.slice('/api/settings'.length);
     return handleSettings(req, res, subPath).catch((error) => {
@@ -992,11 +1599,14 @@ const server = http.createServer((req, res) => {
 server.listen(config.port, config.host, () => {
   log(`listening on http://${config.host}:${config.port}/api/ask · model ${config.model || '(未配置)'} · site ${config.siteDir}`);
   if (!configured) log('warning: AI_BASE_URL / AI_API_KEY / AI_MODEL 没配齐，提问会返回 503');
+  if (!AUTH_SECRET_FROM_ENV) log('warning: AUTH_SECRET 未配置，重启后所有用户登录态会失效');
+  log(`accounts: ${Object.keys(accounts.users).length} users · ${Object.keys(accounts.invites).length} invites`);
   stat(path.join(config.siteDir, 'posts')).catch(() => log(`warning: ${config.siteDir}/posts 不存在，先构建站点或检查 ASK_SITE_DIR`));
 });
 
 const shutdown = () => {
   saveAnswers();
+  saveNotesNow();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 2000).unref();
 };

@@ -110,6 +110,7 @@ const countByCategory = {
         return (
           <article
             class="gallery-mat-card group"
+            data-tilt
             data-enter={enterFrom}
             data-photo-id={photo.id}
             data-category={photo.category}
@@ -547,8 +548,9 @@ const countByCategory = {
     display: none !important;
   }
 
-  /* 仅在卡片完全落定且不在动画中时开启 hover 过渡，杜绝 CSS 过渡与 GSAP 逐帧抢控制权 */
+  /* 仅在卡片完全落定且不在动画中时开启 hover 过渡，杜绝 CSS 过渡与 GSAP 逐帧抢控制权；同时解除 clip-path 释放完整 3D 透视 */
   .gallery-mat-card.is-entered:not(.is-reflowing):not(.is-entering) {
+    clip-path: none !important;
     transition: transform 260ms var(--ease);
   }
 
@@ -678,11 +680,12 @@ const countByCategory = {
     align-items: center;
     justify-content: space-between;
     font-size: 0.76rem;
-    color: var(--muted);
+    color: var(--muted-strong);
+    font-weight: 600;
   }
 
   .mat-location-text {
-    font-weight: 500;
+    font-weight: 600;
     color: var(--muted-strong);
     letter-spacing: 0.02em;
   }
@@ -690,12 +693,13 @@ const countByCategory = {
   .mat-date-text {
     font-family: var(--font-mono);
     font-size: 0.74rem;
+    font-weight: 600;
   }
 
   .mat-photo-title {
     font-family: var(--font-hand-title);
-    font-size: 1.28rem;
-    font-weight: 600;
+    font-size: 1.32rem;
+    font-weight: 700;
     color: var(--text-strong);
     letter-spacing: 0.02em;
     line-height: 1.35;
@@ -709,9 +713,10 @@ const countByCategory = {
   }
 
   .mat-photo-story {
-    font-size: 0.88rem;
-    color: var(--muted-strong);
-    line-height: 1.7;
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.74;
     font-family: var(--font-serif);
     font-style: italic;
     display: -webkit-box;
@@ -727,12 +732,14 @@ const countByCategory = {
     padding-top: 0.4rem;
     border-top: none;
     font-size: 0.74rem;
-    color: var(--muted);
+    color: var(--muted-strong);
+    font-weight: 600;
   }
 
   .mat-exif-tag {
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: 0.74rem;
+    font-weight: 600;
     max-width: 60%;
     white-space: nowrap;
     overflow: hidden;
