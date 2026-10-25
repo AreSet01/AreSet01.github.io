@@ -8,6 +8,7 @@
 // 完全绕开 flanking 规则；落单的 ** 做兜底，避免任何位置漏出星号。
 
 import { marked } from 'marked';
+import katex from 'katex';
 
 const FENCE_RE = /```[\s\S]*?```/g;
 const INLINE_CODE_RE = /(`+)([^\n]*?)\1/g;
@@ -54,12 +55,54 @@ export function strongifyMarkdown(src: string): string {
   });
 }
 
-/** 回答渲染前的统一入口：中文圆点列表 → 标准列表，再把粗体归一化。 */
+/**
+ * 提取并渲染 LaTeX 数学公式（支持行内 $...$ 与块级 $$...$$，严格保护代码块与行内代码）。
+ */
+export function renderMath(src: string): string {
+  if (!src || !src.includes('$')) return src;
+
+  const fences: string[] = [];
+  const codes: string[] = [];
+
+  let text = src.replace(FENCE_RE, (match) => {
+    fences.push(match);
+    return placeholder('F', fences.length - 1);
+  });
+
+  text = text.replace(INLINE_CODE_RE, (match) => {
+    codes.push(match);
+    return placeholder('C', codes.length - 1);
+  });
+
+  // 1. 块级数学公式 $$...$$
+  text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_match, expr) => {
+    try {
+      return katex.renderToString(expr.trim(), { displayMode: true, throwOnError: false });
+    } catch {
+      return _match;
+    }
+  });
+
+  // 2. 行内数学公式 $...$
+  text = text.replace(/(?<!\\)\$([^\$\n]+?)(?<!\\)\$/g, (_match, expr) => {
+    try {
+      return katex.renderToString(expr.trim(), { displayMode: false, throwOnError: false });
+    } catch {
+      return _match;
+    }
+  });
+
+  return text.replace(PLACEHOLDER_RE, (_match: string, kind: string, index: string) => {
+    return kind === 'F' ? fences[Number(index)] : codes[Number(index)];
+  });
+}
+
+/** 回答渲染前的统一入口：中文圆点列表 → 标准列表，粗体归一化，LaTeX 公式预渲染。 */
 export function preprocessMarkdown(src: string): string {
   if (!src) return '';
   let text = src.replace(/\r\n?/g, '\n');
   text = text.replace(/^[ \t]*[•·][ \t]+/gm, '- ');
-  return strongifyMarkdown(text);
+  return renderMath(strongifyMarkdown(text));
 }
 
 // ---------- HTML 清洗 ----------

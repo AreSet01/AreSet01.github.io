@@ -2,6 +2,8 @@ import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
 import { visit } from 'unist-util-visit';
 import remarkCjkFriendly from 'remark-cjk-friendly';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import { rehypeTableScroll } from './src/utils/rehypeTableScroll.ts';
 
 /**
@@ -140,7 +142,7 @@ function remarkMermaid() {  return (tree) => {
       </div>
     </div>
   </div>
-  <div class="mermaid-source" hidden>
+  <div class="mermaid-source" hidden data-no-search style="display: none;">
     <pre class="mermaid-source-pre"><code>${escapedCode}</code></pre>
   </div>
 </div>`;
@@ -158,8 +160,8 @@ export default defineConfig({
   markdown: {
     // 让 **…** 在中文全角标点旁也能正确解析（CommonMark 的 flanking 规则在 CJK 下会失效）；
     // 必须放在 remarkMermaid 之前，确保解析阶段就挂上 micromark 扩展。
-    remarkPlugins: [remarkCjkFriendly, remarkMermaid],
-    rehypePlugins: [rehypeTableScroll],
+    remarkPlugins: [remarkCjkFriendly, remarkMath, remarkMermaid],
+    rehypePlugins: [rehypeKatex, rehypeTableScroll],
     shikiConfig: {
       transformers: [codeMetaTransformer],
     },

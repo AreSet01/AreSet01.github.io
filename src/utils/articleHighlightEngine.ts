@@ -517,7 +517,8 @@ export function getTextNodesInRange(range: Range): HighlightNodeRange[] {
  */
 export function applyRangesAsHighlight(
   nodeRanges: HighlightNodeRange[],
-  record: ArticleHighlightRecord
+  record: ArticleHighlightRecord,
+  isDrawing = false
 ): HTMLElement[] {
   const marks: HTMLElement[] = [];
   if (!nodeRanges.length) return marks;
@@ -584,15 +585,26 @@ export function applyRangesAsHighlight(
     }
   }
 
+  // 区分单节点与多节点联合体，为首中尾标记不同类名，消除节点交接处的重叠暗斑与切角
+  if (marks.length === 1) {
+    marks[0].classList.add('is-single-mark');
+  } else if (marks.length > 1) {
+    marks[0].classList.add('is-first-mark');
+    for (let i = 1; i < marks.length - 1; i++) {
+      marks[i].classList.add('is-middle-mark');
+    }
+    marks[marks.length - 1].classList.add('is-last-mark');
+  }
+
   return marks;
 }
 
 /**
  * 将 Range 转换为持久化高亮并在 DOM 中渲染
  */
-export function applyHighlightToRange(range: Range, record: ArticleHighlightRecord): HTMLElement[] {
+export function applyHighlightToRange(range: Range, record: ArticleHighlightRecord, isDrawing = false): HTMLElement[] {
   const nodeRanges = getTextNodesInRange(range);
-  return applyRangesAsHighlight(nodeRanges, record);
+  return applyRangesAsHighlight(nodeRanges, record, isDrawing);
 }
 
 /**

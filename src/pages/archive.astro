@@ -315,7 +315,13 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
         el,
         height: exactHeight(el),
         origin: inkOrigin(el),
+        radius: inkRadius(el),
         collapse: !inClosingSection(el),
+        onScreen:
+          el.dataset.enterState === 'in' ||
+          el.classList.contains('is-entered') ||
+          el.classList.contains('is-entering') ||
+          !document.documentElement.classList.contains('js-enter'),
       }));
       const closingMetrics = closing.map((p) => sectionBox(p.section));
 
@@ -339,7 +345,12 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
         el.dataset.enterState = 'in';
         el.classList.remove('is-entering');
         el.classList.add('is-entered');
-        gsap.set(el, { opacity: 1, clipPath: `circle(0px at ${origin})`, ...(expand ? { height: 0, overflow: 'hidden' } : {}) });
+        gsap.set(el, {
+          opacity: 0,
+          x: -8,
+          clipPath: `circle(0px at ${origin})`,
+          ...(expand ? { height: 0, overflow: 'hidden' } : {}),
+        });
       });
       openingMetrics.forEach(({ section }) => {
         gsap.set(section, { height: 0, marginTop: 0, marginBottom: 0, overflow: 'hidden', opacity: 0 });
@@ -364,14 +375,31 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
       });
       timeline = tl;
 
-      // Departures: ink dries inward, then the gap closes
-      exits.forEach(({ el, height, origin, collapse }, index) => {
-        const at = index * EXIT_STAGGER;
-        tl.to(el, {
-          clipPath: `circle(0px at ${origin})`,
-          duration: EXIT_CLIP,
-          ease: 'power2.in',
-        }, at);
+      // Departures: seed an explicit starting circle(radius at origin) before shrinking to 0px
+      // (settled rows have clip-path: none, which otherwise snaps straight to 0px on frame 1),
+      // paired with a gentle leftward drift + opacity fade, then collapse the row height.
+      let visibleExitIndex = 0;
+      exits.forEach(({ el, height, origin, radius, collapse, onScreen }) => {
+        const at = onScreen ? visibleExitIndex++ * EXIT_STAGGER : 0;
+        if (onScreen) {
+          gsap.killTweensOf(el);
+          tl.fromTo(
+            el,
+            {
+              clipPath: `circle(${radius}px at ${origin})`,
+              opacity: 1,
+              x: 0,
+            },
+            {
+              clipPath: `circle(0px at ${origin})`,
+              opacity: 0,
+              x: -10,
+              duration: EXIT_CLIP,
+              ease: 'power2.inOut',
+            },
+            at,
+          );
+        }
         if (!collapse) return;
         tl.set(el, { height, overflow: 'hidden' }, at);
         tl.to(el, {
@@ -379,7 +407,7 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
           duration: EXIT_COLLAPSE,
           ease: 'enter',
           onComplete: () => { el.classList.add('is-filtered-out'); },
-        }, at + 0.14);
+        }, at + (onScreen ? 0.12 : 0));
       });
 
       // Whole years that empty out collapse as one block
@@ -423,6 +451,8 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
         }
         tl.to(el, {
           clipPath: `circle(${radius}px at ${origin})`,
+          opacity: 1,
+          x: 0,
           duration: ARRIVE_CLIP,
           ease: 'enter',
           onComplete: () => settle(el),

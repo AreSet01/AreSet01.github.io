@@ -253,16 +253,20 @@
         const sourceEl = block.querySelector<HTMLElement>('.mermaid-source');
         const stageEl = block.querySelector<HTMLElement>('.mermaid-stage');
         if (!sourceEl || !stageEl) return;
-        const isShowingSource = !sourceEl.hidden;
+        const isShowingSource = sourceEl.style.display !== 'none' && !sourceEl.hidden;
         if (isShowingSource) {
           sourceEl.hidden = true;
+          sourceEl.style.display = 'none';
           stageEl.hidden = false;
+          stageEl.style.display = '';
           sourceBtn.classList.remove('is-active');
           const span = sourceBtn.querySelector('span') || sourceBtn;
           span.textContent = 'Code';
         } else {
           sourceEl.hidden = false;
+          sourceEl.style.display = 'block';
           stageEl.hidden = true;
+          stageEl.style.display = 'none';
           sourceBtn.classList.add('is-active');
           const span = sourceBtn.querySelector('span') || sourceBtn;
           span.textContent = 'Diagram';
@@ -598,6 +602,10 @@
           try { bindFunctions(renderEl); } catch (e) {}
         }
         if (loadingEl) loadingEl.remove();
+        if (sourceEl) {
+          sourceEl.hidden = true;
+          sourceEl.style.display = 'none';
+        }
 
         const svgEl = renderEl.querySelector<SVGSVGElement>('svg');
         if (svgEl && stageEl) {
@@ -626,7 +634,10 @@
             <p class="mermaid-error-msg">${error?.message || '图表语法有误，请点击上方 Code 查看源码并修正'}</p>
           </div>
         `;
-        if (sourceEl) sourceEl.hidden = false;
+        if (sourceEl) {
+          sourceEl.hidden = false;
+          sourceEl.style.display = 'block';
+        }
       }
     }
   }

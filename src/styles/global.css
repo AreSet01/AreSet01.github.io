@@ -6241,10 +6241,21 @@ body:has(article[data-post-title-hold="true"]) .mobile-drawer-overlay,
 html[data-post-title-hold="true"] .mobile-drawer-overlay,
 body:has(article[data-post-title-hold="true"]) .search-overlay,
 html[data-post-title-hold="true"] .search-overlay,
+html.js-enter .ink-ask-sidebar-trigger,
+body:has(article[data-post-title-hold="true"]) .ink-ask-sidebar-trigger,
+html[data-post-title-hold="true"] .ink-ask-sidebar-trigger,
+html.js-enter #pin-edge-tab,
+body:has(article[data-post-title-hold="true"]) #pin-edge-tab,
+html[data-post-title-hold="true"] #pin-edge-tab,
 article[data-post-title-hold="true"] .post-spine {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
+}
+
+/* Pre-hide post title in header before JS centers and splits it so it never flashes at docked position */
+html.js-enter article[data-post-title-hold="true"] [data-post-title]:not(.is-split-ready) {
+  opacity: 0 !important;
 }
 
 /* Lock scroll during post title optical center stage while preserving scrollbar gutter */
@@ -6309,6 +6320,18 @@ html[data-font="kai"] .post-title {
 
 .post-title.is-split-ready {
   will-change: transform, opacity;
+}
+
+.post-title.is-center-stage::before {
+  opacity: var(--title-bar-opacity, 0);
+  transform: scaleY(var(--title-bar-scale, 0.15));
+  transform-origin: top center;
+}
+
+.post-title.is-center-stage::after {
+  opacity: calc(var(--title-bar-opacity, 0) * 0.6);
+  transform: scale(var(--title-bar-scale, 0.15));
+  transform-origin: top center;
 }
 
 /* ==========================================================================
@@ -9049,6 +9072,15 @@ a.chart-bar-name:hover {
   overflow-x: auto;
 }
 
+.mermaid-source[hidden],
+.mermaid-source.is-hidden {
+  display: none !important;
+}
+
+.mermaid-stage[hidden] {
+  display: none !important;
+}
+
 .mermaid-source-pre {
   margin: 0 !important;
   padding: 0 !important;
@@ -10528,6 +10560,20 @@ body.gallery-lightbox-open {
     margin-right: clamp(420px, 30vw, 480px) !important;
     padding-right: clamp(1.5rem, 3vw, 2.5rem) !important;
   }
+
+  body.notes-drawer-maximized .site-shell > main,
+  body.ink-ask-drawer-maximized .site-shell > main,
+  html[data-sidebar-collapsed="true"] body.notes-drawer-maximized .site-shell > main,
+  html[data-sidebar-collapsed="true"] body.ink-ask-drawer-maximized .site-shell > main {
+    margin-right: 0 !important;
+    padding-right: clamp(1.5rem, 3vw, 2.5rem) !important;
+  }
+}
+
+body.notes-drawer-maximized,
+body.ink-ask-drawer-maximized,
+body.ink-ask-card-maximized {
+  overflow: hidden !important;
 }
 
 /* =========================================================
@@ -10550,4 +10596,47 @@ body.gallery-lightbox-open {
     overflow: hidden !important;
     overscroll-behavior: none !important;
   }
+}
+
+/* =========================================================
+   KaTeX 数学公式渲染与全主题适配 (LaTeX Math Adaptation)
+   ========================================================= */
+.katex {
+  font-size: 1.05em;
+  color: inherit;
+  text-rendering: auto;
+}
+
+.katex-display {
+  display: block;
+  margin: 1.4em 0 !important;
+  padding: 0.9em 1.2em;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid var(--rule-soft);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  -webkit-overflow-scrolling: touch;
+}
+
+.katex-display > .katex {
+  display: inline-block;
+  white-space: nowrap;
+  text-align: initial;
+}
+
+[data-theme="dark"] .katex-display {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="moss"] .katex-display {
+  background: rgba(0, 77, 64, 0.05);
+  border-color: rgba(0, 77, 64, 0.12);
+}
+
+[data-theme="rice"] .katex-display {
+  background: rgba(92, 76, 55, 0.055);
+  border-color: rgba(92, 76, 55, 0.14);
 }

@@ -289,9 +289,16 @@
       },
 
       async leave(): Promise<void> {
+        const hasTitleHold = () =>
+          Boolean(
+            (window as any).__postTitleHoldPending ||
+            document.documentElement.hasAttribute('data-post-title-hold') ||
+            document.querySelector('article[data-post-title-hold="true"]')
+          );
+
         if (!isTransitioning && !overlay.classList.contains('is-active')) {
           (window as any).__postTransitionPending = false;
-          if (!(window as any).__postTitleHoldPending) {
+          if (!hasTitleHold()) {
             (window as any).__releasePageEnter?.();
           }
           return;
@@ -325,13 +332,13 @@
             if (released) return;
             released = true;
             (window as any).__postTransitionPending = false;
-            // Handover: release page enter directly if title is not holding it
-            if (!(window as any).__postTitleHoldPending) {
+            // Handover: release page enter directly only if post title is not holding it
+            if (!hasTitleHold()) {
               (window as any).__releasePageEnter?.();
             }
             window.dispatchEvent(new CustomEvent('post-transition-release'));
             try {
-              if (!(window as any).__postTitleHoldPending) {
+              if (!hasTitleHold()) {
                 (window as any).lenis?.start();
               }
             } catch {}

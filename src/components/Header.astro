@@ -777,6 +777,7 @@ const year = new Date().getFullYear();
 
 <script>
 import gsap from 'gsap';
+import { lockScrollAnchor } from '../utils/scrollAnchorLock';
 
 // Sidebar folds away like a paper door: items file out to the left, the panel swings on its
 // left hinge (rotateY), then the column width collapses. Expanding runs it in reverse.
@@ -794,6 +795,7 @@ import gsap from 'gsap';
 
   function collapse(nav, inner) {
     if (folding) folding.kill();
+    lockScrollAnchor(850);
     const items = parts(inner);
     document.documentElement.setAttribute('data-sidebar-folding', 'true');
     folding = gsap.timeline({
@@ -816,6 +818,7 @@ import gsap from 'gsap';
 
   function expand(nav, inner) {
     if (folding) folding.kill();
+    lockScrollAnchor(900);
     const items = parts(inner);
     document.documentElement.setAttribute('data-sidebar-folding', 'true');
     gsap.set(inner, { rotationY: -78, opacity: 0, transformOrigin: 'left center' });
@@ -864,6 +867,7 @@ import gsap from 'gsap';
     collapseBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
       if (reduceMotion) {
+        lockScrollAnchor(400);
         document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
         persist(true);
         window.dispatchEvent(new Event('resize'));
@@ -875,6 +879,7 @@ import gsap from 'gsap';
     expandBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
       if (reduceMotion) {
+        lockScrollAnchor(400);
         document.documentElement.removeAttribute('data-sidebar-collapsed');
         persist(false);
         window.dispatchEvent(new Event('resize'));
@@ -915,8 +920,9 @@ import gsap from 'gsap';
       }
       const navRect = nav.getBoundingClientRect();
       const targetRect = target.getBoundingClientRect();
+      const currentTargetY = (gsap.getProperty(target, 'y') as number) || 0;
       const gliderH = glider.offsetHeight || 18;
-      const targetTop = (targetRect.top - navRect.top) + (targetRect.height - gliderH) / 2;
+      const targetTop = (targetRect.top - currentTargetY - navRect.top) + (targetRect.height - gliderH) / 2;
 
       if (immediate) {
         glider.style.transition = 'none';
@@ -955,6 +961,19 @@ import gsap from 'gsap';
       });
     }
 
+    // Expose sync helper for layout transitions
+    (window as any).__syncNavMagneticGlider = () => {
+      const active = getActiveItem();
+      if (active) {
+        positionGlider(active, true);
+        if (isDesktop() && !isReduced()) {
+          gsap.set(active, { x: 4, y: 0 });
+        }
+      } else {
+        glider.style.opacity = '0';
+      }
+    };
+
     // 初始状态：活跃项停驻 +4px，游标对齐
     const initialActive = getActiveItem();
     if (initialActive) {
@@ -964,43 +983,52 @@ import gsap from 'gsap';
           gsap.set(initialActive, { x: 4, y: 0 });
         }
       });
+    } else {
+      glider.style.opacity = '0';
     }
 
     items.forEach((item) => {
       if ((item as any).__gliderBound) return;
       (item as any).__gliderBound = true;
 
-      let cachedRect: DOMRect | null = null;
-      let xTo: ((v: number) => void) | null = null;
-      let yTo: ((v: number) => void) | null = null;
-
       item.addEventListener('pointerenter', () => {
         positionGlider(item);
         if (!isDesktop() || isReduced()) return;
-        cachedRect = item.getBoundingClientRect();
-        if (!xTo) xTo = gsap.quickTo(item, 'x', { duration: 0.3, ease: 'power2.out' });
-        if (!yTo) yTo = gsap.quickTo(item, 'y', { duration: 0.3, ease: 'power2.out' });
-        xTo(8);
-        yTo(0);
+        gsap.to(item, {
+          x: 8,
+          y: 0,
+          duration: 0.28,
+          ease: 'power2.out',
+          overwrite: 'auto',
+        });
       });
 
       item.addEventListener('pointermove', (e) => {
         if (!isDesktop() || isReduced()) return;
-        if (!cachedRect) cachedRect = item.getBoundingClientRect();
+        const rect = item.getBoundingClientRect();
+        const currentX = (gsap.getProperty(item, 'x') as number) || 0;
+        const currentY = (gsap.getProperty(item, 'y') as number) || 0;
+        const originLeft = rect.left - currentX;
+        const originTop = rect.top - currentY;
+        const centerX = originLeft + rect.width / 2;
+        const centerY = originTop + rect.height / 2;
+
         // 计算鼠标相对文字中心的拉扯微距离，物理微浮范围限制：X: ±4px, Y: ±3px
-        const relX = (e.clientX - cachedRect.left - cachedRect.width / 2) * 0.22;
-        const relY = (e.clientY - cachedRect.top - cachedRect.height / 2) * 0.22;
+        const relX = (e.clientX - centerX) * 0.22;
+        const relY = (e.clientY - centerY) * 0.22;
         const clampedRelX = Math.max(-4, Math.min(4, relX));
         const clampedRelY = Math.max(-3, Math.min(3, relY));
 
-        if (xTo && yTo) {
-          xTo(8 + clampedRelX);
-          yTo(clampedRelY);
-        }
+        gsap.to(item, {
+          x: 8 + clampedRelX,
+          y: clampedRelY,
+          duration: 0.28,
+          ease: 'power2.out',
+          overwrite: 'auto',
+        });
       });
 
       item.addEventListener('pointerleave', () => {
-        cachedRect = null;
         if (!isDesktop() || isReduced()) return;
         const isActive = item.classList.contains('is-active');
         gsap.to(item, {
@@ -1032,8 +1060,17 @@ import gsap from 'gsap';
       });
     });
 
-    nav.addEventListener('pointerleave', resetToActive);
-    window.addEventListener('resize', resetToActive, { passive: true });
+    if ((nav as any).__navGliderCleanup) {
+      (nav as any).__navGliderCleanup();
+    }
+    const onNavLeave = () => resetToActive();
+    const onWinResize = () => resetToActive();
+    nav.addEventListener('pointerleave', onNavLeave);
+    window.addEventListener('resize', onWinResize, { passive: true });
+    (nav as any).__navGliderCleanup = () => {
+      nav.removeEventListener('pointerleave', onNavLeave);
+      window.removeEventListener('resize', onWinResize);
+    };
   }
 
   document.addEventListener('astro:page-load', initGlider);

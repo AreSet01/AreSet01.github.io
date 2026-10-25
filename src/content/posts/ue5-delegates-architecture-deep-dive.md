@@ -58,19 +58,32 @@ flowchart TD
 
 虚幻引擎将委托划分为两大正交维度：**【单播 vs 多播】** 与 **【原生 C++ vs 动态反射（Dynamic）】**，由此构成了清晰的四象限矩阵：
 
-```mermaid title="虚幻委托四大类型四象限矩阵"
-quadrantChart
-    title 虚幻委托四大象限功能定位
-    x-axis "原生 C++ (Native 极速)" --> "动态反射 (Dynamic 蓝图支持)"
-    y-axis "多播 (Multicast 广播)" --> "单播 (Single-cast 点对点)"
-    quadrant-1 "动态单播: 蓝图异步节点/网络回调"
-    quadrant-2 "原生单播: 纯 C++ 策略注入/带返回值"
-    quadrant-3 "原生多播: 引擎内部高频分发/Tick 观察者"
-    quadrant-4 "动态多播: 蓝图事件分发器 (Event Dispatcher)"
-    "DECLARE_DELEGATE": [0.25, 0.75]
-    "DECLARE_MULTICAST_DELEGATE": [0.25, 0.25]
-    "DECLARE_DYNAMIC_DELEGATE": [0.75, 0.75]
-    "DECLARE_DYNAMIC_MULTICAST_DELEGATE": [0.75, 0.25]
+```mermaid title="虚幻委托四大象限功能定位与选型矩阵"
+flowchart TD
+    subgraph Row1["▲ 【单播维度 · Single-cast】有且仅能绑定单一目标 · 唯一支持返回值"]
+        direction LR
+        subgraph Q2["原生单播 · DECLARE_DELEGATE"]
+            D2["• 运行环境: 纯 C++ 极速直调<br/>• 核心特性: 支持任意入参与返回值<br/>• 适用场景: 策略注入 / 状态机判定"]
+        end
+        subgraph Q1["动态单播 · DECLARE_DYNAMIC_DELEGATE"]
+            D1["• 运行环境: 蓝图 UFunction 反射寻址<br/>• 核心特性: 仅限 UObject / 蓝图可调用<br/>• 适用场景: 异步操作完成 / 网络回调"]
+        end
+    end
+
+    subgraph Row2["▼ 【多播维度 · Multicast】支持一对多同时通知 · 禁止定义返回值"]
+        direction LR
+        subgraph Q3["原生多播 · DECLARE_MULTICAST_DELEGATE"]
+            D3["• 运行环境: 原生 C++ 内部高频广播<br/>• 核心特性: FDelegateHandle 线程安全增删<br/>• 适用场景: Tick 观察者 / 物理碰撞广播"]
+        end
+        subgraph Q4["动态多播 · DECLARE_DYNAMIC_MULTICAST_DELEGATE"]
+            D4["• 运行环境: 蓝图事件分发器 Event Dispatcher<br/>• 核心特性: 可在蓝图拖拽节点 / 序列化<br/>• 适用场景: UI 交互广播 / 关卡逻辑触发"]
+        end
+    end
+
+    AxisCol1["◄ 原生 C++ (Native 极速零堆分配)"] -.- Q2
+    AxisCol1 -.- Q3
+    AxisCol2["动态反射 (Dynamic 蓝图可视化支持) ►"] -.- Q1
+    AxisCol2 -.- Q4
 ```
 
 ---
@@ -283,9 +296,23 @@ MyComp->OnDamaged.AddDynamic(this, &AMyCharacter::OnTakeDamage);
 频繁分配委托实例（例如在各种事件间传递委托）如果每次都调用全局堆内存管理器（`malloc` / `FMemory::Malloc`），会产生严重的内存碎片。
 
 虚幻委托实现了一套 **Inline Allocator**：
-- 在 `TDelegate` 内部预留了固定字节（通常为 32 字节）的内联栈空间；
-- 如果你绑定的成员函数指针和捕获数据较小，委托实例直接就地存储在栈上，**完全零堆分配开销**；
-- 只有当你通过 Lambda 捕获了超大结构体（超过内联上限）时，才会动态退化为堆内存分配。
+- 在 `TDelegate` 内部预留了固定字节（默认 $S_{\text{inline}} = 32\text{ bytes}$）的内联栈空间；
+- 如果你绑定的成员函数指针和捕获数据大小满足：
+  $$
+  \text{sizeof}(\text{Instance}) + \sum_{i=1}^n \text{sizeof}(\text{Payload}_i) \le S_{\text{inline}}
+  $$
+  委托实例直接就地存储在栈上，**完全零堆分配（Zero Heap Allocation）开销**；
+- 仅当通过 Lambda 闭包捕获了超大结构体（超过阈值 $32\text{ bytes}$）时，内存分配器才会动态退化为堆分配（Heap Fallback）：
+  $$
+  \text{Memory Overhead} = \begin{cases}
+  0 \text{ bytes (栈内 SBO)}, & \text{Payload} \le 32\text{ bytes} \\
+  \text{Heap Chunk} + \mathcal{O}(\text{malloc}), & \text{Payload} > 32\text{ bytes}
+  \end{cases}
+  $$
+- 两种委托调用时延复杂度对比：
+  $$
+  T_{\text{native}} = \mathcal{O}(1) \ll T_{\text{dynamic}} = \mathcal{O}(1) + \delta_{\text{UFunction::Invoke}}
+  $$
 
 ---
 

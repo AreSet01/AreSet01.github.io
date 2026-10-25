@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import 'katex/dist/katex.min.css';
 import { ClientRouter } from 'astro:transitions';
 import SiteIntro from '../components/SiteIntro.astro';
 import PostTransition from '../components/PostTransition.astro';
@@ -771,6 +772,9 @@ const {
         el.classList.remove('is-entering');
         el.classList.add('is-entered');
         gsap.set(el, { clearProps: 'transform,opacity,clipPath,filter' });
+        if (el.matches?.('.glass-nav') || el.querySelector?.('.glass-nav')) {
+          (window as any).__syncNavMagneticGlider?.();
+        }
       }
 
       function countUp(el, delay) {
@@ -937,15 +941,16 @@ const {
       // Which elements enter right away, in what order and when — without touching them. The
       // site-entry curtain reads this (window.__peekPageEnter) so its pixels can land on each
       // element at the moment that element starts to enter.
-      function planPageEnter() {
+      function planPageEnter({ forceEnterOnce = false } = {}) {
         const viewportH = window.innerHeight;
         const immediate = [];
         const deferred = [];
         const settled = []; // enter-once elements on a client navigation: shown, never animated
         gsap.utils.toArray('[data-enter]').forEach((el) => {
-          // The sidebar only makes its entrance once; on client navigations it stays put
+          // The sidebar only makes its entrance once; on client navigations it stays put —
+          // except when releasing from post-title-hold where .glass-nav was hidden
           if (el.hasAttribute('data-enter-once')) {
-            (hasNavigated ? settled : immediate).push(el);
+            ((hasNavigated && !forceEnterOnce) ? settled : immediate).push(el);
             return;
           }
           const rect = el.getBoundingClientRect();
@@ -973,12 +978,12 @@ const {
 
       // `timeScale` compresses the first-paint stagger; the curtain asks for it when a page has
       // more first-screen elements than its own closing beat can accompany one by one
-      function initPageEnter({ timeScale = 1 } = {}) {
+      function initPageEnter({ timeScale = 1, fromPostTitleHold = false } = {}) {
         ScrollTrigger.getAll().forEach((trigger) => {
           if (String(trigger.vars.id || '').startsWith(ENTER_TRIGGER_PREFIX)) trigger.kill();
         });
 
-        const { immediate, deferred, settled } = planPageEnter();
+        const { immediate, deferred, settled } = planPageEnter({ forceEnterOnce: fromPostTitleHold });
         const replayable = [];
 
         [...immediate.map((entry) => entry.el), ...deferred].forEach((el) => {
@@ -993,9 +998,10 @@ const {
         });
 
         if (immediate.length) {
-          // Leave a beat after the page swap so the "page turn" reads before parts fly in
+          // Leave a beat after the page swap so the "page turn" reads before parts fly in;
+          // when releasing directly after post title docks, start right away with no dead gap.
           const tl = gsap.timeline({
-            delay: hasNavigated ? 0.14 : 0.06,
+            delay: fromPostTitleHold ? 0.02 : (hasNavigated ? 0.14 : 0.06),
             onComplete: () => {
               document.documentElement.classList.remove('js-enter');
             },
@@ -1084,20 +1090,30 @@ const {
       let holdRelease = null;
       let holdTimer = 0;
       let releasedEarly = false;
-      window.__releasePageEnter = (options) => {
+      window.__releasePageEnter = (options = {}) => {
         window.clearTimeout(holdTimer);
-        document.documentElement.classList.remove('js-enter');
+        const wasPostTitleHold = Boolean(
+          options?.fromPostTitleHold ||
+          (window as any).__postTitleHoldPending ||
+          document.documentElement.hasAttribute('data-post-title-hold') ||
+          document.body.hasAttribute('data-post-title-hold') ||
+          document.querySelector('article[data-post-title-hold]')
+        );
         document.documentElement.removeAttribute('data-post-title-hold');
         document.body.removeAttribute('data-post-title-hold');
         document.querySelectorAll('article[data-post-title-hold]').forEach((a) => a.removeAttribute('data-post-title-hold'));
         document.documentElement.style.overflow = '';
         document.body.style.overflow = '';
+        const mergedOptions = { ...options, fromPostTitleHold: wasPostTitleHold };
         if (holdRelease) {
           const release = holdRelease;
           holdRelease = null;
-          release(options);
+          release(mergedOptions);
+        } else if (enteredThisDocument && wasPostTitleHold) {
+          initPageEnter(mergedOptions);
         } else {
           releasedEarly = true;
+          document.documentElement.classList.remove('js-enter');
         }
       };
       function runPageEnter() {
@@ -1191,6 +1207,9 @@ const {
         // Astro resets <html> attributes on swap — re-arm the pre-paint hide
         document.documentElement.classList.add('js-enter');
         if (document.querySelector('article[data-post-title-hold]') || (window as any).__postTitleHoldPending) {
+          if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && !window.location.hash) {
+            (window as any).__postTitleHoldPending = true;
+          }
           document.documentElement.setAttribute('data-post-title-hold', 'true');
           document.documentElement.style.overflow = 'hidden';
           document.body.setAttribute('data-post-title-hold', 'true');

@@ -214,57 +214,96 @@
   <div class="drawer-drag-handle max-lg:block hidden" aria-hidden="true"></div>
   <!-- 抽屉头部 -->
   <div class="notes-drawer-header">
-    <div class="notes-drawer-title-area">
-      <span class="notes-drawer-icon" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="m9 11-6 6v3h3l6-6"></path>
-          <path d="m22 2-2.5 2.5a2.12 2.12 0 0 1-3 0l-1-1a2.12 2.12 0 0 1 0-3L18 0z"></path>
-          <path d="M14.5 5.5 18.5 9.5"></path>
-        </svg>
-      </span>
-      <h2 class="notes-drawer-heading">高亮笔记</h2>
-      <span class="notes-count-tag" id="notes-header-count">0 条划线</span>
-    </div>
-    <div class="notes-drawer-actions">
-      <button
-        type="button"
-        class="notes-drawer-close-btn"
-        id="notes-drawer-close-btn"
-        aria-label="关闭笔记抽屉 (Esc)"
-        title="关闭 (Esc)"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
+    <div class="notes-drawer-header-inner">
+      <div class="notes-drawer-title-area">
+        <span class="notes-drawer-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 11-6 6v3h3l6-6"></path>
+            <path d="m22 2-2.5 2.5a2.12 2.12 0 0 1-3 0l-1-1a2.12 2.12 0 0 1 0-3L18 0z"></path>
+            <path d="M14.5 5.5 18.5 9.5"></path>
+          </svg>
+        </span>
+        <h2 class="notes-drawer-heading">高亮笔记</h2>
+        <span class="notes-count-tag" id="notes-header-count">0 条划线</span>
+        <div class="notes-drawer-filter-group" id="notes-drawer-filter-group">
+          <button type="button" class="notes-filter-pill is-active" data-notes-filter="all">全部</button>
+          <button type="button" class="notes-filter-pill" data-notes-filter="highlight">划线</button>
+          <button type="button" class="notes-filter-pill" data-notes-filter="ai">AI 伴读</button>
+          <button type="button" class="notes-filter-pill" data-notes-filter="comment">带备注</button>
+        </div>
+      </div>
+      <div class="notes-drawer-actions">
+        <!-- 更多操作下拉菜单 (新建、导出、清空) -->
+        <div class="notes-drawer-menu-wrap" id="notes-drawer-menu-wrap">
+          <button
+            type="button"
+            class="notes-drawer-menu-btn"
+            id="notes-drawer-menu-btn"
+            aria-label="笔记操作菜单"
+            aria-haspopup="true"
+            aria-expanded="false"
+            title="更多操作（新建/导出/清空）"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="1.5"></circle>
+              <circle cx="19" cy="12" r="1.5"></circle>
+              <circle cx="5" cy="12" r="1.5"></circle>
+            </svg>
+          </button>
+          <div class="notes-drawer-dropdown" id="notes-drawer-dropdown" hidden role="menu">
+            <button type="button" class="notes-dropdown-item" id="notes-new-btn" role="menuitem">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>新建独立笔记</span>
+            </button>
+            <button type="button" class="notes-dropdown-item" id="notes-export-btn" role="menuitem">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+              </svg>
+              <span id="notes-export-btn-text">导出 Markdown</span>
+            </button>
+            <div class="notes-dropdown-divider" aria-hidden="true"></div>
+            <button type="button" class="notes-dropdown-item is-danger" id="notes-clear-all-btn" role="menuitem">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              <span>清空全部划线</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="notes-drawer-maximize-btn"
+          id="notes-drawer-maximize-btn"
+          aria-label="全屏切换"
+          title="放大到全屏 (双击标题栏)"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        </button>
+        <button
+          type="button"
+          class="notes-drawer-close-btn"
+          id="notes-drawer-close-btn"
+          aria-label="关闭笔记抽屉 (Esc)"
+          title="关闭 (Esc)"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- 抽屉列表内容区域 -->
   <div class="notes-drawer-body" id="notes-drawer-list" data-lenis-prevent>
     <!-- Dynamic note items rendered here -->
-  </div>
-
-  <!-- 抽屉底栏导出 -->
-  <div class="notes-drawer-footer">
-    <button type="button" class="notes-new-btn" id="notes-new-btn" title="新建一条不绑定正文位置的笔记">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <line x1="12" y1="5" x2="12" y2="19"></line>
-        <line x1="5" y1="12" x2="19" y2="12"></line>
-      </svg>
-      <span>新建笔记</span>
-    </button>
-    <button type="button" class="notes-export-btn" id="notes-export-btn" title="将所有高亮整理导出为 Markdown">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-      </svg>
-      <span id="notes-export-btn-text">导出 Markdown 笔记</span>
-    </button>
-    <button type="button" class="notes-clear-btn" id="notes-clear-all-btn" title="清空此文全部高亮划线">
-      清空
-    </button>
   </div>
 </aside>
 
@@ -283,6 +322,7 @@
   import { initNotesSync } from '../utils/notesSync';
   import { renderMarkdown } from '../utils/inkAskMarkdown';
   import { bindScrollIsolation } from '../utils/scrollIsolation';
+  import { lockScrollAnchor } from '../utils/scrollAnchorLock';
 
   initNotesSync();
 
@@ -330,6 +370,147 @@
     const backdrop = document.getElementById('article-notes-backdrop');
     const drawerList = document.getElementById('notes-drawer-list');
     const drawerCloseBtn = document.getElementById('notes-drawer-close-btn');
+    const drawerMaxBtn = document.getElementById('notes-drawer-maximize-btn') as HTMLButtonElement | null;
+    const notesDrawerHeader = drawer?.querySelector('.notes-drawer-header');
+
+    function captureDrawerCardRects(): Map<string, DOMRect> {
+      const rects = new Map<string, DOMRect>();
+      if (!drawerList) return rects;
+      drawerList.querySelectorAll<HTMLElement>('.notes-item-card').forEach((card) => {
+        const id = card.dataset.noteId;
+        if (id) rects.set(id, card.getBoundingClientRect());
+      });
+      return rects;
+    }
+
+    let currentNotesFilter = 'all';
+    const expandedNoteIds = new Set<string>();
+    const useTwoNoteColumns = () =>
+      Boolean(drawer?.classList.contains('is-maximized') && window.innerWidth > 900);
+
+    const toggleNotesMaximize = () => {
+      if (!drawer) return;
+      lockScrollAnchor(400);
+
+      const first = drawer.getBoundingClientRect();
+      const isMax = drawer.classList.toggle('is-maximized');
+      document.body.classList.toggle('notes-drawer-maximized', isMax);
+      if (drawerMaxBtn) {
+        drawerMaxBtn.innerHTML = isMax
+          ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg>'
+          : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+        drawerMaxBtn.title = isMax ? '还原侧边栏 (双击标题栏 / Esc)' : '放大到全屏 (双击标题栏)';
+      }
+
+      // 全屏/侧栏的列数不同，重排一次但保持展开状态
+      if (drawer.classList.contains('is-open')) {
+        renderDrawerNotes({ suppressAnimation: true });
+      }
+
+      const last = drawer.getBoundingClientRect();
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+      const sx = first.width / (last.width || 1);
+      const sy = first.height / (last.height || 1);
+
+      drawer.style.transformOrigin = 'top left';
+      drawer.style.transition = 'none';
+      drawer.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${sx}, ${sy})`;
+      void drawer.offsetHeight; // Force browser layout flush so the inverted transform takes effect!
+
+      drawer.style.transition = 'transform 380ms cubic-bezier(0.175, 0.885, 0.32, 1.12), border-radius 380ms ease';
+      drawer.style.transform = 'translate3d(0, 0, 0) scale(1, 1)';
+
+      const onEnd = (e: TransitionEvent) => {
+        if (e.target !== drawer || e.propertyName !== 'transform') return;
+        drawer.style.transition = '';
+        drawer.style.transform = '';
+        drawer.style.transformOrigin = '';
+        drawer.removeEventListener('transitionend', onEnd);
+      };
+      drawer.addEventListener('transitionend', onEnd);
+      setTimeout(() => {
+        drawer.style.transition = '';
+        drawer.style.transform = '';
+        drawer.style.transformOrigin = '';
+        drawer.removeEventListener('transitionend', onEnd);
+      }, 450);
+    };
+    drawerMaxBtn?.addEventListener('click', toggleNotesMaximize, { signal });
+    notesDrawerHeader?.addEventListener('dblclick', (e) => {
+      if ((e.target as HTMLElement).closest('button')) return;
+      toggleNotesMaximize();
+    }, { signal });
+
+    const filterGroup = document.getElementById('notes-drawer-filter-group');
+    let isFilterSwitching = false;
+    function switchNotesFilter(targetFilter: string) {
+      if (isFilterSwitching || targetFilter === currentNotesFilter) return;
+      if (!drawerList) return;
+
+      currentNotesFilter = targetFilter;
+      filterGroup?.querySelectorAll('.notes-filter-pill').forEach((pill) => {
+        pill.classList.toggle('is-active', (pill as HTMLElement).dataset.notesFilter === targetFilter);
+      });
+
+      const allRecords = storedRecords.filter((r) => !r.deleted);
+      let nextVisible = allRecords;
+      if (targetFilter === 'highlight') {
+        nextVisible = nextVisible.filter((r) => (r.kind || 'highlight') === 'highlight');
+      } else if (targetFilter === 'ai') {
+        nextVisible = nextVisible.filter((r) => r.kind === 'ai');
+      } else if (targetFilter === 'comment') {
+        nextVisible = nextVisible.filter((r) => !!r.comment?.trim());
+      }
+      const nextVisibleIds = new Set(nextVisible.map((r) => r.id));
+
+      const existingCards = Array.from(drawerList.querySelectorAll<HTMLElement>('.notes-item-card'));
+      const leavingCards: HTMLElement[] = [];
+      const retainedFirstRects = new Map<string, DOMRect>();
+
+      for (const card of existingCards) {
+        const id = card.dataset.noteId;
+        if (id && nextVisibleIds.has(id)) {
+          retainedFirstRects.set(id, card.getBoundingClientRect());
+        } else {
+          leavingCards.push(card);
+        }
+      }
+
+      if (leavingCards.length > 0) {
+        isFilterSwitching = true;
+        // 用 WAAPI 显式播放退场，避免被内联 animation:none / 其它样式覆盖而“瞬间消失”
+        const exits = leavingCards.map((card) => {
+          card.classList.add('is-filtering-out');
+          return card.animate([
+            { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)', filter: 'blur(0px)' },
+            { opacity: 0, transform: 'translate3d(0, -8px, 0) scale(0.95)', filter: 'blur(2px)' },
+          ], {
+            duration: 220,
+            easing: 'cubic-bezier(0.4, 0, 1, 1)',
+            fill: 'forwards',
+          }).finished.catch(() => undefined);
+        });
+        let switched = false;
+        const finishSwitch = () => {
+          if (switched) return;
+          switched = true;
+          renderDrawerNotes({ retainedFirstRects });
+          isFilterSwitching = false;
+        };
+        Promise.all(exits).then(finishSwitch);
+        setTimeout(finishSwitch, 320);
+      } else {
+        renderDrawerNotes({ retainedFirstRects });
+      }
+    }
+
+    filterGroup?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-notes-filter]');
+      if (!btn) return;
+      const target = btn.dataset.notesFilter || 'all';
+      switchNotesFilter(target);
+    }, { signal });
     let unbindDrawerScroll: (() => void) | null = null;
     if (drawer) {
       unbindDrawerScroll = bindScrollIsolation(drawer, {
@@ -340,6 +521,158 @@
     const exportBtnText = document.getElementById('notes-export-btn-text');
     const clearAllBtn = document.getElementById('notes-clear-all-btn');
     const newNoteBtn = document.getElementById('notes-new-btn');
+
+    // 更多操作下拉菜单逻辑
+    const menuBtn = document.getElementById('notes-drawer-menu-btn') as HTMLButtonElement | null;
+    const menuDropdown = document.getElementById('notes-drawer-dropdown') as HTMLElement | null;
+
+    const closeMenu = () => {
+      if (!menuDropdown || menuDropdown.hidden) return;
+      menuDropdown.hidden = true;
+      menuBtn?.setAttribute('aria-expanded', 'false');
+    };
+
+    menuBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!menuDropdown) return;
+      const willOpen = menuDropdown.hidden;
+      menuDropdown.hidden = !willOpen;
+      menuBtn.setAttribute('aria-expanded', String(willOpen));
+    }, { signal });
+
+    document.addEventListener('click', (e) => {
+      if (!(e.target as HTMLElement).closest('#notes-drawer-menu-wrap')) {
+        closeMenu();
+      }
+    }, { signal });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && menuDropdown && !menuDropdown.hidden) {
+        e.stopPropagation();
+        closeMenu();
+      }
+    }, { signal });
+
+    menuDropdown?.addEventListener('click', () => {
+      closeMenu();
+    }, { signal });
+
+    // 检查卡片内容是否超长（> 185px），设置 has-overflow 以激活规整折叠与展开功能
+    function checkCardOverflow(card: HTMLElement) {
+      const content = card.querySelector<HTMLElement>('.notes-card-content');
+      if (!content) return;
+      const isOverflow = content.scrollHeight > 185;
+      const hadOverflow = card.classList.contains('has-overflow');
+      if (isOverflow === hadOverflow) return;
+      // 首次渲染/筛选时不要播放 170px 的 max-height 收缩过渡，否则会先撑开再缩回
+      content.style.transition = 'none';
+      card.classList.toggle('has-overflow', isOverflow);
+      void content.offsetHeight;
+      content.style.transition = '';
+    }
+
+    function restoreExpandedCard(card: HTMLElement) {
+      const id = card.dataset.noteId;
+      if (!id || !expandedNoteIds.has(id) || card.classList.contains('is-expanded')) return;
+      const content = card.querySelector<HTMLElement>('.notes-card-content');
+      if (!content) return;
+      card.classList.add('is-expanded');
+      content.style.maxHeight = 'none';
+      const indicator = card.querySelector('.notes-card-expand-indicator');
+      if (indicator) indicator.setAttribute('aria-label', '收起笔记');
+      const footerText = card.querySelector('.notes-expand-footer-text');
+      if (footerText) footerText.textContent = '收起全文';
+    }
+
+    function refreshVisibleCardOverflow() {
+      if (!drawerList || !drawer?.classList.contains('is-open')) return;
+      drawerList.querySelectorAll<HTMLElement>('.notes-item-card').forEach((card) => {
+        checkCardOverflow(card);
+        restoreExpandedCard(card);
+      });
+    }
+
+    // 笔记卡片折叠/展开：Web Animations API 真实高度平滑手风琴补间
+    function toggleCardExpansion(card: HTMLElement) {
+      // 按卡片加锁：卡片被重绘/移除导致动画取消时不会把全局锁卡死
+      if (card.dataset.expansionAnimating === 'true') return;
+      const content = card.querySelector<HTMLElement>('.notes-card-content');
+      if (!content) return;
+
+      const isExpanding = !card.classList.contains('is-expanded');
+      const noteId = card.dataset.noteId;
+      if (noteId) {
+        if (isExpanding) expandedNoteIds.add(noteId);
+        else expandedNoteIds.delete(noteId);
+      }
+      const indicator = card.querySelector('.notes-card-expand-indicator');
+      const footerText = card.querySelector('.notes-expand-footer-text');
+
+      card.dataset.expansionAnimating = 'true';
+      const releaseLock = () => { delete card.dataset.expansionAnimating; };
+      // 高度差越大时长越长，避免长文一帧“闪开”看不到过程
+      const durationFor = (delta: number) => Math.round(Math.min(640, Math.max(360, Math.abs(delta) * 0.9)));
+
+      if (isExpanding) {
+        const startH = content.getBoundingClientRect().height;
+        card.classList.add('is-expanded');
+        content.style.maxHeight = 'none';
+        const targetH = content.scrollHeight;
+
+        if (indicator) indicator.setAttribute('aria-label', '收起笔记');
+        if (footerText) footerText.textContent = '收起全文';
+
+        const anim = content.animate([
+          { maxHeight: `${startH}px` },
+          { maxHeight: `${targetH}px` }
+        ], {
+          duration: durationFor(targetH - startH),
+          easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
+        });
+
+        const onDone = () => {
+          content.style.maxHeight = 'none';
+          releaseLock();
+        };
+        anim.onfinish = onDone;
+        anim.oncancel = onDone;
+      } else {
+        const startH = content.getBoundingClientRect().height;
+        const targetH = 170; // 规整预览基准高度
+
+        // 若视口已在卡片中下部，收起时平滑将滚动位置对齐到卡片顶部，确保收起后视线始终锁定在当前卡片
+        const cardRect = card.getBoundingClientRect();
+        const scrollContainer = drawer?.querySelector<HTMLElement>('.notes-drawer-body');
+        if (scrollContainer && cardRect.top < 70) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        if (indicator) indicator.setAttribute('aria-label', '展开笔记');
+        if (footerText) footerText.textContent = '展开阅读全文';
+
+        const anim = content.animate([
+          { maxHeight: `${startH}px` },
+          { maxHeight: `${targetH}px` }
+        ], {
+          duration: durationFor(startH - targetH),
+          easing: 'cubic-bezier(0.65, 0, 0.35, 1)',
+          fill: 'forwards'
+        });
+
+        let collapsed = false;
+        const onDone = () => {
+          if (collapsed) return;
+          collapsed = true;
+          // 先切回折叠态的 CSS max-height，再撤掉动画，避免末帧回弹
+          card.classList.remove('is-expanded');
+          content.style.maxHeight = '';
+          anim.cancel();
+          releaseLock();
+        };
+        anim.onfinish = onDone;
+        anim.oncancel = onDone;
+      }
+    }
 
     let currentSelectedRange: Range | null = null;
     let activeHighlightId: string | null = null;
@@ -564,10 +897,10 @@
       const record = serializeHighlight(currentSelectedRange, prose);
       if (!record) return;
 
-      const marks = applyHighlightToRange(currentSelectedRange, record);
+      const marks = applyHighlightToRange(currentSelectedRange, record, true);
       if (marks.length > 0) {
         const now = Date.now();
-        storedRecords.push({
+        const newRecord: ArticleHighlightRecord = {
           ...record,
           kind: 'highlight',
           comment: '',
@@ -575,12 +908,50 @@
           postTitle: postTitle(),
           updatedAt: now,
           dirty: true,
-        });
-        saveRecords();
+        };
+        storedRecords.push(newRecord);
 
-        // 柔和微波反馈
-        marks[0]?.classList.add('has-pulse');
-        setTimeout(() => marks[0]?.classList.remove('has-pulse'), 1800);
+        // 如果抽屉处于打开状态，捕获现有卡片的物理矩形，杜绝旧卡片闪白，并优雅播放 FLIP 下移让位
+        const isDrawerOpen = Boolean(drawer?.classList.contains('is-open'));
+        const retainedFirstRects = isDrawerOpen ? captureDrawerCardRects() : undefined;
+
+        saveHighlights(postSlug, storedRecords);
+        updateBadges();
+        if (isDrawerOpen) {
+          renderDrawerNotes({ retainedFirstRects, newNoteId: newRecord.id });
+        }
+        window.dispatchEvent(new CustomEvent('article-notes:changed'));
+
+        // 水墨笔意舒展动效 (Ink-Sweep: 0.4x 优雅慢调，单笔笔势如流水贯穿整句)
+        const totalChars = marks.reduce((sum, m) => sum + Math.max(1, m.textContent?.length || 1), 0);
+        const totalDuration = 450; // 0.4x 呼吸节奏
+
+        let accumulatedChars = 0;
+        marks.forEach((m) => {
+          const charCount = Math.max(1, m.textContent?.length || 1);
+          const fraction = charCount / totalChars;
+          const delay = Math.round((accumulatedChars / totalChars) * totalDuration);
+          const duration = Math.max(30, Math.round(fraction * totalDuration));
+          accumulatedChars += charCount;
+
+          m.style.setProperty('--mark-draw-delay', `${delay}ms`);
+          m.style.setProperty('--mark-draw-duration', `${duration}ms`);
+          m.classList.add('is-drawing');
+        });
+
+        // 划完立即清掉原生选区，避免橙红选区与黄色 mark 同时存在，看起来像闪一下
+        try {
+          window.getSelection()?.removeAllRanges();
+        } catch {}
+
+        // 统一在整句笔势绘制完毕后温和清理动效类名，避免分段逐个移除产生图层跳跃或闪烁重演
+        setTimeout(() => {
+          marks.forEach((m) => {
+            m.classList.remove('is-drawing');
+            m.style.removeProperty('--mark-draw-delay');
+            m.style.removeProperty('--mark-draw-duration');
+          });
+        }, totalDuration + 60);
       }
 
       try {
@@ -728,13 +1099,47 @@
       }, 700);
     }
 
-    // 6. 🗑️ 取消划线 / 删除笔记
-    function triggerDeleteHighlight(targetId?: string, skipDrawerSync = false) {
+    // 6. 🗑️ 取消划线 / 删除笔记（正文平滑褪色 + 抽屉卡片物理淡出 + 唯一单次 FLIP 补位，采用 0.4x 呼吸感节奏）
+    function fadeOutAndRemoveHighlight(id: string) {
+      const marks = Array.from(prose.querySelectorAll<HTMLElement>(`mark[data-highlight-id="${id}"]`));
+      if (marks.length === 0) {
+        removeHighlightFromDOM(id, prose);
+        return;
+      }
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        removeHighlightFromDOM(id, prose);
+        return;
+      }
+
+      // 只收走底纹，不隐藏文字；文字一旦 opacity:0，解包后会立刻重新出现，造成闪跳
+      marks.forEach((mark) => {
+        mark.classList.remove('is-drawing');
+        mark.classList.add('is-fading-out');
+        mark.style.setProperty('animation', 'none', 'important');
+        mark.style.setProperty('transition', 'background-size 380ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 380ms cubic-bezier(0.4, 0, 0.2, 1)', 'important');
+        mark.style.setProperty('background-size', '0% 1.5px, 0% 100%', 'important');
+        mark.style.setProperty('box-shadow', 'none', 'important');
+      });
+
+      // 380ms 底纹收束完毕后再解包；此时文字始终可见，不会出现空白帧
+      setTimeout(() => {
+        removeHighlightFromDOM(id, prose);
+      }, 380);
+    }
+
+    let isDeletingHighlight = false;
+    function triggerDeleteHighlight(targetId?: string) {
+      if (isDeletingHighlight) return;
       const id = targetId || activeHighlightId;
       if (!id) return;
 
+      isDeletingHighlight = true;
       const target = storedRecords.find((r) => r.id === id);
-      removeHighlightFromDOM(id, prose);
+
+      // 1. 正文高亮 mark 平滑褪色渐隐（550ms 优雅慢调节奏）
+      fadeOutAndRemoveHighlight(id);
+
+      // 2. 更新本地与持久化数据，但【绝不】在此时同步重刷抽屉 DOM，防止卡片被提前抹除
       if (target) {
         target.deleted = true;
         target.updatedAt = Date.now();
@@ -742,19 +1147,47 @@
       } else {
         storedRecords = storedRecords.filter((r) => r.id !== id);
       }
-      saveRecords();
-
-      if (drawer?.classList.contains('is-open')) {
-        if (!skipDrawerSync || storedRecords.filter((r) => !r.deleted).length === 0) {
-          renderDrawerNotes();
-        }
-      }
+      saveHighlights(postSlug, storedRecords);
+      updateBadges();
+      window.dispatchEvent(new CustomEvent('article-notes:changed'));
 
       showStamp((target?.kind || 'highlight') === 'highlight' ? '已取消划线' : '已删除笔记');
       hideDock();
+
+      // 3. 抽屉卡片退出与 FLIP 补位动效
+      const isDrawerOpen = drawer?.classList.contains('is-open');
+      if (!isDrawerOpen || !drawerList) {
+        isDeletingHighlight = false;
+        return;
+      }
+
+      const targetCard = drawerList.querySelector<HTMLElement>(`.notes-item-card[data-note-id="${id}"]`);
+      if (!targetCard) {
+        renderDrawerNotes();
+        isDeletingHighlight = false;
+        return;
+      }
+
+      // 卡片在抽屉中：执行纯视觉向右微滑并淡出（450ms），绝对不改变文档流占位高度，其余卡片保持静止
+      targetCard.dataset.deleting = 'true';
+      smoothRemoveNoteCard(targetCard, false, () => {
+        // 第一步：目标卡片已经完全透明隐形，捕获其余所有存留卡片的精确物理视口位置 (First)
+        const allCards = Array.from(drawerList.querySelectorAll<HTMLElement>('.notes-item-card'));
+        const remainingCards = allCards.filter(c => c !== targetCard);
+        const retainedFirstRects = new Map<string, DOMRect>();
+        for (const c of remainingCards) {
+          const cId = c.dataset.noteId;
+          if (cId) retainedFirstRects.set(cId, c.getBoundingClientRect());
+        }
+
+        // 第二步：从 DOM 移除目标卡片，重绘列表并执行唯一一次标准 FLIP
+        targetCard.remove();
+        renderDrawerNotes({ retainedFirstRects });
+        isDeletingHighlight = false;
+      });
     }
 
-    // 7. 优雅卡片退出动画（向右轻盈滑出并折叠高度，与 Pin 工作台卡片保持一致的物理质感）
+    // 7. 优雅卡片退出动画（保持原位占位纯视觉平移淡出，动画结束后统一重排并执行唯一一次标准 FLIP，彻底消除重复重排与高度突跳）
     function smoothRemoveNoteCard(targetEl: HTMLElement, isGroup: boolean, onComplete: () => void) {
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         targetEl.remove();
@@ -762,45 +1195,25 @@
         return;
       }
       targetEl.style.pointerEvents = 'none';
-      const startHeight = targetEl.offsetHeight;
-      const marginAbsorb = isGroup ? '-1.2rem' : '-0.65rem';
 
       const anim = targetEl.animate([
         {
           opacity: 1,
           transform: 'translate3d(0, 0, 0) scale(1)',
-          maxHeight: `${startHeight}px`,
-          marginBottom: '0px',
-          paddingTop: '',
-          paddingBottom: '',
-          overflow: 'hidden',
-        },
-        {
-          opacity: 0.65,
-          transform: 'translate3d(28px, -2px, 0) scale(0.98)',
-          maxHeight: `${Math.round(startHeight * 0.65)}px`,
-          marginBottom: '0px',
-          offset: 0.44,
+          filter: 'blur(0px)',
         },
         {
           opacity: 0,
-          transform: 'translate3d(56px, -4px, 0) scale(0.92)',
-          maxHeight: '0px',
-          marginBottom: marginAbsorb,
-          paddingTop: '0px',
-          paddingBottom: '0px',
-          borderWidth: '0px',
-          overflow: 'hidden',
-          offset: 1,
+          transform: 'translate3d(36px, -4px, 0) scale(0.92)',
+          filter: 'blur(2px)',
         }
       ], {
-        duration: 380,
+        duration: 450, // 0.4x 优雅滑出
         easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
         fill: 'forwards'
       });
 
       anim.onfinish = () => {
-        targetEl.remove();
         onComplete();
       };
     }
@@ -827,6 +1240,12 @@
 
       if (e.key === 'Escape') {
         if (drawer?.classList.contains('is-open')) {
+          if (drawer.classList.contains('is-maximized')) {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleNotesMaximize();
+            return;
+          }
           closeNotesDrawer();
           return;
         }
@@ -864,14 +1283,24 @@
     }, { signal });
 
     // ---------- 高亮笔记抽屉 (Notes Drawer) ----------
-    function renderDrawerNotes() {
+    function renderDrawerNotes(opts?: { retainedFirstRects?: Map<string, DOMRect>; suppressAnimation?: boolean; newNoteId?: string }) {
       if (!drawerList) return;
+      const prevScrollTop = drawerList.scrollTop;
       drawerList.innerHTML = '';
 
-      const visible = storedRecords.filter((r) => !r.deleted);
+      const allRecords = storedRecords.filter((r) => !r.deleted);
+      let visible = allRecords;
+      if (currentNotesFilter === 'highlight') {
+        visible = visible.filter((r) => (r.kind || 'highlight') === 'highlight');
+      } else if (currentNotesFilter === 'ai') {
+        visible = visible.filter((r) => r.kind === 'ai');
+      } else if (currentNotesFilter === 'comment') {
+        visible = visible.filter((r) => !!r.comment?.trim());
+      }
+
       if (visible.length === 0) {
         const empty = document.createElement('div');
-        empty.className = 'notes-empty-state';
+        empty.className = 'notes-empty-state' + (opts?.retainedFirstRects ? ' is-filtering-in' : '');
         empty.innerHTML = `
           <div class="notes-empty-icon" aria-hidden="true">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -879,8 +1308,8 @@
               <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
             </svg>
           </div>
-          <p class="notes-empty-title">暂无笔记</p>
-          <p class="notes-empty-desc">在正文中选中文字划线、写备注，或把墨问的回答存入笔记～</p>
+          <p class="notes-empty-title">${allRecords.length === 0 ? '暂无笔记' : '无匹配笔记'}</p>
+          <p class="notes-empty-desc">${allRecords.length === 0 ? '在正文中选中文字划线、写备注，或把墨问的回答存入笔记～' : '当前分类下暂无笔记，可切换其他分类查看。'}</p>
         `;
         drawerList.appendChild(empty);
         return;
@@ -961,28 +1390,85 @@
         }
       }
 
-      function buildCard(item: ArticleHighlightRecord, jumpable: boolean, index = 0): HTMLElement {
+      function buildCard(item: ArticleHighlightRecord, jumpable: boolean, index = 0, retainedRects?: Map<string, DOMRect>): HTMLElement {
         const card = document.createElement('div');
         card.className = 'notes-item-card';
         card.dataset.noteId = item.id;
-        card.style.animationDelay = `${Math.min(index, 8) * 35}ms`;
+
+        if (retainedRects) {
+          // 筛选切换：保留卡只做位置 FLIP，新出现的卡片在渲染后用 WAAPI 补入场
+          card.style.animation = 'none';
+        } else {
+          card.style.animationDelay = `${Math.min(index, 8) * 35}ms`;
+        }
+
+        const cardTopRow = document.createElement('div');
+        cardTopRow.className = 'notes-card-top-row';
+
+        const chapterTag = document.createElement('span');
+        chapterTag.className = 'notes-card-chapter-tag';
+        const kindPrefix = item.kind === 'ai' ? 'AI · ' : item.kind === 'free' ? '自由 · ' : '划线 · ';
+        chapterTag.textContent = kindPrefix + (item.headingText ? `§ ${item.headingText}` : '§ 正文段落');
+
+        const expandIndicator = document.createElement('button');
+        expandIndicator.type = 'button';
+        expandIndicator.className = 'notes-card-expand-indicator';
+        expandIndicator.setAttribute('aria-label', '展开或收起笔记');
+        expandIndicator.title = '展开/收起笔记';
+        expandIndicator.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        `;
+        expandIndicator.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleCardExpansion(card);
+        });
+
+        cardTopRow.append(chapterTag, expandIndicator);
+        card.appendChild(cardTopRow);
+
+        const contentWrap = document.createElement('div');
+        contentWrap.className = 'notes-card-content';
 
         if (item.kind === 'ai' && item.question) {
           const questionEl = document.createElement('p');
           questionEl.className = 'notes-item-question';
           questionEl.textContent = `问：${item.question}`;
-          card.appendChild(questionEl);
+          contentWrap.appendChild(questionEl);
         }
 
         const body = document.createElement('div');
         body.className = 'notes-item-text notes-item-markdown' + (item.kind === 'highlight' ? ' is-highlight-quote' : '');
         body.innerHTML = renderMarkdown(item.text);
-        card.appendChild(body);
+        contentWrap.appendChild(body);
 
         const commentEl = document.createElement('div');
         commentEl.className = 'notes-item-comment';
         paintComment(commentEl, item.comment || '');
-        card.appendChild(commentEl);
+        contentWrap.appendChild(commentEl);
+
+        const fadeVeil = document.createElement('div');
+        fadeVeil.className = 'notes-card-fade-veil';
+        contentWrap.appendChild(fadeVeil);
+
+        card.appendChild(contentWrap);
+
+        const expandFooter = document.createElement('div');
+        expandFooter.className = 'notes-card-expand-footer';
+        expandFooter.innerHTML = `
+          <button type="button" class="notes-expand-footer-btn">
+            <span class="notes-expand-footer-text">展开阅读全文</span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+        `;
+        expandFooter.querySelector('button')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleCardExpansion(card);
+        });
+        card.appendChild(expandFooter);
 
         const metaRow = document.createElement('div');
         metaRow.className = 'notes-item-meta';
@@ -1002,6 +1488,9 @@
           jumpBtn.innerHTML = `<span>定位</span>`;
           jumpBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (drawer?.classList.contains('is-maximized')) {
+              toggleNotesMaximize();
+            }
             jumpToHighlight(item.id);
           });
           actGroup.appendChild(jumpBtn);
@@ -1092,8 +1581,11 @@
               commentEl.classList.add('is-pop');
             }
             commentBtn.innerHTML = `<span>${value ? '改备注' : '备注'}</span>`;
-            saveRecords();
+            saveHighlights(postSlug, storedRecords);
+            updateBadges();
+            window.dispatchEvent(new CustomEvent('article-notes:changed'));
             closeEditor();
+            checkCardOverflow(card);
           };
 
           saveBtn.addEventListener('click', commit);
@@ -1137,27 +1629,18 @@
         delBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           if (card.dataset.deleting === 'true') return;
-          card.dataset.deleting = 'true';
-
-          const groupEl = card.closest('.notes-section-group');
-          const isSoleCard = (groupEl ? groupEl.querySelectorAll('.notes-item-card').length : 1) <= 1;
-          const targetEl = isSoleCard ? (groupEl || card) : card;
-
-          smoothRemoveNoteCard(targetEl, isSoleCard, () => {
-            if (!isSoleCard && groupEl && groupEl.querySelectorAll('.notes-item-card').length === 0) {
-              groupEl.remove();
-            }
-            triggerDeleteHighlight(item.id, true);
-          });
+          triggerDeleteHighlight(item.id);
         });
         actGroup.appendChild(delBtn);
 
         metaRow.append(timeSpan, actGroup);
         card.append(metaRow);
 
-        if (jumpable) {
-          card.addEventListener('click', () => jumpToHighlight(item.id));
-        }
+        card.addEventListener('click', (e) => {
+          if ((e.target as HTMLElement).closest('button, input, textarea, a, .notes-item-comment-editor')) return;
+          // 展开只由底部按钮触发；点击卡片本身不展开，避免小红书式整卡点击
+          if (jumpable) jumpToHighlight(item.id);
+        });
         return card;
       }
 
@@ -1171,22 +1654,137 @@
         headEl.textContent = title;
         secEl.appendChild(headEl);
 
-        for (const [index, item] of items.entries()) secEl.appendChild(buildCard(item, jumpable, index));
+        const twoCols = useTwoNoteColumns();
+        let columnsEl: HTMLElement | null = null;
+        let colEls: HTMLElement[] = [];
+        if (twoCols) {
+          columnsEl = document.createElement('div');
+          columnsEl.className = 'notes-columns';
+          colEls = [document.createElement('div'), document.createElement('div')];
+          colEls.forEach((col) => {
+            col.className = 'notes-column';
+            columnsEl!.appendChild(col);
+          });
+          secEl.appendChild(columnsEl);
+        }
+
+        const cards = items.map((item, index) => buildCard(item, jumpable, index, opts?.retainedFirstRects));
+        if (twoCols) {
+          // 先用实际渲染高度称重，再放进较矮的列，避免只按字数估算导致一边空掉
+          cards.forEach((card) => colEls[0].appendChild(card));
+          const heights = cards.map((card) => Math.min(320, card.offsetHeight || 190));
+          colEls[0].innerHTML = '';
+          const colHeights = [0, 0];
+          cards.forEach((card, index) => {
+            const target = colHeights[0] <= colHeights[1] ? 0 : 1;
+            colEls[target].appendChild(card);
+            colHeights[target] += heights[index];
+          });
+        } else {
+          cards.forEach((card) => secEl.appendChild(card));
+        }
+
         drawerList.appendChild(secEl);
       };
 
-      appendGroup('AI 问答摘录', aiNotes, false);
-      appendGroup('自由笔记', freeNotes, false);
+      if (useTwoNoteColumns()) {
+        // 全屏把所有笔记放进同一个瀑布流，避免每个分类各起两列后在右/左留下大块空白
+        const entries = [
+          ...aiNotes.map((item) => ({ item, jumpable: false })),
+          ...freeNotes.map((item) => ({ item, jumpable: false })),
+          ...highlights.map((item) => ({ item, jumpable: true })),
+        ].sort((a, b) => b.item.timestamp - a.item.timestamp);
 
-      // 划线笔记仍按小节分组
-      const sectionMap = new Map<string, ArticleHighlightRecord[]>();
-      for (const rec of highlights) {
-        const sec = rec.headingText || '§ 导言 / 正文';
-        const list = sectionMap.get(sec) || [];
-        list.push(rec);
-        sectionMap.set(sec, list);
+        const secEl = document.createElement('div');
+        secEl.className = 'notes-section-group';
+        const columnsEl = document.createElement('div');
+        columnsEl.className = 'notes-columns';
+        const colEls = [document.createElement('div'), document.createElement('div')];
+        colEls.forEach((col) => {
+          col.className = 'notes-column';
+          columnsEl.appendChild(col);
+        });
+        secEl.appendChild(columnsEl);
+        // 必须先挂到文档再量高，否则 offsetHeight 全是 0，列分配会退化成左右轮流
+        drawerList.appendChild(secEl);
+
+        const cards = entries.map((entry, index) => buildCard(entry.item, entry.jumpable, index, opts?.retainedFirstRects));
+        cards.forEach((card) => colEls[0].appendChild(card));
+        const heights = cards.map((card) => Math.min(320, card.offsetHeight || 190));
+        colEls[0].innerHTML = '';
+        const colHeights = [0, 0];
+        cards.forEach((card, index) => {
+          const target = colHeights[0] <= colHeights[1] ? 0 : 1;
+          colEls[target].appendChild(card);
+          colHeights[target] += heights[index];
+        });
+      } else {
+        appendGroup('AI 问答摘录', aiNotes, false);
+        appendGroup('自由笔记', freeNotes, false);
+
+        // 划线笔记仍按小节分组
+        const sectionMap = new Map<string, ArticleHighlightRecord[]>();
+        for (const rec of highlights) {
+          const sec = rec.headingText || '§ 导言 / 正文';
+          const list = sectionMap.get(sec) || [];
+          list.push(rec);
+          sectionMap.set(sec, list);
+        }
+        for (const [section, items] of sectionMap.entries()) appendGroup(section, items, true);
       }
-      for (const [section, items] of sectionMap.entries()) appendGroup(section, items, true);
+
+      // 抽屉隐藏时 scrollHeight 为 0，等可见后再测量；可见时立即测量避免闪缩
+      if (opts?.suppressAnimation) {
+        drawerList.querySelectorAll<HTMLElement>('.notes-item-card').forEach((card) => {
+          card.style.animation = 'none';
+        });
+      }
+      refreshVisibleCardOverflow();
+      if (opts?.retainedFirstRects && prevScrollTop > 0) {
+        drawerList.scrollTop = prevScrollTop;
+      }
+
+      // 新卡片入场或筛选切换：新卡片淡入展开，保留卡片做 FLIP 平滑滑动补间
+      if (opts?.retainedFirstRects) {
+        let enterIndex = 0;
+        drawerList.querySelectorAll<HTMLElement>('.notes-item-card').forEach((c) => {
+          const id = c.dataset.noteId;
+          if (id && opts.retainedFirstRects!.has(id)) return;
+          const isNewSingleCard = Boolean(opts.newNoteId && id === opts.newNoteId);
+          c.animate([
+            { opacity: 0, transform: isNewSingleCard ? 'translate3d(0, -12px, 0) scale(0.96)' : 'translate3d(0, 10px, 0) scale(0.96)', filter: 'blur(1px)' },
+            { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)', filter: 'blur(0px)' },
+          ], {
+            duration: isNewSingleCard ? 550 : 300,
+            delay: isNewSingleCard ? 0 : Math.min(enterIndex++, 6) * 40,
+            easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+            fill: 'both',
+          });
+        });
+      }
+
+      // 保留卡片的 FLIP 平滑滑动补间 (WAAPI 硬件加速合成，100% 必然播放，支持跨列 2D 弧线补位)
+      if (opts?.retainedFirstRects && opts.retainedFirstRects.size > 0) {
+        const currentCards = Array.from(drawerList.querySelectorAll<HTMLElement>('.notes-item-card'));
+        for (const c of currentCards) {
+          const id = c.dataset.noteId;
+          if (!id || !opts.retainedFirstRects.has(id)) continue;
+          const first = opts.retainedFirstRects.get(id);
+          if (!first) continue;
+          const last = c.getBoundingClientRect();
+          const dx = first.left - last.left;
+          const dy = first.top - last.top;
+          if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+            c.animate([
+              { transform: `translate3d(${dx}px, ${dy}px, 0)` },
+              { transform: 'translate3d(0, 0, 0)' }
+            ], {
+              duration: 650, // 0.4x 优雅从容呼吸感节奏: transform 650ms cubic-bezier(0.16, 1, 0.3, 1)
+              easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
+            });
+          }
+        }
+      }
     }
 
     function jumpToHighlight(id: string) {
@@ -1258,9 +1856,15 @@
         record.question = String(input.question || '').trim().slice(0, 500);
       }
 
+      const isDrawerOpen = Boolean(drawer?.classList.contains('is-open'));
+      const retainedFirstRects = isDrawerOpen ? captureDrawerCardRects() : undefined;
       storedRecords.push(record);
-      saveRecords();
-      if (drawer?.classList.contains('is-open')) renderDrawerNotes();
+      saveHighlights(postSlug, storedRecords);
+      updateBadges();
+      if (isDrawerOpen) {
+        renderDrawerNotes({ retainedFirstRects, newNoteId: record.id });
+      }
+      window.dispatchEvent(new CustomEvent('article-notes:changed'));
       return record;
     }
 
@@ -1361,25 +1965,39 @@
         }
       }
 
+      lockScrollAnchor(500);
       drawer.hidden = false;
       drawer.style.display = 'flex';
       backdrop.hidden = false;
       backdrop.style.display = 'block';
 
-      requestAnimationFrame(() => {
-        drawer.classList.add('is-open');
-        backdrop.classList.add('is-open');
-        document.body.classList.add('notes-drawer-open');
-      });
+      // Force layout flush so initial transformed state is committed before transition starts!
+      void drawer.offsetWidth;
+      void backdrop.offsetWidth;
+
+      drawer.classList.add('is-open');
+      backdrop.classList.add('is-open');
+      document.body.classList.add('notes-drawer-open');
+      requestAnimationFrame(() => refreshVisibleCardOverflow());
     }
 
     function closeNotesDrawer() {
       if (!drawer || !backdrop) return;
+      lockScrollAnchor(500);
+      const wasMax = drawer.classList.contains('is-maximized');
       drawer.classList.remove('is-open');
       backdrop.classList.remove('is-open');
       document.body.classList.remove('notes-drawer-open');
 
       setTimeout(() => {
+        if (wasMax) {
+          drawer.classList.remove('is-maximized');
+          document.body.classList.remove('notes-drawer-maximized');
+          if (drawerMaxBtn) {
+            drawerMaxBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+            drawerMaxBtn.title = '放大到全屏 (双击标题栏)';
+          }
+        }
         drawer.hidden = true;
         drawer.style.display = 'none';
         backdrop.hidden = true;
@@ -1522,9 +2140,34 @@
   /* =========================================================
      划线高亮样式规范 (Gold Water-Ink Wash & Soft Underline)
      ========================================================= */
+  /* 水墨笔意舒展动效 (Ink-Sweep: 0.4x 优雅慢调，如同毛笔下笔由左向右徐徐在宣纸上划过) */
+  :root {
+    --mark-sweep-line: rgba(225, 150, 10, 0.85);
+    --mark-sweep-bg: rgba(255, 197, 61, 0.35);
+  }
+  [data-theme="dark"] {
+    --mark-sweep-line: rgba(255, 205, 70, 0.95);
+    --mark-sweep-bg: rgba(255, 197, 61, 0.35);
+  }
+  [data-theme="moss"] {
+    --mark-sweep-line: rgba(255, 220, 110, 0.95);
+    --mark-sweep-bg: rgba(255, 215, 95, 0.35);
+  }
+  [data-theme="rice"] {
+    --mark-sweep-line: rgba(195, 120, 10, 0.85);
+    --mark-sweep-bg: rgba(235, 160, 20, 0.34);
+  }
+
+  /* 划线高亮基准规范：无论静态还是绘制，统一采用渐变双通道渲染底色与下划线，杜绝图层切换闪烁与重演 */
   mark.article-highlight-mark {
-    background-color: rgba(255, 197, 61, 0.35) !important;
-    border-bottom: 1.5px solid rgba(225, 150, 10, 0.75) !important;
+    background-image:
+      linear-gradient(to right, var(--mark-sweep-line), var(--mark-sweep-line)),
+      linear-gradient(to right, var(--mark-sweep-bg), var(--mark-sweep-bg)) !important;
+    background-position: left bottom, left top !important;
+    background-repeat: no-repeat !important;
+    background-size: 100% 1.5px, 100% 100%;
+    background-color: transparent !important;
+    border-bottom: none !important;
     color: inherit !important;
     border-radius: 2px;
     padding: 0.05em 0.15em;
@@ -1532,13 +2175,50 @@
     cursor: pointer;
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
-    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    transition: filter 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  }
+
+  /* 单节点独立划线：两端各留 2px 微圆角与外展微边距 */
+  mark.article-highlight-mark.is-single-mark {
+    border-radius: 2px !important;
+    padding: 0.05em 0.15em !important;
+    margin: 0 -0.05em !important;
+  }
+
+  /* 跨标签/多节点划线联合体：首端留左圆角、尾端留右圆角，中间完全零边距零圆角贴合，彻底消除重叠暗斑与切角 */
+  mark.article-highlight-mark.is-first-mark {
+    border-radius: 2px 0 0 2px !important;
+    padding: 0.05em 0 0.05em 0.15em !important;
+    margin: 0 !important;
+  }
+  mark.article-highlight-mark.is-middle-mark {
+    border-radius: 0 !important;
+    padding: 0.05em 0 !important;
+    margin: 0 !important;
+  }
+  mark.article-highlight-mark.is-last-mark {
+    border-radius: 0 2px 2px 0 !important;
+    padding: 0.05em 0.15em 0.05em 0 !important;
+    margin: 0 !important;
+  }
+
+  /* 取消划线：只收走底纹/下划线，文字始终留在原位 */
+  mark.article-highlight-mark.is-fading-out,
+  pre code mark.article-highlight-mark.is-fading-out,
+  [data-theme="dark"] mark.article-highlight-mark.is-fading-out,
+  [data-theme="moss"] mark.article-highlight-mark.is-fading-out,
+  [data-theme="rice"] mark.article-highlight-mark.is-fading-out {
+    background-size: 0% 1.5px, 0% 100% !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    transition: background-size 380ms cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 380ms cubic-bezier(0.4, 0, 0.2, 1) !important;
   }
 
   /* Code blocks: ensure radiant amber contrast and crisp white text */
   pre code mark.article-highlight-mark {
-    background-color: rgba(255, 197, 61, 0.38) !important;
-    border-bottom: 1.5px solid rgba(255, 210, 80, 0.9) !important;
+    --mark-sweep-line: rgba(255, 210, 80, 0.9);
+    --mark-sweep-bg: rgba(255, 197, 61, 0.38);
     color: #ffffff !important;
     box-shadow: 0 0 6px rgba(255, 197, 61, 0.22);
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
@@ -1547,45 +2227,75 @@
   }
 
   pre code mark.article-highlight-mark:hover {
-    background-color: rgba(255, 197, 61, 0.55) !important;
-    border-bottom-color: #ffd04b !important;
+    --mark-sweep-line: #ffd04b;
+    --mark-sweep-bg: rgba(255, 197, 61, 0.55);
     box-shadow: 0 0 10px rgba(255, 197, 61, 0.4);
   }
 
   [data-theme="dark"] mark.article-highlight-mark {
-    background-color: rgba(255, 197, 61, 0.35) !important;
-    border-bottom: 1.5px solid rgba(255, 205, 70, 0.85) !important;
     color: #ffffff !important;
     box-shadow: 0 0 8px rgba(255, 197, 61, 0.25);
   }
 
   [data-theme="moss"] mark.article-highlight-mark {
-    background-color: rgba(255, 215, 95, 0.35) !important;
-    border-bottom: 1.5px solid rgba(255, 220, 110, 0.85) !important;
     color: #ffffff !important;
     box-shadow: 0 0 6px rgba(255, 215, 95, 0.2);
   }
 
   [data-theme="rice"] mark.article-highlight-mark {
-    background-color: rgba(235, 160, 20, 0.34) !important;
-    border-bottom: 1.5px solid rgba(195, 120, 10, 0.75) !important;
     color: #2B241C !important;
   }
 
   mark.article-highlight-mark:hover {
-    background-color: rgba(255, 197, 61, 0.52) !important;
-    border-bottom-color: rgba(215, 140, 10, 0.95) !important;
+    --mark-sweep-line: rgba(215, 140, 10, 0.95);
+    --mark-sweep-bg: rgba(255, 197, 61, 0.52);
   }
 
   [data-theme="dark"] mark.article-highlight-mark:hover {
-    background-color: rgba(255, 197, 61, 0.52) !important;
-    border-bottom-color: rgba(255, 215, 80, 0.95) !important;
+    --mark-sweep-line: rgba(255, 215, 80, 0.95);
+    --mark-sweep-bg: rgba(255, 197, 61, 0.52);
     box-shadow: 0 0 12px rgba(255, 197, 61, 0.35);
   }
 
   [data-theme="moss"] mark.article-highlight-mark:hover {
-    background-color: rgba(255, 215, 95, 0.52) !important;
-    border-bottom-color: rgba(255, 230, 120, 0.95) !important;
+    --mark-sweep-line: rgba(255, 230, 120, 0.95);
+    --mark-sweep-bg: rgba(255, 215, 95, 0.52);
+  }
+
+  [data-theme="rice"] mark.article-highlight-mark:hover {
+    --mark-sweep-line: rgba(195, 120, 10, 0.95);
+    --mark-sweep-bg: rgba(235, 160, 20, 0.48);
+  }
+
+  /* 水墨舒展划线入场动效 (Ink-Sweep: 0.4x 优雅慢调，如同毛笔下笔由左向右徐徐在宣纸上划过) */
+  mark.article-highlight-mark.is-drawing,
+  pre code mark.article-highlight-mark.is-drawing,
+  [data-theme="dark"] mark.article-highlight-mark.is-drawing,
+  [data-theme="moss"] mark.article-highlight-mark.is-drawing,
+  [data-theme="rice"] mark.article-highlight-mark.is-drawing {
+    animation: inkSweepDraw 450ms cubic-bezier(0.16, 1, 0.3, 1) both !important;
+    animation-delay: var(--mark-draw-delay, 0ms) !important;
+    animation-duration: var(--mark-draw-duration, 450ms) !important;
+  }
+
+  @keyframes inkSweepDraw {
+    0% {
+      background-size: 0% 1.5px, 0% 100%;
+    }
+    100% {
+      background-size: 100% 1.5px, 100% 100%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    mark.article-highlight-mark.is-drawing,
+    pre code mark.article-highlight-mark.is-drawing,
+    [data-theme="dark"] mark.article-highlight-mark.is-drawing,
+    [data-theme="moss"] mark.article-highlight-mark.is-drawing,
+    [data-theme="rice"] mark.article-highlight-mark.is-drawing {
+      animation: none !important;
+      background-size: 100% 2px, 100% 100% !important;
+    }
   }
 
   /* 导航定位脉冲动效 */
@@ -1989,6 +2699,10 @@
     100% { transform: scale(1); }
   }
 
+  .notes-drawer-footer {
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  }
+
   /* Responsive for mobile */
   @media (max-width: 640px) {
     .article-selection-dock {
@@ -2102,8 +2816,8 @@
       transform: translate3d(calc(100% + 2.5rem), 0, 0) scale(0.98);
       opacity: 0;
       transition:
-        transform 380ms cubic-bezier(0.16, 1, 0.3, 1),
-        opacity 300ms cubic-bezier(0.16, 1, 0.3, 1);
+        transform 380ms cubic-bezier(0.175, 0.885, 0.32, 1.12),
+        opacity 280ms cubic-bezier(0.16, 1, 0.3, 1);
       font-family: var(--font-body);
       overflow: hidden;
       overscroll-behavior: contain;
@@ -2162,7 +2876,7 @@
       backdrop-filter: blur(24px) saturate(180%);
       -webkit-backdrop-filter: blur(24px) saturate(180%);
       transform: translate3d(0, 100%, 0);
-      transition: transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+      transition: transform 380ms cubic-bezier(0.175, 0.885, 0.32, 1.12);
       font-family: var(--font-body);
       overflow: hidden;
     }
@@ -2176,6 +2890,196 @@
     .article-notes-drawer.is-open {
       transform: translate3d(0, 0, 0);
     }
+  }
+
+  .article-notes-drawer.is-maximized {
+    position: fixed !important;
+    inset: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    z-index: 100035 !important;
+    background: var(--bg-base, #ffffff) !important;
+  }
+
+  [data-theme="dark"] .article-notes-drawer.is-maximized {
+    background: var(--bg-base, #161616) !important;
+  }
+
+  [data-theme="moss"] .article-notes-drawer.is-maximized {
+    background: var(--bg-base, #032b26) !important;
+  }
+
+  .article-notes-drawer.is-maximized .drawer-drag-handle {
+    display: none !important;
+  }
+
+  .article-notes-drawer.is-maximized .notes-drawer-header {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    background: var(--bg-soft) !important;
+    border-bottom: 1px solid var(--rule-soft) !important;
+  }
+
+  .article-notes-drawer.is-maximized .notes-drawer-header-inner {
+    max-width: 100% !important;
+    margin: 0 !important;
+    width: 100% !important;
+    padding: 0.85rem 1.75rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+
+  .article-notes-drawer.is-maximized .notes-drawer-heading {
+    font-size: 1.25rem !important;
+  }
+
+  .article-notes-drawer.is-maximized .notes-drawer-filter-group {
+    display: inline-flex !important;
+  }
+
+  .article-notes-drawer.is-maximized .notes-drawer-body {
+    max-width: 1240px !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    padding: 2rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2rem !important;
+  }
+
+  .article-notes-drawer.is-maximized .notes-section-group {
+    display: block !important;
+  }
+
+  .article-notes-drawer.is-maximized .notes-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .article-notes-drawer.is-maximized .notes-column {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+  }
+
+  .article-notes-drawer.is-maximized .notes-section-head {
+    font-size: 0.92rem !important;
+    font-weight: 700 !important;
+    color: var(--text-strong) !important;
+    padding-bottom: 0.5rem !important;
+    margin-top: 0.5rem !important;
+    margin-bottom: 1.25rem !important;
+    border-bottom: 1px solid var(--rule-soft) !important;
+  }
+
+  .article-notes-drawer.is-maximized .notes-item-card {
+    display: block;
+    width: auto;
+    margin: 0;
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+    border-radius: 12px !important;
+    padding: 1.15rem 1.35rem !important;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05) !important;
+    background: var(--bg-card, var(--bg-elev)) !important;
+    transition: box-shadow 200ms ease, border-color 200ms ease;
+  }
+
+  .article-notes-drawer.is-maximized .notes-item-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.09) !important;
+  }
+
+  .article-notes-drawer.is-maximized .notes-item-card.is-expanded {
+    border-left-width: 4.5px !important;
+    border-left-color: rgba(215, 150, 20, 1) !important;
+    background: var(--bg-card, var(--bg-base)) !important;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(215, 150, 20, 0.25) !important;
+  }
+
+  .article-notes-drawer.is-maximized .notes-item-text,
+  .article-notes-drawer.is-maximized .notes-item-markdown {
+    font-size: 0.95rem !important;
+    line-height: 1.75 !important;
+  }
+
+  @media (max-width: 900px) {
+    .article-notes-drawer.is-maximized .notes-section-group {
+      display: block !important;
+    }
+    .article-notes-drawer.is-maximized .notes-columns {
+      display: block;
+    }
+    .article-notes-drawer.is-maximized .notes-column {
+      display: block;
+    }
+    .article-notes-drawer.is-maximized .notes-item-card {
+      margin-bottom: 1.25rem;
+    }
+    .article-notes-drawer.is-maximized .notes-drawer-header-inner,
+    .article-notes-drawer.is-maximized .notes-drawer-body {
+      padding-left: 1rem !important;
+      padding-right: 1rem !important;
+    }
+  }
+
+  .notes-drawer-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .notes-drawer-filter-group {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin-left: 12px;
+  }
+
+  .notes-filter-pill {
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-family: var(--font-body);
+    border: 1px solid var(--rule-soft, rgba(0, 0, 0, 0.12));
+    background: transparent;
+    color: var(--muted-strong);
+    cursor: pointer;
+    transition: all 160ms ease;
+  }
+
+  .notes-filter-pill:hover {
+    color: var(--text-strong);
+    border-color: var(--rule-strong);
+  }
+
+  .notes-filter-pill.is-active {
+    background: var(--accent-soft);
+    color: var(--text-strong);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  [data-theme="dark"] .notes-filter-pill.is-active {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.35);
   }
 
   .drawer-drag-handle {
@@ -2196,6 +3100,8 @@
     padding: 1.1rem 1.4rem;
     border-bottom: 1px solid var(--rule-soft, rgba(0, 0, 0, 0.1));
     background: var(--bg-soft, rgba(0, 0, 0, 0.02));
+    cursor: default;
+    user-select: none;
   }
 
   .notes-drawer-title-area {
@@ -2230,6 +3136,139 @@
     background: rgba(255, 255, 255, 0.1);
   }
 
+  .notes-drawer-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    position: relative;
+  }
+
+  .notes-drawer-menu-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .notes-drawer-menu-btn {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted-strong);
+    cursor: pointer;
+    transition: all 180ms ease;
+  }
+
+  .notes-drawer-menu-btn:hover,
+  .notes-drawer-menu-btn[aria-expanded="true"] {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-strong);
+  }
+
+  [data-theme="dark"] .notes-drawer-menu-btn:hover,
+  [data-theme="dark"] .notes-drawer-menu-btn[aria-expanded="true"] {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  [data-theme="moss"] .notes-drawer-menu-btn:hover,
+  [data-theme="moss"] .notes-drawer-menu-btn[aria-expanded="true"] {
+    background: rgba(255, 241, 244, 0.14);
+    color: var(--text-strong);
+  }
+
+  .notes-drawer-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 172px;
+    padding: 6px;
+    background: var(--glass-bg-strong, var(--bg-elev));
+    border: 1px solid var(--rule-strong, rgba(0, 0, 0, 0.16));
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.06);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    z-index: 100050;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    animation: notesMenuPop 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .notes-drawer-dropdown[hidden] {
+    display: none !important;
+  }
+
+  @keyframes notesMenuPop {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .notes-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-base, #333);
+    font-size: 0.82rem;
+    font-family: var(--font-body);
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: all 140ms ease;
+  }
+
+  .notes-dropdown-item:hover {
+    background: var(--accent-soft, rgba(0, 0, 0, 0.05));
+    color: var(--text-strong);
+  }
+
+  .notes-dropdown-item.is-danger {
+    color: #e53e3e;
+  }
+
+  .notes-dropdown-item.is-danger:hover {
+    background: rgba(229, 62, 62, 0.1);
+    color: #c53030;
+  }
+
+  [data-theme="dark"] .notes-dropdown-item {
+    color: #ddd;
+  }
+
+  [data-theme="dark"] .notes-dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+
+  [data-theme="dark"] .notes-dropdown-item.is-danger {
+    color: #fc8181;
+  }
+
+  [data-theme="dark"] .notes-dropdown-item.is-danger:hover {
+    background: rgba(252, 129, 129, 0.15);
+    color: #feb2b2;
+  }
+
+  .notes-dropdown-divider {
+    height: 1px;
+    background: var(--rule-soft, rgba(0, 0, 0, 0.08));
+    margin: 4px 2px;
+  }
+
+  .notes-drawer-maximize-btn,
   .notes-drawer-close-btn {
     display: grid;
     place-items: center;
@@ -2243,15 +3282,18 @@
     transition: all 180ms ease;
   }
 
+  .notes-drawer-maximize-btn:hover,
   .notes-drawer-close-btn:hover {
     background: rgba(0, 0, 0, 0.06);
     color: var(--text-strong);
   }
 
+  [data-theme="dark"] .notes-drawer-maximize-btn:hover,
   [data-theme="dark"] .notes-drawer-close-btn:hover {
     background: rgba(255, 255, 255, 0.1);
   }
 
+  [data-theme="moss"] .notes-drawer-maximize-btn:hover,
   [data-theme="moss"] .notes-drawer-close-btn:hover {
     background: rgba(255, 241, 244, 0.14);
     color: var(--text-strong);
@@ -2337,6 +3379,139 @@
     animation: notesCardIn 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
+  .notes-card-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.45rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px dashed var(--rule-soft, rgba(0, 0, 0, 0.08));
+    font-size: 0.72rem;
+    color: var(--muted-strong);
+    transition: border-color 180ms ease;
+  }
+
+  .notes-card-chapter-tag {
+    font-family: var(--font-mono);
+    max-width: 75%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.85;
+  }
+
+  .notes-card-expand-indicator {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    color: var(--accent, #d79614);
+    background: var(--accent-soft, rgba(215, 150, 20, 0.08));
+    border: 1px solid var(--accent, rgba(215, 150, 20, 0.25));
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 180ms ease;
+    flex-shrink: 0;
+  }
+
+  .notes-card-expand-indicator:hover {
+    background: var(--accent-soft, rgba(215, 150, 20, 0.22));
+    border-color: var(--accent, #d79614);
+    transform: translateY(-0.5px) scale(1.05);
+  }
+
+  .notes-item-card.has-overflow .notes-card-expand-indicator {
+    display: inline-flex !important;
+  }
+
+  .notes-card-expand-indicator svg {
+    transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .notes-item-card.is-expanded .notes-card-expand-indicator svg {
+    transform: rotate(180deg);
+  }
+
+  .notes-card-content {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* 规整预览模式：默认最大高度 170px，底部带有柔和淡出的遮罩 */
+  .notes-item-card.has-overflow:not(.is-expanded) .notes-card-content {
+    max-height: 170px;
+  }
+
+  .notes-card-fade-veil {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 65px;
+    background: linear-gradient(to bottom, transparent, var(--bg-card, var(--bg-base, #fff)));
+    pointer-events: none;
+    transition: opacity 260ms ease;
+    opacity: 1;
+    z-index: 2;
+  }
+
+  [data-theme="dark"] .notes-card-fade-veil {
+    background: linear-gradient(to bottom, transparent, rgba(32, 32, 32, 1));
+  }
+
+  .notes-item-card.is-expanded .notes-card-fade-veil {
+    opacity: 0;
+  }
+
+  .notes-item-card:not(.has-overflow) .notes-card-fade-veil {
+    display: none;
+  }
+
+  .notes-card-expand-footer {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem 0 0.15rem;
+    margin-top: 0.25rem;
+    border-top: 1px dashed var(--rule-soft, rgba(0, 0, 0, 0.08));
+  }
+
+  .notes-item-card.has-overflow .notes-card-expand-footer {
+    display: flex;
+  }
+
+  .notes-expand-footer-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0.28rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid var(--rule-soft, rgba(0, 0, 0, 0.12));
+    background: var(--bg-soft, rgba(0, 0, 0, 0.02));
+    color: var(--accent, #d79614);
+    font-size: 0.76rem;
+    font-weight: 600;
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: all 180ms ease;
+  }
+
+  .notes-expand-footer-btn:hover {
+    background: var(--accent-soft, rgba(215, 150, 20, 0.1));
+    border-color: var(--accent, #d79614);
+    transform: translateY(-1px);
+  }
+
+  .notes-expand-footer-btn svg {
+    transition: transform 220ms ease;
+  }
+
+  .notes-item-card.is-expanded .notes-expand-footer-btn svg {
+    transform: rotate(180deg);
+  }
+
   @keyframes notesCardIn {
     from {
       opacity: 0;
@@ -2348,6 +3523,40 @@
       transform: translate3d(0, 0, 0) scale(1);
       filter: blur(0);
     }
+  }
+
+  @keyframes noteFilterOut {
+    0% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(0, -8px, 0) scale(0.95);
+    }
+  }
+
+  @keyframes noteFilterIn {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, 10px, 0) scale(0.96);
+    }
+    100% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+
+  .notes-item-card.is-filtering-out {
+    pointer-events: none !important;
+  }
+
+  .notes-item-card.is-filtering-in {
+    animation: noteFilterIn 280ms cubic-bezier(0.16, 1, 0.3, 1) both !important;
+  }
+
+  .notes-empty-state.is-filtering-in {
+    animation: noteFilterIn 280ms cubic-bezier(0.16, 1, 0.3, 1) both !important;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -2737,89 +3946,4 @@
     background: rgba(229, 57, 53, 0.08);
   }
 
-  /* Drawer Sticky Footer */
-  .notes-drawer-footer {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0.9rem 1.3rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
-    border-top: 1px solid var(--rule-soft, rgba(0, 0, 0, 0.1));
-    background: var(--bg-soft, rgba(0, 0, 0, 0.02));
-  }
-
-  .notes-new-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    padding: 9px 11px;
-    border-radius: 8px;
-    border: 1px solid var(--rule);
-    background: transparent;
-    color: var(--text);
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 180ms ease;
-    flex-shrink: 0;
-  }
-
-  .notes-new-btn:hover {
-    background: var(--bg-soft, rgba(0, 0, 0, 0.04));
-    border-color: var(--rule-strong);
-  }
-
-  .notes-export-btn {
-    flex: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 9px 16px;
-    border-radius: 8px;
-    background: var(--ink-strong, #111);
-    color: #fff;
-    font-size: 0.84rem;
-    font-weight: 500;
-    border: none;
-    cursor: pointer;
-    transition: all 200ms ease;
-  }
-
-  .notes-export-btn:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-
-  [data-theme="dark"] .notes-export-btn {
-    background: #f4f4f4;
-    color: #111;
-  }
-
-  [data-theme="moss"] .notes-export-btn {
-    background: var(--accent);
-    color: var(--moss-badge-text, #004D40);
-  }
-
-  [data-theme="moss"] .notes-export-btn:hover {
-    background: var(--accent-strong);
-    color: var(--moss-badge-text, #004D40);
-  }
-
-  .notes-clear-btn {
-    padding: 9px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--rule);
-    background: transparent;
-    color: var(--muted);
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 180ms ease;
-  }
-
-  .notes-clear-btn:hover {
-    color: #e53935;
-    border-color: rgba(229, 57, 53, 0.4);
-    background: rgba(229, 57, 53, 0.08);
-  }
 </style>
