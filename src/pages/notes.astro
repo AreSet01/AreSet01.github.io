@@ -1,0 +1,1805 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import { getCollection } from 'astro:content';
+
+const allPosts = await getCollection('posts', ({ data }) => !data.draft);
+const postsMeta = allPosts.map((p) => ({
+  slug: p.id,
+  title: p.data.title,
+  url: `/posts/${p.id}`,
+}));
+---
+
+<BaseLayout title="笔记管理 - 梦付千秋" description="全站知识笔记、阅读划词批注与墨问 AI 问答摘录管理中心">
+  <Header />
+
+  <main id="main-content" tabindex="-1" class="container-wide flex-1 pt-6 pb-16 lg:pt-8 outline-none">
+    <!-- 挂载服务端提取的文章元信息供客户端高效索引 -->
+    <script id="posts-meta-data" type="application/json" set:html={JSON.stringify(postsMeta)} />
+
+    <!-- 1. 顶部标题与数据概览 -->
+    <section class="panel pb-8 border-b border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 3%, var(--rule-strong) 50%, transparent 97%) 1;">
+      <p class="eyebrow" data-enter="top">Notes</p>
+      <div class="mt-4 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div class="max-w-2xl">
+          <h1 class="section-title" data-enter="left">
+            墨痕记 · 灵感与阅读批注
+          </h1>
+          <p
+            class="mt-3 text-[0.95rem] leading-[1.75] text-[var(--muted-strong)]"
+            style="font-family: var(--font-serif); font-style: italic;"
+            data-enter="left"
+          >
+            全站阅读批注回溯、墨问 AI 问答摘录以及纯粹的 Markdown 灵感随想。基于 Local-First 架构，多端无缝私密同步。
+          </p>
+        </div>
+
+        <!-- 磁吸滑块统计长条 (Stats Ribbon with Glider) -->
+        <div class="archive-stats-wrap self-start lg:self-auto" data-enter="bloom" data-notes-stats-strip>
+          <div class="archive-stats-strip notes-stats-strip" id="notes-stats-strip" aria-label="笔记数据概览">
+            <span class="stats-glider" data-notes-stats-glider id="notes-stats-glider" aria-hidden="true"></span>
+
+            <div class="stats-item notes-stat-item" data-stats-item tabindex="0" title="全部笔记条数">
+              <span class="stats-label">TOTAL</span>
+              <strong class="stats-value" data-count="0" id="stat-total">0</strong>
+              <span class="stats-subnote">条总笔记</span>
+            </div>
+
+            <span class="stats-separator" aria-hidden="true"></span>
+
+            <div class="stats-item notes-stat-item" data-stats-item tabindex="0" title="独立随笔便签">
+              <span class="stats-label">MARKDOWN</span>
+              <strong class="stats-value" data-count="0" id="stat-free">0</strong>
+              <span class="stats-subnote">篇独立便签</span>
+            </div>
+
+            <span class="stats-separator" aria-hidden="true"></span>
+
+            <div class="stats-item notes-stat-item" data-stats-item tabindex="0" title="文章划线批注">
+              <span class="stats-label">HIGHLIGHTS</span>
+              <strong class="stats-value" data-count="0" id="stat-highlights">0</strong>
+              <span class="stats-subnote">处划词批注</span>
+            </div>
+
+            <span class="stats-separator" aria-hidden="true"></span>
+
+            <div class="stats-item notes-stat-item" data-stats-item tabindex="0" title="墨问 AI 问答摘录">
+              <span class="stats-label">INK-ASK</span>
+              <strong class="stats-value" data-count="0" id="stat-ai">0</strong>
+              <span class="stats-subnote">条 AI 摘录</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. 控制与过滤工具栏 -->
+    <section class="my-6 space-y-4" data-enter="bottom">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <!-- 内部子页签 (带有平滑动效的胶囊滑块) -->
+        <div class="subtabs-cluster self-start" id="subtabs-cluster">
+          <span class="subtabs-glider" id="subtabs-glider" aria-hidden="true"></span>
+          <button type="button" class="sub-tab-btn active" data-kind="all">全部笔记</button>
+          <button type="button" class="sub-tab-btn" data-kind="free">Markdown 随记</button>
+          <button type="button" class="sub-tab-btn" data-kind="highlight">文章划线批注</button>
+          <button type="button" class="sub-tab-btn" data-kind="ai">墨问 AI 问答</button>
+        </div>
+
+        <!-- 检索与功能操作按钮群 -->
+        <div class="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+          <!-- 实时关键词搜索框 -->
+          <div class="relative w-full sm:w-64">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              type="text"
+              id="search-input"
+              placeholder="搜索标题、正文、批注..."
+              class="w-full bg-[var(--bg-elev)] border border-[var(--rule)] text-xs rounded-full pl-9 pr-3 py-2 text-[var(--text-strong)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--ink-strong)] transition duration-200"
+            />
+          </div>
+
+          <!-- 新建便签按钮 -->
+          <button
+            id="open-editor-btn"
+            type="button"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold bg-[var(--ink-strong)] text-[var(--bg-base)] hover:opacity-90 active:scale-95 transition duration-200 shadow-sm cursor-pointer"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>新建便签</span>
+          </button>
+
+          <!-- 导出 Markdown 按钮 -->
+          <button
+            id="export-btn"
+            type="button"
+            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-[var(--rule)] text-xs font-medium text-[var(--muted-strong)] bg-[var(--bg-elev)] hover:text-[var(--text-strong)] hover:border-[var(--ink-strong)] active:scale-95 transition duration-200 cursor-pointer"
+            title="将当前筛选的所有笔记导出为 Markdown 研读卡片"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>导出</span>
+          </button>
+
+          <!-- 云端同步按钮 -->
+          <button
+            id="sync-btn"
+            type="button"
+            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-[var(--rule)] text-xs font-medium text-[var(--muted-strong)] bg-[var(--bg-elev)] hover:text-[var(--text-strong)] hover:border-[var(--ink-strong)] active:scale-95 transition duration-200 cursor-pointer"
+            title="手动触发与私有云端增量同步"
+          >
+            <svg id="sync-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path>
+            </svg>
+            <span id="sync-text">同步</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 二级维度筛选：文章归属自定义下拉气泡 + 纯色标过滤圆点 -->
+      <div class="flex flex-wrap items-center gap-4 pt-1">
+        <!-- 自定义「文章归属」下拉气泡组件 -->
+        <div class="relative inline-block" id="article-popover-container">
+          <button
+            type="button"
+            id="article-popover-trigger"
+            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--rule)] bg-[var(--bg-elev)] text-xs text-[var(--text-strong)] hover:border-[var(--ink-strong)] transition duration-200 shadow-sm font-medium cursor-pointer"
+            aria-haspopup="dialog"
+            aria-expanded="false"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-[var(--muted)]">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+            <span id="article-trigger-label">来源: 全部文章 (0)</span>
+            <span id="article-quick-clear" class="hidden hover:text-red-500 p-0.5 rounded cursor-pointer" title="清除文章筛选">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-[var(--muted)] ml-0.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+
+          <!-- 展开的气泡面板 (Popover) -->
+          <div
+            id="article-popover-panel"
+            class="article-popover is-closed absolute left-0 top-full mt-2 w-80 max-w-[90vw] p-2.5"
+          >
+            <!-- 气泡内的即时文章搜索 -->
+            <div class="relative mb-2">
+              <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input
+                type="text"
+                id="article-search-input"
+                placeholder="过滤文章来源..."
+                class="w-full bg-[var(--bg-soft)] border border-[var(--rule)] text-xs rounded-lg pl-7 pr-2.5 py-1.5 text-[var(--text-strong)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--ink-strong)]"
+              />
+            </div>
+
+            <!-- 文章列表 -->
+            <div class="max-h-60 overflow-y-auto space-y-1 text-xs" id="article-list-container">
+              <!-- 动态渲染文章列表 -->
+            </div>
+          </div>
+        </div>
+
+        <div class="h-4 w-px bg-[var(--rule)]"></div>
+
+        <!-- 纯色彩圆点筛选（极简色环，无文字名称） -->
+        <div class="flex items-center gap-1.5">
+          <button type="button" class="all-color-pill active" data-color="all">全部</button>
+          <button type="button" class="color-dot-btn" data-color="red" style="--dot-color: #ef5350;" title="朱红"></button>
+          <button type="button" class="color-dot-btn" data-color="blue" style="--dot-color: #42a5f5;" title="靛青"></button>
+          <button type="button" class="color-dot-btn" data-color="green" style="--dot-color: #66bb6a;" title="竹青"></button>
+          <button type="button" class="color-dot-btn" data-color="yellow" style="--dot-color: #ffa726;" title="雄黄"></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. 便签卡片多列看板 (自适应栅格，彻底根除多列拆碎卡片问题) -->
+    <section id="notes-container" class="notes-grid pt-2">
+      <!-- 动态插入卡片 -->
+    </section>
+
+    <!-- 空状态提示 (当检索无结果时) -->
+    <div id="empty-state" class="hidden text-center py-20">
+      <div class="w-16 h-16 rounded-full bg-[var(--bg-soft)] border border-[var(--rule)] mx-auto flex items-center justify-center text-[var(--muted)] mb-4">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="9" y1="15" x2="15" y2="15"></line>
+        </svg>
+      </div>
+      <h3 class="text-base font-semibold text-[var(--text-strong)]">暂无匹配的笔记</h3>
+      <p class="text-xs text-[var(--muted-strong)] mt-1">尝试更换筛选条件，或者点击上方“新建便签”添加第一条笔记。</p>
+    </div>
+  </main>
+
+  <!-- 4. 笔记大窗阅读详情弹层 (Zoom / Maximize Reader Modal，已去底栏，精炼顶栏操作，不换行) -->
+  <div id="reader-modal" class="fixed inset-0 z-50 modal-overlay is-closed hidden flex items-center justify-center p-4">
+    <div class="bg-[var(--bg-elev)] border border-[var(--rule-strong)] rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl modal-card flex flex-col max-h-[88vh]">
+      <!-- 弹层头部 (严格不换行排布，操作群右对齐) -->
+      <div class="px-5 sm:px-6 py-3.5 border-b border-[var(--rule)] flex items-center justify-between gap-3 bg-[var(--bg-soft)] shrink-0 flex-nowrap">
+        <!-- 左侧：类型徽标与记录时间 -->
+        <div class="flex items-center gap-2.5 min-w-0 shrink flex-nowrap">
+          <span id="reader-kind-badge" class="whitespace-nowrap shrink-0"></span>
+          <span class="text-xs text-[var(--muted)] whitespace-nowrap truncate" id="reader-time"></span>
+        </div>
+
+        <!-- 右侧操作栏 (绝不换行：whitespace-nowrap shrink-0 flex-nowrap) -->
+        <div class="flex items-center gap-2 shrink-0 flex-nowrap whitespace-nowrap">
+          <!-- 快捷跳转原文按钮 (若是文章笔记，加不换行保护) -->
+          <button
+            id="reader-jump-btn"
+            type="button"
+            class="hidden text-xs font-semibold px-3 py-1.5 rounded-full border border-[var(--rule)] bg-[var(--bg-elev)] text-[var(--text-strong)] hover:border-[var(--ink-strong)] transition items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0 cursor-pointer"
+            title="在文章正文中定位此段"
+          >
+            <span class="whitespace-nowrap">跳转原文</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="shrink-0"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+
+          <!-- 复制引用按钮 (纯图标按钮，置于顶部) -->
+          <button
+            id="reader-copy-btn"
+            type="button"
+            class="w-8 h-8 rounded-full border border-[var(--rule)] bg-[var(--bg-elev)] text-[var(--muted-strong)] hover:text-[var(--text-strong)] hover:border-[var(--ink-strong)] transition flex items-center justify-center shrink-0 shadow-sm cursor-pointer"
+            title="复制 Markdown 引用卡片"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+
+          <!-- 编辑按钮 -->
+          <button
+            id="reader-edit-btn"
+            type="button"
+            class="text-xs font-medium px-3 py-1.5 rounded-full border border-[var(--rule)] bg-[var(--bg-elev)] text-[var(--muted-strong)] hover:text-[var(--text-strong)] hover:border-[var(--ink-strong)] transition whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            编辑
+          </button>
+
+          <!-- 关闭按钮 -->
+          <button
+            id="close-reader-btn"
+            type="button"
+            class="w-8 h-8 rounded-full flex items-center justify-center text-[var(--muted)] hover:text-[var(--text-strong)] hover:bg-[var(--accent-soft)] transition shrink-0 cursor-pointer"
+            title="关闭大窗 (Esc)"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 放大阅读正文主体 (宽敞舒适的排版，去底栏后空间利用最大化) -->
+      <div class="p-6 sm:p-8 overflow-y-auto space-y-5 flex-1" id="reader-body">
+        <h2 id="reader-title" class="font-extrabold text-xl sm:text-2xl text-[var(--text-strong)] tracking-tight"></h2>
+
+        <!-- 标签与归属条 -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[var(--rule)] text-xs text-[var(--muted)]" id="reader-meta-bar">
+          <div id="reader-tags" class="flex flex-wrap gap-1.5"></div>
+          <div id="reader-source" class="font-medium"></div>
+        </div>
+
+        <!-- 详细内容区域 -->
+        <div id="reader-content" class="text-sm sm:text-base leading-relaxed text-[var(--text)] prose-preview">
+          <!-- 动态渲染完整的 Markdown / 划词与批注 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Markdown 弹层卡片编辑器 (Modal) -->
+  <div id="editor-modal" class="fixed inset-0 z-50 modal-overlay is-closed hidden flex items-center justify-center p-4">
+    <div class="bg-[var(--bg-elev)] border border-[var(--rule-strong)] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl modal-card flex flex-col max-h-[90vh]">
+      <!-- 弹层头部 -->
+      <div class="px-6 py-4 border-b border-[var(--rule)] flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-[var(--ink-strong)]"></span>
+          <h2 id="modal-title" class="font-bold text-base text-[var(--text-strong)]">新建 Markdown 便签</h2>
+        </div>
+        <button id="close-modal-btn" type="button" class="text-[var(--muted)] hover:text-[var(--text-strong)] transition cursor-pointer" title="关闭 (Esc)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- 编辑主体 -->
+      <div class="p-6 overflow-y-auto space-y-4 flex-1">
+        <!-- 标题 -->
+        <div id="editor-title-wrap">
+          <label class="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">便签标题 (可选)</label>
+          <input
+            type="text"
+            id="editor-title-input"
+            placeholder="例如：关于 FastArraySerializer 的网络同步坑点..."
+            class="w-full bg-[var(--bg-soft)] border border-[var(--rule)] rounded-lg px-3 py-2 text-sm text-[var(--text-strong)] focus:outline-none focus:border-[var(--ink-strong)] transition"
+          />
+        </div>
+
+        <!-- 属性控制行：纯色标选择与标签输入 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">色彩分类</label>
+            <div class="flex items-center gap-3" id="modal-color-picker">
+              <label class="cursor-pointer" title="朱红">
+                <input type="radio" name="note-color" value="red" class="sr-only peer" />
+                <div class="w-6 h-6 rounded-full peer-checked:ring-2 peer-checked:ring-offset-2 peer-checked:ring-[var(--ink-strong)] peer-checked:scale-110 transition flex items-center justify-center shadow-sm" style="background:#ef5350"></div>
+              </label>
+              <label class="cursor-pointer" title="靛青">
+                <input type="radio" name="note-color" value="blue" class="sr-only peer" checked />
+                <div class="w-6 h-6 rounded-full peer-checked:ring-2 peer-checked:ring-offset-2 peer-checked:ring-[var(--ink-strong)] peer-checked:scale-110 transition flex items-center justify-center shadow-sm" style="background:#42a5f5"></div>
+              </label>
+              <label class="cursor-pointer" title="竹青">
+                <input type="radio" name="note-color" value="green" class="sr-only peer" />
+                <div class="w-6 h-6 rounded-full peer-checked:ring-2 peer-checked:ring-offset-2 peer-checked:ring-[var(--ink-strong)] peer-checked:scale-110 transition flex items-center justify-center shadow-sm" style="background:#66bb6a"></div>
+              </label>
+              <label class="cursor-pointer" title="雄黄">
+                <input type="radio" name="note-color" value="yellow" class="sr-only peer" />
+                <div class="w-6 h-6 rounded-full peer-checked:ring-2 peer-checked:ring-offset-2 peer-checked:ring-[var(--ink-strong)] peer-checked:scale-110 transition flex items-center justify-center shadow-sm" style="background:#ffa726"></div>
+              </label>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">标签 (用空格或逗号分隔)</label>
+            <input
+              type="text"
+              id="editor-tags-input"
+              placeholder="架构, UE5, 随感"
+              class="w-full bg-[var(--bg-soft)] border border-[var(--rule)] rounded-lg px-3 py-1.5 text-xs text-[var(--text-strong)] focus:outline-none focus:border-[var(--ink-strong)] transition"
+            />
+          </div>
+        </div>
+
+        <!-- Markdown 编辑与预览 Tab 切换 -->
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider" id="editor-content-label">Markdown 正文内容</label>
+            <div class="inline-flex rounded-lg p-0.5 bg-[var(--bg-soft)] border border-[var(--rule)] text-xs">
+              <button type="button" id="tab-write-btn" class="px-2.5 py-0.5 rounded-md font-medium text-[var(--bg-base)] bg-[var(--ink-strong)] cursor-pointer">编写</button>
+              <button type="button" id="tab-preview-btn" class="px-2.5 py-0.5 rounded-md font-medium text-[var(--muted-strong)] hover:text-[var(--text-strong)] cursor-pointer">预览</button>
+            </div>
+          </div>
+
+          <textarea
+            id="editor-content-input"
+            rows="8"
+            placeholder="支持完整 Markdown 语法，如：&#10;# 核心思路&#10;- 要点一：避免跨模块裸指针传递&#10;- 要点二：使用 TSharedPtr / TWeakPtr&#10;```cpp&#10;TSharedPtr<FMyWorker> Worker = MakeShared<FMyWorker>();&#10;```"
+            class="w-full bg-[var(--bg-soft)] border border-[var(--rule)] rounded-lg p-3 text-xs sm:text-sm font-mono text-[var(--text-strong)] focus:outline-none focus:border-[var(--ink-strong)] transition resize-y"
+          ></textarea>
+
+          <div id="editor-preview-area" class="w-full min-h-[200px] p-4 bg-[var(--bg-soft)] border border-[var(--rule)] rounded-lg text-xs sm:text-sm prose-preview hidden overflow-y-auto max-h-[300px]">
+          </div>
+        </div>
+      </div>
+
+      <!-- 弹层底部按钮 -->
+      <div class="px-6 py-3.5 bg-[var(--bg-soft)] border-t border-[var(--rule)] flex items-center justify-between">
+        <span class="text-xs text-[var(--muted)]">快捷键：⌘ / Ctrl + Enter 保存</span>
+        <div class="flex items-center gap-2">
+          <button type="button" id="cancel-modal-btn" class="px-4 py-1.5 rounded-lg text-xs font-medium text-[var(--muted-strong)] hover:text-[var(--text-strong)] transition cursor-pointer">取消</button>
+          <button type="button" id="save-note-btn" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[var(--ink-strong)] text-[var(--bg-base)] hover:opacity-90 active:scale-95 transition shadow-sm cursor-pointer">保存便签</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 浮动 Toast 提示 -->
+  <div id="notes-toast" class="fixed bottom-6 right-6 z-50 transform translate-y-12 opacity-0 transition-all duration-300 pointer-events-none bg-[var(--ink-strong)] text-[var(--bg-base)] px-4 py-2.5 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+    <span id="notes-toast-msg">操作成功</span>
+  </div>
+</BaseLayout>
+
+<style>
+  /* 统计长条 */
+  .notes-stats-strip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: 9999px;
+    user-select: none;
+    -webkit-user-select: none;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+  }
+
+  .notes-stat-item {
+    cursor: pointer;
+    transition: color 240ms var(--ease);
+  }
+  .notes-stat-item.is-hovered {
+    color: var(--text-strong) !important;
+  }
+
+  /* 内部子页签 */
+  .subtabs-cluster {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.25rem 0.35rem;
+    background: var(--bg-soft);
+    border: 1px solid var(--rule-soft);
+    border-radius: 9999px;
+  }
+  .subtabs-glider {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 0;
+    border-radius: 9999px;
+    background: var(--ink-strong);
+    z-index: 1;
+    pointer-events: none;
+    transition: transform 380ms var(--ease), width 380ms var(--ease);
+  }
+  .sub-tab-btn {
+    position: relative;
+    z-index: 2;
+    padding: 0.45rem 1rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--muted-strong);
+    border-radius: 9999px;
+    transition: color 280ms var(--ease);
+    cursor: pointer;
+    background: transparent;
+    border: none;
+  }
+  .sub-tab-btn.active {
+    color: var(--bg-base) !important;
+    font-weight: 600;
+  }
+
+  /* 卡片多列网格：使用原生 CSS Grid，原子级栅格单元，彻底根除 column-count 导致的卡片纵向跨列撕裂 BUG */
+  .notes-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.35rem;
+    align-items: start;
+    width: 100%;
+  }
+  @media (min-width: 640px) {
+    .notes-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1024px) {
+    .notes-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .notes-card {
+    min-width: 0;
+    background: var(--bg-elev);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    box-shadow: var(--card-shadow, 0 4px 18px rgba(0, 0, 0, 0.04));
+    position: relative;
+    overflow: hidden;
+    word-break: break-word;
+    transition:
+      transform 320ms var(--ease),
+      box-shadow 320ms var(--ease),
+      border-color 240ms var(--ease);
+    animation: notesCardIn 540ms var(--ease-enter) both;
+  }
+  .notes-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--card-shadow-hover, 0 10px 28px rgba(0, 0, 0, 0.09));
+    border-color: var(--rule-strong);
+  }
+
+  /* 卡片过长时的内容截断与渐变遮罩 */
+  .card-content-clamped {
+    max-height: 185px;
+    overflow: hidden;
+    position: relative;
+  }
+  .card-content-clamped::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 70px;
+    background: linear-gradient(to bottom, transparent 0%, var(--bg-elev) 92%);
+    pointer-events: none;
+  }
+
+  /* 展开放大阅读触发条 */
+  .card-expand-prompt {
+    position: relative;
+    margin-top: -15px;
+    margin-bottom: 8px;
+    z-index: 10;
+    text-align: center;
+  }
+  .card-expand-prompt-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--muted-strong);
+    background: var(--bg-elev);
+    border: 1px solid var(--rule);
+    padding: 0.28rem 0.8rem;
+    border-radius: 9999px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 200ms var(--ease);
+    cursor: pointer;
+  }
+  .card-expand-prompt-btn:hover {
+    color: var(--text-strong);
+    border-color: var(--ink-strong);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  @keyframes notesCardIn {
+    from { opacity: 0; transform: translate3d(0, 18px, 0) scale(0.975); filter: blur(3px); }
+    to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); filter: blur(0); }
+  }
+  @keyframes noteFilterIn {
+    0% { opacity: 0; transform: translate3d(0, 16px, 0) scale(0.96); }
+    100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  }
+  @keyframes noteFilterOut {
+    0% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+    100% { opacity: 0; transform: translate3d(0, -10px, 0) scale(0.95); }
+  }
+  .notes-card.is-leaving { animation: noteFilterOut 240ms var(--ease) forwards; pointer-events: none; }
+  .notes-card.is-arriving { animation: noteFilterIn 380ms var(--ease-enter) both; }
+
+  .card-accent-strip {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 3.5px;
+    transition: width 200ms var(--ease);
+  }
+  .notes-card:hover .card-accent-strip { width: 5px; }
+
+  /* 纯色标过滤 */
+  .color-dot-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: transform 260ms var(--ease-bounce), border-color 200ms var(--ease);
+    border: 2px solid transparent;
+    background: transparent;
+  }
+  .color-dot-btn::after {
+    content: '';
+    width: 13px;
+    height: 13px;
+    border-radius: 9999px;
+    background-color: var(--dot-color);
+    transition: all 260ms var(--ease);
+  }
+  .color-dot-btn:hover { transform: scale(1.18); }
+  .color-dot-btn.active { border-color: var(--ink-strong); transform: scale(1.12); }
+  .color-dot-btn.active::after { width: 15px; height: 15px; }
+
+  .all-color-pill {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 9999px;
+    border: 1px solid var(--rule);
+    color: var(--muted-strong);
+    background: transparent;
+    cursor: pointer;
+    transition: all 240ms var(--ease);
+  }
+  .all-color-pill.active,
+  .all-color-pill:hover {
+    background-color: var(--ink-strong);
+    color: var(--bg-base);
+    border-color: var(--ink-strong);
+    font-weight: 600;
+  }
+
+  /* 文章气泡面板 */
+  .article-popover {
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    background: var(--bg-elev);
+    border: 1px solid var(--rule-strong);
+    border-radius: 14px;
+    box-shadow: 0 20px 48px -8px rgba(0, 0, 0, 0.18), 0 4px 14px rgba(0, 0, 0, 0.06);
+    z-index: 50;
+    transform-origin: top left;
+    transition: transform 260ms var(--ease-elastic), opacity 220ms var(--ease);
+  }
+  .article-popover.is-open { transform: scale(1) translateY(0); opacity: 1; }
+  .article-popover.is-closed { transform: scale(0.94) translateY(-8px); opacity: 0; pointer-events: none; }
+
+  .article-item-row { transition: background-color 180ms var(--ease), color 180ms var(--ease); cursor: pointer; }
+  .article-item-row:hover { background-color: var(--accent-soft); }
+  .article-item-row.active { background-color: var(--accent-soft); font-weight: 600; color: var(--text-strong); }
+
+  /* 模态弹层通用 */
+  .modal-overlay {
+    background: rgba(0, 0, 0, 0.48);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: opacity 280ms var(--ease);
+  }
+  .modal-card {
+    transition: transform 340ms var(--ease-elastic), opacity 280ms var(--ease);
+  }
+  .modal-overlay.is-open .modal-card { transform: scale(1) translateY(0); opacity: 1; }
+  .modal-overlay.is-closed .modal-card { transform: scale(0.95) translateY(12px); opacity: 0; }
+
+  /* Markdown 预览样式规范 */
+  .prose-preview {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
+  }
+  .prose-preview h1, .prose-preview h2, .prose-preview h3, .prose-preview h4 {
+    font-weight: 700;
+    color: var(--text-strong);
+    margin-top: 0.7em;
+    margin-bottom: 0.3em;
+  }
+  .prose-preview p { margin-bottom: 0.5em; line-height: 1.65; }
+  .prose-preview code {
+    background-color: var(--accent-soft);
+    padding: 0.15em 0.35em;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-family: var(--font-mono, monospace);
+  }
+  .prose-preview pre {
+    background-color: var(--bg-soft);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 0.75rem;
+    overflow-x: auto;
+    font-size: 0.82em;
+    font-family: var(--font-mono, monospace);
+    margin: 0.5em 0;
+    max-width: 100%;
+  }
+  .prose-preview pre code {
+    background: transparent;
+    padding: 0;
+    font-size: 1em;
+    white-space: pre;
+    word-break: normal;
+  }
+  .prose-preview blockquote {
+    border-left: 3px solid var(--ink-light);
+    padding-left: 0.75rem;
+    color: var(--muted-strong);
+    font-style: italic;
+    margin: 0.5em 0;
+  }
+  .prose-preview ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.5em; }
+  .prose-preview ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.5em; }
+</style>
+
+<script>
+  import { renderMarkdown } from '../utils/inkAskMarkdown';
+  import {
+    getAllNotesAcrossSite,
+    saveStandaloneNote,
+    deleteStoredNote,
+    loadHighlights,
+    saveHighlights,
+    exportHighlightsAsMarkdown,
+    type ArticleHighlightRecord,
+  } from '../utils/articleHighlightEngine';
+  import { initNotesSync, syncNow } from '../utils/notesSync';
+
+  const LISTENER_KEY = '__areSetNotesPageInit';
+  const CLEANUP_KEY = '__areSetNotesPageCleanup';
+
+  interface PostMeta {
+    slug: string;
+    title: string;
+    url: string;
+  }
+
+  function initNotesPage() {
+    // 销毁旧的监听器与状态
+    const oldCleanup = (window as any)[CLEANUP_KEY];
+    if (typeof oldCleanup === 'function') {
+      oldCleanup();
+    }
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    // 启动云端同步服务
+    initNotesSync();
+
+    // 读取服务端传递的文章元数据映射
+    let postsMetaMap = new Map<string, PostMeta>();
+    const postsMetaEl = document.getElementById('posts-meta-data');
+    if (postsMetaEl?.textContent) {
+      try {
+        const list: PostMeta[] = JSON.parse(postsMetaEl.textContent);
+        for (const p of list) {
+          postsMetaMap.set(p.slug, p);
+        }
+      } catch (err) {
+        console.warn('[notes] failed to parse postsMeta:', err);
+      }
+    }
+
+    let notesDatabase: ArticleHighlightRecord[] = [];
+    let currentFilter = {
+      kind: 'all',
+      article: 'all',
+      color: 'all',
+      keyword: '',
+      articleSearch: '',
+    };
+
+    let editingNoteId: string | null = null;
+    let viewingNoteId: string | null = null;
+
+    function normalizePostSlug(rawSlug?: string): string {
+      if (!rawSlug || rawSlug === '__standalone__' || rawSlug === '/__standalone__/') {
+        return '__standalone__';
+      }
+      let s = rawSlug.trim();
+      if (s.startsWith('/posts/')) s = s.slice(7);
+      if (s.startsWith('/')) s = s.slice(1);
+      if (s.endsWith('/')) s = s.slice(0, -1);
+      return s;
+    }
+
+    function refreshNotesFromStorage() {
+      const rawNotes = getAllNotesAcrossSite();
+      notesDatabase = rawNotes.map((note) => {
+        const normSlug = normalizePostSlug(note.postSlug);
+        let postTitle = note.postTitle;
+        if (!postTitle && normSlug !== '__standalone__' && postsMetaMap.has(normSlug)) {
+          postTitle = postsMetaMap.get(normSlug)?.title || normSlug;
+        }
+        return {
+          ...note,
+          postSlug: normSlug,
+          postTitle: normSlug === '__standalone__' ? '独立便签' : (postTitle || normSlug),
+        };
+      });
+    }
+
+    function formatTime(ts: number): string {
+      const now = Date.now();
+      const diff = now - ts;
+      if (diff < 60 * 1000) return '刚刚';
+      if (diff < 3600 * 1000) return `${Math.floor(diff / 60000)} 分钟前`;
+      if (diff < 86400 * 1000) return `${Math.floor(diff / 3600000)} 小时前`;
+      const d = new Date(ts);
+      return `${d.getMonth() + 1}月${d.getDate()}日`;
+    }
+
+    function animateCountUp(el: HTMLElement, targetVal: number, durationMs = 1200) {
+      const start = performance.now();
+      const from = 0;
+      function tick(now: number) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / durationMs, 1);
+        const easeVal = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+        const current = Math.round(from + (targetVal - from) * easeVal);
+        el.textContent = String(current);
+        if (progress < 1) requestAnimationFrame(tick);
+        else el.textContent = String(targetVal);
+      }
+      requestAnimationFrame(tick);
+    }
+
+    function updateStats(animate = false) {
+      const total = notesDatabase.length;
+      const free = notesDatabase.filter((n) => n.kind === 'free').length;
+      const highlights = notesDatabase.filter((n) => (n.kind || 'highlight') === 'highlight').length;
+      const ai = notesDatabase.filter((n) => n.kind === 'ai').length;
+
+      const elTotal = document.getElementById('stat-total');
+      const elFree = document.getElementById('stat-free');
+      const elHighlights = document.getElementById('stat-highlights');
+      const elAi = document.getElementById('stat-ai');
+
+      if (animate) {
+        if (elTotal) animateCountUp(elTotal, total, 1100);
+        if (elFree) animateCountUp(elFree, free, 1200);
+        if (elHighlights) animateCountUp(elHighlights, highlights, 1300);
+        if (elAi) animateCountUp(elAi, ai, 1400);
+      } else {
+        if (elTotal) elTotal.textContent = String(total);
+        if (elFree) elFree.textContent = String(free);
+        if (elHighlights) elHighlights.textContent = String(highlights);
+        if (elAi) elAi.textContent = String(ai);
+      }
+    }
+
+    function initStatsGlider() {
+      const strip = document.getElementById('notes-stats-strip');
+      const glider = document.getElementById('notes-stats-glider');
+      if (!strip || !glider) return;
+
+      const items = strip.querySelectorAll<HTMLElement>('.stats-item');
+
+      function moveGlider(target: HTMLElement) {
+        const stripRect = strip.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const left = targetRect.left - stripRect.left;
+        const width = targetRect.width;
+        glider.style.opacity = '1';
+        glider.style.transform = `translateX(${left}px)`;
+        glider.style.width = `${width}px`;
+        items.forEach((it) => it.classList.remove('is-hovered'));
+        target.classList.add('is-hovered');
+      }
+
+      function hideGlider() {
+        glider.style.opacity = '0';
+        items.forEach((it) => it.classList.remove('is-hovered'));
+      }
+
+      items.forEach((item) => {
+        item.addEventListener('mouseenter', () => moveGlider(item), { signal });
+        item.addEventListener('focus', () => moveGlider(item), { signal });
+        item.addEventListener('click', () => {
+          const rect = item.getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+        }, { signal });
+      });
+
+      strip.addEventListener('mouseleave', hideGlider, { signal });
+    }
+
+    function initSubtabsGlider() {
+      const cluster = document.getElementById('subtabs-cluster');
+      const glider = document.getElementById('subtabs-glider');
+      if (!cluster || !glider) return;
+
+      function updateGlider() {
+        const activeBtn = cluster.querySelector<HTMLElement>('.sub-tab-btn.active');
+        if (!activeBtn) return;
+        const clusterRect = cluster.getBoundingClientRect();
+        const btnRect = activeBtn.getBoundingClientRect();
+        const left = btnRect.left - clusterRect.left;
+        const width = btnRect.width;
+        glider.style.transform = `translateX(${left}px)`;
+        glider.style.width = `${width}px`;
+      }
+
+      window.addEventListener('resize', updateGlider, { signal });
+      setTimeout(updateGlider, 50);
+
+      cluster.querySelectorAll<HTMLElement>('.sub-tab-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          cluster.querySelectorAll('.sub-tab-btn').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentFilter.kind = btn.getAttribute('data-kind') || 'all';
+          updateGlider();
+          renderCards(true);
+        }, { signal });
+      });
+    }
+
+    function getArticlesStats() {
+      const map = new Map<string, { slug: string; title: string; count: number }>();
+      let standaloneCount = 0;
+
+      notesDatabase.forEach((n) => {
+        if (n.kind === 'free' || n.postSlug === '__standalone__') {
+          standaloneCount++;
+        } else if (n.postSlug) {
+          if (!map.has(n.postSlug)) {
+            map.set(n.postSlug, { slug: n.postSlug, title: n.postTitle || n.postSlug, count: 0 });
+          }
+          map.get(n.postSlug)!.count++;
+        }
+      });
+
+      return {
+        total: notesDatabase.length,
+        standalone: standaloneCount,
+        articles: Array.from(map.values()),
+      };
+    }
+
+    function renderArticleDropdown() {
+      const stats = getArticlesStats();
+      const listContainer = document.getElementById('article-list-container');
+      const triggerLabel = document.getElementById('article-trigger-label');
+      const quickClearBtn = document.getElementById('article-quick-clear');
+      if (!listContainer || !triggerLabel || !quickClearBtn) return;
+
+      const kw = currentFilter.articleSearch.toLowerCase();
+
+      if (currentFilter.article === 'all') {
+        triggerLabel.textContent = `来源: 全部文章 (${stats.total})`;
+        quickClearBtn.classList.add('hidden');
+      } else if (currentFilter.article === 'standalone') {
+        triggerLabel.textContent = `来源: 仅独立便签 (${stats.standalone})`;
+        quickClearBtn.classList.remove('hidden');
+      } else {
+        const found = stats.articles.find((a) => a.slug === currentFilter.article);
+        const titleShort = found ? found.title : currentFilter.article;
+        triggerLabel.textContent = `文章: ${titleShort} (${found ? found.count : 0})`;
+        quickClearBtn.classList.remove('hidden');
+      }
+
+      let html = '';
+
+      if (!kw || '全部文章来源'.includes(kw)) {
+        const isActive = currentFilter.article === 'all';
+        html += `
+          <div class="article-item-row flex items-center justify-between px-3 py-2 rounded-lg ${isActive ? 'active' : ''}" data-slug="all">
+            <div class="flex items-center gap-2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="${isActive ? 'text-[var(--text-strong)]' : 'text-transparent'}">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>全部来源</span>
+            </div>
+            <span class="text-[11px] px-1.5 py-0.5 rounded-full bg-[var(--bg-soft)] text-[var(--muted)] font-mono">${stats.total}</span>
+          </div>
+        `;
+      }
+
+      if (!kw || '仅独立便签随记markdown'.includes(kw)) {
+        const isActive = currentFilter.article === 'standalone';
+        html += `
+          <div class="article-item-row flex items-center justify-between px-3 py-2 rounded-lg ${isActive ? 'active' : ''}" data-slug="standalone">
+            <div class="flex items-center gap-2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="${isActive ? 'text-[var(--text-strong)]' : 'text-transparent'}">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>仅独立 Markdown 便签</span>
+            </div>
+            <span class="text-[11px] px-1.5 py-0.5 rounded-full bg-[var(--bg-soft)] text-[var(--muted)] font-mono">${stats.standalone}</span>
+          </div>
+        `;
+      }
+
+      html += `<div class="h-px bg-[var(--rule)] my-1"></div>`;
+
+      const filteredArticles = stats.articles.filter((a) => !kw || a.title.toLowerCase().includes(kw));
+
+      if (filteredArticles.length === 0 && kw) {
+        html += `<div class="text-center py-4 text-xs text-[var(--muted)]">未找到匹配文章</div>`;
+      } else {
+        filteredArticles.forEach((a) => {
+          const isActive = currentFilter.article === a.slug;
+          html += `
+            <div class="article-item-row flex items-center justify-between px-3 py-2 rounded-lg ${isActive ? 'active' : ''}" data-slug="${a.slug}">
+              <div class="flex items-center gap-2 truncate pr-2" title="${a.title}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="${isActive ? 'text-[var(--text-strong)]' : 'text-transparent'} shrink-0">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span class="truncate">${a.title}</span>
+              </div>
+              <span class="text-[11px] px-1.5 py-0.5 rounded-full bg-[var(--bg-soft)] text-[var(--muted)] font-mono shrink-0">${a.count}条</span>
+            </div>
+          `;
+        });
+      }
+
+      listContainer.innerHTML = html;
+
+      listContainer.querySelectorAll<HTMLElement>('.article-item-row').forEach((row) => {
+        row.addEventListener('click', () => {
+          currentFilter.article = row.getAttribute('data-slug') || 'all';
+          closeArticlePopover();
+          renderArticleDropdown();
+          renderCards(true);
+        }, { signal });
+      });
+    }
+
+    function toggleArticlePopover() {
+      const panel = document.getElementById('article-popover-panel');
+      const trigger = document.getElementById('article-popover-trigger');
+      if (!panel || !trigger) return;
+      const isClosed = panel.classList.contains('is-closed');
+      if (isClosed) {
+        panel.classList.remove('is-closed');
+        panel.classList.add('is-open');
+        trigger.setAttribute('aria-expanded', 'true');
+        const input = document.getElementById('article-search-input') as HTMLInputElement | null;
+        if (input) {
+          input.value = '';
+          currentFilter.articleSearch = '';
+          renderArticleDropdown();
+          setTimeout(() => input.focus(), 60);
+        }
+      } else {
+        closeArticlePopover();
+      }
+    }
+
+    function closeArticlePopover() {
+      const panel = document.getElementById('article-popover-panel');
+      const trigger = document.getElementById('article-popover-trigger');
+      if (!panel || !trigger) return;
+      panel.classList.remove('is-open');
+      panel.classList.add('is-closed');
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+
+    function renderCards(isFiltering = false) {
+      const container = document.getElementById('notes-container');
+      const emptyState = document.getElementById('empty-state');
+      if (!container || !emptyState) return;
+
+      container.innerHTML = '';
+
+      const filtered = notesDatabase.filter((item) => {
+        const itemKind = item.kind || 'highlight';
+        if (currentFilter.kind !== 'all' && itemKind !== currentFilter.kind) return false;
+        if (currentFilter.article === 'standalone' && itemKind !== 'free' && item.postSlug !== '__standalone__') return false;
+        if (currentFilter.article !== 'all' && currentFilter.article !== 'standalone' && item.postSlug !== currentFilter.article) return false;
+        if (currentFilter.color !== 'all' && item.color !== currentFilter.color) return false;
+        if (currentFilter.keyword) {
+          const kw = currentFilter.keyword.toLowerCase();
+          const matchTitle = (item.title || '').toLowerCase().includes(kw);
+          const matchText = (item.text || '').toLowerCase().includes(kw);
+          const matchComment = (item.comment || '').toLowerCase().includes(kw);
+          const matchArticle = (item.postTitle || '').toLowerCase().includes(kw);
+          const matchQuestion = (item.question || '').toLowerCase().includes(kw);
+          const matchTags = (item.tags || []).some((t) => t.toLowerCase().includes(kw));
+          if (!matchTitle && !matchText && !matchComment && !matchArticle && !matchQuestion && !matchTags) return false;
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+
+      filtered.forEach((note, index) => {
+        const card = document.createElement('div');
+        card.className = `notes-card p-5 ${isFiltering ? 'is-arriving' : ''}`;
+        card.id = `card-${note.id}`;
+        card.style.animationDelay = `${Math.min(index * 50, 450)}ms`;
+
+        const colorHex =
+          note.color === 'red'
+            ? '#ef5350'
+            : note.color === 'blue'
+            ? '#42a5f5'
+            : note.color === 'green'
+            ? '#66bb6a'
+            : '#ffa726';
+        const accentStrip = `<div class="card-accent-strip" style="background-color: ${colorHex}"></div>`;
+
+        let badgeHtml = '';
+        const itemKind = note.kind || 'highlight';
+        if (itemKind === 'free') {
+          badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--text-strong)]">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Markdown 便签
+          </span>`;
+        } else if (itemKind === 'highlight') {
+          badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 11-6 6v3h3l6-6"/><path d="m22 2-2.5 2.5a2.12 2.12 0 0 1-3 0l-1-1a2.12 2.12 0 0 1 0-3L18 0z"/><path d="M14.5 5.5 18.5 9.5"/></svg>
+            划线批注
+          </span>`;
+        } else {
+          badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            墨问 AI 问答
+          </span>`;
+        }
+
+        const tagsHtml = (note.tags || [])
+          .map((t) => `<span class="text-[10px] text-[var(--muted)] bg-[var(--bg-soft)] px-1.5 py-0.5 rounded border border-[var(--rule)]">#${t}</span>`)
+          .join(' ');
+
+        const isLongContent = (note.text.length + (note.comment || '').length) > 130 || note.text.includes('\n\n') || note.text.includes('```');
+
+        let rawContentInner = '';
+        if (itemKind === 'free') {
+          const titleHtml = note.title ? `<h3 class="font-bold text-base text-[var(--text-strong)] mb-2">${note.title}</h3>` : '';
+          rawContentInner = `
+            ${titleHtml}
+            <div class="prose-preview text-xs text-[var(--muted-strong)] leading-relaxed">
+              ${renderMarkdown(note.text)}
+            </div>
+          `;
+        } else if (itemKind === 'highlight') {
+          rawContentInner = `
+            <div class="p-3 bg-[var(--bg-soft)] rounded-lg border-l-2 border-[var(--text-strong)] text-xs text-[var(--text-strong)] leading-relaxed italic mb-3">
+              “${note.text}”
+            </div>
+            ${note.comment ? `
+              <div class="text-xs text-[var(--muted-strong)] flex items-start gap-1.5 mb-3 bg-amber-500/5 p-2.5 rounded border border-amber-500/15">
+                <span class="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider shrink-0 mt-0.5">批注:</span>
+                <span class="leading-relaxed">${note.comment}</span>
+              </div>
+            ` : ''}
+          `;
+        } else {
+          rawContentInner = `
+            <div class="text-xs font-bold text-[var(--text-strong)] mb-2 flex items-start gap-1.5">
+              <span class="text-purple-600 dark:text-purple-400 shrink-0">Q:</span>
+              <span>${note.question || '提问'}</span>
+            </div>
+            <div class="text-xs text-[var(--muted-strong)] bg-[var(--bg-soft)] p-3 rounded-lg leading-relaxed mb-3 border border-[var(--rule)]">
+              <span class="font-semibold text-[var(--text-strong)] block mb-1">AI 摘录回答:</span>
+              <div class="prose-preview">
+                ${renderMarkdown(note.text)}
+              </div>
+            </div>
+            ${note.comment ? `
+              <div class="text-xs text-[var(--muted-strong)] flex items-start gap-1.5 mb-3">
+                <span class="text-[11px] font-bold text-[var(--muted)] shrink-0">备忘:</span>
+                <span>${note.comment}</span>
+              </div>
+            ` : ''}
+          `;
+        }
+
+        let contentHtml = '';
+        if (isLongContent) {
+          contentHtml = `
+            <div class="card-content-clamped" id="clamped-content-${note.id}">
+              ${rawContentInner}
+            </div>
+            <div class="card-expand-prompt">
+              <button type="button" class="card-expand-prompt-btn zoom-card-btn" data-id="${note.id}" title="放大至弹窗查看完整内容">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                <span>放大阅读全文</span>
+              </button>
+            </div>
+          `;
+        } else {
+          contentHtml = rawContentInner;
+        }
+
+        let footerHtml = '';
+        if (note.postSlug && note.postSlug !== '__standalone__') {
+          footerHtml = `
+            <div class="pt-3 border-t border-[var(--rule)] flex items-center justify-between text-[11px] text-[var(--muted)]">
+              <div class="truncate mr-2" title="${note.postTitle || ''}">
+                <span class="text-[var(--text-strong)] font-medium">出自：</span>${note.postTitle || '文章'}
+                ${note.headingText ? `<span class="opacity-75 block text-[10px]">§ ${note.headingText}</span>` : ''}
+              </div>
+              <button type="button" class="jump-article-btn shrink-0 inline-flex items-center gap-1 text-xs font-medium text-[var(--text-strong)] hover:underline whitespace-nowrap cursor-pointer" data-slug="${note.postSlug}" data-id="${note.id}">
+                <span>跳转原文</span>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="shrink-0"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          `;
+        } else {
+          footerHtml = `
+            <div class="pt-3 border-t border-[var(--rule)] flex items-center justify-between text-[11px] text-[var(--muted)]">
+              <span>独立随笔便签</span>
+              <span>${formatTime(note.timestamp)}</span>
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          ${accentStrip}
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              ${badgeHtml}
+              <span class="text-[10px] text-[var(--muted)]">${formatTime(note.timestamp)}</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button type="button" class="zoom-card-btn p-1 text-[var(--muted)] hover:text-[var(--text-strong)] transition rounded cursor-pointer" title="放大至弹窗阅读" data-id="${note.id}">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <polyline points="9 21 3 21 3 15"></polyline>
+                  <line x1="21" y1="3" x2="14" y2="10"></line>
+                  <line x1="3" y1="21" x2="10" y2="14"></line>
+                </svg>
+              </button>
+              <button type="button" class="edit-card-btn p-1 text-[var(--muted)] hover:text-[var(--text-strong)] transition rounded cursor-pointer" title="编辑便签" data-id="${note.id}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+              <button type="button" class="copy-card-btn p-1 text-[var(--muted)] hover:text-[var(--text-strong)] transition rounded cursor-pointer" title="复制 Markdown 引用卡片" data-id="${note.id}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+              <button type="button" class="delete-card-btn p-1 text-[var(--muted)] hover:text-red-500 transition rounded cursor-pointer" title="删除" data-id="${note.id}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
+          </div>
+          ${contentHtml}
+          ${tagsHtml ? `<div class="flex flex-wrap gap-1 mb-3">${tagsHtml}</div>` : ''}
+          ${footerHtml}
+        `;
+
+        container.appendChild(card);
+      });
+
+      container.querySelectorAll<HTMLElement>('.zoom-card-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = btn.getAttribute('data-id');
+          if (id) openReaderModal(id);
+        }, { signal });
+      });
+
+      container.querySelectorAll<HTMLElement>('.jump-article-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const slug = btn.getAttribute('data-slug');
+          const noteId = btn.getAttribute('data-id');
+          if (slug) {
+            window.location.href = `/posts/${slug}#highlight-${noteId}`;
+          }
+        }, { signal });
+      });
+
+      container.querySelectorAll<HTMLElement>('.copy-card-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = btn.getAttribute('data-id');
+          const item = notesDatabase.find((n) => n.id === id);
+          if (item) {
+            const itemKind = item.kind || 'highlight';
+            const mdQuote =
+              itemKind === 'free'
+                ? `> **${item.title || '随记'}**\n> \n${item.text.split('\n').map((l) => '> ' + l).join('\n')}`
+                : `> “${item.text}”\n> \n> —— 出自《${item.postTitle || '文章'}》${item.headingText ? ` § ${item.headingText}` : ''}\n${item.comment ? `> **批注**：${item.comment}\n` : ''}`;
+            navigator.clipboard.writeText(mdQuote).catch(() => {});
+            showToast('已复制 Markdown 引用卡片到剪贴板！');
+          }
+        }, { signal });
+      });
+
+      container.querySelectorAll<HTMLElement>('.delete-card-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = btn.getAttribute('data-id');
+          if (!id) return;
+          if (!window.confirm('确定要删除这条笔记吗？（若已登录将同步删除）')) return;
+
+          const cardEl = document.getElementById(`card-${id}`);
+          if (cardEl) {
+            cardEl.classList.add('is-leaving');
+            setTimeout(() => {
+              const target = notesDatabase.find((n) => n.id === id);
+              deleteStoredNote(id, target?.postSlug);
+              refreshNotesFromStorage();
+              updateStats(false);
+              renderArticleDropdown();
+              renderCards(false);
+              showToast('笔记已删除 (同步墓碑已记录)');
+            }, 240);
+          }
+        }, { signal });
+      });
+
+      container.querySelectorAll<HTMLElement>('.edit-card-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = btn.getAttribute('data-id');
+          if (id) openEditor(id);
+        }, { signal });
+      });
+    }
+
+    // 打开大窗阅读器 (去底栏，精炼顶栏操作，绝不换行)
+    function openReaderModal(id: string) {
+      viewingNoteId = id;
+      const note = notesDatabase.find((n) => n.id === id);
+      if (!note) return;
+
+      const modal = document.getElementById('reader-modal');
+      const badgeEl = document.getElementById('reader-kind-badge');
+      const timeEl = document.getElementById('reader-time');
+      const titleEl = document.getElementById('reader-title');
+      const tagsEl = document.getElementById('reader-tags');
+      const sourceEl = document.getElementById('reader-source');
+      const contentEl = document.getElementById('reader-content');
+      const jumpBtn = document.getElementById('reader-jump-btn');
+      if (!modal || !badgeEl || !timeEl || !titleEl || !tagsEl || !sourceEl || !contentEl || !jumpBtn) return;
+
+      const itemKind = note.kind || 'highlight';
+      if (itemKind === 'free') {
+        badgeEl.className = 'inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--text-strong)] whitespace-nowrap shrink-0';
+        badgeEl.textContent = 'Markdown 独立随笔';
+        titleEl.textContent = note.title || '独立随笔便签';
+        jumpBtn.classList.add('hidden');
+        jumpBtn.classList.remove('inline-flex');
+        sourceEl.textContent = '独立知识库便签';
+      } else if (itemKind === 'highlight') {
+        badgeEl.className = 'inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400 whitespace-nowrap shrink-0';
+        badgeEl.textContent = '文章划线批注';
+        titleEl.textContent = note.headingText ? `§ ${note.headingText}` : '正文段落摘录';
+        jumpBtn.classList.remove('hidden');
+        jumpBtn.classList.add('inline-flex');
+        jumpBtn.setAttribute('data-slug', note.postSlug);
+        jumpBtn.setAttribute('data-id', note.id);
+        sourceEl.textContent = `出自《${note.postTitle || '文章'}》`;
+      } else {
+        badgeEl.className = 'inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 whitespace-nowrap shrink-0';
+        badgeEl.textContent = '墨问 AI 问答摘录';
+        titleEl.textContent = note.question || '墨问 AI 问答';
+        jumpBtn.classList.remove('hidden');
+        jumpBtn.classList.add('inline-flex');
+        jumpBtn.setAttribute('data-slug', note.postSlug);
+        jumpBtn.setAttribute('data-id', note.id);
+        sourceEl.textContent = `出自《${note.postTitle || '文章'}》`;
+      }
+
+      timeEl.textContent = `记录于 ${new Date(note.timestamp).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+
+      tagsEl.innerHTML =
+        (note.tags || []).map((t) => `<span class="px-2 py-0.5 rounded bg-[var(--bg-soft)] border border-[var(--rule)] text-xs text-[var(--muted-strong)] whitespace-nowrap">#${t}</span>`).join(' ') ||
+        '<span class="text-xs text-[var(--muted)]">无标签</span>';
+
+      if (itemKind === 'free') {
+        contentEl.innerHTML = renderMarkdown(note.text);
+      } else if (itemKind === 'highlight') {
+        contentEl.innerHTML = `
+          <div class="p-5 bg-[var(--bg-soft)] rounded-xl border-l-4 border-[var(--text-strong)] text-sm sm:text-base text-[var(--text-strong)] leading-relaxed italic mb-6">
+            “${note.text}”
+          </div>
+          ${note.comment ? `
+            <div class="p-4 bg-amber-500/10 rounded-xl border border-amber-500/20 text-sm leading-relaxed mb-4">
+              <span class="font-bold text-amber-600 dark:text-amber-400 block mb-1">思考注解 (My Annotation)：</span>
+              <p class="text-[var(--text)]">${note.comment}</p>
+            </div>
+          ` : '<p class="text-xs text-[var(--muted)] italic">暂无添加个人批注</p>'}
+        `;
+      } else {
+        contentEl.innerHTML = `
+          <div class="p-4 bg-purple-500/10 rounded-xl border border-purple-500/20 text-sm sm:text-base leading-relaxed mb-6 font-medium text-[var(--text-strong)]">
+            <span class="text-purple-600 dark:text-purple-400 font-bold mr-1">提问:</span> ${note.question || '提问'}
+          </div>
+          <div class="p-5 bg-[var(--bg-soft)] rounded-xl border border-[var(--rule)] text-sm sm:text-base leading-relaxed mb-4">
+            <span class="font-bold text-[var(--text-strong)] block mb-2">墨问 AI 精选答复:</span>
+            <div class="prose-preview">
+              ${renderMarkdown(note.text)}
+            </div>
+          </div>
+          ${note.comment ? `
+            <div class="p-4 bg-[var(--bg-elev)] border border-[var(--rule)] rounded-xl text-xs sm:text-sm text-[var(--muted-strong)]">
+              <span class="font-bold text-[var(--text-strong)] block mb-1">随想备忘：</span>
+              ${note.comment}
+            </div>
+          ` : ''}
+        `;
+      }
+
+      modal.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        modal.classList.remove('is-closed');
+        modal.classList.add('is-open');
+      });
+    }
+
+    function closeReaderModal() {
+      const modal = document.getElementById('reader-modal');
+      if (!modal) return;
+      modal.classList.remove('is-open');
+      modal.classList.add('is-closed');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        viewingNoteId = null;
+      }, 280);
+    }
+
+    let toastTimer: number | null = null;
+    function showToast(msg: string) {
+      const toast = document.getElementById('notes-toast');
+      const toastMsg = document.getElementById('notes-toast-msg');
+      if (!toast || !toastMsg) return;
+      toastMsg.textContent = msg;
+      toast.classList.remove('translate-y-12', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      if (toastTimer) window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-12', 'opacity-0');
+      }, 2500);
+    }
+
+    function openEditor(id: string | null = null) {
+      editingNoteId = id;
+      const modal = document.getElementById('editor-modal');
+      const titleWrap = document.getElementById('editor-title-wrap');
+      const titleInput = document.getElementById('editor-title-input') as HTMLInputElement | null;
+      const contentInput = document.getElementById('editor-content-input') as HTMLTextAreaElement | null;
+      const tagsInput = document.getElementById('editor-tags-input') as HTMLInputElement | null;
+      const modalTitle = document.getElementById('modal-title');
+      const contentLabel = document.getElementById('editor-content-label');
+      if (!modal || !titleWrap || !titleInput || !contentInput || !tagsInput || !modalTitle || !contentLabel) return;
+
+      if (id) {
+        const item = notesDatabase.find((n) => n.id === id);
+        if (item) {
+          const itemKind = item.kind || 'highlight';
+          if (itemKind === 'free') {
+            modalTitle.textContent = '编辑 Markdown 便签';
+            contentLabel.textContent = 'Markdown 正文内容';
+            titleWrap.classList.remove('hidden');
+            titleInput.value = item.title || '';
+            contentInput.value = item.text || '';
+          } else {
+            modalTitle.textContent = itemKind === 'highlight' ? '编辑划线注解' : '编辑 AI 问答备忘';
+            contentLabel.textContent = '批注注解内容';
+            titleWrap.classList.add('hidden');
+            contentInput.value = item.comment || '';
+          }
+          tagsInput.value = (item.tags || []).join(', ');
+          const colorRadio = document.querySelector<HTMLInputElement>(`input[name="note-color"][value="${item.color || 'blue'}"]`);
+          if (colorRadio) colorRadio.checked = true;
+        }
+      } else {
+        modalTitle.textContent = '新建 Markdown 便签';
+        contentLabel.textContent = 'Markdown 正文内容';
+        titleWrap.classList.remove('hidden');
+        titleInput.value = '';
+        contentInput.value = '';
+        tagsInput.value = '';
+        const defaultColor = document.querySelector<HTMLInputElement>('input[name="note-color"][value="blue"]');
+        if (defaultColor) defaultColor.checked = true;
+      }
+
+      switchEditorTab('write');
+      modal.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        modal.classList.remove('is-closed');
+        modal.classList.add('is-open');
+      });
+      setTimeout(() => contentInput.focus(), 80);
+    }
+
+    function closeEditor() {
+      const modal = document.getElementById('editor-modal');
+      if (!modal) return;
+      modal.classList.remove('is-open');
+      modal.classList.add('is-closed');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        editingNoteId = null;
+      }, 280);
+    }
+
+    function switchEditorTab(tab: 'write' | 'preview') {
+      const writeBtn = document.getElementById('tab-write-btn');
+      const previewBtn = document.getElementById('tab-preview-btn');
+      const contentInput = document.getElementById('editor-content-input') as HTMLTextAreaElement | null;
+      const previewArea = document.getElementById('editor-preview-area');
+      if (!writeBtn || !previewBtn || !contentInput || !previewArea) return;
+
+      if (tab === 'write') {
+        writeBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--bg-base)] bg-[var(--ink-strong)] cursor-pointer';
+        previewBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--muted-strong)] hover:text-[var(--text-strong)] cursor-pointer';
+        contentInput.classList.remove('hidden');
+        previewArea.classList.add('hidden');
+      } else {
+        previewBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--bg-base)] bg-[var(--ink-strong)] cursor-pointer';
+        writeBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--muted-strong)] hover:text-[var(--text-strong)] cursor-pointer';
+        previewArea.innerHTML = renderMarkdown(contentInput.value) || '<p class="text-[var(--muted)] italic">暂无内容预览...</p>';
+        contentInput.classList.add('hidden');
+        previewArea.classList.remove('hidden');
+      }
+    }
+
+    function saveNote() {
+      const titleInput = document.getElementById('editor-title-input') as HTMLInputElement | null;
+      const contentInput = document.getElementById('editor-content-input') as HTMLTextAreaElement | null;
+      const tagsInput = document.getElementById('editor-tags-input') as HTMLInputElement | null;
+      if (!titleInput || !contentInput || !tagsInput) return;
+
+      const title = titleInput.value.trim();
+      const text = contentInput.value.trim();
+      const tagsStr = tagsInput.value.trim();
+      const colorRadio = document.querySelector<HTMLInputElement>('input[name="note-color"]:checked');
+      const color = colorRadio?.value || 'blue';
+      const tags = tagsStr ? tagsStr.split(/[,，\s]+/).filter(Boolean) : [];
+
+      if (!text) {
+        showToast('便签内容不能为空');
+        return;
+      }
+
+      const now = Date.now();
+
+      if (editingNoteId) {
+        const item = notesDatabase.find((n) => n.id === editingNoteId);
+        if (item) {
+          const itemKind = item.kind || 'highlight';
+          const targetSlug = item.postSlug || '__standalone__';
+          const existing = loadHighlights(targetSlug);
+          const index = existing.findIndex((r) => r.id === item.id);
+
+          let updatedRecord: ArticleHighlightRecord;
+          if (itemKind === 'free') {
+            updatedRecord = {
+              ...item,
+              title: title || '未命名便签',
+              text: text,
+              tags,
+              color,
+              dirty: true,
+              updatedAt: now,
+            };
+          } else {
+            updatedRecord = {
+              ...item,
+              comment: text,
+              tags,
+              color,
+              dirty: true,
+              updatedAt: now,
+            };
+          }
+
+          if (index >= 0) {
+            existing[index] = updatedRecord;
+            saveHighlights(targetSlug, existing);
+          } else {
+            saveStandaloneNote(updatedRecord);
+          }
+          document.dispatchEvent(new CustomEvent('article-notes:changed'));
+          showToast('便签修改已保存！');
+        }
+      } else {
+        const newRecord: ArticleHighlightRecord = {
+          id: `note_${now.toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+          kind: 'free',
+          title: title || '未命名便签',
+          text,
+          comment: '',
+          color,
+          tags: tags.length ? tags : ['随笔'],
+          postSlug: '__standalone__',
+          postTitle: '独立便签',
+          timestamp: now,
+          updatedAt: now,
+          dirty: true,
+          deleted: false,
+        };
+        saveStandaloneNote(newRecord);
+        showToast('已新建 Markdown 独立便签！');
+      }
+
+      refreshNotesFromStorage();
+      updateStats(false);
+      renderArticleDropdown();
+      renderCards(true);
+      closeEditor();
+    }
+
+    // ---------- 事件监听绑定 ----------
+    document.getElementById('open-editor-btn')?.addEventListener('click', () => openEditor(null), { signal });
+    document.getElementById('close-modal-btn')?.addEventListener('click', closeEditor, { signal });
+    document.getElementById('cancel-modal-btn')?.addEventListener('click', closeEditor, { signal });
+    document.getElementById('save-note-btn')?.addEventListener('click', saveNote, { signal });
+
+    document.getElementById('tab-write-btn')?.addEventListener('click', () => switchEditorTab('write'), { signal });
+    document.getElementById('tab-preview-btn')?.addEventListener('click', () => switchEditorTab('preview'), { signal });
+
+    // 快捷键 ⌘ / Ctrl + Enter 保存
+    document.getElementById('editor-modal')?.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        saveNote();
+      } else if (e.key === 'Escape') {
+        closeEditor();
+      }
+    }, { signal });
+
+    // 大窗阅读器事件
+    document.getElementById('close-reader-btn')?.addEventListener('click', closeReaderModal, { signal });
+    document.getElementById('reader-modal')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeReaderModal();
+    }, { signal });
+
+    document.getElementById('reader-edit-btn')?.addEventListener('click', () => {
+      if (viewingNoteId) {
+        const id = viewingNoteId;
+        closeReaderModal();
+        setTimeout(() => openEditor(id), 290);
+      }
+    }, { signal });
+
+    document.getElementById('reader-copy-btn')?.addEventListener('click', () => {
+      if (!viewingNoteId) return;
+      const item = notesDatabase.find((n) => n.id === viewingNoteId);
+      if (item) {
+        const itemKind = item.kind || 'highlight';
+        const mdQuote =
+          itemKind === 'free'
+            ? `> **${item.title || '随记'}**\n> \n${item.text.split('\n').map((l) => '> ' + l).join('\n')}`
+            : `> “${item.text}”\n> \n> —— 出自《${item.postTitle || '文章'}》${item.headingText ? ` § ${item.headingText}` : ''}\n${item.comment ? `> **批注**：${item.comment}\n` : ''}`;
+        navigator.clipboard.writeText(mdQuote).catch(() => {});
+        showToast('已复制 Markdown 引用卡片到剪贴板！');
+      }
+    }, { signal });
+
+    document.getElementById('reader-jump-btn')?.addEventListener('click', () => {
+      const btn = document.getElementById('reader-jump-btn');
+      const slug = btn?.getAttribute('data-slug');
+      const noteId = btn?.getAttribute('data-id');
+      if (slug) {
+        window.location.href = `/posts/${slug}#highlight-${noteId}`;
+      }
+    }, { signal });
+
+    // 文章下拉气泡
+    document.getElementById('article-popover-trigger')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleArticlePopover();
+    }, { signal });
+
+    document.getElementById('article-quick-clear')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentFilter.article = 'all';
+      renderArticleDropdown();
+      renderCards(true);
+    }, { signal });
+
+    document.getElementById('article-search-input')?.addEventListener('input', (e) => {
+      currentFilter.articleSearch = (e.target as HTMLInputElement).value;
+      renderArticleDropdown();
+    }, { signal });
+
+    // 点击外部关闭气泡
+    document.addEventListener('click', (e) => {
+      const container = document.getElementById('article-popover-container');
+      if (container && !container.contains(e.target as Node)) {
+        closeArticlePopover();
+      }
+    }, { signal });
+
+    // 色标筛选
+    document.querySelector('.all-color-pill')?.addEventListener('click', () => {
+      document.querySelectorAll('.color-dot-btn').forEach((b) => b.classList.remove('active'));
+      document.querySelector('.all-color-pill')?.classList.add('active');
+      currentFilter.color = 'all';
+      renderCards(true);
+    }, { signal });
+
+    document.querySelectorAll<HTMLElement>('.color-dot-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelector('.all-color-pill')?.classList.remove('active');
+        document.querySelectorAll('.color-dot-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter.color = btn.getAttribute('data-color') || 'all';
+        renderCards(true);
+      }, { signal });
+    });
+
+    // 实时搜索
+    let searchDebounce: number | null = null;
+    document.getElementById('search-input')?.addEventListener('input', (e) => {
+      if (searchDebounce) window.clearTimeout(searchDebounce);
+      searchDebounce = window.setTimeout(() => {
+        currentFilter.keyword = (e.target as HTMLInputElement).value.trim();
+        renderCards(true);
+      }, 150);
+    }, { signal });
+
+    // 导出笔记
+    document.getElementById('export-btn')?.addEventListener('click', () => {
+      if (notesDatabase.length === 0) {
+        showToast('暂无笔记可导出');
+        return;
+      }
+      const mdContent = exportHighlightsAsMarkdown(
+        '全站笔记与批注归档',
+        window.location.origin + '/notes',
+        notesDatabase
+      );
+      const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `notes-export-${new Date().toISOString().slice(0, 10)}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('已导出 Markdown 笔记归档文件！');
+    }, { signal });
+
+    // 手动同步
+    document.getElementById('sync-btn')?.addEventListener('click', async () => {
+      const syncIcon = document.getElementById('sync-icon');
+      const syncText = document.getElementById('sync-text');
+      if (syncIcon) syncIcon.classList.add('animate-spin');
+      if (syncText) syncText.textContent = '同步中…';
+
+      try {
+        const res = await syncNow();
+        if (res.ok) {
+          showToast(`同步成功 (推${res.pushedCount} / 拉${res.pulledCount})`);
+          refreshNotesFromStorage();
+          updateStats(false);
+          renderArticleDropdown();
+          renderCards(false);
+        } else {
+          showToast(res.reason === 'need-login' ? '请先登录账号开启多设备同步' : '同步失败，请检查网络');
+        }
+      } catch {
+        showToast('同步异常');
+      } finally {
+        if (syncIcon) syncIcon.classList.remove('animate-spin');
+        if (syncText) syncText.textContent = '同步';
+      }
+    }, { signal });
+
+    // 监听全站笔记变动与云端同步完成事件
+    window.addEventListener('article-notes:synced', () => {
+      refreshNotesFromStorage();
+      updateStats(false);
+      renderArticleDropdown();
+      renderCards(false);
+    }, { signal });
+
+    document.addEventListener('article-notes:changed', () => {
+      refreshNotesFromStorage();
+      updateStats(false);
+      renderArticleDropdown();
+      renderCards(false);
+    }, { signal });
+
+    // 初次载入执行
+    refreshNotesFromStorage();
+    initStatsGlider();
+    initSubtabsGlider();
+    updateStats(true);
+    renderArticleDropdown();
+    renderCards(false);
+
+    // 换页清理
+    (window as any)[CLEANUP_KEY] = () => {
+      controller.abort();
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+  }
+
+  // 挂载
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initNotesPage, { once: true });
+  } else {
+    initNotesPage();
+  }
+
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', () => {
+      initNotesPage();
+    });
+    (window as any)[LISTENER_KEY] = true;
+  }
+</script>

@@ -8,11 +8,15 @@
  * 4. 纯净 DOM 还原：取消高亮时完全解除包裹并调用 normalize() 恢复原生文本节点
  */
 
+import { domRangeToMarkdown } from './inkAskMarkdown.ts';
+
 export type NoteKind = 'highlight' | 'free' | 'ai';
 
 export interface ArticleHighlightRecord {
   id: string;
   text: string;
+  rawText?: string;
+  markdown?: string;
   prefix: string;
   suffix: string;
   headingId?: string;
@@ -22,6 +26,10 @@ export interface ArticleHighlightRecord {
 
   /** 笔记类型；旧数据缺省视为 highlight */
   kind?: NoteKind;
+  /** 独立便签标题（可选） */
+  title?: string;
+  /** 标签数组（可选） */
+  tags?: string[];
   /** 用户备注（划线、自由笔记、AI 摘录都可有） */
   comment?: string;
   /** 所属文章路径（同步用；旧数据可能缺省） */
@@ -75,6 +83,10 @@ export function normalizeNoteRecord(item: ArticleHighlightRecord, postSlug = '')
   return {
     ...item,
     kind,
+    title: typeof item.title === 'string' ? item.title : '',
+    tags: Array.isArray(item.tags) ? item.tags : [],
+    rawText: typeof item.rawText === 'string' ? item.rawText : undefined,
+    markdown: typeof item.markdown === 'string' ? item.markdown : item.text,
     prefix: typeof item.prefix === 'string' ? item.prefix : '',
     suffix: typeof item.suffix === 'string' ? item.suffix : '',
     comment: typeof item.comment === 'string' ? item.comment : '',
@@ -133,7 +145,12 @@ export function loadAllStoredNotes(): Array<{ postSlug: string; records: Article
       const key = window.localStorage.key(i);
       if (!key || !key.startsWith(prefix)) continue;
       const suffix = key.slice(prefix.length);
-      const derivedSlug = suffix === 'default' ? '' : `/${suffix.replace(/_/g, '/')}/`;
+      const derivedSlug =
+        suffix === 'default'
+          ? ''
+          : suffix === '__standalone__'
+          ? '__standalone__'
+          : `/${suffix.replace(/_/g, '/')}/`;
       const records = loadHighlights(derivedSlug);
       if (records.length) buckets.push({ postSlug: derivedSlug, records });
     }
@@ -141,6 +158,87 @@ export function loadAllStoredNotes(): Array<{ postSlug: string; records: Article
     console.warn('[highlightEngine] Failed to enumerate notes:', err);
   }
   return buckets;
+}
+
+/**
+ * 保存或更新一条独立 Markdown 笔记（不依赖于具体文章）
+ */
+export function saveStandaloneNote(note: ArticleHighlightRecord): void {
+  if (typeof window === 'undefined') return;
+  const slug = '__standalone__';
+  const existing = loadHighlights(slug);
+  const now = Date.now();
+  const index = existing.findIndex((r) => r.id === note.id);
+  const normalized: ArticleHighlightRecord = {
+    ...note,
+    kind: 'free',
+    postSlug: '__standalone__',
+    postTitle: note.postTitle || '独立便签',
+    dirty: true,
+    deleted: false,
+    updatedAt: now,
+    timestamp: note.timestamp || now,
+  };
+
+  let next: ArticleHighlightRecord[];
+  if (index >= 0) {
+    next = [...existing];
+    next[index] = normalized;
+  } else {
+    next = [normalized, ...existing];
+  }
+  saveHighlights(slug, next);
+  document.dispatchEvent(new CustomEvent('article-notes:changed'));
+}
+
+/**
+ * 删除指定笔记（支持划线、独立便签、AI 摘录）并记录同步墓碑
+ */
+export function deleteStoredNote(noteId: string, postSlug?: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const targetSlug = postSlug || '__standalone__';
+  const existing = loadHighlights(targetSlug);
+  const index = existing.findIndex((r) => r.id === noteId);
+  if (index === -1) {
+    // 跨 bucket 查找（防容错）
+    for (const bucket of loadAllStoredNotes()) {
+      const bIndex = bucket.records.findIndex((r) => r.id === noteId);
+      if (bIndex >= 0) {
+        const next = [...bucket.records];
+        next[bIndex] = { ...next[bIndex], deleted: true, dirty: true, updatedAt: Date.now() };
+        saveHighlights(bucket.postSlug, next);
+        document.dispatchEvent(new CustomEvent('article-notes:changed'));
+        return true;
+      }
+    }
+    return false;
+  }
+
+  const next = [...existing];
+  next[index] = { ...next[index], deleted: true, dirty: true, updatedAt: Date.now() };
+  saveHighlights(targetSlug, next);
+  document.dispatchEvent(new CustomEvent('article-notes:changed'));
+  return true;
+}
+
+/**
+ * 获取全站所有未删除的有效笔记清单（按更新时间降序）
+ */
+export function getAllNotesAcrossSite(): ArticleHighlightRecord[] {
+  if (typeof window === 'undefined') return [];
+  const buckets = loadAllStoredNotes();
+  const all: ArticleHighlightRecord[] = [];
+  for (const bucket of buckets) {
+    for (const record of bucket.records) {
+      if (!record.deleted) {
+        all.push({
+          ...record,
+          postSlug: record.postSlug || (bucket.postSlug === '/__standalone__/' ? '__standalone__' : bucket.postSlug),
+        });
+      }
+    }
+  }
+  return all.sort((a, b) => Number(b.updatedAt || b.timestamp) - Number(a.updatedAt || a.timestamp));
 }
 
 /**
@@ -214,10 +312,14 @@ export function serializeHighlight(range: Range, proseRoot: HTMLElement): Articl
   const headingInfo = findPrecedingHeading(range.startContainer, proseRoot);
 
   const id = `hl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const markdownText = domRangeToMarkdown(range);
+  const text = markdownText || rawText;
 
   return {
     id,
-    text: rawText,
+    text,
+    rawText,
+    markdown: text,
     prefix,
     suffix,
     headingId: headingInfo.id,
@@ -313,8 +415,29 @@ export function findTextOffsetInString(
   combinedText: string,
   record: ArticleHighlightRecord
 ): { start: number; end: number } | null {
-  const query = record.text;
+  let query = record.rawText || record.text;
   if (!query) return null;
+
+  // 如果 query 含有 Markdown 标记且在纯文本树中直接查不到，剥除 Markdown 标记回退到纯文本查找
+  if (combinedText.indexOf(query) === -1 && /[#*`_~[\]$]/.test(query)) {
+    const stripped = query
+      .replace(/```[\s\S]*?```/g, (m) => m.replace(/```[a-z0-9_-]*\n?/i, '').replace(/```$/, ''))
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/~~([^~]+)~~/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/^#+\s+/gm, '')
+      .replace(/^>\s+/gm, '')
+      .replace(/^[-*+]\s+/gm, '')
+      .replace(/^\d+\.\s+/gm, '')
+      .replace(/\$([^$]+)\$/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (stripped && (combinedText.includes(stripped) || combinedText.replace(/\s+/g, ' ').includes(stripped))) {
+      query = stripped;
+    }
+  }
 
   // 1. 精确查找所有可能出现的位置
   const matches: number[] = [];
@@ -396,6 +519,75 @@ export function findTextOffsetInString(
     }
 
     return { start: origStart, end: origEnd };
+  }
+
+  // 3. 紧凑无空白匹配（Compact Matching）：
+  // 解决跨块级元素（标题、段落、列表、代码块）时，选区文本因块边界带有换行/空格，
+  // 但 DOM 树文本节点直接相邻无空格导致的匹配失效。
+  let compactCombined = '';
+  const compactToOrig: number[] = [];
+  for (let i = 0; i < combinedText.length; i++) {
+    if (!/\s/.test(combinedText[i])) {
+      compactToOrig.push(i);
+      compactCombined += combinedText[i];
+    }
+  }
+
+  function tryCompactMatch(targetQuery: string): { start: number; end: number } | null {
+    const compactTarget = targetQuery.replace(/\s+/g, '');
+    if (!compactTarget || compactCombined.length < compactTarget.length) return null;
+
+    const compactMatches: number[] = [];
+    let cIdx = compactCombined.indexOf(compactTarget);
+    while (cIdx !== -1) {
+      compactMatches.push(cIdx);
+      cIdx = compactCombined.indexOf(compactTarget, cIdx + 1);
+    }
+
+    if (!compactMatches.length) return null;
+
+    let chosenIdx = compactMatches[0];
+    if (compactMatches.length > 1) {
+      let bestScore = -1;
+      for (const m of compactMatches) {
+        const origStart = compactToOrig[m];
+        const origEnd = compactToOrig[m + compactTarget.length - 1] + 1;
+        const score = scoreContextMatch(combinedText, origStart, origEnd - origStart, record.prefix, record.suffix);
+        if (score > bestScore) {
+          bestScore = score;
+          chosenIdx = m;
+        }
+      }
+    }
+
+    const start = compactToOrig[chosenIdx];
+    const end = compactToOrig[chosenIdx + compactTarget.length - 1] + 1;
+    return { start, end };
+  }
+
+  const compactRes = tryCompactMatch(query);
+  if (compactRes) return compactRes;
+
+  // 4. Markdown 语法标记兜底清除匹配（兼容旧数据或富文本片段）
+  if (/[#*`_~[\]$]/.test(query)) {
+    const stripped = query
+      .replace(/```[a-z0-9_-]*\n?/gi, '')
+      .replace(/```/g, '')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/~~([^~]+)~~/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/^#+\s+/gm, '')
+      .replace(/^>\s+/gm, '')
+      .replace(/^[-*+]\s+/gm, '')
+      .replace(/\$([^$]+)\$/g, '$1')
+      .trim();
+
+    if (stripped && stripped !== query) {
+      const strippedRes = tryCompactMatch(stripped);
+      if (strippedRes) return strippedRes;
+    }
   }
 
   return null;
@@ -567,7 +759,7 @@ export function applyRangesAsHighlight(
         mark.dataset.highlightId = record.id;
         mark.setAttribute('tabindex', '0');
         mark.setAttribute('role', 'button');
-        mark.setAttribute('aria-label', `高亮标注：${record.text.slice(0, 30)}`);
+        mark.setAttribute('aria-label', `高亮标注：${(record.rawText || record.text).slice(0, 30)}`);
         mark.title = `高亮笔记 (点击管理) · ${new Date(record.timestamp).toLocaleDateString()}`;
 
         // 仅在首个 mark 上赋予定位锚点 id

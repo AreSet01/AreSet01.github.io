@@ -223,6 +223,9 @@ const NOTE_LIMITS = {
   postTitle: 200,
   headingText: 300,
   question: 500,
+  title: 200,
+  tag: 50,
+  maxTags: 20,
   batch: 200,
   perUser: 5_000,
 };
@@ -500,6 +503,10 @@ function sanitizeNote(raw) {
     color: raw.color ? String(raw.color).slice(0, 40) : '',
     postSlug: String(raw.postSlug || '').slice(0, NOTE_LIMITS.postSlug),
     postTitle: String(raw.postTitle || '').slice(0, NOTE_LIMITS.postTitle),
+    title: String(raw.title || '').slice(0, NOTE_LIMITS.title),
+    tags: Array.isArray(raw.tags)
+      ? raw.tags.map(t => String(t || '').trim().slice(0, NOTE_LIMITS.tag)).filter(Boolean).slice(0, NOTE_LIMITS.maxTags)
+      : [],
     source: raw.source === 'inkask' ? 'inkask' : '',
     question: String(raw.question || '').slice(0, NOTE_LIMITS.question),
     timestamp,
@@ -1218,6 +1225,22 @@ async function handleNotes(req, res, pathname) {
       ok: true,
       rev: bucket.rev,
       notes: Object.values(bucket.notes).filter((note) => !note.deleted),
+    });
+  }
+
+  if (pathname === '/api/notes/status' && method === 'GET') {
+    const url = new URL(req.url || '/', 'http://localhost');
+    const since = Number(url.searchParams.get('since') || 0);
+    const sinceRev = Number.isFinite(since) && since > 0 ? since : 0;
+    const allNotes = Object.values(bucket.notes);
+    const activeNotes = allNotes.filter((note) => !note.deleted);
+    const incomingChanges = allNotes.filter((note) => Number(note.serverRev) > sinceRev);
+    return sendJson(res, 200, {
+      ok: true,
+      rev: bucket.rev,
+      totalCount: activeNotes.length,
+      incomingCount: incomingChanges.length,
+      updatedAt: Math.max(0, ...allNotes.map((n) => Number(n.updatedAt) || 0)),
     });
   }
 

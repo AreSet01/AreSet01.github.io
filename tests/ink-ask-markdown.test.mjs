@@ -4,7 +4,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { marked } from 'marked';
-import { preprocessMarkdown, strongifyMarkdown, renderMarkdown } from '../src/utils/inkAskMarkdown.ts';
+import { preprocessMarkdown, strongifyMarkdown, renderMarkdown, domRangeToMarkdown } from '../src/utils/inkAskMarkdown.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -99,3 +99,46 @@ test('5. renderMarkdown renders bold / inline code for notes and answers', () =>
   assert.match(list, /<li>一<\/li>/);
   assert.match(list, /<li>二<\/li>/);
 });
+
+test('6. domRangeToMarkdown converts DOM elements and ranges to clean Markdown', async () => {
+  const { JSDOM } = await import('jsdom');
+  const dom = new JSDOM(`
+    <div id="container">
+      <h2>核心架构解析</h2>
+      <p>虚幻引擎中，<strong>UObject</strong> 是基类，使用 <code>CreateDefaultSubobject</code> 创建。</p>
+      <blockquote><p>这是一段引用内容</p></blockquote>
+      <ul>
+        <li>特性 A</li>
+        <li>特性 B 包含 <a href="https://example.com">链接</a></li>
+      </ul>
+      <pre class="astro-code cpp"><div class="code-block-toolbar"><button>Copy</button></div><code><span>int x = 42;</span></code></pre>
+      <span class="katex"><span class="katex-mathml"><math><semantics><annotation encoding="application/x-tex">x^2 + y^2 = r^2</annotation></semantics></math></span></span>
+    </div>
+  `);
+
+  const container = dom.window.document.getElementById('container');
+  const md = domRangeToMarkdown(container);
+
+  assert.match(md, /## 核心架构解析/);
+  assert.match(md, /\*\*UObject\*\*/);
+  assert.match(md, /`CreateDefaultSubobject`/);
+  assert.match(md, /> 这是一段引用内容/);
+  assert.match(md, /- 特性 A/);
+  assert.match(md, /\[链接\]\(https:\/\/example\.com\)/);
+  assert.match(md, /```cpp\nint x = 42;\n```/);
+  assert.match(md, /\$x\^2 \+ y\^2 = r\^2\$/);
+  assert.doesNotMatch(md, /Copy/); // Toolbars must be stripped
+});
+
+test('7. InkAsk and ArticleSelectionDock preserve markdown formatting when saving notes', () => {
+  const dockContent = readFileSync(path.resolve(ROOT, 'src', 'components', 'ArticleSelectionDock.astro'), 'utf8');
+  const inkAskContent = readFileSync(path.resolve(ROOT, 'src', 'components', 'InkAsk.astro'), 'utf8');
+
+  // Verify InkAsk uses domRangeToMarkdown instead of plain selection.toString()
+  assert.match(inkAskContent, /domRangeToMarkdown/);
+  assert.match(inkAskContent, /selectedTextInside\(el:\s*HTMLElement\s*\|\s*null\)/);
+
+  // Verify ArticleSelectionDock uses info?.text from serializeHighlight in copy/pin/ask
+  assert.match(dockContent, /info\?\.text\s*\|\|\s*currentSelectedRange\.toString\(\)/);
+});
+

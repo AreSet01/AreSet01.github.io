@@ -162,3 +162,210 @@ export function renderMarkdown(src: string): string {
     return escapeHtml(src).replace(/\n/g, '<br>');
   }
 }
+
+const SKIP_MD_SELECTOR = '.code-block-toolbar, .mermaid-block-header, .mermaid-block-actions, button, svg, script, style, [data-no-search], [data-no-highlight]';
+
+/**
+ * 将 DOM 选区 (Range) 或元素节点转换为纯净规范的 Markdown。
+ * 兼容文章正文 (Astro/Shiki/KaTeX) 与 墨问 AI 回答的富文本节点。
+ */
+export function domRangeToMarkdown(rangeOrNode: Range | Node | string | null | undefined): string {
+  if (!rangeOrNode) return '';
+  if (typeof rangeOrNode === 'string') return rangeOrNode.trim();
+
+  let fragment: DocumentFragment | Node;
+  if ('cloneContents' in (rangeOrNode as any) && typeof (rangeOrNode as Range).cloneContents === 'function') {
+    try {
+      fragment = (rangeOrNode as Range).cloneContents();
+    } catch {
+      fragment = rangeOrNode as Node;
+    }
+  } else {
+    fragment = rangeOrNode as Node;
+  }
+
+  function nodeToMd(node: Node): string {
+    if (!node) return '';
+    if (node.nodeType === 3 /* Node.TEXT_NODE */) {
+      return node.nodeValue || '';
+    }
+    if (node.nodeType !== 1 /* Node.ELEMENT_NODE */ && node.nodeType !== 11 /* Node.DOCUMENT_FRAGMENT_NODE */) {
+      return '';
+    }
+
+    const el = node as HTMLElement;
+    if (typeof el.matches === 'function' && el.matches(SKIP_MD_SELECTOR)) return '';
+    const tag = (el.tagName || '').toUpperCase();
+
+    // 1. KaTeX 数学公式支持：提取原始 TeX 代码
+    if (el.classList && el.classList.contains('katex')) {
+      const ann = el.querySelector('annotation[encoding="application/x-tex"]') || el.querySelector('annotation');
+      const tex = ann?.textContent?.trim() || '';
+      if (tex) {
+        const isDisplay = el.classList.contains('katex-display') || Boolean(el.closest?.('.katex-display'));
+        return isDisplay ? `\n\n$$${tex}$$\n\n` : `$${tex}$`;
+      }
+    }
+
+    // 2. Mermaid 图表块支持：提取源码与标题
+    if (el.classList && el.classList.contains('mermaid-block')) {
+      const rawCode = el.getAttribute('data-mermaid-code');
+      const code = rawCode ? decodeURIComponent(rawCode) : (el.querySelector('.mermaid-source-pre code')?.textContent || '');
+      const rawTitle = el.getAttribute('data-title');
+      const title = rawTitle ? decodeURIComponent(rawTitle) : (el.querySelector('.mermaid-block-title-text')?.textContent?.trim() || '');
+      if (code) {
+        return `\n\n\`\`\`mermaid${title ? ` title="${title}"` : ''}\n${code.trim()}\n\`\`\`\n\n`;
+      }
+    }
+
+    // 3. 代码块 <pre>（支持 Shiki 与通用 pre/code）
+    if (tag === 'PRE') {
+      const clone = el.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll(SKIP_MD_SELECTOR).forEach((s) => s.remove());
+      const codeEl = clone.querySelector('code') || clone;
+      const codeText = codeEl.textContent || '';
+      const cls = `${el.className || ''} ${el.querySelector('code')?.className || ''}`;
+      const m = cls.match(/(?:language-|astro-code\s+)([a-z0-9_-]+)/i);
+      const lang = m ? m[1] : '';
+      return `\n\n\`\`\`${lang}\n${codeText.replace(/^\n+|\n+$/g, '')}\n\`\`\`\n\n`;
+    }
+
+    // 4. 行内代码 <code>
+    if (tag === 'CODE') {
+      const code = el.textContent || '';
+      if (code.includes('`')) return ` \`\` ${code} \`\` `;
+      return `\`${code}\``;
+    }
+
+    // 5. 粗体 <strong> / <b>
+    if (tag === 'STRONG' || tag === 'B') {
+      const inner = Array.from(el.childNodes).map(nodeToMd).join('');
+      const trimmed = inner.trim();
+      if (!trimmed) return inner;
+      const leading = inner.match(/^\s*/)?.[0] || '';
+      const trailing = inner.match(/\s*$/)?.[0] || '';
+      return `${leading}**${trimmed}**${trailing}`;
+    }
+
+    // 6. 斜体 <em> / <i>
+    if (tag === 'EM' || tag === 'I') {
+      const inner = Array.from(el.childNodes).map(nodeToMd).join('');
+      const trimmed = inner.trim();
+      if (!trimmed) return inner;
+      const leading = inner.match(/^\s*/)?.[0] || '';
+      const trailing = inner.match(/\s*$/)?.[0] || '';
+      return `${leading}*${trimmed}*${trailing}`;
+    }
+
+    // 7. 删除线 <del> / <s> / <strike>
+    if (tag === 'DEL' || tag === 'S' || tag === 'STRIKE') {
+      const inner = Array.from(el.childNodes).map(nodeToMd).join('');
+      const trimmed = inner.trim();
+      if (!trimmed) return inner;
+      const leading = inner.match(/^\s*/)?.[0] || '';
+      const trailing = inner.match(/\s*$/)?.[0] || '';
+      return `${leading}~~${trimmed}~~${trailing}`;
+    }
+
+    // 8. 引用块 <blockquote>
+    if (tag === 'BLOCKQUOTE') {
+      const inner = Array.from(el.childNodes).map(nodeToMd).join('').trim();
+      const quoted = inner
+        .split('\n')
+        .map((l) => (l.trim() ? `> ${l}` : '>'))
+        .join('\n');
+      return `\n\n${quoted}\n\n`;
+    }
+
+    // 9. 标题 <h1> - <h6>
+    if (/^H[1-6]$/.test(tag)) {
+      const level = Number(tag[1]);
+      const inner = Array.from(el.childNodes).map(nodeToMd).join('').trim();
+      return `\n\n${'#'.repeat(level)} ${inner}\n\n`;
+    }
+
+    // 10. 无序列表 <ul>
+    if (tag === 'UL') {
+      const items = Array.from(el.children).filter((c) => c.tagName === 'LI');
+      const listMd = items
+        .map((li) => `- ${Array.from(li.childNodes).map(nodeToMd).join('').trim()}`)
+        .join('\n');
+      return `\n\n${listMd}\n\n`;
+    }
+
+    // 11. 有序列表 <ol>
+    if (tag === 'OL') {
+      const items = Array.from(el.children).filter((c) => c.tagName === 'LI');
+      const listMd = items
+        .map((li, i) => `${i + 1}. ${Array.from(li.childNodes).map(nodeToMd).join('').trim()}`)
+        .join('\n');
+      return `\n\n${listMd}\n\n`;
+    }
+
+    // 12. 段落 <p>
+    if (tag === 'P') {
+      const inner = Array.from(el.childNodes).map(nodeToMd).join('').trim();
+      return `\n\n${inner}\n\n`;
+    }
+
+    // 13. 表格 <table>
+    if (tag === 'TABLE') {
+      const rows = Array.from(el.querySelectorAll('tr'));
+      if (!rows.length) return '';
+      const matrix = rows.map((r) =>
+        Array.from(r.children).map((cell) =>
+          Array.from(cell.childNodes).map(nodeToMd).join('').replace(/\|/g, '\\|').trim()
+        )
+      );
+      const colCount = Math.max(...matrix.map((r) => r.length), 0);
+      if (colCount === 0) return '';
+      let tableMd = '\n\n';
+      const header = matrix[0] || [];
+      while (header.length < colCount) header.push('');
+      tableMd += `| ${header.join(' | ')} |\n`;
+      tableMd += `| ${header.map(() => '---').join(' | ')} |\n`;
+      for (let i = 1; i < matrix.length; i++) {
+        const row = matrix[i];
+        while (row.length < colCount) row.push('');
+        tableMd += `| ${row.join(' | ')} |\n`;
+      }
+      return `${tableMd}\n\n`;
+    }
+
+    // 14. 链接 <a>
+    if (tag === 'A') {
+      const inner = Array.from(el.childNodes).map(nodeToMd).join('').trim();
+      const href = el.getAttribute('href') || '';
+      if (href && !href.startsWith('javascript:')) return `[${inner}](${href})`;
+      return inner;
+    }
+
+    // 15. 图片 <img>
+    if (tag === 'IMG') {
+      const alt = el.getAttribute('alt') || '';
+      const src = el.getAttribute('src') || '';
+      if (src) return `![${alt}](${src})`;
+      return '';
+    }
+
+    // 16. 分割线 <hr>
+    if (tag === 'HR') return '\n\n---\n\n';
+
+    // 17. 换行 <br>
+    if (tag === 'BR') return '\n';
+
+    // 默认：递归拼接子节点
+    return Array.from(el.childNodes).map(nodeToMd).join('');
+  }
+
+  try {
+    return nodeToMd(fragment)
+      .replace(/\r\n?/g, '\n')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  } catch {
+    return (rangeOrNode.toString?.() || '').trim();
+  }
+}
+

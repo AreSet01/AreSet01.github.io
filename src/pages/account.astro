@@ -53,12 +53,75 @@ import Header from '../components/Header.astro';
           <button type="button" id="logoutBtn" class="account-ghost-btn">退出登录</button>
         </div>
 
-        <div class="account-sync-box">
-          <div>
-            <p class="account-label">同步状态</p>
-            <p class="account-sync-status" id="syncStatus">正在检查…</p>
+        <!-- 多设备笔记同步卡片 -->
+        <div class="account-sync-card">
+          <div class="account-sync-card-head">
+            <div class="account-sync-header-left">
+              <span class="account-label" style="margin: 0;">多设备笔记同步</span>
+              <div class="account-sync-badge" id="syncBadge" data-state="checking">
+                <span class="sync-badge-dot"></span>
+                <span id="syncBadgeText">正在校验…</span>
+              </div>
+            </div>
+            <button type="button" id="checkSyncBtn" class="account-check-btn" title="校验本地是否为最新同步状态">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              </svg>
+              <span>校验最新</span>
+            </button>
           </div>
-          <button type="button" id="syncNowBtn" class="account-primary-btn">立即同步</button>
+
+          <div class="account-sync-status-body">
+            <p class="account-sync-status" id="syncStatus">正在检查本地与云端数据…</p>
+            <p class="account-sync-detail" id="syncDetail">本地版本: — · 云端版本: — · 待提交: 0 · 待拉取: 0</p>
+          </div>
+
+          <!-- 两步同步核心操作 -->
+          <div class="account-sync-step-grid">
+            <!-- 步骤 1：提交同步 (Push) -->
+            <button type="button" id="pushSyncBtn" class="account-step-btn account-push-btn">
+              <div class="step-btn-content">
+                <div class="step-btn-top">
+                  <div class="step-btn-icon push-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 19V5M5 12l7-7 7 7"/>
+                    </svg>
+                  </div>
+                  <span class="step-btn-name">1. 提交同步 (Push)</span>
+                  <span class="step-btn-badge" id="pushPendingTag" hidden>0 条待提交</span>
+                </div>
+                <p class="step-btn-desc">将本地新增/修改笔记与删除标记提交至云端</p>
+              </div>
+            </button>
+
+            <!-- 步骤 2：拉取同步 (Pull) -->
+            <button type="button" id="pullSyncBtn" class="account-step-btn account-pull-btn">
+              <div class="step-btn-content">
+                <div class="step-btn-top">
+                  <div class="step-btn-icon pull-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 5v14M5 12l7 7 7-7"/>
+                    </svg>
+                  </div>
+                  <span class="step-btn-name">2. 拉取同步 (Pull)</span>
+                  <span class="step-btn-badge" id="pullIncomingTag" hidden>0 条新内容</span>
+                </div>
+                <p class="step-btn-desc">从云端拉取跨设备最新笔记并合并到本地</p>
+              </div>
+            </button>
+          </div>
+
+          <div class="account-sync-footer">
+            <button type="button" id="syncNowBtn" class="account-subtle-sync-btn">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+              <span>一键双向同步</span>
+            </button>
+            <span id="syncActionFeedback" class="account-sync-feedback" role="status" aria-live="polite"></span>
+          </div>
         </div>
 
         <div class="account-actions">
@@ -164,23 +227,87 @@ import Header from '../components/Header.astro';
     tabLogin?.addEventListener('click', () => switchTab('login'), { signal });
     tabRegister?.addEventListener('click', () => switchTab('register'), { signal });
 
+    function setFeedback(msg: string, type: 'ok' | 'error' | 'info' = 'info') {
+      const fb = $('syncActionFeedback');
+      if (!fb) return;
+      fb.textContent = msg;
+      fb.setAttribute('data-type', type);
+      fb.style.opacity = '1';
+      window.clearTimeout((fb as any).__timer);
+      if (msg) {
+        (fb as any).__timer = window.setTimeout(() => {
+          fb.style.opacity = '0';
+          setTimeout(() => {
+            if (fb.style.opacity === '0') fb.textContent = '';
+          }, 300);
+        }, 5000);
+      }
+    }
+
     async function refreshSyncStatus() {
-      if (!syncStatus) return;
       const sync = (window as any).__notesSync;
-      if (sync && typeof sync.status === 'function') {
-        const status = sync.status();
-        const last = status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString('zh-CN') : '从未同步';
-        const pending = Number(status.pending) || 0;
-        syncStatus.textContent = `${last}${pending ? ` · ${pending} 条待同步` : ''}`;
+      const syncBadge = $('syncBadge');
+      const syncBadgeText = $('syncBadgeText');
+      const syncStatus = $('syncStatus');
+      const syncDetail = $('syncDetail');
+      const pushPendingTag = $('pushPendingTag');
+      const pullIncomingTag = $('pullIncomingTag');
+
+      if (!sync || typeof sync.checkSyncStatus !== 'function') {
+        if (syncStatus) syncStatus.textContent = '同步模块尚未就绪';
         return;
       }
-      const { res, data } = await api('/api/notes/export');
-      if (!res.ok) {
-        syncStatus.textContent = '同步服务暂不可用';
-        return;
+
+      if (syncBadge) syncBadge.setAttribute('data-state', 'checking');
+      if (syncBadgeText) syncBadgeText.textContent = '校验中…';
+
+      try {
+        const status = await sync.checkSyncStatus();
+        if (!status.ok) {
+          if (syncBadge) syncBadge.setAttribute('data-state', status.state || 'error');
+          if (syncBadgeText) syncBadgeText.textContent = status.state === 'need-login' ? '未登录' : '校验异常';
+          if (syncStatus) syncStatus.textContent = status.message || '无法获取同步状态';
+          return;
+        }
+
+        const stateLabels: Record<string, string> = {
+          latest: '本地已是最新',
+          ahead: '本地有待提交',
+          behind: '云端有待拉取',
+          diverged: '需双向同步',
+        };
+
+        if (syncBadge) syncBadge.setAttribute('data-state', status.state);
+        if (syncBadgeText) syncBadgeText.textContent = stateLabels[status.state] || '已校验';
+        if (syncStatus) syncStatus.textContent = status.message || '已就绪';
+
+        const lastTime = status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString('zh-CN') : '从未同步';
+        if (syncDetail) {
+          syncDetail.textContent = `本地版本: r${status.localRev} · 云端版本: r${status.serverRev} · 待提交: ${status.pendingCount} 条 · 待拉取: ${status.incomingCount} 条 · 上次同步: ${lastTime}`;
+        }
+
+        if (pushPendingTag) {
+          if (status.pendingCount > 0) {
+            pushPendingTag.textContent = `${status.pendingCount} 条待提交`;
+            pushPendingTag.removeAttribute('hidden');
+          } else {
+            pushPendingTag.setAttribute('hidden', '');
+          }
+        }
+
+        if (pullIncomingTag) {
+          if (status.incomingCount > 0) {
+            pullIncomingTag.textContent = `${status.incomingCount} 条新内容`;
+            pullIncomingTag.removeAttribute('hidden');
+          } else {
+            pullIncomingTag.setAttribute('hidden', '');
+          }
+        }
+      } catch (err) {
+        if (syncBadge) syncBadge.setAttribute('data-state', 'error');
+        if (syncBadgeText) syncBadgeText.textContent = '校验失败';
+        if (syncStatus) syncStatus.textContent = '网络异常，无法校验最新状态';
       }
-      const count = Array.isArray(data.notes) ? data.notes.length : 0;
-      syncStatus.textContent = `服务端已有 ${count} 条笔记`;
     }
 
     function showProfile(user: { username: string }) {
@@ -275,19 +402,91 @@ import Header from '../components/Header.astro';
       switchTab('login');
     }, { signal });
 
+    $('checkSyncBtn')?.addEventListener('click', async () => {
+      const btn = $('checkSyncBtn') as HTMLButtonElement | null;
+      if (btn) btn.classList.add('is-spinning');
+      try {
+        await refreshSyncStatus();
+        setFeedback('✓ 校验完成，最新状态已同步呈现', 'ok');
+      } finally {
+        setTimeout(() => btn?.classList.remove('is-spinning'), 500);
+      }
+    }, { signal });
+
+    $('pushSyncBtn')?.addEventListener('click', async () => {
+      const sync = (window as any).__notesSync;
+      if (!sync || typeof sync.pushSync !== 'function') {
+        setFeedback('同步模块尚未加载', 'error');
+        return;
+      }
+      const btn = $('pushSyncBtn') as HTMLButtonElement | null;
+      if (btn) btn.disabled = true;
+      setFeedback('正在提交本地修改到云端…', 'info');
+      try {
+        const res = await sync.pushSync();
+        if (res.ok) {
+          setFeedback(res.pushedCount > 0 ? `✓ ${res.message}` : '本地暂无待提交的更改（已最新）', 'ok');
+          await refreshSyncStatus();
+        } else {
+          setFeedback(`提交失败：${res.reason || '网络错误'}`, 'error');
+        }
+      } catch (err: any) {
+        setFeedback(`提交异常：${err?.message || '未知错误'}`, 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }, { signal });
+
+    $('pullSyncBtn')?.addEventListener('click', async () => {
+      const sync = (window as any).__notesSync;
+      if (!sync || typeof sync.pullSync !== 'function') {
+        setFeedback('同步模块尚未加载', 'error');
+        return;
+      }
+      const btn = $('pullSyncBtn') as HTMLButtonElement | null;
+      if (btn) btn.disabled = true;
+      setFeedback('正在从云端拉取多设备最新笔记…', 'info');
+      try {
+        const res = await sync.pullSync();
+        if (res.ok) {
+          setFeedback(res.pulledCount > 0 ? `✓ ${res.message}` : '✓ 云端暂无新内容，本地已是最新', 'ok');
+          await refreshSyncStatus();
+        } else {
+          setFeedback(`拉取失败：${res.reason || '网络错误'}`, 'error');
+        }
+      } catch (err: any) {
+        setFeedback(`拉取异常：${err?.message || '未知错误'}`, 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }, { signal });
+
     $('syncNowBtn')?.addEventListener('click', async () => {
       const sync = (window as any).__notesSync;
       if (!sync || typeof sync.syncNow !== 'function') {
-        if (syncStatus) syncStatus.textContent = '同步模块尚未加载';
+        setFeedback('同步模块尚未加载', 'error');
         return;
       }
-      if (syncStatus) syncStatus.textContent = '同步中…';
+      const btn = $('syncNowBtn') as HTMLButtonElement | null;
+      if (btn) btn.disabled = true;
+      setFeedback('正在进行双向全量同步…', 'info');
       try {
-        await sync.syncNow({ migrate: true });
-        await refreshSyncStatus();
-      } catch {
-        if (syncStatus) syncStatus.textContent = '同步失败，请稍后再试';
+        const res = await sync.syncNow({ migrate: true });
+        if (res.ok) {
+          setFeedback(`✓ 双向同步完成（提交 ${res.pushedCount || 0} 条，拉取 ${res.pulledCount || 0} 条）`, 'ok');
+          await refreshSyncStatus();
+        } else {
+          setFeedback(`同步失败：${res.reason || '网络错误'}`, 'error');
+        }
+      } catch (err: any) {
+        setFeedback(`同步异常：${err?.message || '未知错误'}`, 'error');
+      } finally {
+        if (btn) btn.disabled = false;
       }
+    }, { signal });
+
+    window.addEventListener('article-notes:synced', () => {
+      void refreshSyncStatus();
     }, { signal });
 
     $('exportNotesBtn')?.addEventListener('click', async () => {
@@ -623,19 +822,343 @@ import Header from '../components/Header.astro';
     color: var(--text-strong);
   }
 
-  .account-sync-box {
+  /* 多设备同步控制卡片 */
+  .account-sync-card {
+    margin: 1.25rem 0 1rem;
+    padding: 1.15rem 1.25rem;
+    border-radius: 12px;
+    background: var(--bg-soft, rgba(0, 0, 0, 0.02));
+    border: 1px solid var(--rule-soft, rgba(0, 0, 0, 0.08));
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    transition: border-color 220ms ease, background 220ms ease;
+  }
+
+  [data-theme="dark"] .account-sync-card {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  [data-theme="moss"] .account-sync-card {
+    background: rgba(255, 241, 244, 0.03);
+    border-color: rgba(255, 241, 244, 0.1);
+  }
+
+  .account-sync-card-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem 0;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .account-sync-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .account-sync-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-family: var(--font-body);
+    font-weight: 600;
+    line-height: 1.4;
+    background: var(--bg-elev);
+    border: 1px solid var(--rule-soft);
+    color: var(--muted-strong);
+    transition: all 200ms ease;
+  }
+
+  .sync-badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  /* 状态徽标颜色 */
+  .account-sync-badge[data-state='latest'] {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #16a34a;
+  }
+  [data-theme="dark"] .account-sync-badge[data-state='latest'] {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+  }
+
+  .account-sync-badge[data-state='ahead'] {
+    background: rgba(245, 158, 11, 0.14);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #d97706;
+  }
+  [data-theme="dark"] .account-sync-badge[data-state='ahead'] {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+  }
+
+  .account-sync-badge[data-state='behind'] {
+    background: rgba(59, 130, 246, 0.12);
+    border-color: rgba(59, 130, 246, 0.35);
+    color: #2563eb;
+  }
+  [data-theme="dark"] .account-sync-badge[data-state='behind'] {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+  }
+
+  .account-sync-badge[data-state='diverged'] {
+    background: rgba(168, 85, 247, 0.12);
+    border-color: rgba(168, 85, 247, 0.35);
+    color: #9333ea;
+  }
+
+  .account-sync-badge[data-state='checking'] {
+    background: rgba(156, 163, 175, 0.15);
+    color: var(--muted-strong);
+  }
+  .account-sync-badge[data-state='checking'] .sync-badge-dot {
+    animation: badgePulse 1.2s infinite ease-in-out;
+  }
+
+  @keyframes badgePulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.15); }
+  }
+
+  .account-check-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--rule-strong);
+    background: var(--bg-elev);
+    color: var(--text-base);
+    font-size: 0.74rem;
+    font-family: var(--font-body);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 180ms ease;
+  }
+
+  .account-check-btn:hover {
+    background: var(--bg-hover, var(--bg-soft));
+    border-color: var(--accent);
+    color: var(--text-strong);
+  }
+
+  .account-check-btn.is-spinning svg {
+    animation: checkSpin 600ms linear infinite;
+  }
+
+  @keyframes checkSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .account-sync-status-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
   }
 
   .account-sync-status {
-    margin: 0.3rem 0 0;
+    margin: 0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-strong);
+    line-height: 1.45;
+  }
+
+  .account-sync-detail {
+    margin: 0;
     font-family: var(--font-mono);
-    font-size: 0.78rem;
+    font-size: 0.74rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* 核心两步按钮网格 */
+  .account-sync-step-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin-top: 0.2rem;
+  }
+
+  @media (max-width: 600px) {
+    .account-sync-step-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .account-step-btn {
+    display: flex;
+    text-align: left;
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+    border: 1px solid var(--rule-strong);
+    background: var(--bg-elev);
+    cursor: pointer;
+    transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .account-step-btn:hover {
+    transform: translateY(-1.5px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  }
+
+  .account-push-btn:hover {
+    border-color: rgba(215, 150, 20, 0.6);
+  }
+
+  .account-pull-btn:hover {
+    border-color: rgba(59, 130, 246, 0.6);
+  }
+
+  .account-step-btn:active {
+    transform: scale(0.985);
+  }
+
+  .account-step-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .step-btn-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    width: 100%;
+  }
+
+  .step-btn-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .step-btn-icon {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+
+  .push-icon {
+    background: rgba(215, 150, 20, 0.15);
+    color: #d97706;
+  }
+  [data-theme="dark"] .push-icon {
+    background: rgba(215, 150, 20, 0.25);
+    color: #fbbf24;
+  }
+
+  .pull-icon {
+    background: rgba(59, 130, 246, 0.15);
+    color: #2563eb;
+  }
+  [data-theme="dark"] .pull-icon {
+    background: rgba(59, 130, 246, 0.25);
+    color: #60a5fa;
+  }
+
+  .step-btn-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-strong);
+    font-family: var(--font-body);
+  }
+
+  .step-btn-badge {
+    margin-left: auto;
+    font-size: 0.68rem;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(215, 150, 20, 0.15);
+    color: #d97706;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .account-pull-btn .step-btn-badge {
+    background: rgba(59, 130, 246, 0.15);
+    color: #2563eb;
+  }
+
+  .step-btn-desc {
+    margin: 0;
+    font-size: 0.74rem;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  .account-sync-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding-top: 0.4rem;
+    border-top: 1px dashed var(--rule-soft);
+    flex-wrap: wrap;
+  }
+
+  .account-subtle-sync-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+    border: none;
+    background: transparent;
     color: var(--muted-strong);
+    font-size: 0.75rem;
+    font-family: var(--font-body);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    transition: color 160ms ease;
+  }
+
+  .account-subtle-sync-btn:hover {
+    color: var(--accent);
+  }
+
+  .account-subtle-sync-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .account-sync-feedback {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted-strong);
+    transition: opacity 240ms ease;
+    white-space: nowrap;
+  }
+
+  .account-sync-feedback[data-type='ok'] {
+    color: #16a34a;
+  }
+  [data-theme="dark"] .account-sync-feedback[data-type='ok'] {
+    color: #4ade80;
+  }
+
+  .account-sync-feedback[data-type='error'] {
+    color: #dc2626;
   }
 
   .account-actions {

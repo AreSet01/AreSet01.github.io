@@ -648,3 +648,44 @@ test('findPrecedingHeading identifies heading when startNode is directly the hea
   assert.strictEqual(headingPara.id, 'intro-heading');
   assert.strictEqual(headingPara.text, '§ Introduction to UE5');
 });
+
+test('findTextOffsetInString handles record with rich Markdown in text and plain in rawText', () => {
+  const fullText = 'UE5 中的 UObject 提供了垃圾回收支持。';
+  const record = {
+    id: 'hl-rich',
+    text: '**UObject**',
+    rawText: 'UObject',
+    prefix: 'UE5 中的 ',
+    suffix: ' 提供了垃圾回收支持。',
+    timestamp: Date.now(),
+  };
+
+  const match = findTextOffsetInString(fullText, record);
+  assert.ok(match);
+  assert.strictEqual(match.start, 7);
+  assert.strictEqual(match.end, 14);
+  assert.strictEqual(fullText.slice(match.start, match.end), 'UObject');
+});
+
+test('findTextOffsetInString resolves cross-block selections across heading, lists and code blocks without inter-block whitespace', () => {
+  // DOM text nodes directly concatenated without inter-element whitespace
+  const combinedText = '1. 原生单播委托 (Native Single-cast Delegate)核心宏：DECLARE_DELEGATE(...)核心能力：有且仅能绑定一个回调目标// 声明一个：接收 float 参数class FPlayerCombatModule{';
+  // User range selection containing newlines at block boundaries
+  const rawSelection = '1. 原生单播委托 (Native Single-cast Delegate)\n\n核心宏：DECLARE_DELEGATE(...)\n核心能力：有且仅能绑定一个回调目标\n\n// 声明一个：接收 float 参数\nclass FPlayerCombatModule\n{';
+
+  const record = {
+    id: 'hl-cross-block',
+    text: rawSelection,
+    rawText: rawSelection,
+    prefix: '',
+    suffix: '',
+    timestamp: Date.now(),
+  };
+
+  const match = findTextOffsetInString(combinedText, record);
+  assert.ok(match, 'Compact matching should locate cross-block text despite missing inter-element whitespace in DOM');
+  assert.strictEqual(match.start, 0);
+  assert.strictEqual(match.end, combinedText.length);
+});
+
+

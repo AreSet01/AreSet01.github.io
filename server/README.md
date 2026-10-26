@@ -295,7 +295,8 @@ location ~ ^/api/(ask|settings(/.*)?|auth(/.*)?|notes(/.*)?)$ {
 ### 4. 接口与安全
 
 - `/api/auth/register|login|logout|me|password`：读者账号；会话在 HttpOnly Cookie 里，不用 `localStorage` 存 token。
-- `/api/notes/sync`：增量同步，支持删除墓碑与冲突回传。
+- `/api/notes/status`：轻量校验最新状态，查询服务端当前 revision、条数及自客户端 revision 以来的变更数。
+- `/api/notes/sync`：分步提交同步 (Push) 与拉取同步 (Pull)，支持删除墓碑与冲突回传。
 - `/api/settings/invites`、`/api/settings/users`：仅管理员 Bearer Token 可访问。
 - 密码用 `crypto.scrypt` + 随机盐；登录/注册按 IP 限流；写操作校验 `Origin`；笔记接口只认 Cookie 里的用户，不接受客户端传 `userId`。
 

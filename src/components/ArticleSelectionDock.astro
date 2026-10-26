@@ -266,6 +266,25 @@
               <span id="notes-export-btn-text">导出 Markdown</span>
             </button>
             <div class="notes-dropdown-divider" aria-hidden="true"></div>
+            <button type="button" class="notes-dropdown-item" id="notes-sync-check-btn" role="menuitem">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              </svg>
+              <span>校验最新状态</span>
+            </button>
+            <button type="button" class="notes-dropdown-item" id="notes-sync-push-btn" role="menuitem">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 19V5M5 12l7-7 7 7"/>
+              </svg>
+              <span>提交同步 (Push)</span>
+            </button>
+            <button type="button" class="notes-dropdown-item" id="notes-sync-pull-btn" role="menuitem">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 5v14M5 12l7 7 7-7"/>
+              </svg>
+              <span>拉取同步 (Pull)</span>
+            </button>
+            <div class="notes-dropdown-divider" aria-hidden="true"></div>
             <button type="button" class="notes-dropdown-item is-danger" id="notes-clear-all-btn" role="menuitem">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="3 6 5 6 21 6"></polyline>
@@ -521,6 +540,9 @@
     const exportBtnText = document.getElementById('notes-export-btn-text');
     const clearAllBtn = document.getElementById('notes-clear-all-btn');
     const newNoteBtn = document.getElementById('notes-new-btn');
+    const syncCheckBtn = document.getElementById('notes-sync-check-btn');
+    const syncPushBtn = document.getElementById('notes-sync-push-btn');
+    const syncPullBtn = document.getElementById('notes-sync-pull-btn');
 
     // 更多操作下拉菜单逻辑
     const menuBtn = document.getElementById('notes-drawer-menu-btn') as HTMLButtonElement | null;
@@ -685,12 +707,31 @@
     updateBadges();
 
     window.addEventListener('article-notes:synced', () => {
-      // 服务端可能带来别的设备新增/删除的划线：先卸掉旧标记再按最新记录重挂
+      const incomingRecords = loadHighlights(postSlug);
+      const incomingIds = new Set(
+        incomingRecords
+          .filter((r) => !r.deleted && (r.kind || 'highlight') === 'highlight')
+          .map((r) => r.id)
+      );
+
+      // 1. 只有当某条高亮在最新数据中已被删除（或不存在）时，才从 DOM 解包卸载
       for (const record of storedRecords) {
-        if ((record.kind || 'highlight') === 'highlight') removeHighlightFromDOM(record.id, prose);
+        if (!incomingIds.has(record.id)) {
+          removeHighlightFromDOM(record.id, prose);
+        }
       }
-      storedRecords = loadHighlights(postSlug);
-      rehydrateHighlights(storedRecords, prose);
+
+      // 2. 仅对 DOM 中当前尚不存在的有效记录执行增量挂载，绝不无故拆卸已就位且正常显示的已有高亮
+      const missingRecords = incomingRecords.filter((record) => {
+        if (record.deleted || (record.kind || 'highlight') !== 'highlight') return false;
+        return !prose.querySelector(`mark[data-highlight-id="${record.id}"]`);
+      });
+
+      if (missingRecords.length > 0) {
+        rehydrateHighlights(missingRecords, prose);
+      }
+
+      storedRecords = incomingRecords;
       updateBadges();
       if (drawer?.classList.contains('is-open')) renderDrawerNotes();
     }, { signal });
@@ -975,8 +1016,8 @@
         }
         sourceAnchor = prose.querySelector<HTMLElement>(`mark[data-highlight-id="${activeHighlightId}"]`);
       } else if (currentSelectedRange) {
-        excerptText = currentSelectedRange.toString().trim();
         const info = serializeHighlight(currentSelectedRange, prose);
+        excerptText = info?.text || currentSelectedRange.toString().trim();
         if (info) {
           headingText = info.headingText || '引文片段';
         }
@@ -1046,7 +1087,8 @@
         const found = storedRecords.find((r) => r.id === activeHighlightId);
         if (found) snippet = found.text;
       } else if (currentSelectedRange) {
-        snippet = currentSelectedRange.toString().trim();
+        const info = serializeHighlight(currentSelectedRange, prose);
+        snippet = info?.text || currentSelectedRange.toString().trim();
       }
 
       if (!snippet) return;
@@ -1075,8 +1117,8 @@
           headingId = found.headingId;
         }
       } else if (currentSelectedRange) {
-        text = currentSelectedRange.toString().trim();
         const info = serializeHighlight(currentSelectedRange, prose);
+        text = info?.text || currentSelectedRange.toString().trim();
         if (info) {
           section = info.headingText || section;
           headingId = info.headingId;
@@ -1831,15 +1873,18 @@
 
     // ---------- 新建 / 追加笔记（不绑定正文位置） ----------
 
-    function addNote(input: { text: string; kind?: 'ai' | 'free'; question?: string; headingText?: string }): ArticleHighlightRecord | null {
+    function addNote(input: { text: string; markdown?: string; rawText?: string; kind?: 'ai' | 'free'; question?: string; headingText?: string }): ArticleHighlightRecord | null {
       const text = String(input?.text || '').trim().slice(0, 20000);
       if (!text) return null;
+      const markdown = typeof input.markdown === 'string' && input.markdown ? input.markdown.slice(0, 20000) : text;
 
       const now = Date.now();
       const kind = input.kind === 'ai' ? 'ai' : 'free';
       const record: ArticleHighlightRecord = {
         id: createId(kind === 'ai' ? 'ai' : 'note'),
         text,
+        markdown,
+        rawText: input.rawText,
         prefix: '',
         suffix: '',
         headingText: input.headingText || (kind === 'ai' ? 'AI 问答摘录' : '自由笔记'),
@@ -1927,7 +1972,7 @@
       const commit = () => {
         const value = textarea.value.trim();
         if (!value) { close(); return; }
-        addNote({ kind: 'free', text: value });
+        addNote({ kind: 'free', text: value, markdown: value });
         close();
         showStamp('已保存笔记');
       };
@@ -2081,6 +2126,76 @@
       showStamp('已清空全部笔记');
     }, { signal });
 
+    syncCheckBtn?.addEventListener('click', async () => {
+      closeMenu();
+      const sync = (window as any).__notesSync;
+      if (!sync || typeof sync.checkSyncStatus !== 'function') {
+        showStamp('同步服务尚未就绪');
+        return;
+      }
+      showStamp('正在校验同步状态…');
+      try {
+        const res = await sync.checkSyncStatus();
+        if (!res.ok) {
+          showStamp(res.state === 'need-login' ? '请先登录账号开启多设备同步' : '校验失败');
+          return;
+        }
+        if (res.isLatest) {
+          showStamp(`✓ 本地已是最新 (r${res.localRev})`);
+        } else if (res.state === 'ahead') {
+          showStamp(`↑ 本地有 ${res.pendingCount} 条改动待提交`);
+        } else if (res.state === 'behind') {
+          showStamp(`↓ 云端有 ${res.incomingCount} 条新内容待拉取`);
+        } else {
+          showStamp(`⇄ 待提交 ${res.pendingCount} 条 / 待拉取 ${res.incomingCount} 条`);
+        }
+      } catch {
+        showStamp('校验异常，请检查网络');
+      }
+    }, { signal });
+
+    syncPushBtn?.addEventListener('click', async () => {
+      closeMenu();
+      const sync = (window as any).__notesSync;
+      if (!sync || typeof sync.pushSync !== 'function') {
+        showStamp('同步服务尚未就绪');
+        return;
+      }
+      showStamp('正在提交本地修改…');
+      try {
+        const res = await sync.pushSync();
+        if (res.ok) {
+          showStamp(res.pushedCount > 0 ? `✓ 已提交 ${res.pushedCount} 条笔记至云端` : '本地暂无待提交改动（已最新）');
+        } else {
+          showStamp(res.reason === 'need-login' ? '请先登录账号' : `提交失败：${res.reason || '网络错误'}`);
+        }
+      } catch {
+        showStamp('提交失败，请稍后重试');
+      }
+    }, { signal });
+
+    syncPullBtn?.addEventListener('click', async () => {
+      closeMenu();
+      const sync = (window as any).__notesSync;
+      if (!sync || typeof sync.pullSync !== 'function') {
+        showStamp('同步服务尚未就绪');
+        return;
+      }
+      showStamp('正在拉取云端笔记…');
+      try {
+        const res = await sync.pullSync();
+        if (res.ok) {
+          showStamp(res.pulledCount > 0 ? `✓ 已从云端拉取 ${res.pulledCount} 条最新笔记` : '✓ 云端无新内容，本地已是最新');
+          initStoredRecords();
+          renderDrawerNotes();
+        } else {
+          showStamp(res.reason === 'need-login' ? '请先登录账号' : `拉取失败：${res.reason || '网络错误'}`);
+        }
+      } catch {
+        showStamp('拉取失败，请稍后重试');
+      }
+    }, { signal });
+
     // 对外暴露 API 以供外部组件/测试交互
     (window as any).__articleHighlights = {
       getHighlights: () => [...storedRecords],
@@ -2088,6 +2203,7 @@
       removeHighlight: triggerDeleteHighlight,
       openDrawer: openNotesDrawer,
       closeDrawer: closeNotesDrawer,
+      jumpToHighlight,
       addNote,
       exportMarkdown: () => exportHighlightsAsMarkdown(
         postTitle(),
@@ -2099,8 +2215,21 @@
     (window as any).__articleNotes = {
       addNote,
       openDrawer: openNotesDrawer,
+      jumpToHighlight,
       getNotes: () => [...storedRecords],
     };
+
+    // 检查 URL 是否携带待定位的笔记 ID (hash 或 search param)
+    const urlHash = window.location.hash;
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetHighlightId = urlHash.startsWith('#highlight-')
+      ? urlHash.slice(11)
+      : (urlHash.startsWith('#note-') ? urlHash.slice(6) : urlParams.get('noteId'));
+    if (targetHighlightId) {
+      setTimeout(() => {
+        jumpToHighlight(targetHighlightId);
+      }, 350);
+    }
 
     // astro 换页清理
     (window as any)[CLEANUP_KEY] = () => {
@@ -2215,35 +2344,45 @@
       box-shadow 380ms cubic-bezier(0.4, 0, 0.2, 1) !important;
   }
 
-  /* Code blocks: ensure radiant amber contrast and crisp white text */
-  pre code mark.article-highlight-mark {
-    --mark-sweep-line: rgba(255, 210, 80, 0.9);
-    --mark-sweep-bg: rgba(255, 197, 61, 0.38);
-    color: #ffffff !important;
-    box-shadow: 0 0 6px rgba(255, 197, 61, 0.22);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-    padding: 0 1px;
-    margin: 0;
-  }
-
-  pre code mark.article-highlight-mark:hover {
-    --mark-sweep-line: #ffd04b;
-    --mark-sweep-bg: rgba(255, 197, 61, 0.55);
-    box-shadow: 0 0 10px rgba(255, 197, 61, 0.4);
-  }
-
+  /* 正文划线颜色规范 */
   [data-theme="dark"] mark.article-highlight-mark {
-    color: #ffffff !important;
+    color: #F3F4F6 !important;
     box-shadow: 0 0 8px rgba(255, 197, 61, 0.25);
   }
 
   [data-theme="moss"] mark.article-highlight-mark {
-    color: #ffffff !important;
+    color: #F9FAFB !important;
     box-shadow: 0 0 6px rgba(255, 215, 95, 0.2);
   }
 
   [data-theme="rice"] mark.article-highlight-mark {
     color: #2B241C !important;
+  }
+
+  /* 代码块内的高亮划线：
+     1. 高特异性彻底覆盖各主题正文颜色，杜绝深色代码背景中出现暗褐色/纯白导致对比度失真；
+     2. 严格保持代码原生语法高亮颜色（color: inherit），配合半透明流光琥珀底色；
+     3. 移除 text-shadow，保证等宽代码字体边缘平滑锐利。 */
+  pre code mark.article-highlight-mark,
+  [data-theme="dark"] pre code mark.article-highlight-mark,
+  [data-theme="moss"] pre code mark.article-highlight-mark,
+  [data-theme="rice"] pre code mark.article-highlight-mark {
+    --mark-sweep-line: rgba(255, 215, 80, 0.95) !important;
+    --mark-sweep-bg: rgba(255, 200, 60, 0.28) !important;
+    color: inherit !important;
+    box-shadow: 0 0 6px rgba(255, 200, 60, 0.22) !important;
+    text-shadow: none !important;
+    padding: 0 1px;
+    margin: 0;
+  }
+
+  pre code mark.article-highlight-mark:hover,
+  [data-theme="dark"] pre code mark.article-highlight-mark:hover,
+  [data-theme="moss"] pre code mark.article-highlight-mark:hover,
+  [data-theme="rice"] pre code mark.article-highlight-mark:hover {
+    --mark-sweep-line: #ffd04b !important;
+    --mark-sweep-bg: rgba(255, 200, 60, 0.42) !important;
+    box-shadow: 0 0 10px rgba(255, 200, 60, 0.4) !important;
   }
 
   mark.article-highlight-mark:hover {
@@ -3660,6 +3799,37 @@
     color: var(--accent-strong);
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+
+  .notes-item-markdown strong,
+  .notes-item-markdown b {
+    font-weight: 700;
+    color: var(--text-strong);
+  }
+
+  .notes-item-markdown em,
+  .notes-item-markdown i {
+    font-style: italic;
+  }
+
+  .notes-item-markdown table {
+    width: 100%;
+    margin: 0.6em 0;
+    border-collapse: collapse;
+    font-size: 0.84em;
+  }
+
+  .notes-item-markdown th,
+  .notes-item-markdown td {
+    padding: 0.32rem 0.55rem;
+    border: 1px solid var(--rule);
+    text-align: left;
+  }
+
+  .notes-item-markdown th {
+    background: var(--bg-soft);
+    font-weight: 600;
+    color: var(--text-strong);
   }
 
   .notes-item-question {

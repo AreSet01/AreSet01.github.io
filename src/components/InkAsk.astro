@@ -6,7 +6,7 @@
 ---
 
 <script>
-  import { renderMarkdown } from '../utils/inkAskMarkdown';
+  import { renderMarkdown, domRangeToMarkdown } from '../utils/inkAskMarkdown';
   import { makeResizable, loadPanelSize } from '../utils/panelResize';
   import { bindScrollIsolation } from '../utils/scrollIsolation';
   import { lockScrollAnchor } from '../utils/scrollAnchorLock';
@@ -630,7 +630,7 @@
     turn.append(p);
   }
 
-  /** 读取落在某个元素内部的选区文本（用于「只存入选中的部分」） */
+  /** 读取落在某个元素内部的选区 Markdown（用于「只存入选中的部分」） */
   function selectedTextInside(el: HTMLElement | null): string {
     if (!el) return '';
     const selection = window.getSelection();
@@ -639,7 +639,7 @@
     const node = range.commonAncestorContainer;
     const host = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element);
     if (!host || !el.contains(host)) return '';
-    return selection.toString().trim();
+    return domRangeToMarkdown(range).trim() || selection.toString().trim();
   }
 
   // 点击按钮的 pointerdown 会先折叠选区，这里在折叠前把选中的片段记下来
@@ -673,7 +673,7 @@
       pendingSelections.delete(answerEl);
       const text = (selected || getText()).trim();
       if (!text) return;
-      const detail = { kind: 'ai' as const, text, question, headingText: 'AI 问答摘录' };
+      const detail = { kind: 'ai' as const, text, markdown: text, question, headingText: 'AI 问答摘录' };
       const api = (window as any).__articleNotes;
       if (api && typeof api.addNote === 'function') api.addNote(detail);
       else window.dispatchEvent(new CustomEvent('article-note:add', { detail }));

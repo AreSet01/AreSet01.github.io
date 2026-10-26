@@ -108,3 +108,230 @@ test('2. syncNow bails out when not logged in', async () => {
   assert.equal(result.ok, false);
   assert.equal(result.reason, 'need-login');
 });
+
+test('3. pushSync pushes dirty notes only and marks them clean', async () => {
+  const { store, localStorage } = installWindow();
+  const timestamp = 1727672000000;
+  localStorage.setItem('areSet_notes_last_rev', '5');
+  store.set(
+    'areSet_article_highlights_posts_y',
+    JSON.stringify([
+      {
+        id: 'note-dirty',
+        kind: 'highlight',
+        text: 'dirty note',
+        prefix: '',
+        suffix: '',
+        postSlug: '/posts/y/',
+        timestamp,
+        updatedAt: timestamp,
+        dirty: true,
+      },
+      {
+        id: 'note-clean',
+        kind: 'highlight',
+        text: 'clean note',
+        prefix: '',
+        suffix: '',
+        postSlug: '/posts/y/',
+        timestamp,
+        updatedAt: timestamp,
+        dirty: false,
+      },
+    ])
+  );
+
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url === '/api/auth/me') {
+      return { ok: true, json: async () => ({ ok: true, user: { username: 'alice' } }) };
+    }
+    if (url === '/api/notes/sync') {
+      const body = JSON.parse(options.body);
+      assert.equal(body.changes.length, 1);
+      assert.equal(body.changes[0].id, 'note-dirty');
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          rev: 6,
+          changes: [],
+        }),
+      };
+    }
+    throw new Error(`unexpected url ${url}`);
+  };
+
+  const { pushSync, pendingCount } = await import('../src/utils/notesSync.ts');
+  assert.equal(pendingCount(), 1);
+
+  const res = await pushSync();
+  assert.equal(res.ok, true);
+  assert.equal(res.pushedCount, 1);
+  assert.equal(res.rev, 6);
+  assert.equal(localStorage.getItem('areSet_notes_last_rev'), '6');
+  assert.equal(pendingCount(), 0);
+
+  const saved = JSON.parse(localStorage.getItem('areSet_article_highlights_posts_y'));
+  assert.equal(saved.find((r) => r.id === 'note-dirty').dirty, false);
+});
+
+test('4. pushSync returns nothing-to-push when no notes are dirty', async () => {
+  installWindow();
+  let syncCalled = false;
+  globalThis.fetch = async (url) => {
+    if (url === '/api/auth/me') return { ok: true, json: async () => ({ ok: true, user: { username: 'alice' } }) };
+    if (url === '/api/notes/sync') syncCalled = true;
+    return { ok: true, json: async () => ({}) };
+  };
+
+  const { pushSync } = await import('../src/utils/notesSync.ts');
+  const res = await pushSync();
+  assert.equal(res.ok, true);
+  assert.equal(res.pushedCount, 0);
+  assert.equal(res.reason, 'nothing-to-push');
+  assert.equal(syncCalled, false);
+});
+
+test('5. pullSync sends empty changes and merges server notes into local storage', async () => {
+  const { store, localStorage } = installWindow();
+  localStorage.setItem('areSet_notes_last_rev', '3');
+
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/auth/me') return { ok: true, json: async () => ({ ok: true, user: { username: 'alice' } }) };
+    if (url === '/api/notes/sync') {
+      const body = JSON.parse(options.body);
+      assert.deepEqual(body.changes, []); // Pull must never push local changes
+      assert.equal(body.since, 3);
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          rev: 7,
+          changes: [
+            {
+              id: 'server-note-1',
+              kind: 'highlight',
+              text: 'hello from server',
+              prefix: '',
+              suffix: '',
+              postSlug: '/posts/z/',
+              timestamp: 1727673000000,
+              updatedAt: 1727673000000,
+              serverRev: 7,
+              deleted: false,
+            },
+          ],
+        }),
+      };
+    }
+    throw new Error(`unexpected url ${url}`);
+  };
+
+  const { pullSync } = await import('../src/utils/notesSync.ts');
+  const res = await pullSync();
+  assert.equal(res.ok, true);
+  assert.equal(res.pulledCount, 1);
+  assert.equal(res.rev, 7);
+  assert.equal(localStorage.getItem('areSet_notes_last_rev'), '7');
+
+  const saved = JSON.parse(localStorage.getItem('areSet_article_highlights_posts_z'));
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].id, 'server-note-1');
+  assert.equal(saved[0].dirty, false);
+});
+
+test('6. checkSyncStatus accurately determines latest / ahead / behind states', async () => {
+  const { store, localStorage } = installWindow();
+  localStorage.setItem('areSet_notes_last_rev', '10');
+
+  // Case A: Latest (rev 10 matches, 0 pending, 0 incoming)
+  globalThis.fetch = async (url) => {
+    if (url === '/api/auth/me') return { ok: true, json: async () => ({ ok: true, user: { username: 'alice' } }) };
+    if (url.startsWith('/api/notes/status')) {
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          rev: 10,
+          totalCount: 5,
+          incomingCount: 0,
+        }),
+      };
+    }
+    throw new Error(`unexpected url ${url}`);
+  };
+
+  const { checkSyncStatus } = await import('../src/utils/notesSync.ts');
+  let status = await checkSyncStatus();
+  assert.equal(status.ok, true);
+  assert.equal(status.isLatest, true);
+  assert.equal(status.state, 'latest');
+  assert.equal(status.pendingCount, 0);
+  assert.equal(status.incomingCount, 0);
+
+  // Case B: Behind (server has incomingCount 2, rev 12 > 10)
+  globalThis.fetch = async (url) => {
+    if (url === '/api/auth/me') return { ok: true, json: async () => ({ ok: true, user: { username: 'alice' } }) };
+    if (url.startsWith('/api/notes/status')) {
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          rev: 12,
+          totalCount: 7,
+          incomingCount: 2,
+        }),
+      };
+    }
+    throw new Error(`unexpected url ${url}`);
+  };
+
+  status = await checkSyncStatus();
+  assert.equal(status.ok, true);
+  assert.equal(status.isLatest, false);
+  assert.equal(status.state, 'behind');
+  assert.equal(status.incomingCount, 2);
+
+  // Case C: Ahead (local has 1 dirty note)
+  store.set(
+    'areSet_article_highlights_posts_ahead',
+    JSON.stringify([
+      {
+        id: 'ahead-note',
+        kind: 'highlight',
+        text: 'ahead note',
+        prefix: '',
+        suffix: '',
+        postSlug: '/posts/ahead/',
+        timestamp: Date.now(),
+        updatedAt: Date.now(),
+        dirty: true,
+      },
+    ])
+  );
+
+  globalThis.fetch = async (url) => {
+    if (url === '/api/auth/me') return { ok: true, json: async () => ({ ok: true, user: { username: 'alice' } }) };
+    if (url.startsWith('/api/notes/status')) {
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          rev: 10,
+          totalCount: 5,
+          incomingCount: 0,
+        }),
+      };
+    }
+    throw new Error(`unexpected url ${url}`);
+  };
+
+  status = await checkSyncStatus();
+  assert.equal(status.ok, true);
+  assert.equal(status.isLatest, false);
+  assert.equal(status.state, 'ahead');
+  assert.equal(status.pendingCount, 1);
+});
+

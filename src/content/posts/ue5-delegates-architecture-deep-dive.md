@@ -144,9 +144,66 @@ public:
 
 ### 3. 动态单播委托（Dynamic Single-cast Delegate）
 
-- **核心宏：** `DECLARE_DYNAMIC_DELEGATE(...)`；
-- **核心能力：** 借助反射系统注册，**目标函数必须带有 `UFUNCTION()`**；支持作为 `UPROPERTY()` 暴露给蓝图作为函数引脚传递。
-- **典型应用：** UMG 控件的属性绑定（Property Binding）、自定义异步蓝图节点（Blueprint Async Actions）。
+- **核心宏：** `DECLARE_DYNAMIC_DELEGATE(...)`、`DECLARE_DYNAMIC_DELEGATE_RetVal(...)`；
+- **核心能力：** 借助反射系统注册，**目标函数必须带有 `UFUNCTION()`**；支持作为 `UPROPERTY()` 属性存储，也支持作为 `UFUNCTION()` 形参暴露给蓝图（在蓝图中呈现为一个可传递的**函数/事件委托引脚**）；且与原生单播类似，**完全支持返回值**。
+- **典型应用：** UMG 控件的属性绑定（Property Binding，如 `UTextBlock::TextDelegate`）、蓝图异步操作节点（Blueprint Async Actions）、支持蓝图传入过滤/排序谓词回调函数。
+
+```cpp
+// 1. 声明动态单播委托宏（注意：动态委托的参数名不可省略，UHT 需要依据形参名生成反射元数据和蓝图引脚）
+// 声明一个：接收 ItemID，返回 bool 是否通过筛选的带返回值单播
+DECLARE_DYNAMIC_DELEGATE_RetVal_OneParam(bool, FItemFilterDelegate, int32, ItemID);
+
+// 声明一个：物品使用完成后的无返回值单播通知
+DECLARE_DYNAMIC_DELEGATE_TwoParams(FOnItemUsedDelegate, int32, ItemID, bool, bSuccess);
+
+UCLASS()
+class UInventoryComponent : public UActorComponent
+{
+    GENERATED_BODY()
+
+public:
+    // 2. 场景 A：作为 UPROPERTY 属性存储（例如供外部对象注入完成通知）
+    UPROPERTY(BlueprintReadWrite, Category = "Inventory")
+    FOnItemUsedDelegate OnItemUsedCallback;
+
+    // 3. 场景 B：作为 UFUNCTION 参数传递给蓝图（在蓝图节点上会生成一个 Callable Event 引脚！）
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void FilterItems(FItemFilterDelegate FilterCondition, TArray<int32>& OutPassedItems)
+    {
+        TArray<int32> AllItemIDs = { 101, 102, 201, 305 };
+        for (int32 ID : AllItemIDs)
+        {
+            // 4. 调用：使用 IsBound() 检查反射绑定状态，通过 Execute() 同步求值获取返回值
+            if (FilterCondition.IsBound())
+            {
+                if (FilterCondition.Execute(ID))
+                {
+                    OutPassedItems.Add(ID);
+                }
+            }
+        }
+    }
+
+    // 5. C++ 端的动态绑定示例
+    void SetupBinding()
+    {
+        // 必须使用 BindDynamic 宏（底层展开为 BindUFunction 并传入函数名的 FName）
+        // 目标函数必须是 UFUNCTION()，否则反射系统无法查表寻址！
+        OnItemUsedCallback.BindDynamic(this, &UInventoryComponent::HandleItemUsedResult);
+    }
+
+    UFUNCTION()
+    void HandleItemUsedResult(int32 ItemID, bool bSuccess)
+    {
+        UE_LOG(LogTemp, Log, TEXT("物品 %d 使用状态: %s"), ItemID, bSuccess ? TEXT("成功") : TEXT("失败"));
+    }
+};
+```
+
+> [!NOTE] 核心语法与设计差异
+> 1. **形参名必填**：与原生委托声明宏（如 `DECLARE_DELEGATE_OneParam(FMySig, float)`）只要求写类型不同，动态委托宏必须严格写出形参名称（如 `int32, ItemID`），因为 UHT 在预编译阶段需要提取该名称生成反射参数签名，供蓝图节点渲染引脚命名。
+> 2. **C++ 绑定必须用 `BindDynamic`**：动态单播使用的是 `BindDynamic(UserObject, &Class::FuncName)`，其底层实现与原生委托的 `BindUObject` 完全不同——它将目标对象的弱引用与其函数名（`FName`）存入 `TScriptDelegate` 中，调用时通过 `UObject::ProcessEvent` 走反射分发。
+> 3. **蓝图函数引脚传递**：原生单播或原生多播不能作为蓝图函数的形参；只有动态单播委托可以作为 `UFUNCTION` 的入参，允许蓝图调用者直接拖入一个自定义 Event 或 Function 作为回调，非常适合实现类似 LINQ/函数式编程的高阶过滤与计算逻辑。
 
 ---
 
