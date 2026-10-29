@@ -809,7 +809,9 @@ const {
         if (kind === 'stamp') {
           // Land on the card's own CSS tilt so clearProps hands back to the stylesheet without a snap
           const restRotation = restingRotation(el);
-          gsap.set(el, { opacity: 0, scale: 1.7, rotation: restRotation - 14, transformOrigin: '50% 50%' });
+          const rect = el.getBoundingClientRect();
+          const origin = (rect.right > window.innerWidth * 0.65) ? 'right center' : '50% 50%';
+          gsap.set(el, { opacity: 0, scale: 1.7, rotation: restRotation - 14, transformOrigin: origin });
           tl.to(el, {
             opacity: 1, scale: 1, rotation: restRotation,
             duration: 0.62,

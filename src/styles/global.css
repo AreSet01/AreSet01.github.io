@@ -5380,7 +5380,7 @@ html[data-font="kai"] .stats-label {
   }
 
   .home-digest {
-    grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 0.75fr);
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
   }
 
   .home-digest > * + * {
@@ -5390,7 +5390,7 @@ html[data-font="kai"] .stats-label {
   }
 
   .notes-heading {
-    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.52fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.52fr);
     align-items: end;
   }
 
@@ -10567,6 +10567,19 @@ body.gallery-lightbox-open {
     padding-right: clamp(1.5rem, 3vw, 2.5rem) !important;
   }
 
+  @media (max-width: 1279.98px) {
+    body.notes-drawer-open .site-shell > main,
+    body.ink-ask-drawer-open .site-shell > main {
+      padding-right: clamp(355px, 33vw, 395px) !important;
+    }
+
+    html[data-sidebar-collapsed="true"] body.notes-drawer-open .site-shell > main,
+    html[data-sidebar-collapsed="true"] body.ink-ask-drawer-open .site-shell > main {
+      margin-right: clamp(355px, 33vw, 395px) !important;
+      padding-right: clamp(1.25rem, 2.5vw, 2rem) !important;
+    }
+  }
+
   body.notes-drawer-maximized .site-shell > main,
   body.ink-ask-drawer-maximized .site-shell > main,
   html[data-sidebar-collapsed="true"] body.notes-drawer-maximized .site-shell > main,
@@ -10599,6 +10612,13 @@ html[data-companion-mode="split"] body {
   --companion-rail-width: clamp(404px, 29vw, 464px);
   --companion-gutter: clamp(1rem, 1.6vw, 1.6rem);
   --companion-frame-pad: clamp(12px, 1.35vw, 18px);
+}
+
+@media (min-width: 1024px) and (max-width: 1279.98px) {
+  :root {
+    --companion-rail-width: clamp(340px, 32vw, 380px);
+    --companion-gutter: clamp(0.75rem, 1.4vw, 1.25rem);
+  }
 }
 
 /* ---------- 留白画框底景遮罩（全屏与并排共用微暗化柔焦底纹） ---------- */

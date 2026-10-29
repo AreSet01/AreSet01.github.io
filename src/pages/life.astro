@@ -29,7 +29,7 @@ const countByCategory = {
     <section class="panel pb-10 border-b border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule-strong) 50%, transparent 95%) 1;">
       <p class="eyebrow" data-enter="top">Life</p>
 
-      <div class="mt-6 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <div class="mt-6 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between flex-wrap">
         <div class="max-w-2xl">
           <h1 class="section-title" data-enter="left">这么多好去处</h1>
           <p
@@ -254,8 +254,15 @@ const countByCategory = {
     display: inline-flex;
     align-items: center;
     gap: 0.75rem;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    max-width: 100%;
     user-select: none;
+  }
+
+  @media (max-width: 1279.98px) {
+    .life-actions-cluster {
+      gap: 0.5rem;
+    }
   }
 
   .life-random-btn {
@@ -276,6 +283,13 @@ const countByCategory = {
     white-space: nowrap !important;
     flex-shrink: 0;
     line-height: 1;
+  }
+
+  @media (max-width: 1279.98px) {
+    .life-random-btn {
+      padding: 0.48rem 0.95rem;
+      font-size: 0.82rem;
+    }
   }
 
   /* .btn-secondary 的 ::after 下划线是给纯文字按钮准备的：带背景和边框的胶囊/方框按钮

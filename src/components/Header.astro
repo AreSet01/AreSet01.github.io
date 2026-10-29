@@ -1219,16 +1219,37 @@ import gsap from 'gsap';
        padding change — all explicit lengths, so they interpolate. (margin:auto never animates,
        which is what made the old version snap.) */
     .site-shell > main,
-    .container-wide,
-    .container-medium {
+    .site-shell > main.container-wide,
+    .site-shell > main.container-medium,
+    .site-shell > .container-wide,
+    .site-shell > .container-medium {
       flex: 1 1 0% !important;
-      max-width: 100%;
+      min-width: 0 !important;
+      max-width: min(100%, 78rem);
       margin-left: 0;
       margin-right: 0;
       padding-right: clamp(2rem, 4vw, 3rem) !important;
       transition: max-width 420ms cubic-bezier(0.16, 1, 0.3, 1),
                   margin 420ms cubic-bezier(0.16, 1, 0.3, 1),
                   padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .site-shell > main.container-wide,
+    .site-shell > .container-wide,
+    main.container-wide {
+      max-width: min(100%, 78rem) !important;
+    }
+
+    .site-shell > main.container-medium,
+    .site-shell > .container-medium,
+    main.container-medium {
+      max-width: min(100%, 72rem) !important;
+    }
+
+    @media (max-width: 1279.98px) {
+      .site-shell {
+        gap: clamp(1.5rem, 3.2vw, 2.5rem);
+      }
     }
 
     .glass-nav {
@@ -1252,9 +1273,37 @@ import gsap from 'gsap';
                   opacity 280ms ease !important;
     }
 
-    @media (max-height: 520px) {
+    @media (max-width: 1279.98px) {
+      .glass-nav {
+        width: clamp(14rem, 18vw, 16.5rem);
+        min-width: clamp(14rem, 18vw, 16.5rem);
+      }
+    }
+
+    @media (max-height: 900px) {
       .glass-nav {
         overflow-y: auto !important;
+        padding: clamp(0.75rem, 1.6vh, 1.15rem) 0 !important;
+      }
+
+      .glass-nav-inner {
+        height: auto !important;
+        min-height: 100% !important;
+        max-height: none !important;
+      }
+
+      .glass-nav .nav-cluster {
+        gap: clamp(0.55rem, 1.3vh, 0.95rem) !important;
+      }
+
+      .glass-nav .nav-links {
+        gap: clamp(0.55rem, 1.3vh, 0.9rem) !important;
+        margin-block: 0.15rem !important;
+      }
+
+      .glass-nav .sidebar-colophon {
+        padding-top: 0.4rem !important;
+        gap: 0.25rem !important;
       }
     }
 
@@ -1274,6 +1323,14 @@ import gsap from 'gsap';
       transform-style: preserve-3d;
       backface-visibility: hidden;
       transition: none !important;
+    }
+
+    @media (max-width: 1279.98px) {
+      .glass-nav-inner {
+        width: clamp(14rem, 18vw, 16.5rem) !important;
+        min-width: clamp(14rem, 18vw, 16.5rem) !important;
+        padding: 0 clamp(1.1rem, 1.6vw, 1.6rem) !important;
+      }
     }
 
     .glass-nav .nav-cluster {
@@ -1439,8 +1496,8 @@ import gsap from 'gsap';
 
     /* Centered reading column: explicit symmetric margins do the centering, so the move animates */
     html[data-sidebar-collapsed="true"] .site-shell > main.container-wide,
-    html[data-sidebar-collapsed="true"] main.container-wide,
-    html[data-sidebar-collapsed="true"] .container-wide {
+    html[data-sidebar-collapsed="true"] .site-shell > .container-wide,
+    html[data-sidebar-collapsed="true"] main.container-wide {
       max-width: 78rem !important;
       margin-left: max(3rem, calc((100% - 78rem) / 2)) !important;
       margin-right: max(3rem, calc((100% - 78rem) / 2)) !important;
@@ -1449,8 +1506,8 @@ import gsap from 'gsap';
     }
 
     html[data-sidebar-collapsed="true"] .site-shell > main.container-medium,
-    html[data-sidebar-collapsed="true"] main.container-medium,
-    html[data-sidebar-collapsed="true"] .container-medium {
+    html[data-sidebar-collapsed="true"] .site-shell > .container-medium,
+    html[data-sidebar-collapsed="true"] main.container-medium {
       max-width: 72rem !important;
       margin-left: max(2rem, calc((100% - 72rem) / 2)) !important;
       margin-right: max(2rem, calc((100% - 72rem) / 2)) !important;
