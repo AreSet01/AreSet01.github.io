@@ -881,7 +881,8 @@ export function formatCitation(
 }
 
 /**
- * 将整篇文章的所有高亮导出为结构化 Markdown 研读笔记
+ * 将整篇文章的所有高亮或全站笔记导出为结构化 Markdown 研读笔记
+ * 智能兼容：单篇文章导出（保持原有结构）与多文章/全站笔记导出（按文章和独立便签层级化分组）
  */
 export function exportHighlightsAsMarkdown(
   articleTitle: string,
@@ -890,73 +891,219 @@ export function exportHighlightsAsMarkdown(
 ): string {
   const dateStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
   const cleanUrl = articleUrl.replace(/#.*$/, '');
-  const highlights = records.filter((r) => !r.deleted && (r.kind || 'highlight') === 'highlight');
-  const aiNotes = records.filter((r) => !r.deleted && r.kind === 'ai');
-  const freeNotes = records.filter((r) => !r.deleted && r.kind === 'free');
+  const activeRecords = records.filter((r) => !r.deleted);
+  const highlights = activeRecords.filter((r) => (r.kind || 'highlight') === 'highlight');
+  const aiNotes = activeRecords.filter((r) => r.kind === 'ai');
+  const freeNotes = activeRecords.filter((r) => r.kind === 'free');
 
-  let md = `# 《${articleTitle}》读书笔记与高亮摘要\n\n`;
-  md += `> 本文共 ${highlights.length} 条划线、${aiNotes.length} 条 AI 摘录、${freeNotes.length} 条自由笔记 · 导出时间：${dateStr}\n`;
-  md += `> 原文链接：${cleanUrl}\n\n`;
+  const normalizeSlug = (s?: string) => {
+    if (!s || s === '__standalone__' || s === '/__standalone__/') return '__standalone__';
+    let clean = s.trim().replace(/^\/+/, '').replace(/\/+$/, '');
+    if (clean.startsWith('posts/')) clean = clean.slice(6);
+    return clean;
+  };
+
+  const distinctSlugs = new Set(activeRecords.map((r) => normalizeSlug(r.postSlug)));
+  const isMultiArticle = cleanUrl.endsWith('/notes') || distinctSlugs.size > 1;
+
+  if (!isMultiArticle) {
+    let md = `# 《${articleTitle}》读书笔记与高亮摘要\n\n`;
+    md += `> 本文共 ${highlights.length} 条划线、${aiNotes.length} 条 AI 摘录、${freeNotes.length} 条自由笔记 · 导出时间：${dateStr}\n`;
+    md += `> 原文链接：${cleanUrl}\n\n`;
+    md += `---\n\n`;
+
+    // 按小节分组
+    const sectionMap = new Map<string, ArticleHighlightRecord[]>();
+    for (const rec of highlights) {
+      const sec = rec.headingText || '§ 导言 / 正文';
+      const list = sectionMap.get(sec) || [];
+      list.push(rec);
+      sectionMap.set(sec, list);
+    }
+
+    for (const [section, items] of sectionMap.entries()) {
+      md += `## ${section}\n\n`;
+      for (const item of items) {
+        const quoteText = item.text
+          .split('\n')
+          .map((l) => `> ${l.trim()}`)
+          .join('\n');
+        const itemUrl = item.headingId ? `${cleanUrl}#${item.headingId}` : cleanUrl;
+        const timeTag = new Date(item.timestamp).toLocaleDateString('zh-CN', {
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        md += `${quoteText}\n`;
+        if (item.comment) md += `> **备注：** ${item.comment.trim()}\n`;
+        md += `— [定位原文](${itemUrl}) · *${timeTag}*\n\n`;
+      }
+    }
+
+    if (aiNotes.length) {
+      md += `## AI 问答摘录\n\n`;
+      for (const item of aiNotes) {
+        const timeTag = new Date(item.timestamp).toLocaleDateString('zh-CN', {
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        if (item.question) md += `### 问：${item.question}\n\n`;
+        md += `${item.text.trim()}\n`;
+        if (item.comment) md += `\n**备注：** ${item.comment.trim()}\n`;
+        md += `\n— *${timeTag}*\n\n`;
+      }
+    }
+
+    if (freeNotes.length) {
+      md += `## 自由笔记\n\n`;
+      for (const item of freeNotes) {
+        const timeTag = new Date(item.timestamp).toLocaleDateString('zh-CN', {
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        if (item.title) md += `### ${item.title}\n\n`;
+        md += `${item.text.trim()}\n`;
+        if (item.comment) md += `\n**备注：** ${item.comment.trim()}\n`;
+        md += `\n— *${timeTag}*\n\n`;
+      }
+    }
+
+    return md;
+  }
+
+  // 多文章 / 全站笔记导出
+  const baseUrl = cleanUrl.endsWith('/notes')
+    ? cleanUrl.slice(0, -6)
+    : cleanUrl.replace(/\/posts\/.*$/, '');
+
+  let md = `# 《${articleTitle}》\n\n`;
+  md += `> 全站共包含 ${highlights.length} 条划线批注、${aiNotes.length} 条 AI 问答摘录、${freeNotes.length} 条随笔便签 · 导出时间：${dateStr}\n\n`;
   md += `---\n\n`;
 
-  // 按小节分组
-  const sectionMap = new Map<string, ArticleHighlightRecord[]>();
-  for (const rec of highlights) {
-    const sec = rec.headingText || '§ 导言 / 正文';
-    const list = sectionMap.get(sec) || [];
-    list.push(rec);
-    sectionMap.set(sec, list);
-  }
-
-  for (const [section, items] of sectionMap.entries()) {
-    md += `## ${section}\n\n`;
-    for (const item of items) {
-      const quoteText = item.text
-        .split('\n')
-        .map((l) => `> ${l.trim()}`)
-        .join('\n');
-      const itemUrl = item.headingId ? `${cleanUrl}#${item.headingId}` : cleanUrl;
+  // 1. 独立随笔便签
+  const standaloneNotes = activeRecords.filter(
+    (r) => !r.postSlug || normalizeSlug(r.postSlug) === '__standalone__'
+  );
+  if (standaloneNotes.length) {
+    md += `## 独立随笔便签 (${standaloneNotes.length})\n\n`;
+    for (const item of standaloneNotes) {
       const timeTag = new Date(item.timestamp).toLocaleDateString('zh-CN', {
         month: 'numeric',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
       });
-
-      md += `${quoteText}\n`;
-      if (item.comment) md += `> **备注：** ${item.comment.trim()}\n`;
-      md += `— [定位原文](${itemUrl}) · *${timeTag}*\n\n`;
+      const title = item.title || '随想便签';
+      md += `### ${title}\n\n`;
+      md += `${item.text.trim()}\n\n`;
+      if (item.tags && item.tags.length) {
+        md += `> **标签：** ${item.tags.map((t) => `#${t}`).join(' ')}\n`;
+      }
+      if (item.comment) {
+        md += `> **备忘：** ${item.comment.trim()}\n`;
+      }
+      md += `— *${timeTag}*\n\n`;
     }
   }
 
-  if (aiNotes.length) {
-    md += `## AI 问答摘录\n\n`;
-    for (const item of aiNotes) {
-      const timeTag = new Date(item.timestamp).toLocaleDateString('zh-CN', {
-        month: 'numeric',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
+  // 2. 按所属文章分组
+  const articleGroups = new Map<string, { title: string; slug: string; records: ArticleHighlightRecord[] }>();
+  for (const r of activeRecords) {
+    const slug = normalizeSlug(r.postSlug);
+    if (slug === '__standalone__') continue;
+    if (!articleGroups.has(slug)) {
+      articleGroups.set(slug, {
+        slug,
+        title: r.postTitle || slug,
+        records: [],
       });
-      if (item.question) md += `### 问：${item.question}\n\n`;
-      md += `${item.text.trim()}\n`;
-      if (item.comment) md += `\n**备注：** ${item.comment.trim()}\n`;
-      md += `\n— *${timeTag}*\n\n`;
     }
+    const group = articleGroups.get(slug)!;
+    if (r.postTitle && (!group.title || group.title === slug)) {
+      group.title = r.postTitle;
+    }
+    group.records.push(r);
   }
 
-  if (freeNotes.length) {
-    md += `## 自由笔记\n\n`;
-    for (const item of freeNotes) {
-      const timeTag = new Date(item.timestamp).toLocaleDateString('zh-CN', {
-        month: 'numeric',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-      md += `${item.text.trim()}\n`;
-      if (item.comment) md += `\n**备注：** ${item.comment.trim()}\n`;
-      md += `\n— *${timeTag}*\n\n`;
+  for (const group of articleGroups.values()) {
+    const articleLink = `${baseUrl}/posts/${group.slug}`;
+    md += `## 《${group.title}》\n\n`;
+    md += `> 原文链接：${articleLink}\n\n`;
+
+    const gHighlights = group.records.filter((r) => (r.kind || 'highlight') === 'highlight');
+    const gAiNotes = group.records.filter((r) => r.kind === 'ai');
+    const gFreeNotes = group.records.filter((r) => r.kind === 'free');
+
+    if (gHighlights.length) {
+      const sectionMap = new Map<string, ArticleHighlightRecord[]>();
+      for (const rec of gHighlights) {
+        const sec = rec.headingText || '§ 导言 / 正文';
+        const list = sectionMap.get(sec) || [];
+        list.push(rec);
+        sectionMap.set(sec, list);
+      }
+
+      for (const [section, items] of sectionMap.entries()) {
+        md += `### ${section}\n\n`;
+        for (const item of items) {
+          const quoteText = item.text
+            .split('\n')
+            .map((l) => `> ${l.trim()}`)
+            .join('\n');
+          const targetUrl = item.id
+            ? `${articleLink}#highlight-${item.id}`
+            : (item.headingId ? `${articleLink}#${item.headingId}` : articleLink);
+          const timeTag = new Date(item.timestamp).toLocaleDateString('zh-CN', {
+            month: 'numeric',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+
+          md += `${quoteText}\n`;
+          if (item.comment) md += `> **批注：** ${item.comment.trim()}\n`;
+          md += `— [定位原文](${targetUrl}) · *${timeTag}*\n\n`;
+        }
+      }
+    }
+
+    if (gAiNotes.length) {
+      md += `### 墨问 AI 问答摘录\n\n`;
+      for (const item of gAiNotes) {
+        const timeTag = new Date(item.timestamp).toLocaleDateString('zh-CN', {
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        const cleanQ = (item.question || '提问').replace(/^[Q问][:：\s]*/i, '').trim();
+        md += `#### 问：${cleanQ}\n\n`;
+        md += `${item.text.trim()}\n`;
+        if (item.comment) md += `\n**备忘：** ${item.comment.trim()}\n`;
+        md += `\n— [查看文章](${articleLink}#highlight-${item.id}) · *${timeTag}*\n\n`;
+      }
+    }
+
+    if (gFreeNotes.length) {
+      md += `### 文章随笔\n\n`;
+      for (const item of gFreeNotes) {
+        const timeTag = new Date(item.timestamp).toLocaleDateString('zh-CN', {
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        if (item.title) md += `#### ${item.title}\n\n`;
+        md += `${item.text.trim()}\n`;
+        if (item.comment) md += `\n**备注：** ${item.comment.trim()}\n`;
+        md += `\n— [查看文章](${articleLink}#highlight-${item.id}) · *${timeTag}*\n\n`;
+      }
     }
   }
 

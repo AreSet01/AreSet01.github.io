@@ -335,3 +335,99 @@ test('6. checkSyncStatus accurately determines latest / ahead / behind states', 
   assert.equal(status.pendingCount, 1);
 });
 
+test('7. pull keeps local notes when the incoming postSlug form differs (slash alias)', async () => {
+  const { store, localStorage } = installWindow();
+  localStorage.setItem('areSet_notes_last_rev', '1');
+  store.set(
+    'areSet_article_highlights_posts_x',
+    JSON.stringify([
+      { id: 'x1', kind: 'highlight', text: 'one', prefix: '', suffix: '', postSlug: '/posts/x/', updatedAt: 1 },
+      { id: 'x2', kind: 'highlight', text: 'two', prefix: '', suffix: '', postSlug: '/posts/x/', updatedAt: 2 },
+      { id: 'x3', kind: 'highlight', text: 'three', prefix: '', suffix: '', postSlug: '/posts/x/', updatedAt: 3 },
+    ])
+  );
+
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/auth/me') return { ok: true, json: async () => ({ ok: true, user: { username: 'alice' } }) };
+    if (url === '/api/notes/sync') {
+      const body = JSON.parse(options.body);
+      assert.deepEqual(body.changes, []);
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          rev: 2,
+          hasMore: false,
+          changes: [
+            {
+              id: 'x2',
+              kind: 'highlight',
+              text: 'two (server edit)',
+              prefix: '',
+              suffix: '',
+              // 故意不带尾斜杠：旧实现会把它和 /posts/x/ 拆成两个 Map 桶，最后互相覆盖
+              postSlug: '/posts/x',
+              updatedAt: 10,
+              serverRev: 2,
+              deleted: false,
+            },
+          ],
+        }),
+      };
+    }
+    throw new Error(`unexpected url ${url}`);
+  };
+
+  const { syncNow } = await import('../src/utils/notesSync.ts');
+  const res = await syncNow();
+  assert.equal(res.ok, true);
+  const saved = JSON.parse(localStorage.getItem('areSet_article_highlights_posts_x'));
+  assert.equal(saved.length, 3, 'local-only notes must survive a pull');
+  assert.ok(saved.some((n) => n.id === 'x1'));
+  assert.ok(saved.some((n) => n.id === 'x3'));
+  assert.equal(saved.find((n) => n.id === 'x2').text, 'two (server edit)');
+});
+
+test('8. a record edited while the push is in flight is not marked clean', async () => {
+  const { store, localStorage } = installWindow();
+  localStorage.setItem('areSet_notes_last_rev', '5');
+  const note = {
+    id: 'race-1',
+    kind: 'highlight',
+    text: 'old',
+    prefix: '',
+    suffix: '',
+    postSlug: '/posts/race/',
+    updatedAt: 100,
+    timestamp: 100,
+    dirty: true,
+  };
+  store.set('areSet_article_highlights_posts_race', JSON.stringify([note]));
+
+  let pushed = false;
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/auth/me') return { ok: true, json: async () => ({ ok: true, user: { username: 'alice' } }) };
+    if (url === '/api/notes/sync') {
+      const body = JSON.parse(options.body);
+      if (body.changes.length > 0) {
+        pushed = true;
+        // 请求飞行期间用户又编辑了同一条笔记
+        store.set(
+          'areSet_article_highlights_posts_race',
+          JSON.stringify([{ ...note, text: 'newer', updatedAt: 200, dirty: true }])
+        );
+      }
+      return { ok: true, json: async () => ({ ok: true, rev: 6, hasMore: false, changes: [] }) };
+    }
+    throw new Error(`unexpected url ${url}`);
+  };
+
+  const { syncNow } = await import('../src/utils/notesSync.ts');
+  const res = await syncNow();
+  assert.equal(res.ok, true);
+  assert.ok(pushed, 'the dirty record should have been pushed');
+  const saved = JSON.parse(localStorage.getItem('areSet_article_highlights_posts_race'))[0];
+  assert.equal(saved.text, 'newer');
+  assert.equal(saved.dirty, true, 'in-flight edits must stay dirty for the next round');
+});
+

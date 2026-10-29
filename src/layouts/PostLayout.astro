@@ -5,6 +5,7 @@ import Header from '../components/Header.astro';
 import TagList from '../components/TagList.astro';
 import Giscus from '../components/Giscus.astro';
 import MermaidRenderer from '../components/MermaidRenderer.astro';
+import CompanionLayout from '../components/CompanionLayout.astro';
 import InkAsk from '../components/InkAsk.astro';
 import PinWorkbench from '../components/PinWorkbench.astro';
 import ArticleSearch from '../components/ArticleSearch.astro';
@@ -288,6 +289,7 @@ const hasToc = tocHeadings.length > 1;
   </main>
 
   <MermaidRenderer />
+  <CompanionLayout />
   <InkAsk />
   <PinWorkbench />
   <ArticleSearch />

@@ -493,28 +493,6 @@ const {
       </button>
     )}
 
-    {!standalone && (
-      <div class="seal-floating" aria-hidden="true">
-        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="image-rendering: pixelated;">
-          <defs>
-            <filter id="sealRough" x="-10%" y="-10%" width="120%" height="120%">
-              <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="5" />
-              <feDisplacementMap in="SourceGraphic" scale="1.8" />
-            </filter>
-          </defs>
-          <g filter="url(#sealRough)">
-            <rect x="6" y="6" width="88" height="88" rx="0" fill="#111111" />
-            <rect x="11" y="11" width="78" height="78" rx="0" fill="none" stroke="#ffffff" stroke-width="2.4" opacity="0.94" />
-            <line x1="50" y1="11" x2="50" y2="89" stroke="#ffffff" stroke-width="1.4" opacity="0.46" />
-            <line x1="11" y1="50" x2="89" y2="50" stroke="#ffffff" stroke-width="1.4" opacity="0.46" />
-            <text x="30" y="46" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">这</text>
-            <text x="70" y="46" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">是</text>
-            <text x="30" y="80" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">印</text>
-            <text x="70" y="80" font-family="'Zpix', 'VT323', monospace" font-size="32" fill="#ffffff" font-weight="500" text-anchor="middle">章</text>
-          </g>
-        </svg>
-      </div>
-    )}
     <div class="search-overlay" id="site-search" aria-hidden="true">
       <div class="search-modal" role="dialog" aria-modal="true" aria-labelledby="search-title">
         <div class="search-panel" data-lenis-prevent>
@@ -1090,7 +1068,8 @@ const {
       let holdRelease = null;
       let holdTimer = 0;
       let releasedEarly = false;
-      window.__releasePageEnter = (options = {}) => {
+      window.__releasePageEnter = (options) => {
+        options = options || {};
         window.clearTimeout(holdTimer);
         const wasPostTitleHold = Boolean(
           options?.fromPostTitleHold ||
@@ -3248,6 +3227,7 @@ const {
       import gsap from 'gsap';
 
       function initTiltCards() {
+        (window as any).__initTiltCards = initTiltCards;
         if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 

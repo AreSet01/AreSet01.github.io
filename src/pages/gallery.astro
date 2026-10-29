@@ -1368,11 +1368,13 @@ const countByCategory = {
       // ========================================================
       // 场景 B：正常过滤有结果呈现
       // ========================================================
-      if (emptyState) {
-        emptyState.classList.add('hidden');
-      }
-
+      // 注意：空面板**不能**在这里同步隐藏。
+      // 空态时网格容器是 min-height: 0px、卡片还是 is-filtered-out（display:none），
+      // 此刻先隐藏面板，这一帧文档就会短到「比视口还矮」，浏览器会把滚动位置钳到顶部
+      // （观感=点一下就直接跳回最顶、毫无过渡）。面板的隐藏挪到下面的换骨回调里，
+      // 和「卡片恢复」落在同一帧，文档高度只增不减，滚动位置就不会被钳。
       // 动画期间将高度锁定在当前高度，彻底杜绝切换中的布局抖动
+      // （空态进来时 currentH = 0，这里不生效——那种情况靠「同帧交接」保证不钳制）
       if (currentH > 0) {
         container.style.minHeight = `${currentH}px`;
       }
@@ -1431,6 +1433,10 @@ const countByCategory = {
 
       // 阶段 2：换骨就位 (DOM 批切换与入场状态预置)
       tl.add(() => {
+        // 空态 → 有内容：面板与卡片必须同一帧交接（见场景 B 开头的说明）
+        if (emptyState) {
+          emptyState.classList.add('hidden');
+        }
         toHide.forEach((card) => {
           card.classList.add('is-filtered-out');
           card.classList.remove('is-reflowing');

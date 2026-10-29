@@ -495,6 +495,8 @@ function sanitizeNote(raw) {
     id,
     kind,
     text,
+    rawText: String(raw.rawText || '').slice(0, NOTE_LIMITS.text),
+    markdown: String(raw.markdown || '').slice(0, NOTE_LIMITS.text),
     comment: String(raw.comment || '').slice(0, NOTE_LIMITS.comment),
     prefix: String(raw.prefix || '').slice(0, 200),
     suffix: String(raw.suffix || '').slice(0, 200),

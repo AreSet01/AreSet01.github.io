@@ -143,20 +143,38 @@ const escapeHtml = (value: string) =>
 
 // ---------- marked 渲染器 ----------
 
-const renderer = new marked.Renderer();
-renderer.link = ({ href, text }) => `<a href="${href}" target="_blank" rel="noopener noreferrer nofollow">${text}</a>`;
-renderer.heading = ({ text }) => `<p class="ink-ask-h md-heading">${text}</p>`;
+export interface RenderMarkdownOptions {
+  /**
+   * `p`（默认，墨问回答）把标题压成带类名的段落；
+   * `h`（笔记阅读器）输出真正的 h1~h6，让笔记页恢复标题层级。
+   */
+  heading?: 'p' | 'h';
+}
+
+function createRenderer(headingTag: 'p' | 'h') {
+  const renderer = new marked.Renderer();
+  renderer.link = ({ href, text }) => `<a href="${href}" target="_blank" rel="noopener noreferrer nofollow">${text}</a>`;
+  renderer.heading = ({ text, depth }) =>
+    headingTag === 'h'
+      ? `<h${depth} class="ink-ask-h md-heading">${text}</h${depth}>`
+      : `<p class="ink-ask-h md-heading">${text}</p>`;
+  return renderer;
+}
+
+const defaultRenderer = createRenderer('p');
+const noteRenderer = createRenderer('h');
 
 marked.setOptions({
   gfm: true,
   breaks: true,
-  renderer,
+  renderer: defaultRenderer,
 });
 
 /** 墨问回答 / AI 笔记共用：预处理 + marked + 清洗，返回 HTML 字符串 */
-export function renderMarkdown(src: string): string {
+export function renderMarkdown(src: string, options: RenderMarkdownOptions = {}): string {
   try {
-    const parsed = marked.parse(preprocessMarkdown(src));
+    const renderer = options.heading === 'h' ? noteRenderer : defaultRenderer;
+    const parsed = marked.parse(preprocessMarkdown(src), { renderer });
     return typeof parsed === 'string' ? sanitizeHtml(parsed) : '';
   } catch {
     return escapeHtml(src).replace(/\n/g, '<br>');

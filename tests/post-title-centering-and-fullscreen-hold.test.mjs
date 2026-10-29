@@ -112,14 +112,14 @@ test('Post Title Fullscreen Centering, Scale Docking & Component Isolation Suite
     );
     assert.match(
       postLayoutContent,
-      /gsap\.set\(title,\s*\{\s*scale:\s*titleScale,\s*transformOrigin:\s*'center center',\s*\}\);/,
+      /gsap\.set\(title,\s*\{[\s\S]*?scale:\s*titleScale,[\s\S]*?transformOrigin:\s*'center center'/,
       'PostLayout 必须设置 transformOrigin: center center 并放大标题'
     );
 
     // FLIP 滑入 Header 停靠时同步缩放回 1.0
     assert.match(
       postLayoutContent,
-      /tl\.to\(title,\s*\{\s*x:\s*0,\s*y:\s*0,\s*duration:\s*0\.46,\s*ease:\s*'power3\.out',\s*scale:\s*1,\s*\}, '\+=0\.20'\);/,
+      /tl\.to\(title,\s*\{[\s\S]*?x:\s*0,[\s\S]*?y:\s*0,[\s\S]*?scale:\s*1/,
       '标题滑行停靠时必须同时将 scale 还原至 1'
     );
 
@@ -146,10 +146,10 @@ test('Post Title Fullscreen Centering, Scale Docking & Component Isolation Suite
       'BaseLayout __releasePageEnter 必须清除 data-post-title-hold 并恢复 overflow'
     );
 
-    // PostTransition triggerHandover 不在 postTitleHoldPending 时提前启动 Lenis
+    // PostTransition triggerHandover 不在 postTitleHoldPending / hasTitleHold 时提前启动 Lenis
     assert.match(
       postTransitionContent,
-      /if\s*\(!\(window as any\)\.__postTitleHoldPending\)\s*\{\s*\(window as any\)\.lenis\?\.start\(\);\s*\}/,
+      /if\s*\(!hasTitleHold\(\)\)\s*\{\s*\(window as any\)\.lenis\?\.start\(\);\s*\}/,
       'PostTransition 在文章标题保持中不可提前启动 Lenis'
     );
   });

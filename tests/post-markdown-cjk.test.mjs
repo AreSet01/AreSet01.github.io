@@ -23,7 +23,7 @@ test('1. astro.config registers remark-cjk-friendly before the mermaid transform
   const config = readFileSync(path.resolve(ROOT, 'astro.config.mjs'), 'utf8');
   assert.match(config, /import\s+remarkCjkFriendly\s+from\s+['"]remark-cjk-friendly['"]/);
   assert.match(config, /remarkPlugins:\s*\[[^\]]*remarkCjkFriendly/);
-  assert.match(config, /rehypePlugins:\s*\[rehypeTableScroll\]/);
+  assert.match(config, /rehypePlugins:\s*\[[\s\S]*?rehypeTableScroll[\s\S]*?\]/);
 });
 
 test('2. quoted / parenthesised bold inside CJK text renders as <strong>', async () => {

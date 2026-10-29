@@ -1,33 +1,12 @@
 ---
-// About-entry curtain: 「落墨成格 · 像素推演」
-// Zen Oriental Ink-to-Pixel Animation for About Me Page.
-// Harmonized strictly with SiteIntro.astro (rice paper, ink wash, vermilion seal, Zpix typography, non-linear 10s rhythm).
+// About-entry curtain: 「水墨粒子推演 · WELCOME!」
+// Dynamic ink-to-pixel particle assembly for About Me Page.
+// Harmonized strictly with SiteIntro (rice paper texture, ink wash, uniform swirling ring, page-enter homing).
 // Skippable at any moment (Click, Esc / Enter / Space, or Skip button).
 ---
 
 <div class="about-intro" data-about-intro data-enter-hold aria-hidden="true">
   <canvas class="about-intro-canvas" data-about-canvas></canvas>
-  <div class="about-intro-stage" data-about-stage>
-    <span class="about-intro-seal" data-about-seal>
-      <span class="about-intro-ring" data-about-ring></span>
-      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <filter id="aboutSealRough" x="-12%" y="-12%" width="124%" height="124%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="19" />
-            <feDisplacementMap in="SourceGraphic" scale="2" />
-          </filter>
-        </defs>
-        <g filter="url(#aboutSealRough)">
-          <rect class="seal-plate" x="5" y="5" width="90" height="90" />
-          <rect class="seal-frame" x="11" y="11" width="78" height="78" />
-          <text class="seal-glyph" x="50" y="58">汐</text>
-        </g>
-      </svg>
-    </span>
-    <p class="about-intro-tagline" data-about-tagline>
-      <span data-about-typed-title></span><i class="about-intro-caret" aria-hidden="true"></i>
-    </p>
-  </div>
   <div class="about-intro-foot" data-about-foot>
     <span class="about-intro-status" data-about-status>ABOUT · 00% · 凝</span>
     <span class="about-intro-progress"><i data-about-progress></i></span>
@@ -40,15 +19,12 @@
     position: fixed;
     inset: 0;
     z-index: 9995;
-    /* The paper must be opaque: the curtain owns the frame for ten seconds and lifts at the end.
-       var(--bg) was never a token, so this silently computed to transparent and the whole
-       choreography played over the page (and over the site-entry curtain) instead of on paper. */
     background: var(--bg-base);
     overflow: hidden;
     user-select: none;
     touch-action: none;
     opacity: 1;
-    transition: opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .about-intro.is-lifting {
@@ -62,83 +38,6 @@
     width: 100%;
     height: 100%;
     display: block;
-  }
-
-  .about-intro-stage {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-  }
-
-  .about-intro-seal {
-    position: absolute;
-    width: 64px;
-    height: 64px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-    opacity: 0;
-    will-change: transform, opacity;
-  }
-
-  .about-intro-seal svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-
-  .about-intro-seal .seal-plate {
-    fill: var(--vermilion, #b93a2b);
-  }
-
-  .about-intro-seal .seal-frame {
-    fill: none;
-    stroke: #ffffff;
-    stroke-width: 2.5;
-    opacity: 0.95;
-  }
-
-  .about-intro-seal .seal-glyph {
-    font-family: 'Zpix', 'VT323', monospace;
-    font-size: 38px;
-    font-weight: 600;
-    fill: #ffffff;
-    text-anchor: middle;
-    dominant-baseline: central;
-  }
-
-  .about-intro-ring {
-    position: absolute;
-    inset: -30px;
-    border: 1.5px solid var(--vermilion, #b93a2b);
-    border-radius: 50%;
-    pointer-events: none;
-    opacity: 0;
-  }
-
-  .about-intro-tagline {
-    position: absolute;
-    left: 50%;
-    top: calc(50% + 56px);
-    transform: translateX(-50%);
-    font-family: 'Zpix', 'VT323', monospace;
-    font-size: clamp(0.95rem, 1.8vw, 1.25rem);
-    letter-spacing: 0.2em;
-    color: var(--ink-strong, #111111);
-    opacity: 0;
-    white-space: nowrap;
-    text-align: center;
-  }
-
-  .about-intro-caret {
-    display: inline-block;
-    width: 0.55em;
-    height: 1em;
-    margin-left: 0.2em;
-    vertical-align: -0.15em;
-    background: var(--vermilion, #b93a2b);
-    animation: aboutCaretBlink 0.9s steps(2, end) infinite;
   }
 
   .about-intro-foot {
@@ -192,40 +91,31 @@
     color: var(--text-strong);
     background: var(--ink-mist);
   }
-
-  @keyframes aboutCaretBlink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
-  }
 </style>
 
 <script>
   import gsap from 'gsap';
 
-  const TAGLINE = '落墨成格 · 像素推演';
+  const TARGET_WORD = 'WELCOME!';
 
-  // Poetic beats in seconds: 凝 → 落 → 消 → 成 → 归
+  // Compact, poetic rhythm (total ~5.5s): 凝 → 落 → 散 → 聚 → 成 → 归
   const T = {
-    dropForm: 0.6,
-    detach: 1.1,
-    impact: 1.6,       // drop hits canvas & splash
-    tetrisStart: 1.7,  // blocks begin gently floating onto grid
-    lineFill: 4.2,     // row clears and blooms
-    vortex: 4.8,       // remaining pixels sweep into spiral
-    seal: 6.4,         // vermilion seal gathers
-    sealImpact: 6.8,   // seal stamps down with ink ring
-    tagline: 7.0,      // typewriter tagline
-    lift: 8.0,         // paper becomes translucent, page ready underneath
-    release: 8.4,      // release page enter; particles fly home
-    end: 10.0,
+    dropForm: 0.2,       // Ink drop begins to form
+    detach: 0.5,         // Drop detaches & falls
+    impact: 0.85,        // Drop hits canvas & bursts outward radially
+    vortex: 1.15,        // Radial burst curls into uniform swirling ring
+    converge: 2.1,       // Particles peel off orbit and home inward to assemble "welcome!"
+    convergeEnd: 3.1,    // "welcome!" is fully locked and legible
+    lift: 4.0,           // Paper begins translucent lift; page elements awaken
+    release: 4.25,       // Release page enter; particles disperse toward page elements
+    end: 5.5,            // Complete teardown
   };
 
   const PHASES: Array<[number, string]> = [
     [T.detach, '凝'],
-    [T.tetrisStart, '落'],
-    [T.lineFill, '推'],
-    [T.vortex, '消'],
-    [T.seal, '聚'],
+    [T.impact, '落'],
+    [T.converge, '散'],
+    [T.convergeEnd, '聚'],
     [T.lift, '成'],
     [Infinity, '归'],
   ];
@@ -239,7 +129,6 @@
     const q = clamp01((v - a) / (b - a));
     return q * q * (3 - 2 * q);
   };
-  const easeOutQuad = (p: number) => 1 - (1 - p) * (1 - p);
   const rnd = Math.random;
 
   function cssVar(name: string, fallback: string) {
@@ -247,12 +136,31 @@
     return value || fallback;
   }
 
-  function withAlpha(hex: string, alpha: number) {
-    const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex);
-    if (!m) return `rgba(0, 0, 0, ${alpha})`;
-    const h = m[1].length === 3 ? m[1].split('').map((c) => c + c).join('') : m[1];
-    const n = parseInt(h, 16);
-    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  // Rasterize offscreen text into discrete cell center points
+  function rasterCells(
+    box: { x: number; y: number; w: number; h: number },
+    cell: number,
+    draw: (c: CanvasRenderingContext2D) => void
+  ) {
+    const off = document.createElement('canvas');
+    off.width = Math.max(1, Math.ceil(box.w));
+    off.height = Math.max(1, Math.ceil(box.h));
+    const c = off.getContext('2d', { willReadFrequently: true })!;
+    c.translate(-box.x, -box.y);
+    c.fillStyle = '#000';
+    draw(c);
+    const { data } = c.getImageData(0, 0, off.width, off.height);
+    const out: number[] = [];
+    const half = cell >> 1;
+    for (let gy = 0; gy + cell <= off.height; gy += cell) {
+      const row = (gy + half) * off.width;
+      for (let gx = 0; gx + cell <= off.width; gx += cell) {
+        if (data[(row + gx + half) * 4 + 3] > 120) {
+          out.push(box.x + gx, box.y + gy);
+        }
+      }
+    }
+    return out;
   }
 
   function runAboutIntro() {
@@ -262,9 +170,10 @@
     intro.dataset.started = 'true';
 
     // Once per session unless forced via ?about-intro=1 or #about-intro or ?zen=1
-    const forced = /[?&]about-intro=1(&|$)/.test(location.search) ||
-                   location.hash === '#about-intro' ||
-                   /[?&]zen=1(&|$)/.test(location.search);
+    const forced =
+      /[?&]about-intro=1(&|$)/.test(location.search) ||
+      location.hash === '#about-intro' ||
+      /[?&]zen=1(&|$)/.test(location.search);
     let seen = false;
     try {
       seen = sessionStorage.getItem('about-intro-seen') === '1';
@@ -279,7 +188,9 @@
     };
 
     // If SiteIntro is currently active/pending, AboutIntro must NOT run simultaneously
-    const siteIntroActive = document.documentElement.classList.contains('site-intro-active') || (window as any).__siteIntroPending;
+    const siteIntroActive =
+      document.documentElement.classList.contains('site-intro-active') ||
+      (window as any).__siteIntroPending;
 
     if (siteIntroActive || (!forced && (seen || reducedMotion))) {
       releasePage();
@@ -291,11 +202,6 @@
     } catch {}
 
     const canvas = intro.querySelector<HTMLCanvasElement>('[data-about-canvas]')!;
-    const stage = intro.querySelector<HTMLElement>('[data-about-stage]')!;
-    const seal = intro.querySelector<HTMLElement>('[data-about-seal]')!;
-    const ring = intro.querySelector<HTMLElement>('[data-about-ring]')!;
-    const taglineEl = intro.querySelector<HTMLElement>('[data-about-tagline]')!;
-    const typedTitle = intro.querySelector<HTMLElement>('[data-about-typed-title]')!;
     const foot = intro.querySelector<HTMLElement>('[data-about-foot]')!;
     const status = intro.querySelector<HTMLElement>('[data-about-status]')!;
     const progress = intro.querySelector<HTMLElement>('[data-about-progress]')!;
@@ -326,17 +232,13 @@
 
     // Stage dimensions & DPR
     const coarse = window.matchMedia('(pointer: coarse)').matches;
-    const finePointer = window.matchMedia('(pointer: fine)').matches;
     const dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2);
-    // The curtain is fixed inset:0, so its box is the viewport minus the scrollbar; innerWidth
-    // would include the scrollbar and squeeze the canvas ~1% relative to the seal and tagline
     const W = intro.clientWidth || window.innerWidth;
     const H = intro.clientHeight || window.innerHeight;
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
 
     const ink = cssVar('--ink-strong', '#111111');
-    const vermilion = cssVar('--vermilion', '#b93a2b');
     const theme = document.documentElement.getAttribute('data-theme');
     const grainAlpha = theme === null || theme === 'light' ? 0.05 : 0.075;
     const cx = W / 2;
@@ -344,149 +246,154 @@
     const dropX = cx;
     const dropY = Math.round(H * 0.12);
 
+    // Responsive font and cell sizing for "WELCOME!" with wide letter spacing and open counters
+    const fontSize = Math.round(Math.max(50, Math.min(W * 0.11, H * 0.16, 92)));
+    const font = `700 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
+    const charSpacing = Math.round(fontSize * 0.22);
+    const vortexR = Math.min(W, H) * 0.26;
+
+    // Rasterize "WELCOME!" with crisp 4px cell grid
+    let cell = 4;
+    let glyphPoints: number[] = [];
+    let bx0 = 0, by0 = 0, bx1 = 0, by1 = 0;
+
+    try {
+      const off = document.createElement('canvas');
+      const meas = off.getContext('2d')!;
+      meas.font = font;
+
+      let totalW = 0;
+      const charWidths: number[] = [];
+      for (const ch of TARGET_WORD) {
+        const w = meas.measureText(ch).width;
+        charWidths.push(w);
+        totalW += w;
+      }
+      totalW += charSpacing * (TARGET_WORD.length - 1);
+
+      let startX = cx - totalW / 2;
+      const charPositions: number[] = [];
+      for (let i = 0; i < TARGET_WORD.length; i++) {
+        charPositions.push(startX + charWidths[i] / 2);
+        startX += charWidths[i] + charSpacing;
+      }
+
+      const textH = fontSize * 1.2;
+      const box = {
+        x: Math.floor(cx - totalW / 2 - cell * 3),
+        y: Math.floor(cy - textH / 2 - cell * 3),
+        w: Math.ceil(totalW + cell * 6),
+        h: Math.ceil(textH + cell * 6),
+      };
+
+      glyphPoints = rasterCells(box, cell, (c) => {
+        c.font = font;
+        c.textBaseline = 'middle';
+        c.textAlign = 'center';
+        for (let i = 0; i < TARGET_WORD.length; i++) {
+          c.fillText(TARGET_WORD[i], charPositions[i], cy);
+        }
+      });
+
+      bx0 = box.x;
+      by0 = box.y;
+      bx1 = box.x + box.w;
+      by1 = box.y + box.h;
+    } catch {
+      // Fallback if measurement fails
+      glyphPoints = [];
+    }
+
+    const G = glyphPoints.length / 2;
+    // Total particle count: enough to cover all glyph cells plus ambient mist
+    const N = Math.max(coarse ? 900 : 1600, G + 200);
+
+    // Particle state
+    // Mode: 0: idle, 1: burst/fly, 2: seek glyph, 3: lock glyph, 4: home to page, 5: dead
+    const M_IDLE = 0,
+      M_FLY = 1,
+      M_SEEK = 2,
+      M_LOCK = 3,
+      M_HOME = 4,
+      M_DEAD = 5;
+
+    const px = new Float32Array(N);
+    const py = new Float32Array(N);
+    const vx = new Float32Array(N);
+    const vy = new Float32Array(N);
+    const tx = new Float32Array(N);
+    const ty = new Float32Array(N);
+    const hx = new Float32Array(N);
+    const hy = new Float32Array(N);
+    const tA = new Float32Array(N);
+    const tH = new Float32Array(N);
+    const pref = new Float32Array(N);
+    const mode = new Uint8Array(N);
+    const isGlyph = new Uint8Array(N);
+
+    let alive = 0;
+    let homesAssigned = false;
+    let impactOccurred = false;
+    let shockRadius = 0;
+
+    // Assign glyph targets to the first G particles, sorted in smooth horizontal flow
+    if (G > 0) {
+      const indices = Array.from({ length: G }, (_, i) => i);
+      indices.sort((a, b) => glyphPoints[a * 2] - glyphPoints[b * 2]);
+
+      for (let k = 0; k < G; k++) {
+        const idx = indices[k];
+        tx[k] = glyphPoints[idx * 2];
+        ty[k] = glyphPoints[idx * 2 + 1];
+        isGlyph[k] = 1;
+        // Stagger assembly across 2.1s -> 2.9s with slight organic jitter
+        const progressFrac = k / G;
+        tA[k] = T.converge + progressFrac * 0.75 + (rnd() - 0.5) * 0.12;
+      }
+    }
+
+    // Set preferred orbital radius for each particle in the vortex
+    for (let i = 0; i < N; i++) {
+      pref[i] = vortexR * (0.75 + rnd() * 0.45);
+    }
+
+    // Spawn all particles on impact with UNIFORM polar angle distribution (zero clumping)
+    function spawnRadialBurst() {
+      for (let i = 0; i < N; i++) {
+        // Uniformly spaced angle with subtle organic jitter to prevent grid lines
+        const baseAngle = (i / N) * Math.PI * 2;
+        const jitter = (rnd() - 0.5) * (Math.PI * 2 / N) * 0.8;
+        const a = baseAngle + jitter;
+
+        const speed = 160 + rnd() * 260;
+        const r0 = rnd() * 12;
+
+        px[i] = cx + Math.cos(a) * r0;
+        py[i] = cy + Math.sin(a) * r0;
+        vx[i] = Math.cos(a) * speed;
+        vy[i] = Math.sin(a) * speed;
+
+        mode[i] = M_FLY;
+      }
+      alive = N;
+    }
+
     // Paper grain tiles
     const grainTiles = [0, 1, 2].map(() => {
       const tile = document.createElement('canvas');
       tile.width = tile.height = 128;
       const c = tile.getContext('2d')!;
       c.fillStyle = ink;
-      for (let i = 0; i < 500; i += 1) {
+      for (let i = 0; i < 400; i += 1) {
         c.globalAlpha = 0.2 + rnd() * 0.5;
         c.fillRect(Math.floor(rnd() * 128), Math.floor(rnd() * 128), 1, 1);
       }
       return ctx.createPattern(tile, 'repeat')!;
     });
-    let grainTile = 0, grainX = 0, grainY = 0, grainAt = -1;
-
-    // Tetris Grid on Canvas
-    // 10 columns x 12 rows matrix in center
-    const CELL_SIZE = Math.max(16, Math.min(28, Math.round(Math.min(W, H) * 0.038)));
-    const COLS = 10;
-    const ROWS = 12;
-    const gridW = COLS * CELL_SIZE;
-    const gridH = ROWS * CELL_SIZE;
-    const gridX = Math.round(cx - gridW / 2);
-    const gridY = Math.round(cy - gridH / 2 + 10);
-
-    // Authentic Tetris Pieces Sequence -> Double Clear (Row 10 & 11) -> 100% Perfect Clear (All Clear)
-    // Board floor is row 11.
-    // Piece 1: J-Piece left foundation (cols 0-2, row 11; col 0, row 10)
-    // Piece 2: L-Piece left locking wedge (cols 1-3, row 10; col 3, row 11) -> Solid 4x2 on left!
-    // Piece 3: L-Piece right foundation (col 9, row 10; cols 7-9, row 11) -> Drops directly to floor first!
-    // Piece 4: J-Piece right locking wedge (cols 6-8, row 10; col 6, row 11) -> Solid 4x2 on right!
-    // Piece 5: O-Piece Signature Vermilion Seal (cols 4-5, rows 10-11) -> Plugs central channel!
-    // -> Row 10 & Row 11 are simultaneously completed (20/20 cells)!
-    // -> Double line clear flashes & clears cleanly, leaving ZERO blocks (All Clear)!
-
-    interface TetrisPiece {
-      id: number;
-      shape: number[][]; // [colOffset, rowOffset]
-      col: number;
-      targetRow: number;
-      spawnTime: number;
-      lockTime: number;
-      color: string;
-      ghostColor: string;
-      settledSplash: boolean;
-    }
-
-    const tetrisPieces: TetrisPiece[] = [
-      {
-        id: 1,
-        shape: [[0, 0], [0, 1], [1, 1], [2, 1]],
-        col: 0,
-        targetRow: 10,
-        spawnTime: 1.7,
-        lockTime: 2.15,
-        color: '#c28938', // 琥珀金
-        ghostColor: 'rgba(194, 137, 56, 0.24)',
-        settledSplash: false,
-      },
-      {
-        id: 2,
-        shape: [[0, 0], [1, 0], [2, 0], [2, 1]],
-        col: 1,
-        targetRow: 10,
-        spawnTime: 2.2,
-        lockTime: 2.65,
-        color: '#2b6e68', // 松绿青
-        ghostColor: 'rgba(43, 110, 104, 0.24)',
-        settledSplash: false,
-      },
-      {
-        id: 3,
-        shape: [[2, 0], [0, 1], [1, 1], [2, 1]],
-        col: 7,
-        targetRow: 10,
-        spawnTime: 2.7,
-        lockTime: 3.15,
-        color: '#233d63', // 黛蓝墨 (右侧底盘，直接落入底行)
-        ghostColor: 'rgba(35, 61, 99, 0.28)',
-        settledSplash: false,
-      },
-      {
-        id: 4,
-        shape: [[0, 0], [1, 0], [2, 0], [0, 1]],
-        col: 6,
-        targetRow: 10,
-        spawnTime: 3.2,
-        lockTime: 3.65,
-        color: '#b35d33', // 赭石褐 (右侧压顶楔，落在 Piece 3 之上)
-        ghostColor: 'rgba(179, 93, 51, 0.24)',
-        settledSplash: false,
-      },
-      {
-        id: 5,
-        shape: [[0, 0], [1, 0], [0, 1], [1, 1]],
-        col: 4,
-        targetRow: 10,
-        spawnTime: 3.75,
-        lockTime: 4.25,
-        color: vermilion, // 朱砂红印章 (中路贯穿压阵)
-        ghostColor: withAlpha(vermilion, 0.28),
-        settledSplash: false,
-      },
-    ];
-
-    let lineClearParticlesSpawned = false;
-
-    // Particle pool for the vortex and homeward flight
-    const N = coarse ? 900 : 1800;
-    const px = new Float32Array(N);
-    const py = new Float32Array(N);
-    const vx = new Float32Array(N);
-    const vy = new Float32Array(N);
-    const hx = new Float32Array(N);
-    const hy = new Float32Array(N);
-    const tH = new Float32Array(N);
-    const pref = new Float32Array(N);
-    const mode = new Uint8Array(N); // 0: idle, 1: fly, 2: home, 3: dead
-    let alive = 0;
-    let homesAssigned = false;
-    let impactOccurred = false;
-    let shockRadius = 0;
-
-    for (let i = 0; i < N; i++) {
-      pref[i] = Math.min(W, H) * (0.15 + rnd() * 0.25);
-    }
-
-    function spawnParticles(x0: number, y0: number, count: number, spread: number, speedMax: number) {
-      let spawned = 0;
-      for (let i = 0; i < N && spawned < count; i++) {
-        if (mode[i] === 0 || mode[i] === 3) {
-          const a = rnd() * Math.PI * 2;
-          const r = Math.sqrt(rnd()) * spread;
-          px[i] = x0 + Math.cos(a) * r;
-          py[i] = y0 + Math.sin(a) * r;
-          const sp = 60 + rnd() * speedMax;
-          vx[i] = Math.cos(a) * sp;
-          vy[i] = Math.sin(a) * sp;
-          mode[i] = 1; // fly
-          alive++;
-          spawned++;
-        }
-      }
-    }
+    let grainTile = 0,
+      grainX = 0,
+      grainY = 0,
+      grainAt = -1;
 
     function dropPos(t: number) {
       if (t < T.detach) return { x: dropX, y: dropY + 8 * smooth(T.dropForm, T.detach, t) };
@@ -499,209 +406,35 @@
       c.fillStyle = ink;
       const stretch = smooth(T.dropForm, T.detach, t);
       const { x, y } = dropPos(t);
-      const rb = 3 + 6 * smooth(0.2, 1.0, t);
-      let rx = rb * (1 - 0.3 * stretch);
-      let ry = rb * (1 + 1.2 * stretch);
+      const rb = 3.5 + 4.5 * smooth(0.1, 0.5, t);
+      let rx = rb * (1 - 0.25 * stretch);
+      let ry = rb * (1 + 1.1 * stretch);
       if (t >= T.detach) {
         const q = clamp01((t - T.detach) / (T.impact - T.detach));
         rx = rb * 0.75;
-        ry = rb * (1.4 + 2.0 * q);
+        ry = rb * (1.3 + 1.8 * q);
       }
       c.beginPath();
       c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
       c.fill();
     }
 
-    // Grid rendering: authentic 10x12 matrix with subtle ink guidelines
-    function drawGrid(c: CanvasRenderingContext2D, t: number) {
-      if (t < T.tetrisStart - 0.1 || t > T.vortex + 0.8) return;
-      const alpha = smooth(T.tetrisStart - 0.1, T.tetrisStart + 0.4, t) * (1 - smooth(T.vortex, T.vortex + 0.8, t));
-      if (alpha <= 0.01) return;
-
-      c.save();
-      c.strokeStyle = withAlpha(ink, 0.14 * alpha);
-      c.lineWidth = 1;
-
-      // Outer matrix frame with subtle ink weight
-      c.strokeRect(gridX - 0.5, gridY - 0.5, gridW + 1, gridH + 1);
-
-      // Inner dashed cell grid
-      c.strokeStyle = withAlpha(ink, 0.08 * alpha);
-      for (let r = 1; r < ROWS; r++) {
-        const y = gridY + r * CELL_SIZE;
-        c.beginPath();
-        c.setLineDash([2, 4]);
-        c.moveTo(gridX, y);
-        c.lineTo(gridX + gridW, y);
-        c.stroke();
-      }
-      for (let col = 1; col < COLS; col++) {
-        const x = gridX + col * CELL_SIZE;
-        c.beginPath();
-        c.setLineDash([2, 4]);
-        c.moveTo(x, gridY);
-        c.lineTo(x, gridY + gridH);
-        c.stroke();
-      }
-      c.setLineDash([]);
-      c.restore();
-    }
-
-    // Individual Tetris block rendering with authentic pixel borders, bevels and line clear flashes
-    function drawTetrisBlock(
-      c: CanvasRenderingContext2D,
-      col: number,
-      row: number,
-      color: string,
-      alpha: number,
-      isGhost = false,
-      isFlash = false
-    ) {
-      if (alpha <= 0.01 || row < -1) return;
-      const pxX = gridX + col * CELL_SIZE;
-      const pxY = gridY + row * CELL_SIZE;
-      const pad = 1.2;
-      const size = CELL_SIZE - pad * 2;
-
-      c.save();
-      c.globalAlpha = alpha;
-
-      if (isGhost) {
-        c.fillStyle = color;
-        c.fillRect(pxX + pad, pxY + pad, size, size);
-        c.strokeStyle = color;
-        c.lineWidth = 1;
-        c.setLineDash([2, 2]);
-        c.strokeRect(pxX + pad, pxY + pad, size, size);
-      } else if (isFlash) {
-        c.fillStyle = '#ffffff';
-        c.fillRect(pxX + pad, pxY + pad, size, size);
-        c.strokeStyle = vermilion;
-        c.lineWidth = 2;
-        c.strokeRect(pxX + pad, pxY + pad, size, size);
-      } else {
-        c.fillStyle = color;
-        c.fillRect(pxX + pad, pxY + pad, size, size);
-
-        // Tactile 3D pixel bevel highlights
-        c.strokeStyle = 'rgba(255, 255, 255, 0.28)';
-        c.lineWidth = 1;
-        c.beginPath();
-        c.moveTo(pxX + pad, pxY + pad + size);
-        c.lineTo(pxX + pad, pxY + pad);
-        c.lineTo(pxX + pad + size, pxY + pad);
-        c.stroke();
-
-        c.strokeStyle = 'rgba(0, 0, 0, 0.22)';
-        c.beginPath();
-        c.moveTo(pxX + pad + size, pxY + pad);
-        c.lineTo(pxX + pad + size, pxY + pad + size);
-        c.lineTo(pxX + pad, pxY + pad + size);
-        c.stroke();
-      }
-      c.restore();
-    }
-
-    // Tetromino pieces falling, authentic Double Clear (Row 10 & 11) -> 100% Perfect Clear (All Clear)
-    function updateAndDrawPieces(c: CanvasRenderingContext2D, t: number) {
-      if (t < T.tetrisStart || t > T.vortex + 1.2) return;
-      const dissolve = smooth(T.vortex, T.vortex + 0.8, t);
-      const baseAlpha = 1 - dissolve;
-      if (baseAlpha <= 0.01) return;
-
-      const CLEAR_FLASH_START = 4.25;
-      const CLEAR_END = 4.55;
-
-      const isClearing = t >= CLEAR_FLASH_START && t < CLEAR_END;
-      const isCleared = t >= CLEAR_END;
-
-      // 1. Splash particles on piece landing
-      tetrisPieces.forEach((p) => {
-        if (!p.settledSplash && t >= p.lockTime) {
-          p.settledSplash = true;
-          const hitX = gridX + (p.col + 1) * CELL_SIZE;
-          const hitY = gridY + (p.targetRow + 1) * CELL_SIZE;
-          spawnParticles(hitX, hitY, 14, 8, 120);
-        }
-      });
-
-      // 2. Double line clear particle burst at t = 4.28s
-      if (!lineClearParticlesSpawned && t >= 4.28) {
-        lineClearParticlesSpawned = true;
-        spawnParticles(cx, gridY + 11 * CELL_SIZE, coarse ? 140 : 300, gridW * 0.45, 280);
-      }
-
-      // 3. Render pieces with playfield clipping so blocks emerge cleanly into matrix
-      c.save();
-      c.beginPath();
-      c.rect(gridX - 1, gridY - 1, gridW + 2, gridH + 2);
-      c.clip();
-
-      tetrisPieces.forEach((p) => {
-        if (t < p.spawnTime) return;
-
-        const isLocked = t >= p.lockTime;
-        const fallProgress = isLocked ? 1 : clamp01((t - p.spawnTime) / (p.lockTime - p.spawnTime));
-        // Natural gravity drop: steady entry accelerating cleanly into lock
-        const curRow = isLocked ? p.targetRow : -3 + (p.targetRow + 3) * (fallProgress * (0.6 + 0.4 * fallProgress));
-
-        // Draw ghost piece if piece is currently falling
-        if (!isLocked && t >= p.spawnTime + 0.06) {
-          p.shape.forEach(([sc, sr]) => {
-            drawTetrisBlock(c, p.col + sc, p.targetRow + sr, p.ghostColor, baseAlpha * 0.55, true, false);
-          });
-        }
-
-        // Draw active or locked blocks
-        p.shape.forEach(([sc, sr]) => {
-          const col = p.col + sc;
-          let row = curRow + sr;
-
-          if (isLocked) {
-            if (isCleared) {
-              return; // All Clear! Perfect clean board!
-            }
-            if (isClearing) {
-              const flashFreq = Math.sin((t - CLEAR_FLASH_START) * 35);
-              drawTetrisBlock(c, col, p.targetRow + sr, p.color, baseAlpha, false, flashFreq > 0);
-              return;
-            }
-            row = p.targetRow + sr;
-          }
-
-          drawTetrisBlock(c, col, row, p.color, baseAlpha * (0.6 + fallProgress * 0.4), false, false);
-        });
-      });
-
-      c.restore();
-
-      // 4. Double Line clear beam / golden vermilion wave across Rows 10 & 11
-      if (t >= CLEAR_FLASH_START && t < CLEAR_END + 0.15) {
-        const q = clamp01((t - CLEAR_FLASH_START) / (CLEAR_END + 0.15 - CLEAR_FLASH_START));
-        const washY = gridY + 10 * CELL_SIZE;
-        c.save();
-        c.globalAlpha = (1 - q) * 0.75;
-        c.fillStyle = vermilion;
-        c.fillRect(gridX - 25 * q, washY - 4 * (1 - q), gridW + 50 * q, 2 * CELL_SIZE + 8 * (1 - q));
-        c.restore();
-      }
-    }
-
     // Compute home positions on the About page
     function computeAboutHomes() {
-      const plan: Array<{ el: HTMLElement; at: number }> = (window as any).__peekPageEnter?.() ?? [];
+      const plan: Array<{ el: HTMLElement; at: number }> =
+        (window as any).__peekPageEnter?.() ?? [];
       const homes: Array<{ x: number; y: number; at: number }> = [];
       const base = T.release + 0.05;
 
       plan.forEach((p) => {
         const r = p.el.getBoundingClientRect();
         if (r.width > 4 && r.height > 4 && r.bottom > 0 && r.top < H) {
-          const pts = Math.min(120, Math.max(16, Math.round((r.width * r.height) / 180)));
+          const pts = Math.min(100, Math.max(16, Math.round((r.width * r.height) / 200)));
           for (let k = 0; k < pts; k++) {
             homes.push({
               x: r.left + r.width * (0.05 + rnd() * 0.9),
               y: r.top + r.height * (0.05 + rnd() * 0.9),
-              at: base + p.at * 0.65,
+              at: base + p.at * 0.6,
             });
           }
         }
@@ -713,62 +446,112 @@
       if (homesAssigned) return;
       homesAssigned = true;
       const targetHomes = computeAboutHomes();
-      const count = Math.min(alive, targetHomes.length);
+      const count = targetHomes.length;
 
       let hIdx = 0;
       for (let i = 0; i < N; i++) {
-        if (mode[i] === 1) { // is flying
-          if (hIdx < count) {
+        if (mode[i] !== M_DEAD) {
+          if (count > 0 && hIdx < count) {
             const h = targetHomes[hIdx++];
             hx[i] = h.x + (rnd() - 0.5) * 4;
             hy[i] = h.y + (rnd() - 0.5) * 4;
-            tH[i] = fast ? now + 0.08 + rnd() * 0.25 : h.at + rnd() * 0.2;
-            mode[i] = 2; // home
+            tH[i] = fast ? now + 0.05 + rnd() * 0.2 : h.at + rnd() * 0.2;
+            mode[i] = M_HOME;
           } else {
-            mode[i] = 3; // dissipate as ash
+            // Dissipate ambient particles cleanly
+            mode[i] = M_DEAD;
+            alive--;
           }
         }
       }
     }
 
-    // Step particle physics
+    // Particle Physics
     function stepPhysics(dt: number, t: number) {
-      const vortexMix = smooth(T.vortex, T.vortex + 0.6, t);
-      const drag = Math.exp(-2.2 * dt);
+      const vortexMix = smooth(T.vortex, T.vortex + 0.5, t);
+      const drag = Math.exp(-2.4 * dt);
 
       for (let i = 0; i < N; i++) {
         const m = mode[i];
-        if (m === 0 || m === 3) continue;
+        if (m === M_IDLE || m === M_DEAD) continue;
 
-        if (m === 2) { // homeward seek
+        // 1. Homeward flight to About page elements
+        if (m === M_HOME) {
           if (t < tH[i]) continue;
           const dx = hx[i] - px[i];
           const dy = hy[i] - py[i];
-          vx[i] += (dx * 55 - vx[i] * 14) * dt;
-          vy[i] += (dy * 55 - vy[i] * 14) * dt;
+          vx[i] += (dx * 60 - vx[i] * 15) * dt;
+          vy[i] += (dy * 60 - vy[i] * 15) * dt;
           const sp = Math.hypot(vx[i], vy[i]);
-          if (sp > 2600) { vx[i] *= 2600 / sp; vy[i] *= 2600 / sp; }
+          if (sp > 2600) {
+            vx[i] *= 2600 / sp;
+            vy[i] *= 2600 / sp;
+          }
           px[i] += vx[i] * dt;
           py[i] += vy[i] * dt;
-          if (dx * dx + dy * dy < 9 || t > tH[i] + 0.6) {
-            mode[i] = 3;
+          if (dx * dx + dy * dy < 9 || t > tH[i] + 0.55) {
+            mode[i] = M_DEAD;
             alive--;
           }
           continue;
         }
 
-        // M_FLY: Spiral vortex around canvas center
+        // 2. Locked in "welcome!" glyph position
+        if (m === M_LOCK) {
+          // If curtain lifts and enters release phase, break out of lock to fly home
+          if (t >= T.release) {
+            mode[i] = M_FLY;
+            vx[i] = (rnd() - 0.5) * 80;
+            vy[i] = 40 + rnd() * 120;
+          }
+          continue;
+        }
+
+        // 3. Seeking glyph cell
+        if (m === M_SEEK) {
+          const dx = tx[i] - px[i];
+          const dy = ty[i] - py[i];
+          vx[i] += (dx * 130 - vx[i] * 24) * dt;
+          vy[i] += (dy * 130 - vy[i] * 24) * dt;
+          const sp = Math.hypot(vx[i], vy[i]);
+          if (sp > 1800) {
+            vx[i] *= 1800 / sp;
+            vy[i] *= 1800 / sp;
+          }
+          px[i] += vx[i] * dt;
+          py[i] += vy[i] * dt;
+
+          // Lock in place when close and calm
+          if ((dx * dx + dy * dy < 2 && sp < 80) || t > tA[i] + 0.6) {
+            px[i] = tx[i];
+            py[i] = ty[i];
+            vx[i] = 0;
+            vy[i] = 0;
+            mode[i] = M_LOCK;
+          }
+          continue;
+        }
+
+        // 4. M_FLY: check if glyph particle should begin seeking
+        if (isGlyph[i] && t >= tA[i]) {
+          mode[i] = M_SEEK;
+          continue;
+        }
+
+        // 5. M_FLY in swirling uniform vortex
         if (vortexMix > 0) {
           const dx = px[i] - cx;
           const dy = py[i] - cy;
           const r = Math.max(1, Math.hypot(dx, dy));
-          const nx = dx / r, ny = dy / r;
-          const tang = Math.min(420, 120 + 80000 / (r + 100));
-          const inward = Math.max(-140, Math.min(280, (r - pref[i]) * 0.8));
+          const nx = dx / r,
+            ny = dy / r;
+          const tang = Math.min(420, 140 + 72000 / (r + 100));
+          const inward = Math.max(-140, Math.min(260, (r - pref[i]) * 0.85));
           const wantX = -ny * tang - nx * inward;
           const wantY = nx * tang - ny * inward;
-          vx[i] += (wantX - vx[i]) * (1 - Math.exp(-3.5 * dt)) * vortexMix;
-          vy[i] += (wantY - vy[i]) * (1 - Math.exp(-3.5 * dt)) * vortexMix;
+          const steer = 1 - Math.exp(-3.8 * dt);
+          vx[i] += (wantX - vx[i]) * steer * vortexMix;
+          vy[i] += (wantY - vy[i]) * steer * vortexMix;
         }
 
         vx[i] *= drag;
@@ -778,12 +561,12 @@
       }
     }
 
-    // Draw frame
+    // Render Canvas Frame
     function draw(t: number) {
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx!.clearRect(0, 0, W, H);
 
-      // Paper grain
+      // Paper grain background
       if (!lifted) {
         if (t - grainAt > 0.08) {
           grainAt = t;
@@ -803,38 +586,51 @@
       // Initial falling drop
       drawInitialDrop(ctx!, t);
 
-      // Shock rings
+      // Shockwave ring on impact
       if (shockRadius > 0) {
         ctx!.save();
         ctx!.strokeStyle = ink;
         ctx!.lineWidth = 1.2;
-        ctx!.globalAlpha = Math.max(0, 1 - shockRadius / (Math.min(W, H) * 0.45));
+        ctx!.globalAlpha = Math.max(0, 1 - shockRadius / (vortexR * 1.6));
         ctx!.beginPath();
         ctx!.arc(cx, cy, shockRadius, 0, Math.PI * 2);
         ctx!.stroke();
         ctx!.restore();
       }
 
-      // Tetris grid & falling pieces
-      drawGrid(ctx!, t);
-      updateAndDrawPieces(ctx!, t);
-
-      // Free & homing particles
+      // Draw all active particles
       ctx!.fillStyle = ink;
       const dotSize = coarse ? 3 : 2.5;
+
+      // Render flying & locked particles with clean pixel precision
       for (let i = 0; i < N; i++) {
-        if (mode[i] === 0 || mode[i] === 3) continue;
-        ctx!.fillRect(px[i], py[i], dotSize, dotSize);
+        const m = mode[i];
+        if (m === M_IDLE || m === M_DEAD) continue;
+
+        if (m === M_LOCK) {
+          // Locked in "welcome!"
+          ctx!.fillRect(px[i], py[i], dotSize, dotSize);
+        } else {
+          // Flying / seeking / homing
+          ctx!.fillRect(px[i], py[i], dotSize, dotSize);
+        }
       }
     }
 
     // Clock and animation loop
-    let started = 0, last = 0, acc = 0, simT = 0, frameId = 0;
+    let started = 0,
+      last = 0,
+      acc = 0,
+      simT = 0,
+      frameId = 0;
     let currentPhase = '凝';
 
     function loop(stamp: number) {
       if (finished) return;
-      if (!started) { started = stamp; last = stamp; }
+      if (!started) {
+        started = stamp;
+        last = stamp;
+      }
       holdScroll();
       const t = (stamp - started) / 1000;
       const dtFrame = Math.min(0.1, (stamp - last) / 1000);
@@ -843,17 +639,12 @@
       // Handle drop impact
       if (!impactOccurred && t >= T.impact) {
         impactOccurred = true;
-        spawnParticles(cx, cy, coarse ? 80 : 160, 12, 340);
-        shockRadius = 2;
+        spawnRadialBurst();
+        shockRadius = 3;
         (window as any).__inkSplash?.(cx, cy, 22);
       }
-      if (shockRadius > 0 && shockRadius < Math.min(W, H) * 0.45) {
-        shockRadius += dtFrame * 320;
-      }
-
-      // Grid & blocks dissolving into vortex explosion
-      if (t >= T.vortex && t < T.vortex + 0.1 && alive < 500) {
-        spawnParticles(cx, cy, coarse ? 180 : 360, gridW * 0.35, 260);
+      if (shockRadius > 0 && shockRadius < vortexR * 1.6) {
+        shockRadius += dtFrame * 340;
       }
 
       // Physics stepping
@@ -865,7 +656,10 @@
         acc -= STEP;
         n++;
       }
-      if (n >= 10) { acc = 0; simT = t; }
+      if (n >= 10) {
+        acc = 0;
+        simT = t;
+      }
 
       if (!skipping && !homesAssigned && t >= T.release) {
         assignHomes(t, false);
@@ -879,7 +673,7 @@
         intro.dataset.phase = phase;
       }
 
-      if (skipping && (t > skipAt + 1.2 || alive === 0)) {
+      if (skipping && (t > skipAt + 0.8 || alive === 0)) {
         finish();
         return;
       }
@@ -887,56 +681,44 @@
       frameId = requestAnimationFrame(loop);
     }
 
-    // DOM Timeline
-    gsap.set(seal, { opacity: 0, scale: 2.2, rotation: -16 });
-    gsap.set(ring, { opacity: 0, scale: 0 });
-    gsap.set(taglineEl, { opacity: 0 });
+    // DOM Timeline for footer & lift
     gsap.set(foot, { opacity: 0, y: 10 });
-    typedTitle.textContent = '';
 
     const meter = { value: 0 };
     const tl = gsap.timeline();
-    tl.to(meter, {
-      value: 1,
-      duration: T.release,
-      ease: 'none',
-      onUpdate: () => {
-        progress.style.transform = `scaleX(${meter.value})`;
-        status.textContent = `ABOUT · ${String(Math.round(meter.value * 100)).padStart(2, '0')}% · ${currentPhase}`;
+    tl.to(
+      meter,
+      {
+        value: 1,
+        duration: T.release,
+        ease: 'none',
+        onUpdate: () => {
+          progress.style.transform = `scaleX(${meter.value})`;
+          status.textContent = `ABOUT · ${String(Math.round(meter.value * 100)).padStart(2, '0')}% · ${currentPhase}`;
+        },
       },
-    }, 0);
-    tl.to(foot, { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' }, 0.4);
-
-    // Vermilion Seal impact at T.seal
-    tl.to(seal, { opacity: 1, scale: 1, rotation: -4, duration: 0.5, ease: 'back.out(2.2)' }, T.seal);
-    tl.call(() => {
-      const r = seal.getBoundingClientRect();
-      (window as any).__inkSplash?.(r.left + r.width / 2, r.top + r.height / 2, 24);
-    }, undefined, T.sealImpact);
-    tl.fromTo(ring, { opacity: 0.7, scale: 0 }, { opacity: 0, scale: 1.3, duration: 1.1, ease: 'expo.out' }, T.sealImpact);
-
-    // Tagline typewriter at T.tagline
-    const typeObj = { idx: 0 };
-    tl.to(taglineEl, { opacity: 1, duration: 0.3 }, T.tagline - 0.1);
-    tl.to(typeObj, {
-      idx: TAGLINE.length,
-      duration: 0.8,
-      ease: 'none',
-      onUpdate: () => {
-        typedTitle.textContent = TAGLINE.slice(0, Math.round(typeObj.idx));
-      },
-    }, T.tagline);
+      0
+    );
+    tl.to(foot, { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' }, 0.3);
 
     // Lift and release
-    tl.call(() => {
-      lifted = true;
-      intro.classList.add('is-lifting');
-    }, undefined, T.lift);
-    tl.to([seal, taglineEl, foot], { opacity: 0, duration: 0.4, ease: 'power2.in' }, T.lift);
-    tl.call(() => {
-      assignHomes(simT, false);
-      releasePage();
-    }, undefined, T.release);
+    tl.call(
+      () => {
+        lifted = true;
+        intro.classList.add('is-lifting');
+      },
+      undefined,
+      T.lift
+    );
+    tl.to(foot, { opacity: 0, duration: 0.3, ease: 'power2.in' }, T.lift);
+    tl.call(
+      () => {
+        assignHomes(simT, false);
+        releasePage();
+      },
+      undefined,
+      T.release
+    );
     tl.call(finish, undefined, T.end);
 
     let skipFallbackTimer = 0;
@@ -953,9 +735,9 @@
       tl.kill();
       lifted = true;
       intro.classList.add('is-lifting');
-      gsap.to([seal, taglineEl, foot], { opacity: 0, duration: 0.2, ease: 'power2.in', overwrite: 'auto' });
+      gsap.to(foot, { opacity: 0, duration: 0.2, ease: 'power2.in', overwrite: 'auto' });
 
-      // Guarantee finish() within 300ms fallback even if frames drop or particles stall
+      // Guarantee finish() within 300ms fallback
       window.clearTimeout(skipFallbackTimer);
       skipFallbackTimer = window.setTimeout(finish, 300);
 
@@ -972,11 +754,14 @@
       cancelAnimationFrame(frameId);
       controller.abort();
       tl.kill();
-      gsap.killTweensOf([intro, seal, taglineEl, foot, ring]);
+      gsap.killTweensOf([intro, foot]);
       releasePage();
       try {
         sessionStorage.setItem('about-intro-seen', '1');
-        if (/[?&]about-intro=1(&|$)/.test(location.search) || /[?&]zen=1(&|$)/.test(location.search)) {
+        if (
+          /[?&]about-intro=1(&|$)/.test(location.search) ||
+          /[?&]zen=1(&|$)/.test(location.search)
+        ) {
           const url = new URL(location.href);
           url.searchParams.delete('about-intro');
           url.searchParams.delete('zen');
@@ -993,19 +778,27 @@
     skipBtn.addEventListener('click', skip, { signal });
     intro.addEventListener('click', skip, { signal });
     intro.addEventListener('wheel', (e) => e.preventDefault(), { passive: false, signal });
-    document.addEventListener('keydown', (e) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (SKIP_KEYS.has(e.key)) {
-        e.preventDefault();
-        skip();
-      } else if (SCROLL_KEYS.has(e.key)) {
-        e.preventDefault();
-      }
-    }, { signal });
+    document.addEventListener(
+      'keydown',
+      (e) => {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        if (SKIP_KEYS.has(e.key)) {
+          e.preventDefault();
+          skip();
+        } else if (SCROLL_KEYS.has(e.key)) {
+          e.preventDefault();
+        }
+      },
+      { signal }
+    );
 
-    window.addEventListener('resize', () => {
-      if (!finished) skip();
-    }, { signal, once: true });
+    window.addEventListener(
+      'resize',
+      () => {
+        if (!finished) skip();
+      },
+      { signal, once: true }
+    );
 
     frameId = requestAnimationFrame(loop);
   }
@@ -1017,6 +810,8 @@
   });
 
   document.addEventListener('astro:before-swap', () => {
-    try { (window as any).lenis?.start(); } catch {}
+    try {
+      (window as any).lenis?.start();
+    } catch {}
   });
 </script>

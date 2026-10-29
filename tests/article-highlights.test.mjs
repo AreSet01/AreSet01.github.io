@@ -188,6 +188,7 @@ test('export includes comments, AI extracts and free notes', () => {
     {
       id: 'free-1',
       kind: 'free',
+      title: '独立便签标题',
       text: '自由笔记正文',
       prefix: '',
       suffix: '',
@@ -201,6 +202,7 @@ test('export includes comments, AI extracts and free notes', () => {
   assert.ok(md.includes('### 问：为什么这样？'));
   assert.ok(md.includes('AI 的回答正文'));
   assert.ok(md.includes('## 自由笔记'));
+  assert.ok(md.includes('### 独立便签标题'));
   assert.ok(md.includes('自由笔记正文'));
   assert.ok(!md.includes('undefined'));
 });

@@ -6,6 +6,7 @@
 // - 首次登录（lastRev = 0）会自动把本机已有笔记全量推上去，完成迁移。
 
 import {
+  getStorageKey,
   loadAllStoredNotes,
   saveHighlights,
   type ArticleHighlightRecord,
@@ -96,12 +97,48 @@ function stripLocal(record: ArticleHighlightRecord): ArticleHighlightRecord {
   return rest;
 }
 
-function markPushedNotesClean(pushedIds: Set<string>): void {
+const MAX_BATCH = 200;
+const MAX_BATCH_BYTES = 1_200_000;
+
+/**
+ * 服务端单次最多接受 200 条、请求体上限 2MB；超出部分会被静默截断。
+ * 这里按条数和序列化体积双重切块，避免“本地标成已同步、云端其实没收到”。
+ */
+function chunkForSync(records: ArticleHighlightRecord[]): ArticleHighlightRecord[][] {
+  const chunks: ArticleHighlightRecord[][] = [];
+  let current: ArticleHighlightRecord[] = [];
+  let bytes = 0;
+  for (const record of records) {
+    const size = JSON.stringify(stripLocal(record)).length + 1;
+    if (current.length && (current.length >= MAX_BATCH || bytes + size > MAX_BATCH_BYTES)) {
+      chunks.push(current);
+      current = [];
+      bytes = 0;
+    }
+    current.push(record);
+    bytes += size;
+  }
+  if (current.length) chunks.push(current);
+  return chunks;
+}
+
+/**
+ * 只清理“推送时快照与本地当前 updatedAt 一致”的记录。
+ * 请求飞行期间又被编辑的记录必须继续保留 dirty，否则下一次 pull 会拿旧版本覆盖它。
+ */
+function markPushedNotesClean(pushed: Map<string, number>): void {
   for (const bucket of loadAllStoredNotes()) {
     let changed = false;
     const remaining: ArticleHighlightRecord[] = [];
     for (const record of bucket.records) {
-      if (pushedIds.has(record.id)) {
+      const pushedAt = pushed.get(record.id);
+      if (pushedAt !== undefined) {
+        const currentAt = Number(record.updatedAt || record.timestamp || 0);
+        if (currentAt > pushedAt) {
+          // 推送后本地又改过：保留 dirty，下一轮继续推
+          remaining.push(record);
+          continue;
+        }
         if (record.deleted) {
           changed = true;
           // 已成功推送到服务端的墓碑，本地彻底移除
@@ -124,17 +161,28 @@ function markPushedNotesClean(pushedIds: Set<string>): void {
 function mergeServerNotes(serverNotes: ArticleHighlightRecord[]): void {
   if (!serverNotes.length) return;
 
-  const buckets = new Map<string, Map<string, ArticleHighlightRecord>>();
+  // 关键：以 getStorageKey 作为唯一桶键。
+  // `/posts/foo` 与 `/posts/foo/`、以及带下划线的 slug 会映射到同一个 localStorage key，
+  // 如果按原始 postSlug 分 Map，最后写盘时就会互相覆盖，把本地笔记删掉。
+  const buckets = new Map<string, { slug: string; map: Map<string, ArticleHighlightRecord> }>();
+  const ensureBucket = (slug: string) => {
+    const key = getStorageKey(slug);
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = { slug, map: new Map() };
+      buckets.set(key, bucket);
+    }
+    return bucket;
+  };
+
   for (const bucket of loadAllStoredNotes()) {
-    const map = new Map<string, ArticleHighlightRecord>();
-    for (const record of bucket.records) map.set(record.id, record);
-    buckets.set(bucket.postSlug, map);
+    const target = ensureBucket(bucket.postSlug);
+    for (const record of bucket.records) target.map.set(record.id, record);
   }
 
   for (const incoming of serverNotes) {
-    const slug = incoming.postSlug || '';
-    if (!buckets.has(slug)) buckets.set(slug, new Map());
-    const map = buckets.get(slug)!;
+    const bucket = ensureBucket(incoming.postSlug || '');
+    const map = bucket.map;
 
     if (incoming.deleted) {
       map.delete(incoming.id);
@@ -149,7 +197,7 @@ function mergeServerNotes(serverNotes: ArticleHighlightRecord[]): void {
     map.set(incoming.id, { ...incoming, dirty: false, deleted: false });
   }
 
-  for (const [slug, map] of buckets.entries()) {
+  for (const { slug, map } of buckets.values()) {
     // 已被服务端确认的墓碑可以真正删掉
     for (const [id, record] of map.entries()) {
       if (record.deleted && !record.dirty) map.delete(id);
@@ -312,24 +360,29 @@ export async function pushSync(options: { migrate?: boolean; forceAll?: boolean 
       return { ok: true, pushedCount: 0, reason: 'nothing-to-push', message: '本地暂无待提交的更改' };
     }
 
-    const pendingChanges = candidates.map(stripLocal);
-    const res = await fetch('/api/notes/sync', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ since, changes: pendingChanges }),
-    });
+    const pendingChunks = chunkForSync(candidates);
+    let cursor = since;
+    let pushedCount = 0;
 
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return { ok: false, pushedCount: 0, reason: data?.error || `http-${res.status}` };
+    for (const chunk of pendingChunks) {
+      const res = await fetch('/api/notes/sync', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ since: cursor, changes: chunk.map(stripLocal) }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { ok: false, pushedCount, reason: data?.error || `http-${res.status}` };
+      }
+
+      cursor = Number(data.rev) || cursor;
+      pushedCount += chunk.length;
+      markPushedNotesClean(new Map(chunk.map((c) => [c.id, Number(c.updatedAt || c.timestamp || 0)])));
     }
 
-    // 提交成功：将已提交成功的本地笔记标记为 clean，墓碑彻底移除
-    const pushedIds = new Set(candidates.map((c) => c.id));
-    markPushedNotesClean(pushedIds);
-
-    const nextRev = Number(data.rev) || since;
+    const nextRev = cursor;
     if (nextRev > since) {
       writeNumber(LAST_REV_KEY, nextRev);
     }
@@ -338,9 +391,9 @@ export async function pushSync(options: { migrate?: boolean; forceAll?: boolean 
 
     return {
       ok: true,
-      pushedCount: candidates.length,
+      pushedCount,
       rev: nextRev,
-      message: `成功提交 ${candidates.length} 条本地笔记到云端`,
+      message: `成功提交 ${pushedCount} 条本地笔记到云端`,
     };
   } catch (err) {
     console.warn('[notesSync] pushSync failed:', err);
@@ -425,18 +478,23 @@ export async function syncNow(options: { migrate?: boolean } = {}): Promise<Sync
     const candidates = migrate ? all : all.filter((record) => record.dirty || record.deleted);
 
     let cursor = since;
-    let pendingChanges = candidates.map(stripLocal);
     let totalPulled = 0;
+    let pushedCount = 0;
+    const chunks = chunkForSync(candidates);
+    let hasMorePull = chunks.length === 0;
 
-    for (let page = 0; page < 10; page += 1) {
+    // 先分块提交本地改动；服务端单次只接收 200 条，必须分批，否则剩余条目会被静默丢掉
+    for (const chunk of chunks) {
       const res = await fetch('/api/notes/sync', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ since: cursor, changes: pendingChanges }),
+        body: JSON.stringify({ since: cursor, changes: chunk.map(stripLocal) }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, pushedCount: 0, pulledCount: 0, reason: data?.error || `http-${res.status}` };
+      if (!res.ok) {
+        return { ok: false, pushedCount, pulledCount: totalPulled, reason: data?.error || `http-${res.status}` };
+      }
 
       const incoming = Array.isArray(data.changes) ? data.changes : [];
       if (incoming.length > 0) {
@@ -444,12 +502,31 @@ export async function syncNow(options: { migrate?: boolean } = {}): Promise<Sync
         totalPulled += incoming.length;
       }
       cursor = Number(data.rev) || cursor;
-      pendingChanges = [];
-      if (!data.hasMore) break;
+      pushedCount += chunk.length;
+      hasMorePull = Boolean(data.hasMore);
+      markPushedNotesClean(new Map(chunk.map((c) => [c.id, Number(c.updatedAt || c.timestamp || 0)])));
     }
 
-    if (candidates.length > 0) {
-      markPushedNotesClean(new Set(candidates.map((c) => c.id)));
+    // 推送响应本身已经带回 since 之后的所有变更；只有服务端明确 hasMore 时才继续拉
+    if (hasMorePull) {
+      for (let page = 0; page < 10; page += 1) {
+        const res = await fetch('/api/notes/sync', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ since: cursor, changes: [] }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, pushedCount, pulledCount: totalPulled, reason: data?.error || `http-${res.status}` };
+
+        const incoming = Array.isArray(data.changes) ? data.changes : [];
+        if (incoming.length > 0) {
+          mergeServerNotes(incoming);
+          totalPulled += incoming.length;
+        }
+        cursor = Number(data.rev) || cursor;
+        if (!data.hasMore) break;
+      }
     }
 
     writeNumber(LAST_REV_KEY, cursor);
@@ -458,7 +535,7 @@ export async function syncNow(options: { migrate?: boolean } = {}): Promise<Sync
 
     return {
       ok: true,
-      pushedCount: candidates.length,
+      pushedCount,
       pulledCount: totalPulled,
       rev: cursor,
     };

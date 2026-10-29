@@ -105,6 +105,7 @@ const items: TickerItem[] = [
     let ticking = false;
     let smoothedVelocity = 0;
     let setSkew: ReturnType<typeof gsap.quickTo> | null = null;
+    let prevSkew = 0;
     const clones: HTMLElement[] = [];
 
     // Clone the group until it covers the viewport twice, so the wrap seam is never visible
@@ -150,7 +151,13 @@ const items: TickerItem[] = [
       const velocity = BASE_SPEED * state.boost * state.hover * state.dir;
       state.x = gsap.utils.wrap(-groupWidth, 0, state.x + velocity * dt);
 
-      gsap.set(track, { x: state.x, skewX: state.skew });
+      if (state.skew === 0) {
+        if (prevSkew !== 0) gsap.set(track, { x: state.x, skewX: 0 });
+        else gsap.set(track, { x: state.x });
+      } else {
+        gsap.set(track, { x: state.x, skewX: state.skew });
+      }
+      prevSkew = state.skew;
     }
 
     function startTicking() {

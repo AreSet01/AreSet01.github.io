@@ -1,0 +1,865 @@
+---
+// CompanionLayout.astro — 墨问 × 高亮笔记 空间协调器（东方书斋版）
+// ---------------------------------------------------------------------------
+// 统一管理两个伴读面板的模式、单浮岛互切、全屏画框、双卷并排及协同过渡动效：
+//   rail        —— 右侧单浮岛（严格单栏互斥，头部一键丝滑互切，绝不双浮岛挤压正文）
+//   ask-full    —— 墨问留白画框全屏
+//   notes-full  —— 笔记留白画框全屏
+//   split       —— 左墨问 · 右笔记 双卷画框并排，中间分隔缝可拖拽（26% ~ 74%，双击复位 50%）
+//
+// 对外契约：
+//   window.__companion.register(kind, panelEl, api)
+//   window.__companion.openFull(kind) / switchPanel(kind) / togglePeer(kind) / enterSplit() / leaveToRail(preferKind?) / sync()
+//   window.__companion.mode()  —— 'rail' | 'notes-full' | 'ask-full' | 'split'
+---
+
+<div id="companion-overlay" aria-hidden="true"></div>
+<div
+  id="companion-splitter"
+  role="separator"
+  aria-orientation="vertical"
+  aria-label="拖拽调整墨问与笔记宽度"
+  aria-valuemin="26"
+  aria-valuemax="74"
+  aria-valuenow="50"
+  tabindex="0"
+  title="拖拽调整双卷宽度 · 双击复位 50%"
+>
+  <span class="companion-splitter-grip" aria-hidden="true"></span>
+  <span class="companion-splitter-ratio" data-companion-ratio hidden>50%</span>
+</div>
+
+<script>
+  import {
+    clampSplitRatio,
+    ratioFromPointer,
+    parseStoredRatio,
+    splitRatioCssValue,
+    nudgeSplitRatio,
+    minSplitRatioForViewport,
+    maxSplitRatioForViewport,
+    SPLITTER_WIDTH,
+    COMPANION_DESKTOP_BREAKPOINT,
+  } from '../utils/companionSplit';
+
+  type Kind = 'notes' | 'ask';
+  type Mode = 'rail' | 'notes-full' | 'ask-full' | 'split';
+
+  interface PanelApi {
+    open: (opts?: { silent?: boolean }) => void;
+    close: (opts?: { instant?: boolean }) => void;
+    isOpen: () => boolean;
+    isFull: () => boolean;
+    setFull: (want: boolean, opts?: { silent?: boolean }) => void;
+  }
+
+  const SPLIT_ICON =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><line x1="12" y1="4" x2="12" y2="20"/></svg>';
+
+  const NOTES_TAB_ICON =
+    '<svg class="companion-seg-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
+
+  function initCompanion(): void {
+    const overlay = document.getElementById('companion-overlay');
+    const splitter = document.getElementById('companion-splitter');
+    const ratioLabel = splitter?.querySelector<HTMLElement>('[data-companion-ratio]');
+    if (!overlay || !splitter) return;
+
+    // 同一页面初次加载时模块顶层与 astro:page-load 会先后触发；若当前 DOM 已绑定协调器，切勿清空已注册面板
+    if ((window as any).__companionOverlayEl__ === overlay && (window as any).__companion?.ready) {
+      (window as any).__companion.sync?.();
+      window.dispatchEvent(new CustomEvent('companion:ready'));
+      return;
+    }
+
+    const CLEANUP_KEY = '__areSetCompanionCleanup__';
+    (window as any)[CLEANUP_KEY]?.();
+    (window as any).__companionOverlayEl__ = overlay;
+
+    const root = document.documentElement;
+    const RATIO_KEY = 'companion-split-ratio';
+    const DESKTOP = COMPANION_DESKTOP_BREAKPOINT;
+
+    const panels: Partial<Record<Kind, { el: HTMLElement; api: PanelApi }>> = {};
+    let mode: Mode = 'rail';
+    let lastActiveKind: Kind = 'ask';
+    let ratio = readRatio();
+    let dragging = false;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    const isWide = () => window.innerWidth >= DESKTOP;
+    const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function getFramePad(): number {
+      const raw = Number.parseFloat(getComputedStyle(root).getPropertyValue('--companion-frame-pad'));
+      return Number.isFinite(raw) ? raw : 14;
+    }
+
+    function clampToViewport(value: number): number {
+      const min = minSplitRatioForViewport(window.innerWidth);
+      const max = maxSplitRatioForViewport(window.innerWidth);
+      return Math.min(max, Math.max(min, clampSplitRatio(value)));
+    }
+
+    function readRatio(): number {
+      try {
+        return clampToViewport(parseStoredRatio(localStorage.getItem(RATIO_KEY)) ?? 0.5);
+      } catch {
+        return clampToViewport(0.5);
+      }
+    }
+
+    function saveRatio() {
+      try {
+        localStorage.setItem(RATIO_KEY, String(ratio));
+      } catch {}
+    }
+
+    function cancelPanelAnim(el?: HTMLElement | null) {
+      if (!el) return;
+      const running = (el as any).__companionAnim as Animation | undefined;
+      if (running) {
+        try { running.cancel(); } catch {}
+        (el as any).__companionAnim = undefined;
+      }
+    }
+
+    function runAnim(el: HTMLElement | null | undefined, keyframes: Keyframe[], duration = 380, easing = 'cubic-bezier(0.16, 1, 0.3, 1)') {
+      if (!el || reduceMotion() || typeof el.animate !== 'function') return;
+      cancelPanelAnim(el);
+      const anim = el.animate(keyframes, { duration, easing });
+      (el as any).__companionAnim = anim;
+      const clear = () => {
+        if ((el as any).__companionAnim === anim) (el as any).__companionAnim = undefined;
+      };
+      anim.onfinish = clear;
+      anim.oncancel = clear;
+    }
+
+    // ---------------------------------------------------------------- 注入顶部分段互切器与统一窗口按钮
+    function currentNotesCountText(): string {
+      const badge = document.querySelector<HTMLElement>('[data-notes-count]');
+      return badge?.textContent?.trim() || '0';
+    }
+
+    function injectControls(kind: Kind, panel: HTMLElement) {
+      const headInner =
+        panel.querySelector<HTMLElement>('.notes-drawer-header-inner') ||
+        panel.querySelector<HTMLElement>('.ink-ask-drawer-head-inner');
+      const titleArea =
+        panel.querySelector<HTMLElement>('.notes-drawer-title-area') ||
+        panel.querySelector<HTMLElement>('.ink-ask-drawer-title-area');
+
+      if (headInner && titleArea && !headInner.querySelector('.companion-seg')) {
+        const seg = document.createElement('div');
+        seg.className = 'companion-seg';
+        seg.setAttribute('role', 'tablist');
+        seg.setAttribute('aria-label', '墨问与高亮笔记切换');
+        const countText = currentNotesCountText();
+        seg.innerHTML =
+          `<button type="button" role="tab" class="companion-seg-btn${kind === 'ask' ? ' is-active' : ''}" data-companion-switch="ask" aria-selected="${kind === 'ask'}">` +
+            '<span class="companion-mini-seal" aria-hidden="true">问</span>' +
+            '<span class="companion-seg-label">墨问</span>' +
+          '</button>' +
+          `<button type="button" role="tab" class="companion-seg-btn${kind === 'notes' ? ' is-active' : ''}" data-companion-switch="notes" aria-selected="${kind === 'notes'}">` +
+            NOTES_TAB_ICON +
+            '<span class="companion-seg-label">笔记</span>' +
+            `<span class="companion-seg-badge" data-notes-count>${countText}</span>` +
+          '</button>';
+        headInner.insertBefore(seg, titleArea);
+      }
+
+      const actionsHost =
+        panel.querySelector<HTMLElement>('.notes-drawer-actions') ||
+        panel.querySelector<HTMLElement>('.ink-ask-drawer-actions');
+      if (!actionsHost || actionsHost.querySelector('.companion-actions')) return;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'companion-actions';
+
+      const sep = document.createElement('span');
+      sep.className = 'companion-toolbar-sep';
+      sep.setAttribute('aria-hidden', 'true');
+
+      const peer = document.createElement('button');
+      peer.type = 'button';
+      peer.className = 'companion-act companion-icon-btn';
+      peer.dataset.companionAct = 'peer';
+      peer.dataset.companionKind = kind;
+      peer.setAttribute('aria-label', kind === 'ask' ? '并排笔记' : '并排墨问');
+      peer.innerHTML = SPLIT_ICON;
+
+      wrap.append(sep, peer);
+
+      const maxBtn =
+        actionsHost.querySelector<HTMLElement>('.notes-drawer-maximize-btn') ||
+        actionsHost.querySelector<HTMLElement>('.ink-ask-drawer-maximize');
+      if (maxBtn) {
+        actionsHost.insertBefore(wrap, maxBtn);
+      } else {
+        actionsHost.insertBefore(wrap, actionsHost.firstChild);
+      }
+    }
+
+    // ---------------------------------------------------------------- 模式应用与按钮状态同步
+    function apply() {
+      root.setAttribute('data-companion-mode', mode);
+      root.removeAttribute('data-companion-both');
+      root.style.setProperty('--companion-split', splitRatioCssValue(ratio));
+      syncInert();
+      if (ratioLabel) {
+        ratioLabel.textContent = `${Math.round(ratio * 100)}%`;
+        ratioLabel.hidden = mode !== 'split';
+      }
+      splitter!.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
+      updateButtons();
+    }
+
+    function syncInert() {
+      const main = document.querySelector<HTMLElement>('.site-shell > main');
+      if (!main) return;
+      if (mode === 'rail') main.removeAttribute('inert');
+      else main.setAttribute('inert', '');
+    }
+
+    function updateButtons() {
+      const desktop = isWide();
+      const inSplit = mode === 'split';
+      (Object.keys(panels) as Kind[]).forEach((kind) => {
+        const panel = panels[kind]?.el;
+        if (!panel) return;
+        const isOwnFull =
+          (kind === 'notes' && mode === 'notes-full') || (kind === 'ask' && mode === 'ask-full');
+
+        const peerBtn = panel.querySelector<HTMLElement>('[data-companion-act="peer"]');
+        const sepEl = panel.querySelector<HTMLElement>('.companion-toolbar-sep');
+        if (peerBtn) {
+          peerBtn.hidden = !desktop;
+          peerBtn.classList.toggle('is-active', inSplit);
+          peerBtn.setAttribute('aria-pressed', String(inSplit));
+          const tip = inSplit ? '退出并排' : kind === 'ask' ? '并排笔记' : '并排墨问';
+          peerBtn.dataset.tip = tip;
+          peerBtn.removeAttribute('title');
+          peerBtn.setAttribute('aria-label', tip);
+        }
+        if (sepEl) {
+          sepEl.hidden = !desktop;
+        }
+
+        const maxBtn =
+          panel.querySelector<HTMLElement>('.notes-drawer-maximize-btn') ||
+          panel.querySelector<HTMLElement>('.ink-ask-drawer-maximize');
+        if (maxBtn) {
+          const maxTip = isOwnFull ? '收为浮岛' : inSplit ? '独占全屏' : '全屏展开';
+          maxBtn.dataset.tip = maxTip;
+          maxBtn.removeAttribute('title');
+          maxBtn.setAttribute('aria-label', maxTip);
+        }
+
+        panel.querySelectorAll<HTMLElement>('[data-companion-switch]').forEach((tab) => {
+          const tabKind = tab.dataset.companionSwitch as Kind;
+          const active = tabKind === kind;
+          tab.classList.toggle('is-active', active);
+          tab.setAttribute('aria-selected', String(active));
+        });
+      });
+    }
+
+    function ensureMounted(kind: Kind) {
+      if (panels[kind]) return;
+      if (kind === 'ask') (window as any).__inkAsk?.ensureSidebar?.();
+      if (!panels[kind]) {
+        if (kind === 'ask') (window as any).__inkAsk?.openSidebar?.();
+        if (kind === 'notes') (window as any).__articleNotes?.openDrawer?.();
+      }
+    }
+
+    let internalDepth = 0;
+    function guarded<T>(fn: () => T): T {
+      internalDepth++;
+      try {
+        return fn();
+      } finally {
+        internalDepth--;
+      }
+    }
+
+    function captureOpenRect(kind: Kind): DOMRect | null {
+      const p = panels[kind];
+      if (!p || !p.api.isOpen()) return null;
+      const r = p.el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 ? r : null;
+    }
+
+    // ---------------------------------------------------------------- 单栏原位互切（浮岛 / 单全屏）
+    function switchPanel(targetKind: Kind) {
+      ensureMounted(targetKind);
+      const target = panels[targetKind];
+      if (!target) return;
+      const otherKind: Kind = targetKind === 'ask' ? 'notes' : 'ask';
+      const other = panels[otherKind];
+
+      if (mode === 'split') {
+        openFull(targetKind);
+        return;
+      }
+
+      const wantFull = mode === 'ask-full' || mode === 'notes-full';
+      const wasOtherOpen = Boolean(other?.api.isOpen());
+      // 左墨问 · 右笔记：切向笔记则新内容自右轻滑入，切向墨问则新内容自左轻滑入
+      const dirX = targetKind === 'notes' ? 22 : -22;
+
+      const prevActiveSegBtn = other?.el.querySelector<HTMLElement>(
+        `[data-companion-switch="${otherKind}"]`
+      );
+      const prevSegRect = prevActiveSegBtn?.getBoundingClientRect() || null;
+
+      guarded(() => {
+        if (other?.api.isOpen()) {
+          other.api.setFull(false, { silent: true });
+          other.api.close({ instant: true });
+        }
+        if (!target.api.isOpen()) {
+          target.api.open({ silent: wasOtherOpen });
+        }
+        target.api.setFull(wantFull, { silent: true });
+      });
+
+      lastActiveKind = targetKind;
+      mode = wantFull ? (targetKind === 'notes' ? 'notes-full' : 'ask-full') : 'rail';
+      apply();
+
+      if (wasOtherOpen && !reduceMotion()) {
+        // 1. 分段激活签平滑横移
+        const nextActiveSegBtn = target.el.querySelector<HTMLElement>(
+          `[data-companion-switch="${targetKind}"]`
+        );
+        if (prevSegRect && nextActiveSegBtn) {
+          const nextSegRect = nextActiveSegBtn.getBoundingClientRect();
+          const segDx = prevSegRect.left - nextSegRect.left;
+          if (Math.abs(segDx) > 1) {
+            runAnim(
+              nextActiveSegBtn,
+              [
+                { transform: `translate3d(${Math.round(segDx)}px, 0, 0)` },
+                { transform: 'translate3d(0, 0, 0)' },
+              ],
+              260,
+              'cubic-bezier(0.16, 1, 0.3, 1)'
+            );
+          }
+        }
+
+        // 2. 面板内部主体顺应空间方位平滑轻移淡入，外框稳如磐石不闪烁
+        const stageEls = target.el.querySelectorAll<HTMLElement>(
+          '.ink-ask-drawer-body, .ink-ask-drawer-form, .notes-drawer-filter-bar, .notes-drawer-body'
+        );
+        stageEls.forEach((stage) => {
+          runAnim(
+            stage,
+            [
+              { opacity: 0, transform: `translate3d(${dirX}px, 0, 0)` },
+              { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+            ],
+            280,
+            'cubic-bezier(0.16, 1, 0.3, 1)'
+          );
+        });
+      }
+    }
+
+    // ---------------------------------------------------------------- 单侧全屏
+    function openFull(kind: Kind) {
+      ensureMounted(kind);
+      const target = panels[kind];
+      if (!target) return;
+      const other: Kind = kind === 'notes' ? 'ask' : 'notes';
+      const otherPanel = panels[other];
+
+      const firstRect = captureOpenRect(kind) || captureOpenRect(other);
+
+      guarded(() => {
+        if (otherPanel?.api.isOpen()) {
+          otherPanel.api.setFull(false, { silent: true });
+          otherPanel.api.close({ instant: true });
+        }
+        if (!target.api.isOpen()) {
+          target.api.open({ silent: true });
+        }
+        target.api.setFull(true, { silent: true });
+      });
+
+      lastActiveKind = kind;
+      mode = kind === 'notes' ? 'notes-full' : 'ask-full';
+      apply();
+
+      if (!reduceMotion()) {
+        const lastRect = target.el.getBoundingClientRect();
+        const dx = firstRect
+          ? Math.round((firstRect.left + firstRect.width / 2 - (lastRect.left + lastRect.width / 2)) * 0.52)
+          : 0;
+        runAnim(
+          target.el,
+          [
+            {
+              opacity: firstRect ? 0.92 : 0,
+              transform: `translate3d(${dx}px, 0, 0) scale(0.955)`,
+            },
+            {
+              opacity: 1,
+              transform: 'translate3d(0, 0, 0) scale(1)',
+            },
+          ],
+          380,
+          'cubic-bezier(0.16, 1, 0.3, 1)'
+        );
+      }
+    }
+
+    // ---------------------------------------------------------------- 双卷并排（恒定左墨问 · 右笔记）
+    function togglePeer(kind: Kind) {
+      if (mode === 'split') {
+        leaveToRail(kind);
+        return;
+      }
+      enterSplit(kind);
+    }
+
+    function enterSplit(initiator: Kind = 'ask') {
+      if (!isWide()) {
+        openFull(initiator);
+        return;
+      }
+      ensureMounted('ask');
+      ensureMounted('notes');
+
+      const askFirst = captureOpenRect('ask');
+      const notesFirst = captureOpenRect('notes');
+
+      guarded(() => {
+        (['ask', 'notes'] as Kind[]).forEach((kind) => {
+          const panel = panels[kind];
+          if (!panel) return;
+          panel.api.setFull(false, { silent: true });
+          if (!panel.api.isOpen()) {
+            panel.api.open({ silent: true });
+          }
+        });
+      });
+
+      lastActiveKind = initiator;
+      mode = 'split';
+      apply();
+
+      if (!reduceMotion()) {
+        const askEl = panels.ask?.el;
+        const notesEl = panels.notes?.el;
+
+        if (askEl) {
+          const askLast = askEl.getBoundingClientRect();
+          if (askFirst) {
+            const dx = Math.round(
+              (askFirst.left + askFirst.width / 2 - (askLast.left + askLast.width / 2)) * 0.56
+            );
+            runAnim(
+              askEl,
+              [
+                { transform: `translate3d(${dx}px, 0, 0) scale(1.02)` },
+                { transform: 'translate3d(0, 0, 0) scale(1)' },
+              ],
+              410,
+              'cubic-bezier(0.16, 1, 0.3, 1)'
+            );
+          } else {
+            runAnim(
+              askEl,
+              [
+                { opacity: 0, transform: 'translate3d(-64px, 0, 0) scale(0.975)' },
+                { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
+              ],
+              410,
+              'cubic-bezier(0.16, 1, 0.3, 1)'
+            );
+          }
+        }
+
+        if (notesEl) {
+          const notesLast = notesEl.getBoundingClientRect();
+          if (notesFirst) {
+            const dx = Math.round(
+              (notesFirst.left + notesFirst.width / 2 - (notesLast.left + notesLast.width / 2)) * 0.56
+            );
+            runAnim(
+              notesEl,
+              [
+                { transform: `translate3d(${dx}px, 0, 0) scale(1.02)` },
+                { transform: 'translate3d(0, 0, 0) scale(1)' },
+              ],
+              410,
+              'cubic-bezier(0.16, 1, 0.3, 1)'
+            );
+          } else {
+            runAnim(
+              notesEl,
+              [
+                { opacity: 0, transform: 'translate3d(64px, 0, 0) scale(0.975)' },
+                { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
+              ],
+              410,
+              'cubic-bezier(0.16, 1, 0.3, 1)'
+            );
+          }
+        }
+
+        runAnim(
+          splitter,
+          [
+            { opacity: 0, transform: 'scaleY(0.6)' },
+            { opacity: 1, transform: 'scaleY(1)' },
+          ],
+          360,
+          'cubic-bezier(0.16, 1, 0.3, 1)'
+        );
+      }
+    }
+
+    // ---------------------------------------------------------------- 退回右侧单浮岛（绝不双浮岛挤压正文）
+    function leaveToRail(preferKind?: Kind) {
+      const keepKind: Kind =
+        preferKind ||
+        (mode === 'notes-full' ? 'notes' : mode === 'ask-full' ? 'ask' : lastActiveKind || 'ask');
+      const closeKind: Kind = keepKind === 'ask' ? 'notes' : 'ask';
+      const firstRect = captureOpenRect(keepKind);
+
+      guarded(() => {
+        (Object.keys(panels) as Kind[]).forEach((k) => panels[k]?.api.setFull(false, { silent: true }));
+        if (panels[closeKind]?.api.isOpen()) {
+          panels[closeKind]!.api.close({ instant: true });
+        }
+        if (panels[keepKind] && !panels[keepKind]!.api.isOpen()) {
+          panels[keepKind]!.api.open({ silent: true });
+        }
+      });
+
+      lastActiveKind = keepKind;
+      mode = 'rail';
+      apply();
+
+      const keepEl = panels[keepKind]?.el;
+      if (keepEl && firstRect && !reduceMotion()) {
+        const lastRect = keepEl.getBoundingClientRect();
+        const dx = Math.round(
+          (firstRect.left + firstRect.width / 2 - (lastRect.left + lastRect.width / 2)) * 0.42
+        );
+        runAnim(
+          keepEl,
+          [
+            { transform: `translate3d(${dx}px, 0, 0) scale(1.03)` },
+            { transform: 'translate3d(0, 0, 0) scale(1)' },
+          ],
+          360,
+          'cubic-bezier(0.16, 1, 0.3, 1)'
+        );
+      }
+    }
+
+    // ---------------------------------------------------------------- 监听面板自身开合事件
+    function onPanelEvent(kind: Kind, open: boolean) {
+      if (internalDepth > 0) return;
+
+      if (!open) {
+        if (mode === 'split') {
+          const other: Kind = kind === 'notes' ? 'ask' : 'notes';
+          if (panels[other]?.api.isOpen()) {
+            openFull(other);
+            return;
+          }
+        }
+        if (mode !== 'rail') {
+          mode = 'rail';
+          guarded(() => {
+            (Object.keys(panels) as Kind[]).forEach((k) => panels[k]?.api.setFull(false, { silent: true }));
+          });
+          apply();
+        }
+        return;
+      }
+
+      lastActiveKind = kind;
+      const other: Kind = kind === 'notes' ? 'ask' : 'notes';
+
+      // 全屏态下由外部触发器（如目录笔记按钮 / 划词问墨问）唤起另一面板 → 平滑互切至该面板全屏
+      if (mode === 'notes-full' || mode === 'ask-full') {
+        const fullKind: Kind = mode === 'notes-full' ? 'notes' : 'ask';
+        if (kind !== fullKind) openFull(kind);
+        return;
+      }
+
+      if (mode !== 'rail') return;
+
+      // 单浮岛铁律：阅读态右侧永远只保留一个浮岛宽度，新唤起面板直接原位丝滑接管
+      if (panels[other]?.api.isOpen()) {
+        guarded(() => {
+          panels[other]!.api.close({ instant: true });
+        });
+        const targetEl = panels[kind]?.el;
+        if (targetEl && !reduceMotion()) {
+          const dirX = kind === 'notes' ? 20 : -20;
+          const stageEls = targetEl.querySelectorAll<HTMLElement>(
+            '.ink-ask-drawer-body, .ink-ask-drawer-form, .notes-drawer-filter-bar, .notes-drawer-body'
+          );
+          stageEls.forEach((stage) => {
+            runAnim(
+              stage,
+              [
+                { opacity: 0, transform: `translate3d(${dirX}px, 0, 0)` },
+                { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+              ],
+              280,
+              'cubic-bezier(0.16, 1, 0.3, 1)'
+            );
+          });
+        }
+      }
+      updateButtons();
+    }
+
+    // ---------------------------------------------------------------- 分隔条拖拽
+    function applyRatio() {
+      root.style.setProperty('--companion-split', splitRatioCssValue(ratio));
+      if (ratioLabel) ratioLabel.textContent = `${Math.round(ratio * 100)}%`;
+      splitter!.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
+    }
+
+    function onSplitterMove(e: PointerEvent) {
+      if (!dragging) return;
+      ratio = clampToViewport(ratioFromPointer(e.clientX, window.innerWidth, SPLITTER_WIDTH, getFramePad()));
+      applyRatio();
+    }
+
+    splitter.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (mode !== 'split') return;
+        dragging = true;
+        document.body.classList.add('companion-resizing');
+        root.setAttribute('data-companion-resizing', 'true');
+        try {
+          splitter.setPointerCapture(e.pointerId);
+        } catch {}
+        e.preventDefault();
+      },
+      { signal }
+    );
+
+    window.addEventListener(
+      'pointermove',
+      (e) => onSplitterMove(e as PointerEvent),
+      { signal, passive: true }
+    );
+
+    function endSplitDrag() {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove('companion-resizing');
+      root.removeAttribute('data-companion-resizing');
+      saveRatio();
+    }
+
+    window.addEventListener('pointerup', endSplitDrag, { signal });
+    window.addEventListener('pointercancel', endSplitDrag, { signal });
+    splitter.addEventListener('lostpointercapture', endSplitDrag, { signal });
+    window.addEventListener('blur', endSplitDrag, { signal });
+
+    splitter.addEventListener(
+      'dblclick',
+      () => {
+        if (mode !== 'split') return;
+        ratio = clampToViewport(0.5);
+        applyRatio();
+        saveRatio();
+      },
+      { signal }
+    );
+
+    splitter.addEventListener(
+      'keydown',
+      (e) => {
+        if (mode !== 'split') return;
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        e.preventDefault();
+        ratio = clampToViewport(nudgeSplitRatio(ratio, e.key === 'ArrowRight' ? 0.02 : -0.02));
+        applyRatio();
+        saveRatio();
+      },
+      { signal }
+    );
+
+    // ---------------------------------------------------------------- 头部按钮 / 分段签 / 双击全屏
+    document.addEventListener(
+      'click',
+      (e) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+
+        const switchBtn = target.closest<HTMLElement>('[data-companion-switch]');
+        if (switchBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          const wantKind = (switchBtn.dataset.companionSwitch || 'ask') as Kind;
+          const hostPanel = switchBtn.closest('.article-notes-drawer') ? 'notes' : 'ask';
+          if (wantKind !== hostPanel || !panels[wantKind]?.api.isOpen()) {
+            switchPanel(wantKind);
+          }
+          return;
+        }
+
+        const act = target.closest<HTMLElement>('[data-companion-act]');
+        if (act) {
+          e.preventDefault();
+          e.stopPropagation();
+          const kind = (act.dataset.companionKind || 'ask') as Kind;
+          if (act.dataset.companionAct === 'peer') togglePeer(kind);
+          else leaveToRail(kind);
+          return;
+        }
+
+        if (target.closest('.notes-drawer-maximize-btn')) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleFull('notes');
+          return;
+        }
+        if (target.closest('.ink-ask-drawer-maximize')) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleFull('ask');
+        }
+      },
+      { signal, capture: true }
+    );
+
+    document.addEventListener(
+      'dblclick',
+      (e) => {
+        const target = e.target as HTMLElement | null;
+        if (!target || target.closest('button')) return;
+        if (target.closest('.notes-drawer-header')) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleFull('notes');
+        } else if (target.closest('.ink-ask-drawer-head')) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleFull('ask');
+        }
+      },
+      { signal, capture: true }
+    );
+
+    function toggleFull(kind: Kind) {
+      ensureMounted(kind);
+      if (!panels[kind]) return;
+      const ownFull = (kind === 'notes' && mode === 'notes-full') || (kind === 'ask' && mode === 'ask-full');
+      if (ownFull) leaveToRail(kind);
+      else openFull(kind);
+    }
+
+    // ---------------------------------------------------------------- 键盘 / 视口
+    document.addEventListener(
+      'keydown',
+      (e) => {
+        if (e.key !== 'Escape' || mode === 'rail' || e.isComposing) return;
+        const t = e.target as HTMLElement | null;
+        if (t?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+        if (document.querySelector('.notes-drawer-dropdown:not([hidden]), .notes-dropdown-menu.is-open, .notes-item-comment-editor.is-open, .notes-composer.is-open')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        leaveToRail();
+      },
+      { signal, capture: true }
+    );
+
+    let resizeTimer = 0;
+    window.addEventListener(
+      'resize',
+      () => {
+        window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(() => {
+          if (mode === 'split' && !isWide()) leaveToRail();
+          ratio = clampToViewport(ratio);
+          applyRatio();
+          updateButtons();
+        }, 160);
+      },
+      { signal }
+    );
+
+    // ---------------------------------------------------------------- 注册与对外 API
+    function register(kind: Kind, el: HTMLElement | null, api: PanelApi) {
+      if (!el || !el.isConnected) return;
+      panels[kind] = { el, api };
+      injectControls(kind, el);
+      updateButtons();
+      if (mode !== 'rail') apply();
+    }
+
+    (window as any).__companion = {
+      ready: true,
+      register,
+      openFull,
+      switchPanel,
+      togglePeer,
+      enterSplit,
+      leaveToRail,
+      toggleFull,
+      sync: () => {
+        // 确保单浮岛约束不被破坏
+        if (mode === 'rail' && panels.notes?.api.isOpen() && panels.ask?.api.isOpen()) {
+          const closeKind: Kind = lastActiveKind === 'notes' ? 'ask' : 'notes';
+          guarded(() => panels[closeKind]?.api.close({ instant: true }));
+        }
+        updateButtons();
+      },
+      mode: () => mode,
+      ratio: () => ratio,
+    };
+
+    window.addEventListener(
+      'companion:panel',
+      ((e: CustomEvent) => {
+        const detail = e?.detail || {};
+        if (!detail.kind) return;
+        onPanelEvent(detail.kind as Kind, Boolean(detail.open));
+      }) as EventListener,
+      { signal }
+    );
+
+    (window as any)[CLEANUP_KEY] = () => {
+      controller.abort();
+      delete (window as any).__companion;
+      (window as any).__companionOverlayEl__ = undefined;
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+
+    document.addEventListener(
+      'astro:before-swap',
+      () => {
+        (window as any)[CLEANUP_KEY]?.();
+      },
+      { signal }
+    );
+
+    apply();
+    window.dispatchEvent(new CustomEvent('companion:ready'));
+  }
+
+  initCompanion();
+
+  if (!(window as any).__areSetCompanionPageLoadBound__) {
+    (window as any).__areSetCompanionPageLoadBound__ = true;
+    document.addEventListener('astro:page-load', () => initCompanion());
+  }
+</script>

@@ -6,6 +6,7 @@ import {
   deleteStoredNote,
   getAllNotesAcrossSite,
   saveHighlights,
+  exportHighlightsAsMarkdown,
 } from '../src/utils/articleHighlightEngine.ts';
 
 function setupMockWindow() {
@@ -121,4 +122,64 @@ test('getAllNotesAcrossSite combines highlights from articles and standalone not
   assert.equal(all[1].id, 'hl-1');
   assert.equal(all[1].kind, 'highlight');
   assert.equal(all[0].kind, 'free');
+});
+
+test('exportHighlightsAsMarkdown in multi-article mode groups by article and preserves true article URLs', () => {
+  const records = [
+    {
+      id: 'hl-art-1',
+      kind: 'highlight',
+      text: '这是文章一的一句关键论述。',
+      headingText: '§ 1. 核心架构',
+      postSlug: 'ue5-arch',
+      postTitle: 'UE5 架构深度解析',
+      timestamp: 1727672000000,
+    },
+    {
+      id: 'ai-art-1',
+      kind: 'ai',
+      question: '问：为什么使用智能指针？',
+      text: '因为避免裸指针导致的野指针和跨模块生命周期泄露。',
+      postSlug: 'ue5-arch',
+      postTitle: 'UE5 架构深度解析',
+      timestamp: 1727672100000,
+    },
+    {
+      id: 'hl-art-2',
+      kind: 'highlight',
+      text: '这是文章二中关于 GC 回收的说明。',
+      headingText: '§ 1. 核心架构',
+      postSlug: 'ue5-gc',
+      postTitle: 'UE5 GC 运行机制',
+      timestamp: 1727672200000,
+    },
+    {
+      id: 'free-standalone',
+      kind: 'free',
+      title: '关于架构设计的独立灵感',
+      text: '组件化优先于庞大的单体基类继承。',
+      postSlug: '__standalone__',
+      tags: ['架构', '灵感'],
+      timestamp: 1727672300000,
+    },
+  ];
+
+  const md = exportHighlightsAsMarkdown(
+    '全站笔记与批注归档',
+    'https://areset.me/notes',
+    records
+  );
+
+  assert.ok(md.includes('# 《全站笔记与批注归档》'));
+  assert.ok(md.includes('## 独立随笔便签'));
+  assert.ok(md.includes('### 关于架构设计的独立灵感'));
+  assert.ok(md.includes('组件化优先于庞大的单体基类继承。'));
+  assert.ok(md.includes('## 《UE5 架构深度解析》'));
+  assert.ok(md.includes('原文链接：https://areset.me/posts/ue5-arch'));
+  assert.ok(md.includes('[定位原文](https://areset.me/posts/ue5-arch#highlight-hl-art-1)'));
+  assert.ok(md.includes('## 《UE5 GC 运行机制》'));
+  assert.ok(md.includes('原文链接：https://areset.me/posts/ue5-gc'));
+  assert.ok(md.includes('[定位原文](https://areset.me/posts/ue5-gc#highlight-hl-art-2)'));
+  assert.ok(md.includes('#### 问：为什么使用智能指针？'));
+  assert.ok(!md.includes('https://areset.me/notes#'));
 });

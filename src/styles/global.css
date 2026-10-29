@@ -108,6 +108,9 @@
   /* ---------- Motion ---------- */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-bounce: cubic-bezier(0.2, 0.9, 0.2, 1);
+  /* Used by the notes manager entry / popover / modal choreography. */
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
   --scrollbar-offset: 0px;
 }
 
@@ -4577,7 +4580,8 @@ html.theme-switching .prose blockquote {
 
 body.search-lock,
 body.preview-lock,
-body.image-view-open {
+body.image-view-open,
+body.notes-modal-open {
   overflow: hidden;
   overscroll-behavior: none;
   padding-inline-end: var(--scrollbar-offset);
@@ -5294,8 +5298,14 @@ html[data-font="kai"] .stats-label {
 .note-card:hover {
   background: var(--bg-soft) !important;
   border-radius: 8px;
-  border-radius: 12px;
   transform: translateY(-4px);
+  box-shadow: 0 10px 24px -4px rgba(var(--accent-rgb), 0.08), 0 4px 12px -2px rgba(var(--accent-rgb), 0.04) !important;
+}
+
+.life-card:hover,
+.notes-card:hover {
+  background: var(--bg-soft) !important;
+  border-radius: 12px;
   box-shadow: 0 10px 24px -4px rgba(var(--accent-rgb), 0.08), 0 4px 12px -2px rgba(var(--accent-rgb), 0.04) !important;
 }
 
@@ -5848,7 +5858,8 @@ html.font-switching::view-transition-new(root) {
 [data-theme="dark"] .note-card,
 [data-theme="dark"] .stat-card,
 [data-theme="dark"] .about-tilt .stat-card,
-[data-theme="dark"] .life-card {
+[data-theme="dark"] .life-card,
+[data-theme="dark"] .notes-card {
   background: #1a1a1d !important;
   border-color: rgba(255, 255, 255, 0.14) !important;
   box-shadow: 0 4px 22px -2px rgba(0, 0, 0, 0.5) !important;
@@ -5857,7 +5868,8 @@ html.font-switching::view-transition-new(root) {
 [data-theme="dark"] .note-card:hover,
 [data-theme="dark"] .stat-card:hover,
 [data-theme="dark"] .about-tilt .stat-card:hover,
-[data-theme="dark"] .life-card:hover {
+[data-theme="dark"] .life-card:hover,
+[data-theme="dark"] .notes-card:hover {
   background: #222226 !important;
   border-color: rgba(255, 255, 255, 0.28) !important;
   box-shadow: 0 10px 32px -4px rgba(0, 0, 0, 0.7) !important;
@@ -5910,7 +5922,8 @@ html.font-switching::view-transition-new(root) {
 [data-theme="moss"] .note-card,
 [data-theme="moss"] .stat-card,
 [data-theme="moss"] .about-tilt .stat-card,
-[data-theme="moss"] .life-card {
+[data-theme="moss"] .life-card,
+[data-theme="moss"] .notes-card {
   background: rgba(0, 77, 64, 0.38) !important;
   border-color: rgba(255, 241, 244, 0.18) !important;
   box-shadow: 0 4px 18px -2px rgba(0, 30, 20, 0.35) !important;
@@ -5919,7 +5932,8 @@ html.font-switching::view-transition-new(root) {
 [data-theme="moss"] .note-card:hover,
 [data-theme="moss"] .stat-card:hover,
 [data-theme="moss"] .about-tilt .stat-card:hover,
-[data-theme="moss"] .life-card:hover {
+[data-theme="moss"] .life-card:hover,
+[data-theme="moss"] .notes-card:hover {
   background: rgba(0, 92, 77, 0.52) !important;
   border-color: rgba(255, 241, 244, 0.32) !important;
   box-shadow: 0 10px 28px -4px rgba(0, 30, 20, 0.5) !important;
@@ -5971,7 +5985,9 @@ html.font-switching::view-transition-new(root) {
 
 [data-theme="rice"] .note-card,
 [data-theme="rice"] .stat-card,
-[data-theme="rice"] .about-tilt .stat-card {
+[data-theme="rice"] .about-tilt .stat-card,
+[data-theme="rice"] .life-card,
+[data-theme="rice"] .notes-card {
   background: rgba(235, 224, 203, 0.55) !important;
   border-color: rgba(107, 91, 69, 0.22) !important;
   box-shadow: 0 4px 16px -2px rgba(80, 60, 40, 0.06) !important;
@@ -5979,7 +5995,9 @@ html.font-switching::view-transition-new(root) {
 
 [data-theme="rice"] .note-card:hover,
 [data-theme="rice"] .stat-card:hover,
-[data-theme="rice"] .about-tilt .stat-card:hover {
+[data-theme="rice"] .about-tilt .stat-card:hover,
+[data-theme="rice"] .life-card:hover,
+[data-theme="rice"] .notes-card:hover {
   background: rgba(228, 216, 194, 0.85) !important;
   border-color: rgba(107, 91, 69, 0.38) !important;
   box-shadow: 0 8px 24px -4px rgba(80, 60, 40, 0.1) !important;
@@ -6032,7 +6050,6 @@ html.font-switching::view-transition-new(root) {
   color: #524332 !important;
 }
 
-[data-theme="rice"] .life-card,
 [data-theme="rice"] .timeline-card {
   background: rgba(247, 240, 226, 0.82) !important;
   box-shadow:
@@ -6049,7 +6066,6 @@ html.font-switching::view-transition-new(root) {
   border-left-color: var(--accent) !important;
 }
 
-[data-theme="rice"] .life-card:hover,
 [data-theme="rice"] .timeline-card:hover {
   background: rgba(240, 230, 212, 0.92) !important;
   box-shadow:
@@ -8715,17 +8731,7 @@ a.chart-bar-name:hover {
 /* ================= Seal — corner floating chop ================= */
 
 .seal-floating {
-  position: fixed;
-  bottom: clamp(1.4rem, 3vw, 2.6rem);
-  right: clamp(1.4rem, 3vw, 2.6rem);
-  width: clamp(54px, 6vw, 76px);
-  height: clamp(54px, 6vw, 76px);
-  z-index: 40;
-  pointer-events: none;
-  opacity: 0.9;
-  filter: drop-shadow(0 1px 2px rgba(120, 30, 20, 0.22));
-  animation: sealBreathe 7.5s ease-in-out infinite alternate;
-  user-select: none;
+  display: none !important;
 }
 
 .seal-floating svg {
@@ -10541,7 +10547,7 @@ body.gallery-lightbox-open {
 
 
 
-/* ================= Dual-Pane Push Reading Mode (左文右注 / 双卷展阅) ================= */
+/* ================= Dual-Pane Push Reading Mode (左文右注 / 单浮岛展阅) ================= */
 @media (min-width: 1024px) {
   .site-shell > main {
     transition:
@@ -10564,7 +10570,10 @@ body.gallery-lightbox-open {
   body.notes-drawer-maximized .site-shell > main,
   body.ink-ask-drawer-maximized .site-shell > main,
   html[data-sidebar-collapsed="true"] body.notes-drawer-maximized .site-shell > main,
-  html[data-sidebar-collapsed="true"] body.ink-ask-drawer-maximized .site-shell > main {
+  html[data-sidebar-collapsed="true"] body.ink-ask-drawer-maximized .site-shell > main,
+  html[data-companion-mode="notes-full"] .site-shell > main,
+  html[data-companion-mode="ask-full"] .site-shell > main,
+  html[data-companion-mode="split"] .site-shell > main {
     margin-right: 0 !important;
     padding-right: clamp(1.5rem, 3vw, 2.5rem) !important;
   }
@@ -10572,8 +10581,502 @@ body.gallery-lightbox-open {
 
 body.notes-drawer-maximized,
 body.ink-ask-drawer-maximized,
-body.ink-ask-card-maximized {
+body.ink-ask-card-maximized,
+html[data-companion-mode="notes-full"] body,
+html[data-companion-mode="ask-full"] body,
+html[data-companion-mode="split"] body {
   overflow: hidden !important;
+}
+
+/* =========================================================
+   Companion Layout — 墨问 × 高亮笔记 东方书斋空间系统
+   四种形态写在 <html data-companion-mode>：
+   rail（单浮岛互切）/ ask-full / notes-full / split（左墨问 · 右笔记 画框双卷）
+   ========================================================= */
+
+:root {
+  --companion-split: 0.5;
+  --companion-rail-width: clamp(404px, 29vw, 464px);
+  --companion-gutter: clamp(1rem, 1.6vw, 1.6rem);
+  --companion-frame-pad: clamp(12px, 1.35vw, 18px);
+}
+
+/* ---------- 留白画框底景遮罩（全屏与并排共用微暗化柔焦底纹） ---------- */
+#companion-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100040;
+  background: rgba(24, 19, 14, 0.26);
+  backdrop-filter: blur(8px) saturate(112%);
+  -webkit-backdrop-filter: blur(8px) saturate(112%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 280ms cubic-bezier(0.16, 1, 0.3, 1), visibility 280ms ease;
+}
+[data-theme="dark"] #companion-overlay {
+  background: rgba(0, 0, 0, 0.58);
+}
+[data-theme="moss"] #companion-overlay {
+  background: rgba(0, 26, 22, 0.44);
+}
+html[data-companion-mode="notes-full"] #companion-overlay,
+html[data-companion-mode="ask-full"] #companion-overlay,
+html[data-companion-mode="split"] #companion-overlay {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* ---------- 双卷并排中间分隔缝（14px 呼吸留白槽 + 悬浮墨玉拉手） ---------- */
+#companion-splitter {
+  --companion-inner-w: calc(100vw - 2 * var(--companion-frame-pad) - 14px);
+  position: fixed;
+  top: var(--companion-frame-pad);
+  bottom: var(--companion-frame-pad);
+  left: calc(var(--companion-frame-pad) + var(--companion-split) * var(--companion-inner-w));
+  width: 14px;
+  z-index: 100052;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+html[data-companion-mode="split"] #companion-splitter {
+  display: flex;
+}
+#companion-splitter::before {
+  content: '';
+  position: absolute;
+  top: 24px;
+  bottom: 24px;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-0.5px);
+  background: linear-gradient(to bottom, transparent, var(--rule-soft), transparent);
+  opacity: 0;
+  transition: opacity 180ms ease, background 180ms ease;
+}
+#companion-splitter::after {
+  content: '';
+  width: 4px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--rule-strong, rgba(0, 0, 0, 0.34));
+  opacity: 0.55;
+  transition: height 200ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease, background 180ms ease, transform 180ms ease;
+}
+#companion-splitter:hover::before,
+html[data-companion-resizing="true"] #companion-splitter::before {
+  opacity: 1;
+  background: linear-gradient(to bottom, transparent, var(--vermilion), transparent);
+}
+#companion-splitter:hover::after,
+html[data-companion-resizing="true"] #companion-splitter::after {
+  background: var(--vermilion, #7D5C42);
+  opacity: 1;
+  height: 58px;
+}
+#companion-splitter:focus-visible {
+  outline: none;
+}
+#companion-splitter:focus-visible::after {
+  background: var(--vermilion, #7D5C42);
+  opacity: 1;
+}
+.companion-splitter-grip {
+  display: none;
+}
+.companion-splitter-ratio {
+  position: absolute;
+  top: calc(50% + 38px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-strong);
+  background: var(--bg-elev);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 2px 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+#companion-splitter:hover .companion-splitter-ratio,
+html[data-companion-resizing="true"] .companion-splitter-ratio {
+  opacity: 1;
+}
+body.companion-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+html[data-companion-resizing="true"] #custom-cursor,
+html:has(#companion-splitter:hover) #custom-cursor {
+  display: none !important;
+}
+
+/* ---------- 留白画框式全屏（单卷悬浮书页） ---------- */
+@media (min-width: 1024px) {
+  html[data-companion-mode="ask-full"] .ink-ask-drawer,
+  html[data-companion-mode="notes-full"] .article-notes-drawer {
+    position: fixed !important;
+    inset: var(--companion-frame-pad) !important;
+    top: var(--companion-frame-pad) !important;
+    bottom: var(--companion-frame-pad) !important;
+    left: var(--companion-frame-pad) !important;
+    right: var(--companion-frame-pad) !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    border-radius: 18px !important;
+    border: 1px solid var(--glass-border-strong, var(--rule-strong)) !important;
+    background: var(--glass-bg-strong, var(--bg-elev)) !important;
+    box-shadow:
+      var(--glass-inner-top),
+      0 28px 72px rgba(0, 0, 0, 0.18),
+      0 4px 18px rgba(0, 0, 0, 0.06) !important;
+    z-index: 100048 !important;
+  }
+}
+
+/* ---------- 双卷画框并排（恒定左墨问 · 右笔记，保留流畅 WAAPI 动画能力） ---------- */
+html[data-companion-mode="split"] .article-notes-drawer,
+html[data-companion-mode="split"] .ink-ask-drawer {
+  --companion-inner-w: calc(100vw - 2 * var(--companion-frame-pad) - 14px);
+  position: fixed !important;
+  top: var(--companion-frame-pad) !important;
+  bottom: var(--companion-frame-pad) !important;
+  height: auto !important;
+  max-height: none !important;
+  max-width: none !important;
+  border-radius: 18px !important;
+  border: 1px solid var(--glass-border-strong, var(--rule-strong)) !important;
+  background: var(--glass-bg-strong, var(--bg-elev)) !important;
+  box-shadow:
+    var(--glass-inner-top),
+    0 24px 60px rgba(0, 0, 0, 0.16),
+    0 4px 16px rgba(0, 0, 0, 0.05) !important;
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  z-index: 100050 !important;
+}
+html[data-companion-mode="split"] .ink-ask-drawer {
+  left: var(--companion-frame-pad) !important;
+  right: auto !important;
+  width: calc(var(--companion-split) * var(--companion-inner-w)) !important;
+}
+html[data-companion-mode="split"] .article-notes-drawer {
+  left: calc(var(--companion-frame-pad) + var(--companion-split) * var(--companion-inner-w) + 14px) !important;
+  right: var(--companion-frame-pad) !important;
+  width: auto !important;
+}
+html[data-companion-mode="split"] .article-notes-drawer-backdrop,
+html[data-companion-mode="split"] .ink-ask-drawer-overlay {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* 全屏 / 并排时先收起旧的选区小窗（退回浮岛时恢复） */
+html[data-companion-mode="notes-full"] .ink-ask-card,
+html[data-companion-mode="ask-full"] .ink-ask-card,
+html[data-companion-mode="split"] .ink-ask-card {
+  display: none !important;
+}
+
+/* ---------- 统一 52px 通透一体书卷顶栏（彻底去除深色横条与样式分裂） ---------- */
+.notes-drawer-header,
+.ink-ask-drawer-head,
+.article-notes-drawer.is-maximized .notes-drawer-header,
+.ink-ask-drawer.is-maximized .ink-ask-drawer-head,
+html[data-companion-mode="split"] .notes-drawer-header,
+html[data-companion-mode="split"] .ink-ask-drawer-head {
+  padding: 0 0.9rem 0 1.05rem !important;
+  height: 52px !important;
+  min-height: 52px !important;
+  max-height: 52px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  background: transparent !important;
+  border-bottom: 1px solid var(--rule-soft) !important;
+  flex-shrink: 0 !important;
+}
+.notes-drawer-header-inner,
+.ink-ask-drawer-head-inner,
+.article-notes-drawer.is-maximized .notes-drawer-header-inner,
+.ink-ask-drawer.is-maximized .ink-ask-drawer-head-inner,
+html[data-companion-mode="split"] .notes-drawer-header-inner,
+html[data-companion-mode="split"] .ink-ask-drawer-head-inner {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0.5rem !important;
+}
+
+/* 单浮岛与单侧全屏下显示分段切换器，隐藏静态单标题；双卷并排时显示各自单标题，隐藏分段切换器 */
+html:not([data-companion-mode="split"]) .notes-drawer-header .notes-drawer-title-area,
+html:not([data-companion-mode="split"]) .ink-ask-drawer-head .ink-ask-drawer-title-area {
+  display: none !important;
+}
+html[data-companion-mode="split"] .companion-seg {
+  display: none !important;
+}
+
+/* ---------- 左侧轻量分段切换器 [问 墨问 | ✒ 笔记 N] ---------- */
+.companion-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(var(--accent-rgb, 0, 0, 0), 0.05);
+  border: 1px solid var(--rule-soft);
+}
+[data-theme="dark"] .companion-seg {
+  background: rgba(255, 255, 255, 0.045);
+}
+.companion-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted-strong);
+  font-family: var(--font-body);
+  font-size: 0.81rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: color 160ms ease, background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+.companion-seg-btn:hover:not(.is-active) {
+  color: var(--text-strong);
+}
+.companion-seg-btn.is-active {
+  background: var(--bg-elev);
+  color: var(--text-strong);
+  border-color: var(--rule-soft);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+}
+[data-theme="dark"] .companion-seg-btn.is-active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+[data-theme="moss"] .companion-seg-btn.is-active {
+  background: rgba(255, 241, 244, 0.14);
+  border-color: rgba(255, 241, 244, 0.22);
+}
+
+/* 迷你朱砂方印（与左上角导航栏「汐」印一脉相承） */
+.companion-mini-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 3px;
+  background: var(--vermilion);
+  color: var(--bg-elev);
+  font-family: var(--font-hand-title);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+[data-theme="dark"] .companion-mini-seal {
+  color: var(--bg-base);
+}
+[data-theme="moss"] .companion-mini-seal {
+  color: var(--moss-badge-text, #004D40);
+}
+.companion-seg-btn:not(.is-active) .companion-mini-seal {
+  opacity: 0.72;
+}
+.companion-seg-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.companion-seg-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb, 0, 0, 0), 0.08);
+  color: var(--muted-strong);
+  font-family: var(--font-mono);
+  font-size: 0.67rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.companion-seg-btn.is-active .companion-seg-badge {
+  background: var(--vermilion-soft);
+  color: var(--vermilion);
+}
+
+/* ---------- 右侧统一纯图标窗口工具栏（30×30px 极简幽灵按钮 + 悬浮微提示） ---------- */
+.notes-drawer-actions,
+.ink-ask-drawer-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+}
+.companion-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.companion-toolbar-sep {
+  width: 1px;
+  height: 15px;
+  margin: 0 4px;
+  background: var(--rule);
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+.companion-toolbar-sep[hidden] {
+  display: none !important;
+}
+
+.companion-icon-btn,
+.ink-ask-drawer-new,
+.ink-ask-drawer-maximize,
+.ink-ask-drawer-close,
+.notes-drawer-new-icon-btn,
+.notes-drawer-menu-btn,
+.notes-drawer-maximize-btn,
+.notes-drawer-close-btn {
+  position: relative;
+  display: inline-grid !important;
+  place-items: center !important;
+  width: 30px !important;
+  height: 30px !important;
+  padding: 0 !important;
+  border-radius: 7px !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: var(--muted-strong) !important;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease, transform 140ms ease !important;
+}
+.companion-icon-btn:hover,
+.ink-ask-drawer-new:hover,
+.ink-ask-drawer-maximize:hover,
+.ink-ask-drawer-close:hover,
+.notes-drawer-new-icon-btn:hover,
+.notes-drawer-menu-btn:hover,
+.notes-drawer-menu-btn[aria-expanded="true"],
+.notes-drawer-maximize-btn:hover,
+.notes-drawer-close-btn:hover {
+  color: var(--text-strong) !important;
+  background: rgba(var(--accent-rgb, 0, 0, 0), 0.07) !important;
+  border-color: var(--rule-soft) !important;
+}
+[data-theme="dark"] .companion-icon-btn:hover,
+[data-theme="dark"] .ink-ask-drawer-new:hover,
+[data-theme="dark"] .ink-ask-drawer-maximize:hover,
+[data-theme="dark"] .ink-ask-drawer-close:hover,
+[data-theme="dark"] .notes-drawer-new-icon-btn:hover,
+[data-theme="dark"] .notes-drawer-menu-btn:hover,
+[data-theme="dark"] .notes-drawer-menu-btn[aria-expanded="true"],
+[data-theme="dark"] .notes-drawer-maximize-btn:hover,
+[data-theme="dark"] .notes-drawer-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+.companion-icon-btn:active,
+.ink-ask-drawer-new:active,
+.ink-ask-drawer-maximize:active,
+.ink-ask-drawer-close:active,
+.notes-drawer-new-icon-btn:active,
+.notes-drawer-menu-btn:active,
+.notes-drawer-maximize-btn:active,
+.notes-drawer-close-btn:active {
+  transform: scale(0.94);
+}
+.companion-act.is-active {
+  color: var(--vermilion) !important;
+  background: var(--vermilion-soft) !important;
+  border-color: var(--rule) !important;
+}
+.companion-act[hidden] {
+  display: none !important;
+}
+
+/* 右对齐防裁切微提示气泡 */
+.notes-drawer-actions [data-tip]::after,
+.ink-ask-drawer-actions [data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--text-strong);
+  color: var(--bg-elev);
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity 150ms ease, transform 150ms ease;
+  z-index: 100090;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+}
+[data-theme="dark"] .notes-drawer-actions [data-tip]::after,
+[data-theme="dark"] .ink-ask-drawer-actions [data-tip]::after {
+  background: #f2f0ec;
+  color: #161616;
+}
+.notes-drawer-actions [data-tip]:hover::after,
+.notes-drawer-actions [data-tip]:focus-visible::after,
+.ink-ask-drawer-actions [data-tip]:hover::after,
+.ink-ask-drawer-actions [data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+.notes-drawer-menu-btn[aria-expanded="true"][data-tip]::after {
+  opacity: 0 !important;
+}
+
+@media (max-width: 1023.98px) {
+  .companion-actions {
+    display: none !important;
+  }
+  #companion-splitter {
+    display: none !important;
+  }
+  #companion-overlay {
+    display: none !important;
+  }
 }
 
 /* =========================================================
@@ -10639,4 +11142,89 @@ body.ink-ask-card-maximized {
 [data-theme="rice"] .katex-display {
   background: rgba(92, 76, 55, 0.055);
   border-color: rgba(92, 76, 55, 0.14);
+}
+
+/* ================= Markdown Quick Toolbar & Shortcuts ================= */
+.md-quick-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+  flex-wrap: wrap;
+}
+
+.md-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  color: var(--muted-strong, #666);
+  background: var(--bg-soft, rgba(0, 0, 0, 0.03));
+  border: 1px solid var(--rule-soft, rgba(0, 0, 0, 0.08));
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 140ms ease;
+  line-height: 1;
+}
+
+.md-tool-btn:hover {
+  color: var(--text-strong, #111);
+  background: var(--bg-elev, #fff);
+  border-color: var(--rule, rgba(0, 0, 0, 0.2));
+  transform: translateY(-0.5px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.md-tool-btn:active {
+  transform: translateY(0);
+}
+
+.md-tool-btn.md-tool-bold {
+  font-weight: 800;
+}
+
+.md-tool-btn.md-tool-italic {
+  font-style: italic;
+  font-family: var(--font-serif, serif);
+}
+
+[data-theme="dark"] .md-tool-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #bbb;
+}
+
+[data-theme="dark"] .md-tool-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+[data-theme="moss"] .md-tool-btn {
+  background: rgba(255, 241, 244, 0.08);
+  border-color: rgba(255, 241, 244, 0.14);
+  color: #dac2cb;
+}
+
+[data-theme="moss"] .md-tool-btn:hover {
+  background: rgba(255, 241, 244, 0.16);
+  border-color: rgba(255, 241, 244, 0.25);
+  color: #fdf5f7;
+}
+
+[data-theme="rice"] .md-tool-btn {
+  background: rgba(107, 91, 69, 0.08);
+  border-color: rgba(107, 91, 69, 0.18);
+  color: #554433;
+}
+
+[data-theme="rice"] .md-tool-btn:hover {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(107, 91, 69, 0.32);
+  color: #1a130c;
 }

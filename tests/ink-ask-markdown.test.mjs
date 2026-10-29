@@ -100,6 +100,16 @@ test('5. renderMarkdown renders bold / inline code for notes and answers', () =>
   assert.match(list, /<li>二<\/li>/);
 });
 
+test('5b. renderMarkdown can emit real heading tags for the notes reader', () => {
+  const html = renderMarkdown('# 一级标题\n\n## 二级标题', { heading: 'h' });
+  assert.match(html, /<h1 class="ink-ask-h md-heading">一级标题<\/h1>/);
+  assert.match(html, /<h2 class="ink-ask-h md-heading">二级标题<\/h2>/);
+
+  // InkAsk 仍然使用压平的段落标题，保持原有视觉
+  const answer = renderMarkdown('# 一级标题');
+  assert.match(answer, /<p class="ink-ask-h md-heading">一级标题<\/p>/);
+});
+
 test('6. domRangeToMarkdown converts DOM elements and ranges to clean Markdown', async () => {
   const { JSDOM } = await import('jsdom');
   const dom = new JSDOM(`

@@ -1,7 +1,7 @@
 # 动效系统与页面说明
 
 > 记录本次改造后的结构、可调参数，以及尚未完成的部分。
-> 最后更新：2026-09-19
+> 最后更新：2026-10-27
 
 ---
 
@@ -203,7 +203,47 @@ if (!window[LISTENER_KEY]) {
 
 服务端 `server/ask.mjs` 与部署见 `server/README.md`；前端探测不到它（比如 GitHub Pages）就整个不出现。
 
-### 2.7 性能约定
+### 2.7 筛选为空（`/gallery`、`/notes`、`/life`）
+
+三个列表页「筛到 0 条」共用同一条时间线（`gallery.astro` 的 `applyFilters()` 是基准，`notes.astro` 的 `renderCards()` 与 `life.astro` 的 `applyFilters()` 逐字对齐；`tests/empty-state-parity.test.mjs` 会把常量钉住）：
+
+| 阶段 | 动作 |
+|---|---|
+| ① 钉高 | 把容器 `min-height` 钉在当前 `offsetHeight`，切换那一帧文档高度不突变 |
+| ② 视口回流 | `window.scrollY > 80` 时用 Lenis 把视口送回筛选栏（`offset -90`、`0.65s`、outExpo）；没有 Lenis 退回 `scrollIntoView({behavior:'smooth'})` |
+| ③ 卷收 | 退场卡片 `clip-path: inset(0 100% 0 0)` + `opacity 0` + `scale .98`，`0.28s power2.inOut`，`stagger 0.02` |
+| ④ 换骨 + 浮现 | 卷收结束的**同一刻**展示空面板并 `y 16→0 / scale .98→1 / 0.42s power2.out`；容器仍保持钉住的高度 |
+| ⑤ 塌缩 | 容器 `min-height` 在 `0.55s power2.inOut` 内收到 0，逐帧只刷新滚动上限；**归零之后**才挂 `is-empty`（`display:none`）并做一次完整刷新 |
+
+要点：
+
+- 塌缩期间**不能**把滚动位置硬钳到新的 limit（`lenis.scrollTo(limit, { immediate: true })`），否则整页会一格一格往下跳。`refreshScroll(clamp)` 的 `clamp = false` 就是为这段开的：只 `ScrollTrigger.refresh()` + `lenis.resize()`，不钳制。
+- `is-empty` 必须等高度归零再挂，否则 `display:none` 会把 0.55s 的塌缩变成单帧瞬塌——这正是 notes/life 早先与 gallery 不一致的地方。
+- 打断：`renderCards` / `applyFilters` 开头先 kill 时间线，再「先量后清」`minHeight`（量到的是被打断那一帧的钉住高度），所以快速连点不会留下失效的钉高；塌缩 tween 挂在同一条 `filterTimeline` 里，一次 kill 全部收干净。
+- 空切空（在同一页的两个 0 条筛选之间切换）走 0.38s 原位浮现，不钉高、不回滚。
+- 空 → 有结果方向 notes/life 保留 0.18s 面板淡出（gallery 是瞬隐），属有意保留的超集，不影响空态表现。
+- notes 的换骨帧会 `container.innerHTML = ''`（清卡片、保留钉高），life 的卡片常驻 DOM、只标 `is-filtered-out`；两者 DOM 策略不同，时间点与常量相同。
+- **空 → 有内容**：空面板的隐藏必须和「恢复卡片」落在同一帧（`gallery.astro` 场景 B 的换骨回调）。若在场景 B 开头就同步隐藏，那一帧网格还是 `min-height: 0px`、卡片还是 `display:none`，文档会短到「比视口还矮」，浏览器直接把滚动位置钳到顶——观感就是点一下无过渡跳回最顶。`tests/gallery-empty-to-content.test.mjs` 锁着这个顺序。
+
+### 2.8 普通筛选的滚动落点（`/notes`、`/life`）
+
+列表页筛选会让看板变矮；如果换骨那一帧直接重排，浏览器会把滚动位置一帧钳到新上限——观感就是「整屏瞬移」。这里的做法**不是**给高度加锁（那会留出空白、还会让视口自己滑远），而是把这一次校正提前成一次平滑滑动：
+
+| 步骤 | 动作 |
+|---|---|
+| ① 量 | 换骨前同步做一次不可见的布局测量：把「筛完后的布局」挂上去、量完立即还原（同一帧内完成，不产生绘制），得到新的滚动上限与锚点卡的新位置 |
+| ② 锚点 | 锚点 = 视口顶部那张卡；把它筛后的位置校回原来的 viewport offset 就是落点。锚点卡被筛掉了就退到离原位最近的一张，再兜底到新的滚动上限 |
+| ③ 滑 | 卷轴卷收的这 `0.26s` 里用 Lenis 平滑滑到落点（outExpo） |
+| ④ 换骨 | 换骨帧只 `refreshScroll({ clamp: false })`（不钳制，避免打断这次滑动）；进入动画结束时再做一次完整刷新 |
+
+要点：
+
+- 页面高度该变还是变（不加高度锁、不留空白），只是视口不再被它带着甩走。
+- notes 的测量方式：暂存旧列 → `mountCards(filtered)` → 量 → 清空 → 还原旧列（节点只 detach，事件监听器不丢）。life 的测量方式：临时切换 `is-filtered-out` 量一次，再按快照还原。
+- 实测（13 条 → 2 条，先滚到底）：改前 `scrollY 886 → 34` 在一帧内完成；改后 `0.24s` 滑到位，换骨帧 `scrollY` 稳定在 34。
+- 和 2.7 的分工：**筛到 0 条**走空态塌缩（有高度锁）；**筛到非 0 条**走这里的预滚动（无高度锁）。
+
+### 2.9 性能约定
 
 - 所有进场动画只动 `transform` / `opacity` / `clip-path`，不碰 `filter: blur`。
 - `will-change` 只在动画期间挂上，结束用 `clearProps` 摘掉。
@@ -227,6 +267,8 @@ if (!window[LISTENER_KEY]) {
 | 侧边栏折叠 | `Header.astro`：GSAP 时间线的三个时间点 + CSS 的 `820ms` |
 | 搜索弹窗 | `BaseLayout.astro` 的 `animateSearchModal()` |
 | 归档分类切换的快慢 | `archive.astro` 顶部：`EXIT_CLIP` / `EXIT_COLLAPSE` / `ARRIVE_AT` / `ARRIVE_CLIP` / `SECTION_MOVE` |
+| 筛选为空的空状态节奏 | `gallery.astro` / `notes.astro` / `life.astro` 三处空分支的同一组常量：卷收 `0.28`、浮现 `0.42`、塌缩 `0.55`、回滚 `offset -90` / `0.65s`、触发阈值 `scrollY > 80`；塌缩期间的滚动钳制开关是 `refreshScroll(clamp)` |
+| 普通筛选的滚动落点 | `notes.astro` / `life.astro` 的 `captureViewportAnchor()`（锚点）、`predictedMax`（不可见测量出的新上限）、Lenis 的 `duration: 0.26`；换骨帧用 `refreshScroll({ clamp: false })` |
 | 统计页数据表的开合 | `stats.astro` 里 `duration: 0.85`（开）/ `0.6`（关）；行级联在 `global.css` 的 `.stats-table.is-animated tr`（每行 40ms，最多数到第 18 行） |
 | 站点进场幕的节奏 / 文案 | `SiteIntro.astro`：`T` 对象各时间点、`MAX` / `MIN` 粒子预算、`fontSize`；frontmatter 的 `tagline`，标题在脚本顶部的 `TITLE` |
 | 站点进场幕只播一次的范围 | `BaseLayout.astro` `<head>` 内联脚本：把 `sessionStorage` 换成 `localStorage` 即为"每设备一次" |

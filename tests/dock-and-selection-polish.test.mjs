@@ -86,7 +86,7 @@ describe('侧边栏磁吸健壮性、全主题选中态与笔记动效迭代验�
     assert.ok(content.includes('prefers-reduced-motion: reduce'), '动效必须具备系统减弱动态无障碍降级');
   });
 
-  it('6. 无遮罩并排推挤双卷对照阅读架构与面板互斥验证 (Dual-Pane Push Reading Mode)', () => {
+  it('6. 无遮罩并排推挤双卷对照阅读架构与面板同屏协作 (Dual-Pane Push Reading Mode)', () => {
     const dockPath = path.join(rootDir, 'src/components/ArticleSelectionDock.astro');
     const dockContent = fs.readFileSync(dockPath, 'utf8');
     const inkAskPath = path.join(rootDir, 'src/components/InkAsk.astro');
@@ -116,10 +116,24 @@ describe('侧边栏磁吸健壮性、全主题选中态与笔记动效迭代验�
     assert.ok(inkAskContent.includes('border-radius: 20px 20px 0 0;') && inkAskContent.includes('drawer-drag-handle'),
       '墨问伴读在移动端必须自适应为底部手卷抽屉并包含下拉拉手');
 
-    // 5. 双面板单焦点互斥机制
+    // 5. 两个面板不再互相关闭，改为同屏共存 + 统一协调
     assert.ok(dockContent.includes("window.dispatchEvent(new CustomEvent('article-notes:open'))"), '高亮笔记打开必须广播事件');
-    assert.ok(dockContent.includes("window.addEventListener('ink-ask:open', closeNotesDrawer"), '高亮笔记必须监听墨问打开并自动收拢');
+    assert.ok(!dockContent.includes("window.addEventListener('ink-ask:open', closeNotesDrawer"), '高亮笔记不得再因墨问打开而自动收拢（同屏共存）');
     assert.ok(inkAskContent.includes("window.dispatchEvent(new CustomEvent('ink-ask:open'))"), '墨问伴读打开必须广播事件');
-    assert.ok(inkAskContent.includes("window.addEventListener('article-notes:open', closeSidebar"), '墨问伴读必须监听笔记打开并自动收拢');
+    assert.ok(!inkAskContent.includes("window.addEventListener('article-notes:open', closeSidebar"), '墨问伴读不得再因笔记打开而自动收拢（同屏共存）');
+
+    // 6. 两个面板都向 CompanionLayout 注册，并汇报开合状态
+    assert.ok(dockContent.includes("__companion?.register('notes'") || dockContent.includes("companion.register('notes'"),
+      '高亮笔记必须向同屏协调器注册面板');
+    assert.ok(inkAskContent.includes("__companion?.register('ask'") || inkAskContent.includes("companion.register('ask'"),
+      '墨问伴读必须向同屏协调器注册面板');
+    assert.ok(dockContent.includes("new CustomEvent('companion:panel', { detail: { kind: 'notes'"), '高亮笔记必须汇报开合状态');
+    assert.ok(inkAskContent.includes("new CustomEvent('companion:panel', { detail: { kind: 'ask'"), '墨问伴读必须汇报开合状态');
+
+    // 7. 并排 / 全屏的画框几何由协调器的 data-companion-mode 驱动，阅读态严格单浮岛不挤压正文
+    assert.ok(globalCss.includes('html[data-companion-mode="split"] .article-notes-drawer'), '并排模式必须接管笔记面板几何');
+    assert.ok(globalCss.includes('html[data-companion-mode="split"] .ink-ask-drawer'), '并排模式必须接管墨问面板几何');
+    assert.ok(globalCss.includes('calc(var(--companion-split) * var(--companion-inner-w))'), '并排左右宽度必须可由分隔条实时调节');
+    assert.ok(!globalCss.includes('html[data-companion-both="true"] .ink-ask-drawer'), '阅读态严格单浮岛互切，杜绝双浮岛同开挤压正文');
   });
 });

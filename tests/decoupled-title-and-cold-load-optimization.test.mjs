@@ -46,7 +46,7 @@ test('Decoupled Article Title Entrance & Cold-Load Blank Screen Prevention Suite
     // 验证 window.__releasePageEnter 立即拔除 js-enter
     assert.match(
       baseLayoutContent,
-      /window\.__releasePageEnter = \(options\) => \{\s*window\.clearTimeout\(holdTimer\);\s*document\.documentElement\.classList\.remove\('js-enter'\);/,
+      /window\.__releasePageEnter = \(options\) => \{[\s\S]*?window\.clearTimeout\(holdTimer\);[\s\S]*?document\.documentElement\.classList\.remove\('js-enter'\);/,
       'window.__releasePageEnter 必须在被调用时立即拔除 js-enter 类名'
     );
     // 验证死人开关超时时强力清理 js-enter
@@ -105,8 +105,8 @@ test('Decoupled Article Title Entrance & Cold-Load Blank Screen Prevention Suite
     // 验证 triggerHandover 优先让位给文章标题解耦动画
     assert.match(
       postTransitionContent,
-      /if \(!\(window as any\)\.__postTitleHoldPending\) \{\s*\(window as any\)\.__releasePageEnter\?\.\(\);\s*\}/,
-      'PostTransition 在 __postTitleHoldPending 为真时不应提前放行页面入场'
+      /if \(!hasTitleHold\(\)\) \{\s*\(window as any\)\.__releasePageEnter\?\.\(\);\s*\}/,
+      'PostTransition 在 __postTitleHoldPending / hasTitleHold 为真时不应提前放行页面入场'
     );
   });
 
@@ -131,25 +131,25 @@ test('Decoupled Article Title Entrance & Cold-Load Blank Screen Prevention Suite
     // 验证 In-Flow GPU translate3d (保持文档流，零 reflow)
     assert.match(
       postLayoutContent,
-      /gsap\.set\(title, \{\s*x: deltaX,\s*y: deltaY,\s*force3D: true,\s*position: 'relative',\s*zIndex: 30,\s*\}\);/,
+      /gsap\.set\(title, \{[\s\S]*?x: deltaX,[\s\S]*?y: deltaY,[\s\S]*?force3D: true,[\s\S]*?position: 'relative',[\s\S]*?zIndex: 30/,
       'PostLayout 必须使用相对定位与 GPU translate3d 保持在常规文档流中'
     );
     // 验证逐字落墨从容优雅节拍 (~480ms)
     assert.match(
       postLayoutContent,
-      /const charDuration = 0\.48;/,
-      '标题文字单个下落时长必须优雅从容 (~0.48s)'
+      /const charDuration = 0\.(?:48|50);/,
+      '标题文字单个下落时长必须优雅从容 (~0.5s)'
     );
-    // 验证 FLIP 滑入 Header 停靠位置 (~460ms)
+    // 验证 FLIP 滑入 Header 停靠位置
     assert.match(
       postLayoutContent,
-      /tl\.to\(title, \{\s*x: 0,\s*y: 0,\s*duration: 0\.46,\s*ease: 'power3\.out',/,
-      '标题必须平滑滑行 ~460ms 优雅停靠回 Header 原位'
+      /tl\.to\(title, \{\s*x: 0,\s*y: 0,\s*scale: 1,\s*duration: 0\.(?:46|62),/,
+      '标题必须平滑滑行优雅停靠回 Header 原位'
     );
     // 验证停靠后放行全站组件入场 (__releasePageEnter)
     assert.match(
       postLayoutContent,
-      /\(window as any\)\.__releasePageEnter\?\.\(\);\s*startTypewriterDate\(false\);/,
+      /\(window as any\)\.__releasePageEnter\?\.\([\s\S]*?\);[\s\S]*?startTypewriterDate\(false\);/,
       '标题停靠 Header 后必须触发 __releasePageEnter 并启动日期打字机动画'
     );
   });

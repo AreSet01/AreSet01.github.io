@@ -25,6 +25,7 @@
 * **全屏水墨扩散转场**：进入文章时呈现自研全屏 Canvas 墨晕绽放（`PostTransition`），告别生硬白屏与切页闪烁。
 * **Mermaid 流程图无级缩放**：原生支持 Mermaid 流程图与时序图渲染，配备 500% 无级滚轮缩放、双指手势平移及全屏模态框。
 * **AI 划词伴读（feat/ink-ask）**：在文章中划选任意文字，即可钤出朱砂墨圈，由服务端大模型（如 Gemini / OpenAI 兼容接口）进行流式解析与多轮追问。
+* **笔记 × 墨问 同屏共存**：选区小窗只认 `×` 关闭（点正文/点笔记不再消失）；笔记与墨问可浮岛并排、也可全屏左右各半屏，中间分隔条可拖拽；笔记抽屉里正在写的草稿在重绘时不会丢失。
 
 ---
 
@@ -290,10 +291,12 @@ systemctl status blog-ask
 │   │   ├── Header.astro    # 顶部导航、水墨笔刷与夜间模式切换
 │   │   ├── PostTransition  # 文章全屏墨晕过渡转场
 │   │   ├── MermaidRenderer # Mermaid 图表渲染与无级缩放
+│   │   ├── CompanionLayout # 笔记 × 墨问 同屏共存布局协调（浮岛 / 全屏 / 并排）
 │   │   └── InkAsk.astro    # 划词 AI 伴读交互面板（feat/ink-ask）
 │   ├── content/posts/      # 博客 Markdown / MDX 文章源文件
 │   ├── layouts/            # 页面骨架布局（BaseLayout、PostLayout）
 │   ├── pages/              # 路由视图（首页、归档、关于、统计、时空轴）
+│   ├── utils/              # 高亮引擎、Markdown、同步与并排布局数学等纯逻辑
 │   └── styles/global.css   # 全局样式系统与东方水墨配色规范
 ├── scripts/                # 构建、散列与自动化部署脚本
 ├── server/                 # 独立伴读后端与运维配置模板（feat/ink-ask）

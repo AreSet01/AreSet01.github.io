@@ -13,6 +13,8 @@ server/.data/
 blog-dist-*.tar.gz
 # 主题预览截图与临时调试生成目录
 public/previews/
+public/diagnostics/
+demo-*.html
 artifacts/
 *.png
 !public/**/*.png

@@ -16,22 +16,6 @@ const tagline = '日常记录 · 技术分享';
 <div class="site-intro" data-site-intro aria-hidden="true">
   <canvas class="site-intro-canvas" data-intro-canvas></canvas>
   <div class="site-intro-stage" data-intro-stage>
-    <span class="site-intro-seal" data-intro-seal>
-      <span class="site-intro-ring" data-intro-ring></span>
-      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <filter id="introSealRough" x="-12%" y="-12%" width="124%" height="124%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="11" />
-            <feDisplacementMap in="SourceGraphic" scale="2" />
-          </filter>
-        </defs>
-        <g filter="url(#introSealRough)">
-          <rect class="seal-plate" x="5" y="5" width="90" height="90" />
-          <rect class="seal-frame" x="11" y="11" width="78" height="78" />
-          <text class="seal-glyph" x="50" y="58">汐</text>
-        </g>
-      </svg>
-    </span>
     <p class="site-intro-tagline" data-intro-tagline data-text={tagline}>
       <span data-intro-typed></span><i class="site-intro-caret" aria-hidden="true"></i>
     </p>
@@ -56,8 +40,6 @@ const tagline = '日常记录 · 技术分享';
     vortex: 3.2,      // the spray is swept into a spiral
     form: 4.6,        // first pixels leave the vortex for their glyph cells
     formEnd: 5.75,    // 秋 completes
-    seal: 5.85,
-    sealImpact: 6.2,
     scan1: 6.4,       // pixels → type
     scan1End: 6.95,
     tagline: 7.0,
@@ -68,7 +50,7 @@ const tagline = '日常记录 · 技术分享';
     end: 10.0,
   };
   const PHASES: Array<[number, string]> = [
-    [T.detach, '凝'], [T.impact, '落'], [T.vortex, '散'], [T.form, '旋'], [T.seal, '聚'], [T.scan2, '成'], [Infinity, '归'],
+    [T.detach, '凝'], [T.impact, '落'], [T.vortex, '散'], [T.form, '旋'], [T.formEnd, '聚'], [T.scan2, '成'], [Infinity, '归'],
   ];
   const STEP = 1 / 120; // fixed physics step: 165Hz and 60Hz run the same
   const SKIP_KEYS = new Set(['Escape', 'Enter', ' ', 'Spacebar']);
@@ -152,8 +134,6 @@ const tagline = '日常记录 · 技术分享';
 
     const canvas = intro.querySelector<HTMLCanvasElement>('[data-intro-canvas]')!;
     const stage = intro.querySelector<HTMLElement>('[data-intro-stage]')!;
-    const seal = intro.querySelector<HTMLElement>('[data-intro-seal]')!;
-    const ring = intro.querySelector<HTMLElement>('[data-intro-ring]')!;
     const taglineEl = intro.querySelector<HTMLElement>('[data-intro-tagline]')!;
     const typed = intro.querySelector<HTMLElement>('[data-intro-typed]')!;
     const foot = intro.querySelector<HTMLElement>('[data-intro-foot]')!;
@@ -327,17 +307,7 @@ const tagline = '日常记录 · 技术分享';
       }
     }
 
-    // Seal to the right of the title, bottom-aligned; above it when there is no room. Tagline below.
     function placeStage() {
-      const sealSize = Math.round(Math.max(34, Math.min(92, fontSize * 0.3)));
-      seal.style.width = `${sealSize}px`;
-      if (bx1 + fontSize * 0.12 + sealSize < W - 16) {
-        seal.style.left = `${Math.round(bx1 + fontSize * 0.12)}px`;
-        seal.style.top = `${Math.round(by1 - sealSize)}px`;
-      } else {
-        seal.style.left = `${Math.round((bx0 + bx1) / 2 - sealSize / 2)}px`;
-        seal.style.top = `${Math.round(by0 - sealSize - fontSize * 0.14)}px`;
-      }
       taglineEl.style.top = `${Math.round(by1 + fontSize * 0.24)}px`;
     }
 
@@ -469,7 +439,7 @@ const tagline = '日常记录 · 技术分享';
         }
 
         if (m === M_LAND) {
-          life[i] -= dt / 0.3;
+          life[i] -= dt / 0.18;
           if (life[i] <= 0) { mode[i] = M_DEAD; alive -= 1; }
           continue;
         }
@@ -478,7 +448,7 @@ const tagline = '日常记录 · 技术分享';
           vy[i] -= 30 * dt;
           px[i] += vx[i] * dt + Math.sin(t * 6 + i) * 20 * dt;
           py[i] += vy[i] * dt;
-          life[i] -= dt / 0.75;
+          life[i] -= dt / 0.5;
           if (life[i] <= 0) { mode[i] = M_DEAD; alive -= 1; }
           continue;
         }
@@ -496,8 +466,12 @@ const tagline = '日常记录 · 技术分享';
           const dx = hx[i] - px[i], dy = hy[i] - py[i];
           vx[i] += (dx * 60 - vx[i] * 15.5) * dt;
           vy[i] += (dy * 60 - vy[i] * 15.5) * dt;
-          const sp = Math.hypot(vx[i], vy[i]);
-          if (sp > 3000) { vx[i] *= 3000 / sp; vy[i] *= 3000 / sp; }
+          const vSq = vx[i] * vx[i] + vy[i] * vy[i];
+          if (vSq > 9000000) {
+            const sp = Math.sqrt(vSq);
+            vx[i] *= 3000 / sp;
+            vy[i] *= 3000 / sp;
+          }
           px[i] += vx[i] * dt;
           py[i] += vy[i] * dt;
           if (dx * dx + dy * dy < 4 || t > tH[i] + 0.6) { px[i] = hx[i]; py[i] = hy[i]; mode[i] = M_LAND; life[i] = 1; }
@@ -515,12 +489,16 @@ const tagline = '日常记录 · 技术分享';
           const dx = tx[i] - px[i], dy = ty[i] - py[i];
           vx[i] += (dx * 110 - vx[i] * 21) * dt;
           vy[i] += (dy * 110 - vy[i] * 21) * dt;
-          const sp = Math.hypot(vx[i], vy[i]);
-          if (sp > 1700) { vx[i] *= 1700 / sp; vy[i] *= 1700 / sp; }
+          const vSq = vx[i] * vx[i] + vy[i] * vy[i];
+          if (vSq > 2890000) {
+            const sp = Math.sqrt(vSq);
+            vx[i] *= 1700 / sp;
+            vy[i] *= 1700 / sp;
+          }
           px[i] += vx[i] * dt;
           py[i] += vy[i] * dt;
           // Snap onto the grid once it is close and slow — the "lock-in"
-          if ((dx * dx + dy * dy < 1 && sp < 90) || t > tA[i] + 0.9) {
+          if ((dx * dx + dy * dy < 1 && vSq < 8100) || t > tA[i] + 0.9) {
             px[i] = tx[i]; py[i] = ty[i]; vx[i] = 0; vy[i] = 0; mode[i] = M_LOCK;
           }
           continue;
@@ -600,10 +578,24 @@ const tagline = '日常记录 · 技术分享';
       return { timeScale, brandPts, brandAt, others };
     }
 
+    let cachedHomes: {
+      timeScale: number;
+      brandPts: number[];
+      brandAt: number;
+      others: Array<{ r: DOMRect; at: number; w: number }>;
+    } | null = null;
+
+    function getHomes() {
+      if (!cachedHomes) {
+        cachedHomes = computeHomes();
+      }
+      return cachedHomes;
+    }
+
     function assignHomes(now: number, fast: boolean) {
       if (homesAssigned || !ready) return;
       homesAssigned = true;
-      const homes = computeHomes();
+      const homes = getHomes();
       homeTimeScale = homes.timeScale;
       const pool: number[] = [];
       for (let i = 0; i < N; i += 1) if (mode[i] !== M_DEAD && mode[i] !== M_IDLE && kind[i] !== K_STAIN) pool.push(i);
@@ -723,35 +715,110 @@ const tagline = '日常记录 · 技术分享';
       // and the scanline visibly fills it in when the type takes over
       const dot = Math.max(2, cell - 1);
       ctx!.fillStyle = ink;
-      let curA = 1;
-      const setA = (a: number) => { if (a !== curA) { curA = a; ctx!.globalAlpha = a; } };
+      // Alpha bucketing: batch draw calls into fixed alpha paths to eliminate Draw Call explosion
+      const p100 = new Path2D();
+      const p70 = new Path2D();
+      const p40 = new Path2D();
+      const p15 = new Path2D();
+      const isFreeSeparate = freeAlpha < 0.98;
+      const pFree = isFreeSeparate ? new Path2D() : null;
+
+      const hasStains = stainAlpha > 0.005;
+      const pStain1 = hasStains ? new Path2D() : null;
+      const pStain2 = hasStains ? new Path2D() : null;
+
+      let count100 = 0, count70 = 0, count40 = 0, count15 = 0, countFree = 0, countStain = 0;
+
       for (let i = 0; i < N; i += 1) {
         const m = mode[i];
         if (m === M_IDLE || m === M_DEAD) continue;
         const L = leader[i];
         if (L >= 0 && t < splitAt[L]) continue; // still inside its chunk
+
         if (kind[i] === K_STAIN) {
-          if (stainAlpha <= 0.005) continue;
-          setA(stainAlpha);
-          ctx!.fillRect(px[i] - cell * 0.35, py[i] - cell * 0.35, cell * 1.7, cell * 1.7);
-          setA(stainAlpha * 0.4);
-          ctx!.fillRect(px[i] - cell * 0.8, py[i] - cell * 0.8, cell * 2.6, cell * 2.6);
+          if (!hasStains) continue;
+          pStain1!.rect(px[i] - cell * 0.35, py[i] - cell * 0.35, cell * 1.7, cell * 1.7);
+          pStain2!.rect(px[i] - cell * 0.8, py[i] - cell * 0.8, cell * 2.6, cell * 2.6);
+          countStain += 1;
           continue;
         }
+
         if (m === M_LOCK) {
           if (covered(ty[i] + cell / 2)) continue;
-          setA(1);
           // The formed face breathes: the odd cell shivers by half a pixel now and then
           const j = breathing && (i * 7 + (fi >> 3)) % 17 === 0 ? 0.5 : 0;
-          ctx!.fillRect(tx[i] + j, ty[i], dot, dot);
+          p100.rect(tx[i] + j, ty[i], dot, dot);
+          count100 += 1;
           continue;
         }
-        if (m === M_LAND || m === M_ASH) setA(Math.max(0, life[i]));
-        else setA(kind[i] === K_FREE ? freeAlpha : 1);
-        if (splitAt[i] > 0 && t < splitAt[i]) ctx!.fillRect(px[i] - cell * 0.5, py[i] - cell * 0.5, cell * 2 - 1, cell * 2 - 1);
-        else ctx!.fillRect(px[i], py[i], dot, dot);
+
+        const isSplit = splitAt[i] > 0 && t < splitAt[i];
+        const rx = isSplit ? px[i] - cell * 0.5 : px[i];
+        const ry = isSplit ? py[i] - cell * 0.5 : py[i];
+        const rw = isSplit ? cell * 2 - 1 : dot;
+        const rh = rw;
+
+        if (m === M_LAND || m === M_ASH) {
+          const l = life[i];
+          if (l <= 0) continue;
+          if (l >= 0.75) {
+            p100.rect(rx, ry, rw, rh);
+            count100 += 1;
+          } else if (l >= 0.5) {
+            p70.rect(rx, ry, rw, rh);
+            count70 += 1;
+          } else if (l >= 0.25) {
+            p40.rect(rx, ry, rw, rh);
+            count40 += 1;
+          } else {
+            p15.rect(rx, ry, rw, rh);
+            count15 += 1;
+          }
+          continue;
+        }
+
+        if (kind[i] === K_FREE && isFreeSeparate) {
+          pFree!.rect(rx, ry, rw, rh);
+          countFree += 1;
+        } else {
+          p100.rect(rx, ry, rw, rh);
+          count100 += 1;
+        }
       }
-      setA(1);
+
+      if (countStain > 0 && pStain1 && pStain2) {
+        ctx!.globalAlpha = stainAlpha;
+        ctx!.fill(pStain1);
+        ctx!.globalAlpha = stainAlpha * 0.4;
+        ctx!.fill(pStain2);
+      }
+
+      if (count100 > 0) {
+        ctx!.globalAlpha = 1;
+        ctx!.fill(p100);
+      }
+
+      if (countFree > 0 && pFree) {
+        ctx!.globalAlpha = freeAlpha;
+        ctx!.fill(pFree);
+      }
+
+      if (count70 > 0) {
+        ctx!.globalAlpha = 0.7;
+        ctx!.fill(p70);
+      }
+
+      if (count40 > 0) {
+        ctx!.globalAlpha = 0.4;
+        ctx!.fill(p40);
+      }
+
+      if (count15 > 0) {
+        ctx!.globalAlpha = 0.15;
+        ctx!.fill(p15);
+      }
+
+      ctx!.globalAlpha = 1;
 
       // The type itself, wherever the scanline has made it real
       if (textMode !== 0) {
@@ -809,9 +876,10 @@ const tagline = '日常记录 · 技术分享';
         if (spawned) {
           acc += dtFrame;
           let n = 0;
-          while (acc >= STEP && n < 12) { step(STEP, simT); simT += STEP; acc -= STEP; n += 1; }
-          if (n >= 12) { acc = 0; simT = t; } // back from a hidden tab: don't try to catch up
+          while (acc >= STEP && n < 2) { step(STEP, simT); simT += STEP; acc -= STEP; n += 1; }
+          if (acc >= STEP) { acc = 0; simT = t; } // back from a hidden tab: don't try to catch up
         }
+        if (!cachedHomes && !skipping && t >= 6.0) getHomes();
         if (!skipping && !homesAssigned && t >= T.scan2) assignHomes(t, false);
       }
       draw(t);
@@ -821,12 +889,11 @@ const tagline = '日常记录 · 技术分享';
       if (fi % 10 === 0) intro.dataset.alive = String(spawned ? alive : 0);
 
       if (skipping && (t > skipAt + 1.6 || (spawned && alive === 0))) { finish(); return; }
+      if (spawned && alive <= 20 && t >= T.release + 0.35) { finish(); return; }
       frameId = requestAnimationFrame(loop);
     }
 
     // ---------- DOM timeline ----------
-    gsap.set(seal, { opacity: 0, scale: 2.05, rotation: -17, transformOrigin: '50% 50%' });
-    gsap.set(ring, { opacity: 0, scale: 0 });
     gsap.set(taglineEl, { opacity: 0 });
     gsap.set(foot, { opacity: 0, y: 10 });
     typed.textContent = '';
@@ -845,11 +912,7 @@ const tagline = '日常记录 · 技术分享';
     tl.to(foot, { opacity: 1, y: 0, duration: 0.7, ease: 'power2.out' }, 0.5);
     // The burst kicks the whole sheet
     tl.to(intro, { keyframes: { x: [0, 3, -3, 2, -1, 0], y: [0, -2, 2, -1, 1, 0], easeEach: 'none' }, duration: 0.32, ease: 'none' }, T.impact);
-    tl.to(seal, { opacity: 1, scale: 1, rotation: -4, duration: 0.5, ease: 'back.out(2.4)' }, T.seal);
-    tl.call(() => { const r = seal.getBoundingClientRect(); splash(r.left + r.width / 2, r.top + r.height / 2, 26); }, undefined, T.sealImpact);
-    tl.fromTo(ring, { opacity: 0.7, scale: 0 }, { opacity: 0, scale: 1, duration: 1.15, ease: 'expo.out' }, T.sealImpact);
-    tl.to(seal, { scale: 1.06, duration: 0.14, ease: 'power2.out' }, T.sealImpact + 0.3);
-    tl.to(seal, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.45)' }, T.sealImpact + 0.44);
+    tl.call(() => { getHomes(); }, undefined, 6.2);
     const cursor = { index: 0 };
     tl.to(taglineEl, { opacity: 1, duration: 0.3, ease: 'none' }, T.tagline - 0.1);
     tl.to(cursor, {
@@ -860,7 +923,7 @@ const tagline = '日常记录 · 技术分享';
       onComplete: () => { typed.textContent = tagline; },
     }, T.tagline);
     tl.call(() => { lifted = true; intro.classList.add('is-lifting'); }, undefined, T.lift);
-    tl.to([seal, taglineEl], { opacity: 0, duration: 0.35, ease: 'power2.in' }, T.lift);
+    tl.to(taglineEl, { opacity: 0, duration: 0.35, ease: 'power2.in' }, T.lift);
     tl.to(foot, { opacity: 0, duration: 0.3, ease: 'power2.in' }, T.lift);
     tl.call(() => { assignHomes(now(), false); releasePage({ timeScale: homeTimeScale }); }, undefined, T.release);
     tl.call(finish, undefined, T.end);
@@ -884,7 +947,7 @@ const tagline = '日常记录 · 技术分享';
       gsap.set(intro, { clearProps: 'transform' });
       lifted = true;
       intro.classList.add('is-lifting');
-      gsap.to([seal, taglineEl, foot], { opacity: 0, duration: 0.2, ease: 'power2.in', overwrite: 'auto' });
+      gsap.to([taglineEl, foot], { opacity: 0, duration: 0.2, ease: 'power2.in', overwrite: 'auto' });
       textMode = 0;
 
       // Hard safety timer: guarantee finish is ALWAYS called within 300ms,
@@ -916,7 +979,7 @@ const tagline = '日常记录 · 技术分享';
       controller.abort();
       timeline?.kill();
       timeline = null;
-      gsap.killTweensOf([intro, seal, taglineEl, foot, ring]);
+      gsap.killTweensOf([intro, taglineEl, foot]);
       document.documentElement.classList.remove('site-intro-active');
       document.documentElement.classList.remove('js-enter');
       (window as any).__siteIntroPending = false;
