@@ -18,18 +18,18 @@ for (const post of posts) for (const tag of post.data.tags ?? []) tagCounts.set(
 const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([tag]) => tag);
 ---
 
-<BaseLayout title="梦付千秋 - 日常记录与技术分享">
+<BaseLayout title="清浅 - 个人博客与沉浸式阅读空间">
   <Header />
   <main id="main-content" tabindex="-1" class="container-wide flex-1 pt-6 pb-16 lg:pt-8 outline-none">
     <section class="home-hero">
       <div class="home-hero-copy">
         <p class="eyebrow" data-enter="top">Vol. 01 / Digital Garden</p>
         <h1 class="home-hero-title" style="font-size: clamp(2rem, 5vw, 3.4rem);" data-enter="left">
-          <span class="hero-title-phrase inline-block whitespace-nowrap">欢迎光临</span>
-          <span class="hero-title-phrase inline-block whitespace-nowrap">AreSet の Blog</span>
+          <span class="hero-title-phrase inline-block whitespace-nowrap">素笺心语</span>
+          <span class="hero-title-phrase inline-block whitespace-nowrap">清浅空间</span>
         </h1>
         <p class="home-hero-desc" data-enter="left">
-          这里用来随便分享一点小知识，一些行业看法，或是说些愤青（bushi）言论
+          纸上清风，岁月从容。一个融合 AI 伴读双卷工作台与卡片笔记的东方纸境博客。
         </p>
         <div class="home-actions">
           {latestPost && <a href={`/posts/${latestPost.id}`} class="btn-primary" data-enter="bottom">阅读最新文章</a>}

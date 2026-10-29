@@ -45,14 +45,14 @@ export const PHOTO_CATEGORIES: PhotoCategoryInfo[] = [
 export const GALLERY_PHOTOS: PhotoItem[] = [
   {
     id: 'zhaoqing-huaiji-yanyan',
-    title: '石壁燕影 · 肇庆怀集燕岩',
-    story: '奇峰耸立，巨洞穿山。怀集燕岩乃华南罕见的喀斯特巨型溶洞，千百年来金丝燕在此筑巢栖息。伫立岩前，见峭壁千仞、绿意葱茏，群燕掠空而过，蔚为壮观。',
+    title: '空谷流云 · 喀斯特峰峦',
+    story: '奇峰耸立，巨洞穿山。千百年来金丝燕在此筑巢栖息。伫立岩前，见峭壁千仞、苍翠葱茏，群燕掠空而过，蔚为壮观。山海有情，随手定格皆是画意。',
     location: '广东省肇庆市怀集县 · 燕岩',
     date: '2026-06-07',
     category: 'nature',
     categoryLabel: '山海风光',
     aspectRatio: '3:2',
-    tags: ['肇庆怀集', '燕岩', '喀斯特', '山川风光'],
+    tags: ['山野', '自然风光', '喀斯特', '留影'],
     exif: {
       camera: 'Sony A7C',
       lens: 'Tamron 70-300mm F4.5-6.3 Di III RXD',

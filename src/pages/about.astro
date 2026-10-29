@@ -13,35 +13,35 @@ const firstYear = posts.length ? new Date(posts[posts.length - 1].data.pubDate).
 
 // Rotating "who am I" lines for the typewriter — edit freely
 const typedLines = [
-  'UE5 C++ 的游戏学习者',
-  '没事找事的折腾党~',
-  '爱拍照的小伙子~',
-  '愤青（bushi）言论生产者',
+  '沉浸式纸境博客开源模板',
+  '双卷伴读与卡片笔记空间',
+  '支持 AI 划词伴读与流式解答',
+  '基于 Astro 5 + Tailwind 4 构建',
 ];
 
 // Words that drift down the right margin as you scroll
-const marqueeWords = ['游戏', 'UE5', 'C++', '渲染', '随笔', 'RenderDoc', '笔记', '生活', 'Astro', '折腾'];
+const marqueeWords = ['清浅', '素笺', 'Astro', 'TypeScript', '伴读', '笔记', 'Tailwind', 'GSAP', '开源', '阅读'];
 
 const timeline = [
   {
-    date: '2026 · 09',
-    title: 'UE5 Meta 元数据深度解析系列',
-    body: '学习Meta时，让Gemini分析文章后记录的笔记',
+    date: '2026 · 10',
+    title: '伴读工作台与笔记系统升级',
+    body: '实现双卷推挤并排工作台、AI 划词伴读、全屏卡片笔记与多端同步',
   },
   {
-    date: '2026 · 04',
-    title: 'RenderDoc 抓帧还原模型教程',
-    body: '用 RenderDoc 配合 MuMu 模拟器抓鸣潮的一帧，再在 Blender 里把模型和贴图还原出来',
+    date: '2026 · 09',
+    title: '东方纸境设计重构',
+    body: '基于宣纸纹理、粒子推演与水墨雨境构建沉浸式东方美学体验',
   },
   {
     date: `${firstYear}`,
-    title: '博客上线',
-    body: '在Claude & Gemini老师的帮助下，俺的博客诞生啦~',
+    title: '项目开源',
+    body: '「清浅」博客模板正式开源，欢迎 Star 与自由创作',
   },
 ];
 ---
 
-<BaseLayout title="关于我 - 梦付千秋">
+<BaseLayout title="关于 - 清浅">
   <AboutIntro />
   <Header />
   <main id="main-content" tabindex="-1" class="container-wide flex-1 pt-6 pb-16 lg:pt-8 outline-none" style="position: relative;">
@@ -56,13 +56,13 @@ const timeline = [
     <section class="grid gap-16 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] lg:gap-20 lg:pr-16">
       <div class="panel">
         <div class="flex items-center justify-between">
-          <p class="eyebrow" data-enter="top">About the Author</p>
+          <p class="eyebrow" data-enter="top">About the Template</p>
           <button type="button" class="about-zen-replay-btn" data-about-zen-replay title="重新播放水墨像素入场动效">
             <span class="replay-icon">↺</span> 墨化推演
           </button>
         </div>
         <h1 class="section-title mt-6 max-w-2xl" data-enter="left">
-          我就是我！
+          静水流深，清浅从容
         </h1>
         <p class="about-typed mt-5" data-enter="left" aria-live="polite">
           <span class="about-typed-prefix">&gt;</span>
@@ -74,8 +74,8 @@ const timeline = [
           style="font-family: var(--font-serif);"
           data-enter="bottom"
         >
-          <p>你好，欢迎来到我的个人空间呀~这里相当于一个闲聊+笔记博客噢~</p>
-          <p>因为太懒所以会有一部分是AI写的，但是如果有知识可以帮到你，那真的是太好啦~</p>
+          <p>你好，欢迎来到「清浅」演示站点。这是一个专为长文深度阅读、知识沉淀与优雅交互打造的开源博客主题。</p>
+          <p>采用 Astro 5 静态构建，集成双卷推挤工作台、划词 AI 伴读、全屏卡片笔记以及细腻入微的水墨动效系统。</p>
         </div>
 
         <div
@@ -84,25 +84,25 @@ const timeline = [
         >
           <div class="about-tilt h-full" data-tilt data-enter="left">
             <div class="stat-card h-full flex flex-col justify-center px-4 py-5 sm:px-5 sm:py-6 pointer-events-none">
-              <p class="stat-label text-xs tracking-wider select-none">写作主题</p>
+              <p class="stat-label text-xs tracking-wider select-none">核心特性</p>
               <h3 class="about-card-heading font-display text-[0.96rem] sm:text-[1rem] font-semibold text-[var(--text-strong)] tracking-tight mt-2.5 whitespace-nowrap overflow-hidden text-ellipsis select-none">
-                Game
+                双卷伴读
               </h3>
             </div>
           </div>
           <div class="about-tilt h-full" data-tilt data-enter="bottom">
             <div class="stat-card h-full flex flex-col justify-center px-4 py-5 sm:px-5 sm:py-6 pointer-events-none">
-              <p class="stat-label text-xs tracking-wider select-none">当前栈</p>
+              <p class="stat-label text-xs tracking-wider select-none">架构基石</p>
               <h3 class="about-card-heading font-display text-[0.96rem] sm:text-[1rem] font-semibold text-[var(--text-strong)] tracking-tight mt-2.5 whitespace-nowrap overflow-hidden text-ellipsis select-none">
-                Astro
+                Astro 5
               </h3>
             </div>
           </div>
           <div class="about-tilt h-full" data-tilt data-enter="right">
             <div class="stat-card h-full flex flex-col justify-center px-4 py-5 sm:px-5 sm:py-6 pointer-events-none">
-              <p class="stat-label text-xs tracking-wider select-none">写作习惯</p>
+              <p class="stat-label text-xs tracking-wider select-none">设计意境</p>
               <h3 class="about-card-heading font-display text-[0.96rem] sm:text-[1rem] font-semibold text-[var(--text-strong)] tracking-tight mt-2.5 whitespace-nowrap overflow-hidden text-ellipsis select-none">
-                AI+手写（
+                纸境流岚
               </h3>
             </div>
           </div>
@@ -179,33 +179,33 @@ const timeline = [
         </section>
 
         <section data-enter="right">
-          <p class="eyebrow">Contact</p>
+          <p class="eyebrow">Open Source</p>
           <h2 class="font-display mt-5 text-[1.65rem] text-[var(--text-strong)]">
-            Call Me！
+            开源仓库
           </h2>
           <p
             class="mt-4 text-[0.94rem] leading-relaxed text-[var(--muted-strong)]"
             style="font-family: var(--font-serif); font-style: italic;"
           >
-            如果你想联系我 —
+            欢迎 Star、Fork 或提交 Issue —
           </p>
           <div class="mt-6 border-t border-dashed border-[var(--rule)]">
             <a
-              href="https://github.com/yourusername"
+              href="https://github.com/AreSet01/AreSet01.github.io"
               class="surface-link flex items-baseline justify-between gap-4"
               target="_blank"
               rel="noopener"
             >
               <span class="stat-label">GitHub</span>
-              <span class="font-display text-[1rem] text-[var(--text-strong)]">AreSet01 →</span>
+              <span class="font-display text-[1rem] text-[var(--text-strong)]">AreSet01.github.io →</span>
             </a>
             <div class="flex items-baseline justify-between gap-4 border-t border-dashed border-[var(--rule)] py-4">
-              <span class="stat-label">Email</span>
-              <span class="font-mono text-[0.84rem] text-[var(--text-strong)]">1909616051@qq.com</span>
+              <span class="stat-label">License</span>
+              <span class="font-mono text-[0.84rem] text-[var(--text-strong)]">MIT License</span>
             </div>
           </div>
           <div class="mt-10 flex justify-end">
-            <span class="about-stamp" data-about-stamp aria-hidden="true">谢谢来访</span>
+            <span class="about-stamp" data-about-stamp aria-hidden="true">素笺留痕</span>
           </div>
         </section>
       </aside>

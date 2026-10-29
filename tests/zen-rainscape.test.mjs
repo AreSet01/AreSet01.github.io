@@ -64,8 +64,8 @@ describe('全站「烟雨濛濛」音画微气象系统与首页视觉纯净化�
     const indexPath = path.join(rootDir, 'src/pages/index.astro');
     const indexContent = fs.readFileSync(indexPath, 'utf8');
     assert.ok(indexContent.includes('hero-title-phrase inline-block whitespace-nowrap'), '首页标题应采用 hero-title-phrase 避免折断');
-    assert.ok(indexContent.includes('欢迎光临'), '应包含“欢迎光临”词组');
-    assert.ok(indexContent.includes('AreSet の Blog'), '应包含“AreSet の Blog”词组');
+    assert.ok(indexContent.includes('素笺心语') || indexContent.includes('欢迎光临'), '应包含首个语义词组');
+    assert.ok(indexContent.includes('清浅空间') || indexContent.includes('AreSet の Blog'), '应包含第二个语义词组');
 
     const globalCssPath = path.join(rootDir, 'src/styles/global.css');
     const globalCss = fs.readFileSync(globalCssPath, 'utf8');

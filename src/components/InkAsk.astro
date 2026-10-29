@@ -53,11 +53,49 @@
   const prose = () => document.querySelector<HTMLElement>('[data-post-prose]');
   const postTitle = () => document.querySelector<HTMLElement>('[data-post-title]')?.textContent?.trim() || document.title || '本文';
 
-  // 探测后端服务是否可用
+  let isMockMode = false;
+
+  function mockStreamResponse(isArticle: boolean, question: string, selection?: string): Response {
+    const mockText = isArticle
+      ? `【清浅 · 静态伴读演示】\n\n你好！欢迎体验「清浅」的全文 AI 伴读侧边栏。\n\n当前站点运行于 **GitHub Pages 纯静态托管环境**。在未连接私有大模型 API 服务时，系统自动切入演示模式。\n\n- **双卷并排**：点击顶栏的分屏按钮，可自由推挤切换文章与伴读工作台。\n- **自建服务**：只需克隆本仓库并在服务器启动 \`server/ask.mjs\`（配置 \`AI_API_KEY\`），即可享受流式大模型阅读理解与多轮推演。`
+      : `【清浅 · 划词伴读演示】\n\n已收到你的提问：*“${question.trim() || '这段文字是什么意思？'}”*\n\n划选内容：> *${(selection || '').slice(0, 60)}${(selection || '').length > 60 ? '...' : ''}*\n\n当前站点部署在 **GitHub Pages 静态空间**。在完整部署模式下，伴读助手会结合文章上下文，调用大模型进行实时流式解答与概念拆解。\n\n你可以尝试继续在正文中划词，或体验右侧的双卷工作台。`;
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(ctrl) {
+        await new Promise((r) => setTimeout(r, 200));
+        ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ t: '' })}\n\n`));
+
+        const chunks = mockText.match(/[\s\S]{1,4}/g) || [mockText];
+        for (const chunk of chunks) {
+          await new Promise((r) => setTimeout(r, 20));
+          ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ t: chunk })}\n\n`));
+        }
+        ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ finish: { cached: false } })}\n\n`));
+        ctrl.close();
+      },
+    });
+    return new Response(stream, {
+      headers: { 'Content-Type': 'text/event-stream' },
+    });
+  }
+
+  // 探测后端服务是否可用（若不可用则优雅降级为 Demo 演示模式）
   function probe(): Promise<boolean> {
-    available ??= fetch(ENDPOINT, { cache: 'no-store', signal: AbortSignal.timeout(4000) })
-      .then(async (res) => res.ok && (await res.json())?.ok === true)
-      .catch(() => false);
+    if (available) return available;
+    available = fetch(ENDPOINT, { cache: 'no-store', signal: AbortSignal.timeout(2500) })
+      .then(async (res) => {
+        if (res.ok && (await res.json())?.ok === true) {
+          isMockMode = false;
+          return true;
+        }
+        isMockMode = true;
+        return true;
+      })
+      .catch(() => {
+        isMockMode = true;
+        return true;
+      });
     return available;
   }
 
@@ -796,18 +834,23 @@
 
     try {
       if ([...s.anchor.text].length > MAX_SELECTION) throw new Error(`选中的内容太长了（最多 ${MAX_SELECTION} 字），缩短一点再问`);
-      const response = await fetch(ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path: location.pathname,
-          selection: s.anchor.text,
-          prefix: s.anchor.prefix,
-          suffix: s.anchor.suffix,
-          question,
-        }),
-        signal: controller.signal,
-      });
+      let response: Response;
+      if (isMockMode) {
+        response = mockStreamResponse(false, question, s.anchor.text);
+      } else {
+        response = await fetch(ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path: location.pathname,
+            selection: s.anchor.text,
+            prefix: s.anchor.prefix,
+            suffix: s.anchor.suffix,
+            question,
+          }),
+          signal: controller.signal,
+        });
+      }
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => null);
         throw new Error(data?.error || `请求失败（${response.status}）`);
@@ -1402,7 +1445,11 @@
         };
 
         try {
-          const response = await fetch(ENDPOINT, {
+          let response: Response;
+          if (isMockMode) {
+          response = mockStreamResponse(true, question);
+        } else {
+          response = await fetch(ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1412,11 +1459,12 @@
             }),
             signal: controller.signal,
           });
+        }
 
-          if (!response.ok || !response.body) {
-            const data = await response.json().catch(() => null);
-            throw new Error(data?.error || `请求失败（${response.status}）`);
-          }
+        if (!response.ok || !response.body) {
+          const data = await response.json().catch(() => null);
+          throw new Error(data?.error || `请求失败（${response.status}）`);
+        }
 
           const reader = response.body.getReader();
           const decoder = new TextDecoder();

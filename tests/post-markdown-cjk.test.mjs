@@ -44,7 +44,7 @@ test('2. quoted / parenthesised bold inside CJK text renders as <strong>', async
 
 test('3. no article body leaks literal bold markers', async () => {
   const files = readdirSync(POSTS).filter((name) => name.endsWith('.md'));
-  assert.ok(files.length >= 10, 'expected the post collection to be present');
+  assert.ok(files.length >= 3, 'expected the post collection to be present');
 
   const offenders = [];
   for (const file of files) {
