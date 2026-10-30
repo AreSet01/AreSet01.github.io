@@ -26,7 +26,7 @@ const year = new Date().getFullYear();
 
 <header class="glass-nav" data-enter="left" data-enter-once>
   <div class="glass-nav-inner min-h-full flex flex-col justify-between">
-    <div class="flex flex-col gap-4 lg:gap-6 w-full">
+    <div class="nav-top-block flex flex-col gap-4 lg:gap-6 w-full">
       <div class="flex items-center justify-between w-full mobile-top-bar">
         <a href="/" class="brand-mark">
           <span>梦付千秋</span>
@@ -199,15 +199,11 @@ const year = new Date().getFullYear();
       </div>
     </div>
 
-    <div class="sidebar-colophon hidden lg:flex flex-col gap-1.5 mt-auto pt-2 text-[0.72rem] leading-normal text-[var(--muted)]" style="font-family: var(--font-serif); font-style: italic;">
+    <div class="sidebar-colophon hidden lg:flex flex-col gap-1 mt-auto pt-2 text-[0.72rem] leading-normal text-[var(--muted)]" style="font-family: var(--font-serif); font-style: italic;">
       <div class="w-8 h-[1px] bg-[var(--rule)] mb-1"></div>
       <p style="line-height: 1.5;">不持续且间断更新<br/>诶嘿？你怎么找到这里来的！！！</p>
-      <p class="font-mono not-italic tracking-[0.05em] uppercase text-[var(--text-strong)] mt-1">
+      <p class="font-mono not-italic tracking-[0.05em] uppercase text-[var(--text-strong)] mt-0.5">
         &copy; {year} &middot; 梦付千秋
-      </p>
-      <p class="not-italic">
-        Built with
-        <a href="https://astro.build" class="text-[var(--accent)] underline decoration-[var(--accent)] underline-offset-4 hover:text-[var(--accent-deep)]" target="_blank" rel="noopener">Astro</a>
       </p>
     </div>
   </div>
@@ -1262,15 +1258,20 @@ import gsap from 'gsap';
       width: clamp(15.5rem, 20vw, 19rem);
       min-width: clamp(15.5rem, 20vw, 19rem);
       flex-shrink: 0;
-      overflow-y: hidden !important;
+      overflow-y: auto !important;
       overflow-x: hidden !important;
-      scrollbar-width: none;
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
       perspective: 1400px;
-      padding: clamp(1.2rem, 2.5vh, 1.8rem) 0 clamp(1.2rem, 2.5vh, 1.8rem) 0 !important;
+      padding: clamp(0.9rem, 2vh, 1.6rem) 0 clamp(0.6rem, 1.4vh, 1.2rem) 0 !important;
       transition: width 420ms cubic-bezier(0.16, 1, 0.3, 1),
                   min-width 420ms cubic-bezier(0.16, 1, 0.3, 1),
                   margin-left 420ms cubic-bezier(0.16, 1, 0.3, 1),
                   opacity 280ms ease !important;
+    }
+
+    .glass-nav::-webkit-scrollbar {
+      display: none !important;
     }
 
     @media (max-width: 1279.98px) {
@@ -1280,45 +1281,14 @@ import gsap from 'gsap';
       }
     }
 
-    @media (max-height: 900px) {
-      .glass-nav {
-        overflow-y: auto !important;
-        padding: clamp(0.75rem, 1.6vh, 1.15rem) 0 !important;
-      }
-
-      .glass-nav-inner {
-        height: auto !important;
-        min-height: 100% !important;
-        max-height: none !important;
-      }
-
-      .glass-nav .nav-cluster {
-        gap: clamp(0.55rem, 1.3vh, 0.95rem) !important;
-      }
-
-      .glass-nav .nav-links {
-        gap: clamp(0.55rem, 1.3vh, 0.9rem) !important;
-        margin-block: 0.15rem !important;
-      }
-
-      .glass-nav .sidebar-colophon {
-        padding-top: 0.4rem !important;
-        gap: 0.25rem !important;
-      }
-    }
-
-    .glass-nav::-webkit-scrollbar {
-      display: none;
-    }
-
     /* GSAP owns transform/opacity here (the hinge fold) — no CSS transition to fight it */
     .glass-nav-inner {
       width: clamp(15.5rem, 20vw, 19rem) !important;
       min-width: clamp(15.5rem, 20vw, 19rem) !important;
-      height: 100% !important;
-      max-height: 100% !important;
+      height: auto !important;
+      min-height: 100% !important;
       box-sizing: border-box !important;
-      padding: 0 clamp(1.5rem, 2.2vw, 2.2rem) !important;
+      padding: 0 clamp(1.4rem, 2.2vw, 2.2rem) !important;
       transform-origin: left center;
       transform-style: preserve-3d;
       backface-visibility: hidden;
@@ -1333,8 +1303,13 @@ import gsap from 'gsap';
       }
     }
 
+    /* 默认高度（含 1080p、各类笔记本屏幕 768px 等）：充满呼吸感与纵向节奏，绝不留白空洞 */
+    .glass-nav .nav-top-block {
+      gap: clamp(0.75rem, 1.8vh, 1.4rem) !important;
+    }
+
     .glass-nav .nav-cluster {
-      gap: clamp(1rem, 2.2vh, 1.6rem) !important;
+      gap: clamp(0.75rem, 2vh, 1.4rem) !important;
       width: 100% !important;
     }
 
@@ -1343,10 +1318,10 @@ import gsap from 'gsap';
       display: flex !important;
       flex-direction: column !important;
       align-items: flex-start !important;
-      padding-left: clamp(1.4rem, 2.4vw, 2.8rem) !important;
-      gap: clamp(1.05rem, 2.5vh, 1.7rem) !important;
+      padding-left: clamp(1.3rem, 2.3vw, 2.6rem) !important;
+      gap: clamp(0.85rem, 2.2vh, 1.55rem) !important;
       width: 100% !important;
-      margin-block: 0.35rem !important;
+      margin-block: clamp(0.2rem, 0.5vh, 0.4rem) !important;
     }
 
     .glass-nav .nav-magnetic-glider {
@@ -1386,7 +1361,7 @@ import gsap from 'gsap';
       display: inline-flex !important;
       align-items: center !important;
       width: auto !important;
-      padding: 0.25rem 0.6rem 0.25rem 0 !important;
+      padding: clamp(0.15rem, 0.35vh, 0.26rem) 0.6rem clamp(0.15rem, 0.35vh, 0.26rem) 0 !important;
       font-size: 0.85rem !important;
       font-weight: 600 !important;
       letter-spacing: 0.2em !important;
@@ -1415,10 +1390,63 @@ import gsap from 'gsap';
     }
 
     .glass-nav .sidebar-colophon {
-      padding-top: 0.75rem !important;
-      gap: 0.45rem !important;
+      padding-top: clamp(0.4rem, 1vh, 0.75rem) !important;
+      padding-bottom: 0 !important;
+      gap: clamp(0.15rem, 0.3vh, 0.35rem) !important;
       font-size: 0.72rem !important;
-      line-height: 1.55 !important;
+      line-height: 1.45 !important;
+    }
+
+    /* 中等高度视口（含 125% 缩放或 768px 笔记本屏，视口高度 641px ~ 760px） */
+    @media (max-height: 760px) and (min-height: 641px) {
+      .glass-nav {
+        padding: clamp(0.6rem, 1.4vh, 1.1rem) 0 clamp(0.45rem, 1vh, 0.85rem) 0 !important;
+      }
+      .glass-nav .nav-top-block {
+        gap: clamp(0.55rem, 1.4vh, 0.95rem) !important;
+      }
+      .glass-nav .nav-cluster {
+        gap: clamp(0.55rem, 1.5vh, 1rem) !important;
+      }
+      .glass-nav .nav-links {
+        gap: clamp(0.55rem, 1.8vh, 1.15rem) !important;
+        margin-block: clamp(0.1rem, 0.3vh, 0.25rem) !important;
+      }
+      .glass-nav .nav-link {
+        padding: clamp(0.1rem, 0.25vh, 0.2rem) 0.6rem clamp(0.1rem, 0.25vh, 0.2rem) 0 !important;
+      }
+      .glass-nav .sidebar-colophon {
+        padding-top: clamp(0.35rem, 0.8vh, 0.6rem) !important;
+        gap: 0.15rem !important;
+      }
+    }
+
+    /* 紧凑高度视口（含 150% 缩放及小窗口，视口高度 <= 640px）：微调紧凑间距，确保全员同屏完整展现 */
+    @media (max-height: 640px) {
+      .glass-nav {
+        padding: clamp(0.35rem, 0.9vh, 0.65rem) 0 clamp(0.25rem, 0.6vh, 0.5rem) 0 !important;
+      }
+      .glass-nav .nav-top-block {
+        gap: clamp(0.3rem, 0.8vh, 0.55rem) !important;
+      }
+      .glass-nav .nav-cluster {
+        gap: clamp(0.3rem, 0.8vh, 0.55rem) !important;
+      }
+      .glass-nav .nav-links {
+        gap: clamp(0.2rem, 0.7vh, 0.45rem) !important;
+        margin-block: 0.1rem !important;
+      }
+      .glass-nav .nav-link {
+        padding: 0.04rem 0.6rem 0.04rem 0 !important;
+        font-size: 0.8rem !important;
+        line-height: 1.3 !important;
+      }
+      .glass-nav .sidebar-colophon {
+        padding-top: 0.2rem !important;
+        gap: 0.1rem !important;
+        font-size: 0.68rem !important;
+        line-height: 1.35 !important;
+      }
     }
 
     html[data-sidebar-folding="true"] .glass-nav-inner {

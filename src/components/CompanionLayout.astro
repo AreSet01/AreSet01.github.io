@@ -438,6 +438,10 @@
       const askFirst = captureOpenRect('ask');
       const notesFirst = captureOpenRect('notes');
 
+      lastActiveKind = initiator;
+      mode = 'split';
+      apply();
+
       guarded(() => {
         (['ask', 'notes'] as Kind[]).forEach((kind) => {
           const panel = panels[kind];
@@ -449,8 +453,6 @@
         });
       });
 
-      lastActiveKind = initiator;
-      mode = 'split';
       apply();
 
       if (!reduceMotion()) {
@@ -533,6 +535,9 @@
       const closeKind: Kind = keepKind === 'ask' ? 'notes' : 'ask';
       const firstRect = captureOpenRect(keepKind);
 
+      lastActiveKind = keepKind;
+      mode = 'rail';
+
       guarded(() => {
         (Object.keys(panels) as Kind[]).forEach((k) => panels[k]?.api.setFull(false, { silent: true }));
         if (panels[closeKind]?.api.isOpen()) {
@@ -543,8 +548,6 @@
         }
       });
 
-      lastActiveKind = keepKind;
-      mode = 'rail';
       apply();
 
       const keepEl = panels[keepKind]?.el;
@@ -816,6 +819,7 @@
       leaveToRail,
       toggleFull,
       sync: () => {
+        if (internalDepth > 0) return;
         // 确保单浮岛约束不被破坏
         if (mode === 'rail' && panels.notes?.api.isOpen() && panels.ask?.api.isOpen()) {
           const closeKind: Kind = lastActiveKind === 'notes' ? 'ask' : 'notes';

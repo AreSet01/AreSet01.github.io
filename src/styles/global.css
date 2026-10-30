@@ -912,7 +912,9 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
   color: var(--ink-strong);
   text-wrap: balance;
   padding-left: 1.8rem;
-  padding-block: 0.4rem;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  overflow: visible;
 }
 
 .section-title::before {
@@ -1313,8 +1315,8 @@ h1, h2, h3, h4, h5, h6, .brand-mark, .nav-link {
     border-image: linear-gradient(to bottom, transparent 5%, var(--rule) 50%, transparent 95%) 1;
     display: flex;
     flex-direction: column;
-    padding: clamp(1.2rem, 2.5vh, 1.8rem) 0 clamp(1.2rem, 2.5vh, 1.8rem) 0;
-    overflow-y: hidden;
+    padding: clamp(0.75rem, 1.8vh, 1.4rem) 0 clamp(0.85rem, 2vh, 1.5rem) 0;
+    overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: none;
   }
@@ -4622,13 +4624,15 @@ body.preview-open .site-shell {
   max-width: clamp(26ch, 65vw, 42ch);
   margin: 2rem 0 0;
   padding-left: 2rem;
-  padding-block: 0.4rem;
+  padding-top: 0.35rem;
+  padding-bottom: 0.4rem;
   color: var(--ink-strong);
   font-family: var(--font-hand-title);
   font-size: clamp(3.4rem, 9vw, 7.2rem);
   font-weight: 500;
   line-height: 1.35;
   letter-spacing: var(--font-letter-title);
+  overflow: visible;
 }
 
 .home-hero-title .hero-title-phrase {
@@ -5114,6 +5118,7 @@ html[data-font="kai"] .stats-label {
   padding: 1.5rem;
   border-radius: 8px;
   transition: transform 320ms var(--ease-bounce), color 260ms var(--ease);
+  overflow: visible;
 }
 
 .home-feature::after {
@@ -5151,7 +5156,9 @@ html[data-font="kai"] .stats-label {
   font-weight: 500;
   line-height: 1.35;
   letter-spacing: var(--font-letter-title);
-  padding-block: 0.2rem;
+  padding-top: 0.35rem;
+  padding-bottom: 0.25rem;
+  overflow: visible;
 }
 
 .home-feature-main p,
@@ -5209,6 +5216,8 @@ html[data-font="kai"] .stats-label {
   line-height: 1.35;
   height: 100%;
   padding-inline: 1rem;
+  padding-top: 0.35rem;
+  overflow: visible;
 }
 
 @media (max-width: 1023.98px) {
@@ -5251,15 +5260,15 @@ html[data-font="kai"] .stats-label {
 }
 
 .notes-section {
-  padding-top: clamp(2.8rem, 6vw, 5rem);
+  padding-top: clamp(1.6rem, 3.5vh + 0.6vw, 3.6rem);
   box-shadow: none;
 }
 
 .notes-heading {
   display: grid;
-  gap: 1.4rem;
-  margin-bottom: 2.4rem;
-  padding-bottom: 2.2rem;
+  gap: 1.2rem;
+  margin-bottom: clamp(1.2rem, 2.2vh, 2rem);
+  padding-bottom: clamp(1rem, 2vh, 1.6rem);
   border-bottom: 1px solid transparent;
   border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;
 }
@@ -5274,7 +5283,7 @@ html[data-font="kai"] .stats-label {
 
 .notes-grid {
   display: grid;
-  gap: 2.5rem 2rem;
+  gap: clamp(1.5rem, 2.2vh + 0.8vw, 2.4rem) clamp(1.2rem, 1.8vw, 2rem);
 }
 
 .note-card {
@@ -5386,7 +5395,7 @@ html[data-font="kai"] .stats-label {
   .home-digest > * + * {
     border-left: 1px solid transparent !important;
     border-image: linear-gradient(to bottom, transparent 10%, var(--rule) 50%, transparent 90%) 1 !important;
-    padding-left: clamp(2rem, 4vw, 3.5rem);
+    padding-left: clamp(1.25rem, 2.5vw, 2.5rem);
   }
 
   .notes-heading {
@@ -5396,7 +5405,7 @@ html[data-font="kai"] .stats-label {
 
   .notes-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 3rem 2.4rem;
+    gap: clamp(1.5rem, 2.2vh + 0.8vw, 2.4rem) clamp(1.2rem, 1.8vw, 2rem);
   }
 
   .notes-grid > * + * {
@@ -6296,6 +6305,7 @@ body:has(article[data-post-title-hold="true"]) {
 }
 
 .post-title {
+  padding-top: clamp(0.35rem, 0.8vh, 0.55rem);
   padding-bottom: 0.6rem;
   margin-bottom: 1.6rem !important;
   width: fit-content;
@@ -6303,6 +6313,7 @@ body:has(article[data-post-title-hold="true"]) {
   overflow-wrap: break-word !important;
   word-break: normal !important;
   text-wrap: wrap !important;
+  overflow: visible;
 }
 
 @media (max-width: 640px) {

@@ -281,3 +281,26 @@ test('7. 审查发现项：换页重入、Esc 守卫、inert、小窗收起、�
   // openFull 不要对已打开面板重复 open（会多一次全量重绘）
   assert.match(companion, /if \(!target\.api\.isOpen\(\)\) \{\s*target\.api\.open\(\{ silent: true \}\);\s*\}/, '已打开的面板不要再 open 一次');
 });
+
+/* ------------------------------------------------ 8. 并排切换时序与防误杀护栏 */
+test('8. enterSplit 状态时序前置与 sync() 防重入守卫：避免单浮岛互斥误关并排面板', () => {
+  const companion = read('src/components/CompanionLayout.astro');
+
+  // enterSplit 内必须在 guarded() 打开对方抽屉之前将 mode 设为 split 并 apply
+  const enterSplitBody = companion.slice(
+    companion.indexOf('function enterSplit('),
+    companion.indexOf('function leaveToRail(')
+  );
+  const modeSplitPos = enterSplitBody.indexOf("mode = 'split';");
+  const guardedPos = enterSplitBody.indexOf('guarded(() => {');
+  assert.ok(modeSplitPos > -1, 'enterSplit 必须设置 mode = split');
+  assert.ok(guardedPos > -1, 'enterSplit 必须通过 guarded 执行开合');
+  assert.ok(modeSplitPos < guardedPos, 'mode = split 必须在 guarded() 打开面板之前设置，防止外部 sync 事件误判为 rail');
+
+  // sync() 必须具备防重入检查，协调器内部执行过渡时禁止触发单浮岛互斥
+  const syncBody = companion.slice(
+    companion.indexOf('sync: () => {'),
+    companion.indexOf('mode: () => mode,')
+  );
+  assert.match(syncBody, /if\s*\(internalDepth\s*>\s*0\)\s*return;/, 'sync() 入口必须检查 internalDepth > 0 防重入，杜绝互斥事件穿透');
+});
