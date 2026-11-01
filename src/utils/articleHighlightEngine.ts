@@ -60,7 +60,7 @@ export interface HighlightNodeRange {
 }
 
 const CONTEXT_RADIUS = 36;
-const SKIP_SELECTOR = '.code-block-toolbar, .mermaid-block-header, .mermaid-block-actions, button, svg, script, style, [data-no-search], [data-no-highlight]';
+const SKIP_SELECTOR = '.katex-mathml, .code-block-toolbar, .mermaid-block-header, .mermaid-block-actions, button, svg, script, style, [data-no-search], [data-no-highlight]';
 
 /**
  * 生成基于文章路径或 slug 的 localStorage 键名
@@ -707,6 +707,16 @@ export function getTextNodesInRange(range: Range): HighlightNodeRange[] {
  * 将匹配的文本范围应用为 <mark class="article-highlight-mark">
  * 保持代码高亮语法树层级，且完全保护原始属性
  */
+function findAtomicMathContainer(node: Node): HTMLElement | null {
+  const parent = node.nodeType === 1 ? (node as HTMLElement) : node.parentElement;
+  if (!parent) return null;
+  const display = parent.closest<HTMLElement>('.katex-display');
+  if (display) return display;
+  const inline = parent.closest<HTMLElement>('.katex');
+  if (inline) return inline;
+  return null;
+}
+
 export function applyRangesAsHighlight(
   nodeRanges: HighlightNodeRange[],
   record: ArticleHighlightRecord,
@@ -715,18 +725,68 @@ export function applyRangesAsHighlight(
   const marks: HTMLElement[] = [];
   if (!nodeRanges.length) return marks;
 
-  // 按文本节点分组并逆序分割，避免偏移失真
-  const nodeMap = new Map<Text, HighlightNodeRange[]>();
+  // 1. 按文档顺序分组：普通文本节点批次与原子数学公式容器 (.katex / .katex-display)
+  type RangeGroup =
+    | { kind: 'math'; container: HTMLElement }
+    | { kind: 'text'; node: Text; ranges: HighlightNodeRange[] };
+
+  const groups: RangeGroup[] = [];
+  const handledMathContainers = new Set<HTMLElement>();
+
   for (const r of nodeRanges) {
-    const list = nodeMap.get(r.textNode) || [];
-    list.push(r);
-    nodeMap.set(r.textNode, list);
+    if (!r.textNode) continue;
+    const mathContainer = findAtomicMathContainer(r.textNode);
+    if (mathContainer) {
+      if (!handledMathContainers.has(mathContainer)) {
+        handledMathContainers.add(mathContainer);
+        groups.push({ kind: 'math', container: mathContainer });
+      }
+      continue;
+    }
+
+    const last = groups[groups.length - 1];
+    if (last && last.kind === 'text' && last.node === r.textNode) {
+      last.ranges.push(r);
+    } else {
+      groups.push({ kind: 'text', node: r.textNode, ranges: [r] });
+    }
   }
 
-  let isFirst = true;
-  for (const [node, list] of nodeMap.entries()) {
+  // 2. 严格按文档正序生成各组 mark
+  for (const group of groups) {
+    if (group.kind === 'math') {
+      const mathContainer = group.container;
+      const isDisplay = Boolean(
+        mathContainer.classList?.contains?.('katex-display') ||
+        (mathContainer.classList as any)?.has?.('katex-display')
+      );
+      const mark = document.createElement('mark');
+      mark.className = isDisplay
+        ? 'article-highlight-mark is-display-math-card'
+        : 'article-highlight-mark is-atomic-math';
+      mark.dataset.highlightId = record.id;
+      mark.setAttribute('tabindex', '0');
+      mark.setAttribute('role', 'button');
+      mark.setAttribute('aria-label', `高亮标注：${(record.rawText || record.text).slice(0, 30)}`);
+      mark.title = `高亮笔记 (点击管理) · ${new Date(record.timestamp).toLocaleDateString()}`;
+
+      mathContainer.parentNode?.insertBefore(mark, mathContainer);
+      mark.appendChild(mathContainer);
+      marks.push(mark);
+      continue;
+    }
+
+    const node = group.node;
+    const list = group.ranges;
     list.sort((a, b) => b.localStart - a.localStart);
 
+    // 检查是否属于行内代码 code 标签
+    const codeParent = node.parentElement?.closest('code:not(pre code)');
+    if (codeParent) {
+      safeAddClass(codeParent, 'has-highlight-mark');
+    }
+
+    const nodeMarks: HTMLElement[] = [];
     for (const r of list) {
       try {
         const fullLen = node.nodeValue ? node.nodeValue.length : 0;
@@ -756,32 +816,30 @@ export function applyRangesAsHighlight(
 
         const mark = document.createElement('mark');
         mark.className = 'article-highlight-mark';
+        if (codeParent) mark.classList.add('is-code-mark');
         mark.dataset.highlightId = record.id;
         mark.setAttribute('tabindex', '0');
         mark.setAttribute('role', 'button');
         mark.setAttribute('aria-label', `高亮标注：${(record.rawText || record.text).slice(0, 30)}`);
         mark.title = `高亮笔记 (点击管理) · ${new Date(record.timestamp).toLocaleDateString()}`;
 
-        // 仅在首个 mark 上赋予定位锚点 id
-        if (isFirst) {
-          mark.id = record.id;
-          isFirst = false;
-        }
-
         matchNode.parentNode?.insertBefore(mark, matchNode);
         mark.appendChild(matchNode);
-        marks.push(mark);
+        nodeMarks.unshift(mark);
       } catch (e) {
         console.debug('[highlightEngine] text node split error:', e);
       }
     }
+    marks.push(...nodeMarks);
   }
 
-  // 区分单节点与多节点联合体，为首中尾标记不同类名，消除节点交接处的重叠暗斑与切角
+  // 3. 区分单节点与多节点联合体，为首中尾标记不同类名，消除节点交接处的重叠暗斑与切角
   if (marks.length === 1) {
     marks[0].classList.add('is-single-mark');
+    marks[0].id = record.id;
   } else if (marks.length > 1) {
     marks[0].classList.add('is-first-mark');
+    marks[0].id = record.id;
     for (let i = 1; i < marks.length - 1; i++) {
       marks[i].classList.add('is-middle-mark');
     }
@@ -799,6 +857,22 @@ export function applyHighlightToRange(range: Range, record: ArticleHighlightReco
   return applyRangesAsHighlight(nodeRanges, record, isDrawing);
 }
 
+function safeAddClass(el: any, cls: string) {
+  if (!el || !el.classList) return;
+  if (typeof el.classList.add === 'function') {
+    el.classList.add(cls);
+  }
+}
+
+function safeRemoveClass(el: any, cls: string) {
+  if (!el || !el.classList) return;
+  if (typeof el.classList.remove === 'function') {
+    el.classList.remove(cls);
+  } else if (typeof el.classList.delete === 'function') {
+    el.classList.delete(cls);
+  }
+}
+
 /**
  * 从 DOM 中完全清除指定 id 的高亮标记，并彻底恢复文本节点（无冗余残留）
  */
@@ -810,7 +884,16 @@ export function removeHighlightFromDOM(highlightId: string, proseRoot: Element):
     const parent = mark.parentNode;
     if (parent) {
       parentsToNormalize.add(parent);
+      if (parent.nodeType === 1 && (parent as HTMLElement).tagName === 'CODE') {
+        safeRemoveClass(parent, 'has-highlight-mark');
+      }
       while (mark.firstChild) {
+        if (mark.firstChild.nodeType === 1) {
+          const el = mark.firstChild as HTMLElement;
+          if (el.tagName === 'CODE') {
+            safeRemoveClass(el, 'has-highlight-mark');
+          }
+        }
         parent.insertBefore(mark.firstChild, mark);
       }
       mark.remove();

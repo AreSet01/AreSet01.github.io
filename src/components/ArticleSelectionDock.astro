@@ -917,6 +917,31 @@
       }, 320);
     }
 
+    // 智能原子吸附：选区触及公式或代码时，自动扩展包裹整个公式/代码块，绝不半途截断损坏排版
+    function expandRangeToAtomicContainers(range: Range): Range {
+      const cloned = range.cloneRange();
+      try {
+        const startEl = cloned.startContainer.nodeType === Node.ELEMENT_NODE
+          ? (cloned.startContainer as HTMLElement)
+          : cloned.startContainer.parentElement;
+        const startAtomic = startEl?.closest?.('.katex-display, .katex, code:not(pre code)');
+        if (startAtomic && prose.contains(startAtomic)) {
+          cloned.setStartBefore(startAtomic);
+        }
+
+        const endEl = cloned.endContainer.nodeType === Node.ELEMENT_NODE
+          ? (cloned.endContainer as HTMLElement)
+          : cloned.endContainer.parentElement;
+        const endAtomic = endEl?.closest?.('.katex-display, .katex, code:not(pre code)');
+        if (endAtomic && prose.contains(endAtomic)) {
+          cloned.setEndAfter(endAtomic);
+        }
+      } catch (err) {
+        console.debug('[dock] expandRangeToAtomicContainers error:', err);
+      }
+      return cloned;
+    }
+
     // ---------- 划词检测逻辑 ----------
     let selectionTimer = 0;
     function checkProseSelection() {
@@ -942,8 +967,8 @@
         return;
       }
 
-      // 有效选区，保存引用并展示创建微托盘
-      currentSelectedRange = range.cloneRange();
+      // 有效选区，执行智能原子吸附（公式与行内代码完整包裹）并展示创建微托盘
+      currentSelectedRange = expandRangeToAtomicContainers(range);
       activeHighlightId = null;
       showDock('create');
     }
@@ -2803,6 +2828,64 @@
     border-radius: 0 2px 2px 0 !important;
     padding: 0.05em 0.15em 0.05em 0 !important;
     margin: 0 !important;
+  }
+
+  /* 原子化行内数学公式高亮：整体包裹，保持行底金石线与底纹平整连续 */
+  mark.article-highlight-mark.is-atomic-math {
+    display: inline !important;
+    vertical-align: baseline !important;
+    box-decoration-break: clone !important;
+    -webkit-box-decoration-break: clone !important;
+  }
+  mark.article-highlight-mark.is-atomic-math .katex {
+    color: inherit !important;
+  }
+
+  /* 居中大公式块级卡片高亮：整块铺展，水墨琥珀底色与金石边框，公式居中 */
+  mark.article-highlight-mark.is-display-math-card {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    border-radius: 8px !important;
+    padding: 0.75rem 1.25rem !important;
+    margin: 1rem 0 !important;
+    background-image: linear-gradient(to right, var(--mark-sweep-bg), var(--mark-sweep-bg)) !important;
+    background-position: left top !important;
+    background-size: 100% 100% !important;
+    border: 1.5px solid var(--mark-sweep-line) !important;
+    box-shadow: 0 2px 14px rgba(235, 160, 20, 0.16) !important;
+    cursor: pointer;
+    transition: filter 0.2s ease, box-shadow 0.2s ease;
+    overflow-x: auto;
+  }
+  mark.article-highlight-mark.is-display-math-card:hover {
+    filter: brightness(1.03);
+    box-shadow: 0 4px 18px rgba(235, 160, 20, 0.24) !important;
+  }
+  [data-theme="dark"] mark.article-highlight-mark.is-display-math-card {
+    border-color: rgba(255, 215, 80, 0.45) !important;
+    box-shadow: 0 2px 16px rgba(255, 200, 60, 0.14) !important;
+  }
+  [data-theme="moss"] mark.article-highlight-mark.is-display-math-card {
+    border-color: rgba(255, 215, 95, 0.4) !important;
+    box-shadow: 0 2px 16px rgba(255, 215, 95, 0.12) !important;
+  }
+
+  /* 行内代码融合：去除独立灰黑背景框与多余边距，完美融入连续画带 */
+  .prose code:has(mark.article-highlight-mark),
+  .prose code.has-highlight-mark,
+  .prose mark.article-highlight-mark code {
+    background: transparent !important;
+    border: none !important;
+    border-color: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-left: 0.12em !important;
+    padding-right: 0.12em !important;
+    margin: 0 !important;
+    vertical-align: baseline !important;
   }
 
   /* 取消划线：只收走底纹/下划线，文字始终留在原位 */

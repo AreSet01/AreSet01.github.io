@@ -3055,6 +3055,22 @@ html.theme-switching .prose blockquote {
   color: var(--ink-strong);
 }
 
+.prose code:has(mark.article-highlight-mark),
+.prose code.has-highlight-mark,
+.prose mark.article-highlight-mark code {
+  background: transparent !important;
+  border: none !important;
+  border-color: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: 0.12em !important;
+  padding-right: 0.12em !important;
+  margin: 0 !important;
+  vertical-align: baseline !important;
+}
+
 .prose pre {
   position: relative;
   margin: 1.8em 0;
