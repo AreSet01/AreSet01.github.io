@@ -3063,11 +3063,19 @@ html.theme-switching .prose blockquote {
   border-color: transparent !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-  padding-left: 0.12em !important;
-  padding-right: 0.12em !important;
+  padding: 0 !important;
   margin: 0 !important;
+  display: inline !important;
+  vertical-align: baseline !important;
+  font-size: 1em !important;
+  line-height: inherit !important;
+}
+
+mark.article-highlight-mark.is-code-mark,
+.prose code mark.article-highlight-mark {
+  font-family: var(--font-mono) !important;
+  font-size: 1em !important;
+  line-height: inherit !important;
   vertical-align: baseline !important;
 }
 

@@ -3115,11 +3115,19 @@
     border-color: transparent !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-left: 0.12em !important;
-    padding-right: 0.12em !important;
+    padding: 0 !important;
     margin: 0 !important;
+    display: inline !important;
+    vertical-align: baseline !important;
+    font-size: 1em !important;
+    line-height: inherit !important;
+  }
+
+  mark.article-highlight-mark.is-code-mark,
+  .prose code mark.article-highlight-mark {
+    font-family: var(--font-mono) !important;
+    font-size: 1em !important;
+    line-height: inherit !important;
     vertical-align: baseline !important;
   }
 
@@ -5011,19 +5019,9 @@
      划线备注 1s 悬停提示框 (Hover Note Tooltip)
      ========================================================= */
 
-  /* 带有备注的高亮划线：微细金石/墨色虚线下沿与帮助手势光标 */
+  /* 带有备注的高亮划线：保持平整连续的金石底线与底纹，呈现帮助手势光标 */
   mark.article-highlight-mark.has-note-comment {
-    cursor: help;
-    text-decoration: underline dotted 1.8px var(--accent, rgba(154, 104, 24, 0.7));
-    text-underline-offset: 3px;
-  }
-
-  [data-theme="dark"] mark.article-highlight-mark.has-note-comment {
-    text-decoration-color: var(--accent, rgba(229, 167, 78, 0.75));
-  }
-
-  [data-theme="moss"] mark.article-highlight-mark.has-note-comment {
-    text-decoration-color: var(--accent, rgba(95, 179, 134, 0.8));
+    cursor: help !important;
   }
 
   /* 提示框主体容器 */
