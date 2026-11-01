@@ -685,11 +685,13 @@
       q.className = 'ink-ask-q';
       const isFirst = thread.children.length === 0;
       q.innerHTML =
-        `<span class="ink-ask-q-tag">${isFirst ? '提问' : '追问'}</span>` +
-        `<span class="ink-ask-q-text">${escapeHtml(question)}</span>` +
-        (onRecall
-          ? `<button type="button" class="ink-ask-q-recall" aria-label="撤回提问并放回输入框" title="撤回提问并放回输入框">${ICON_RECALL}<span>撤回</span></button>`
-          : '');
+        `<div class="ink-ask-q-head">` +
+          `<span class="ink-ask-q-tag">${isFirst ? '提问' : '追问'}</span>` +
+          (onRecall
+            ? `<button type="button" class="ink-ask-q-recall" aria-label="撤回提问并放回输入框" title="撤回提问并放回输入框">${ICON_RECALL}<span>撤回</span></button>`
+            : '') +
+        `</div>` +
+        `<div class="ink-ask-q-text">${escapeHtml(question)}</div>`;
       if (onRecall) {
         const recallBtn = q.querySelector<HTMLButtonElement>('.ink-ask-q-recall');
         recallBtn?.addEventListener('click', (e) => {
@@ -831,11 +833,13 @@
       q.className = 'ink-ask-q';
       const isFirst = thread.children.length === 0;
       q.innerHTML =
-        `<span class="ink-ask-q-tag">${isFirst ? '提问' : '追问'}</span>` +
-        `<span class="ink-ask-q-text">${escapeHtml(turnData.question)}</span>` +
-        (onRecall
-          ? `<button type="button" class="ink-ask-q-recall" aria-label="撤回提问并放回输入框" title="撤回提问并放回输入框">${ICON_RECALL}<span>撤回</span></button>`
-          : '');
+        `<div class="ink-ask-q-head">` +
+          `<span class="ink-ask-q-tag">${isFirst ? '提问' : '追问'}</span>` +
+          (onRecall
+            ? `<button type="button" class="ink-ask-q-recall" aria-label="撤回提问并放回输入框" title="撤回提问并放回输入框">${ICON_RECALL}<span>撤回</span></button>`
+            : '') +
+        `</div>` +
+        `<div class="ink-ask-q-text">${escapeHtml(turnData.question)}</div>`;
       if (onRecall) {
         const recallBtn = q.querySelector<HTMLButtonElement>('.ink-ask-q-recall');
         recallBtn?.addEventListener('click', (e) => {
@@ -2510,8 +2514,8 @@
   /* 提问签条（克制温润书页批签） */
   .ink-ask-q {
     display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
+    flex-direction: column;
+    gap: 0.36rem;
     margin: 0 0 0.7rem;
     padding: 0.52rem 0.82rem;
     border: 1px solid var(--rule-soft);
@@ -2532,11 +2536,17 @@
       transform: translateY(0);
     }
   }
+  .ink-ask-q-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 0.5rem;
+  }
   .ink-ask-q-tag {
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
-    margin-top: 0.12rem;
     padding: 0.08rem 0.42rem;
     border: 1px solid var(--rule);
     border-radius: 5px;
@@ -2549,12 +2559,12 @@
     letter-spacing: 0.04em;
   }
   .ink-ask-q-text {
-    flex: 1;
+    width: 100%;
     font-weight: 500;
     white-space: pre-wrap;
     word-break: break-word;
     overflow-wrap: anywhere;
-    line-height: 1.58;
+    line-height: 1.62;
   }
 
   .ink-ask-q-recall {
@@ -2562,9 +2572,8 @@
     align-items: center;
     gap: 3px;
     padding: 2px 7px;
-    margin-left: 0.35rem;
+    margin-left: auto;
     flex-shrink: 0;
-    align-self: flex-start;
     border-radius: 6px;
     border: 1px solid transparent;
     background: transparent;
