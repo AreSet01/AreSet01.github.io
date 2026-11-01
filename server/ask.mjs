@@ -57,7 +57,7 @@ const config = {
   perDay: positive('ASK_RATE_PER_DAY', 60),
   dailyLimit: positive('ASK_DAILY_LIMIT', 800),
   maxConcurrent: positive('ASK_MAX_CONCURRENT', 12),
-  questionLimit: positive('ASK_QUESTION_LIMIT', 300),
+  questionLimit: positive('ASK_QUESTION_LIMIT', 2000),
   systemPrompt: (process.env.ASK_SYSTEM_PROMPT || '').trim() || DEFAULT_SYSTEM_PROMPT,
   contextLength: positive('ASK_CONTEXT_LENGTH', 700),
   idleTimeout: positive('ASK_IDLE_TIMEOUT', 60),

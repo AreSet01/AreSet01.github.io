@@ -2718,18 +2718,38 @@
     margin-bottom: 0;
   }
   .ink-ask-answer ul {
-    padding-left: 1.3em;
-    list-style: disc;
+    margin: 0.45em 0 0.72em;
+    padding-left: 1.55em !important;
+    list-style: disc !important;
+    list-style-type: disc !important;
+    list-style-position: outside !important;
   }
   .ink-ask-answer ol {
-    padding-left: 1.4em;
-    list-style: decimal;
+    margin: 0.45em 0 0.72em;
+    padding-left: 1.65em !important;
+    list-style: decimal !important;
+    list-style-type: decimal !important;
+    list-style-position: outside !important;
+  }
+  .ink-ask-answer ul ul,
+  .ink-ask-answer ol ul {
+    list-style-type: circle !important;
+  }
+  .ink-ask-answer ul ol,
+  .ink-ask-answer ol ol {
+    list-style-type: lower-roman !important;
   }
   .ink-ask-answer li {
-    margin-bottom: 0.28em;
+    display: list-item !important;
+    list-style: inherit !important;
+    list-style-type: inherit !important;
+    margin-bottom: 0.34em;
+    line-height: 1.76;
   }
   .ink-ask-answer li::marker {
     color: var(--vermilion);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif !important;
+    font-weight: 600;
   }
   .ink-ask-answer strong,
   .ink-ask-answer .ink-ask-h {

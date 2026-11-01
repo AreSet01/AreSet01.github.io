@@ -4256,14 +4256,32 @@
     margin: 0.4em 0;
   }
 
-  .notes-item-markdown ul,
+  .notes-item-markdown ul {
+    margin: 0.4em 0;
+    padding-left: 1.55em !important;
+    list-style: disc !important;
+    list-style-type: disc !important;
+    list-style-position: outside !important;
+  }
   .notes-item-markdown ol {
     margin: 0.4em 0;
-    padding-left: 1.25em;
+    padding-left: 1.65em !important;
+    list-style: decimal !important;
+    list-style-type: decimal !important;
+    list-style-position: outside !important;
   }
 
   .notes-item-markdown li {
-    margin: 0.15em 0;
+    display: list-item !important;
+    list-style: inherit !important;
+    list-style-type: inherit !important;
+    margin: 0.22em 0;
+  }
+
+  .notes-item-markdown li::marker {
+    color: var(--accent-strong);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif !important;
+    font-weight: 600;
   }
 
   .notes-item-markdown .md-heading {
