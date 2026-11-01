@@ -5,6 +5,7 @@ import remarkCjkFriendly from 'remark-cjk-friendly';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { rehypeTableScroll } from './src/utils/rehypeTableScroll.ts';
+import { rehypeAlertCallouts } from './src/utils/rehypeAlertCallouts.ts';
 
 /**
  * Fence meta we understand, e.g.
@@ -161,7 +162,7 @@ export default defineConfig({
     // 让 **…** 在中文全角标点旁也能正确解析（CommonMark 的 flanking 规则在 CJK 下会失效）；
     // 必须放在 remarkMermaid 之前，确保解析阶段就挂上 micromark 扩展。
     remarkPlugins: [remarkCjkFriendly, remarkMath, remarkMermaid],
-    rehypePlugins: [rehypeKatex, rehypeTableScroll],
+    rehypePlugins: [rehypeKatex, rehypeAlertCallouts, rehypeTableScroll],
     shikiConfig: {
       transformers: [codeMetaTransformer],
     },

@@ -3186,6 +3186,183 @@ html.theme-switching .prose blockquote {
   background: transparent;
 }
 
+/* =========================================================
+   Callout Cards (GitHub Alerts / 水墨书斋文人提示框)
+   ========================================================= */
+
+.callout-card,
+.prose .callout-card {
+  position: relative;
+  margin: 2.2em 0;
+  padding: 1.15em 1.4em 1.15em 1.45em;
+  border-radius: 6px;
+  border: 1px solid var(--callout-border, var(--rule-soft));
+  border-left: 3.5px solid var(--callout-accent, var(--ink));
+  background: var(--callout-bg, var(--bg-soft));
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+  transition: border-color 0.25s var(--ease), background 0.25s var(--ease);
+  overflow-wrap: break-word;
+}
+
+.callout-card::before,
+.callout-card::after,
+.prose .callout-card::before,
+.prose .callout-card::after {
+  display: none !important;
+  content: none !important;
+}
+
+.callout-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  margin-bottom: 0.65em;
+  line-height: 1.4;
+  user-select: none;
+}
+
+.callout-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--callout-accent);
+}
+
+.callout-svg-icon {
+  width: 1.15em;
+  height: 1.15em;
+  display: block;
+}
+
+.callout-title {
+  font-family: var(--font-serif);
+  font-size: 0.98em;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--callout-title-color, var(--text-strong));
+}
+
+.callout-body {
+  font-family: var(--font-body);
+  font-size: 0.95em;
+  line-height: 1.82;
+  color: var(--ink);
+}
+
+.callout-body > *:first-child {
+  margin-top: 0 !important;
+}
+
+.callout-body > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+.callout-body p {
+  margin: 0.65em 0;
+}
+
+.callout-body ul,
+.callout-body ol {
+  margin: 0.65em 0;
+  padding-left: 1.6em;
+}
+
+.callout-body li {
+  margin: 0.35em 0;
+}
+
+.callout-body code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+/* ---------- 5 大主题色阶（东方水墨色系） ---------- */
+
+/* 1. Note: 霁蓝 / 墨蓝 */
+.callout-note {
+  --callout-accent: #2c638e;
+  --callout-title-color: #204868;
+  --callout-border: rgba(44, 99, 142, 0.22);
+  --callout-bg: rgba(44, 99, 142, 0.045);
+}
+
+/* 2. Tip: 松柏青 / 竹青 */
+.callout-tip {
+  --callout-accent: #2d734e;
+  --callout-title-color: #1e5237;
+  --callout-border: rgba(45, 115, 78, 0.22);
+  --callout-bg: rgba(45, 115, 78, 0.045);
+}
+
+/* 3. Important: 金石琥珀 / 雄黄 */
+.callout-important {
+  --callout-accent: #9a6818;
+  --callout-title-color: #754d0f;
+  --callout-border: rgba(154, 104, 24, 0.22);
+  --callout-bg: rgba(154, 104, 24, 0.05);
+}
+
+/* 4. Warning: 赭石 / 警策朱砂 */
+.callout-warning {
+  --callout-accent: #b24b26;
+  --callout-title-color: #8c3618;
+  --callout-border: rgba(178, 75, 38, 0.22);
+  --callout-bg: rgba(178, 75, 38, 0.05);
+}
+
+/* 5. Caution: 茜红 / 胭脂重墨 */
+.callout-caution {
+  --callout-accent: #a92c3d;
+  --callout-title-color: #821d2b;
+  --callout-border: rgba(169, 44, 61, 0.22);
+  --callout-bg: rgba(169, 44, 61, 0.055);
+}
+
+/* ---------- 暗色模式适配 ---------- */
+[data-theme="dark"] .callout-note {
+  --callout-accent: #72aade;
+  --callout-title-color: #9ac4ee;
+  --callout-border: rgba(114, 170, 222, 0.22);
+  --callout-bg: rgba(114, 170, 222, 0.08);
+}
+
+[data-theme="dark"] .callout-tip {
+  --callout-accent: #61bd89;
+  --callout-title-color: #8ad2aa;
+  --callout-border: rgba(97, 189, 137, 0.22);
+  --callout-bg: rgba(97, 189, 137, 0.08);
+}
+
+[data-theme="dark"] .callout-important {
+  --callout-accent: #e5a74e;
+  --callout-title-color: #f0c37e;
+  --callout-border: rgba(229, 167, 78, 0.22);
+  --callout-bg: rgba(229, 167, 78, 0.085);
+}
+
+[data-theme="dark"] .callout-warning {
+  --callout-accent: #e47d57;
+  --callout-title-color: #f2a080;
+  --callout-border: rgba(228, 125, 87, 0.22);
+  --callout-bg: rgba(228, 125, 87, 0.085);
+}
+
+[data-theme="dark"] .callout-caution {
+  --callout-accent: #e76c7e;
+  --callout-title-color: #f294a2;
+  --callout-border: rgba(231, 108, 126, 0.22);
+  --callout-bg: rgba(231, 108, 126, 0.09);
+}
+
+/* ---------- Moss 青苔绿主题微调 ---------- */
+[data-theme="moss"] .callout-tip {
+  --callout-accent: #4a8a64;
+  --callout-title-color: #36694b;
+  --callout-border: rgba(74, 138, 100, 0.26);
+  --callout-bg: rgba(74, 138, 100, 0.06);
+}
+
 .prose ul {
   margin: 0 0 1.4em;
   padding-left: 1.6em;

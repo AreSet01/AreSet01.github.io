@@ -170,18 +170,55 @@ marked.setOptions({
   renderer: defaultRenderer,
 });
 
+const CALLOUT_ICONS_SVG: Record<string, string> = {
+  note: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="callout-svg-icon" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
+  tip: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="callout-svg-icon" aria-hidden="true"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>',
+  important: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="callout-svg-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>',
+  warning: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="callout-svg-icon" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+  caution: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="callout-svg-icon" aria-hidden="true"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>',
+};
+
+const DEFAULT_TITLES: Record<string, string> = {
+  note: '提示',
+  tip: '技巧',
+  important: '重要',
+  warning: '注意',
+  caution: '警告',
+};
+
+/** 将 HTML 中的 GitHub Alerts 转换为水墨风格 Callout 容器 */
+export function transformAlertCalloutsHtml(html: string): string {
+  if (!html || !html.includes('[!')) return html;
+
+  return html.replace(
+    /<blockquote>\s*<p>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*([^\r\n<]*)(?:<br\s*\/?>|\n)?([\s\S]*?)<\/p>([\s\S]*?)<\/blockquote>/gi,
+    (_match, rawType, inlineTitle, firstParaRest, remainingQuote) => {
+      const type = String(rawType).toLowerCase();
+      const defaultTitle = DEFAULT_TITLES[type] || rawType.toUpperCase();
+      const title = (inlineTitle || '').trim() || defaultTitle;
+      const svgIcon = CALLOUT_ICONS_SVG[type] || CALLOUT_ICONS_SVG.note;
+      const restText = (firstParaRest || '').trim();
+      const restP = restText ? `<p>${restText}</p>` : '';
+      const body = `${restP}${remainingQuote || ''}`.trim();
+
+      return `<aside class="callout-card callout-${type}" data-callout="${type}" role="note"><div class="callout-header"><span class="callout-icon" aria-hidden="true">${svgIcon}</span><span class="callout-title">${title}</span></div><div class="callout-body">${body}</div></aside>`;
+    }
+  );
+}
+
 /** 墨问回答 / AI 笔记共用：预处理 + marked + 清洗，返回 HTML 字符串 */
 export function renderMarkdown(src: string, options: RenderMarkdownOptions = {}): string {
   try {
     const renderer = options.heading === 'h' ? noteRenderer : defaultRenderer;
     const parsed = marked.parse(preprocessMarkdown(src), { renderer });
-    return typeof parsed === 'string' ? sanitizeHtml(parsed) : '';
+    const html = typeof parsed === 'string' ? parsed : '';
+    return sanitizeHtml(transformAlertCalloutsHtml(html));
   } catch {
     return escapeHtml(src).replace(/\n/g, '<br>');
   }
 }
 
-const SKIP_MD_SELECTOR = '.code-block-toolbar, .mermaid-block-header, .mermaid-block-actions, button, svg, script, style, [data-no-search], [data-no-highlight]';
+const SKIP_MD_SELECTOR = '.code-block-toolbar, .mermaid-block-header, .mermaid-block-actions, .callout-icon, button, svg, script, style, [data-no-search], [data-no-highlight]';
 
 /**
  * 将 DOM 选区 (Range) 或元素节点转换为纯净规范的 Markdown。
@@ -285,7 +322,22 @@ export function domRangeToMarkdown(rangeOrNode: Range | Node | string | null | u
       return `${leading}~~${trimmed}~~${trailing}`;
     }
 
-    // 8. 引用块 <blockquote>
+    // 8. 提示框卡片 <aside class="callout-card"> 或 引用块 <blockquote>
+    if (el.classList?.contains('callout-card') || (tag === 'ASIDE' && el.getAttribute('data-callout'))) {
+      const type = (el.getAttribute('data-callout') || 'NOTE').toUpperCase();
+      const title = el.querySelector('.callout-title')?.textContent?.trim() || '';
+      const bodyEl = el.querySelector('.callout-body') || el;
+      const inner = Array.from(bodyEl.childNodes).map(nodeToMd).join('').trim();
+      const headerLine = title ? `> [!${type}] ${title}` : `> [!${type}]`;
+      const quoted = inner
+        ? inner
+            .split('\n')
+            .map((l) => (l.trim() ? `> ${l}` : '>'))
+            .join('\n')
+        : '';
+      return `\n\n${headerLine}${quoted ? `\n${quoted}` : ''}\n\n`;
+    }
+
     if (tag === 'BLOCKQUOTE') {
       const inner = Array.from(el.childNodes).map(nodeToMd).join('').trim();
       const quoted = inner
