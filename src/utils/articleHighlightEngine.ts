@@ -818,6 +818,7 @@ export function applyRangesAsHighlight(
         mark.className = 'article-highlight-mark';
         if (codeParent) mark.classList.add('is-code-mark');
         mark.dataset.highlightId = record.id;
+        if (record.comment?.trim()) mark.classList.add('has-note-comment');
         mark.setAttribute('tabindex', '0');
         mark.setAttribute('role', 'button');
         mark.setAttribute('aria-label', `高亮标注：${(record.rawText || record.text).slice(0, 30)}`);

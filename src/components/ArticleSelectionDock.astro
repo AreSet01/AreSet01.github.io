@@ -343,6 +343,29 @@
   </div>
 </aside>
 
+<!-- 划线备注悬停提示框 (Hover Note Tooltip: 悬停 1s 展示，离开消失) -->
+<div
+  id="article-note-hover-tooltip"
+  class="note-hover-tooltip"
+  role="tooltip"
+  aria-hidden="true"
+  hidden
+>
+  <div class="note-hover-tooltip-card">
+    <div class="note-hover-tooltip-header">
+      <div class="note-hover-tooltip-badge">
+        <svg class="note-hover-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span>笔记备注</span>
+      </div>
+      <span class="note-hover-tooltip-date" id="note-hover-tooltip-date"></span>
+    </div>
+    <div class="note-hover-tooltip-body" id="note-hover-tooltip-content"></div>
+  </div>
+  <div class="note-hover-tooltip-arrow" id="note-hover-tooltip-arrow" aria-hidden="true"></div>
+</div>
+
 <script>
   import {
     loadHighlights,
@@ -760,6 +783,7 @@
     // 1. 初次加载：扫描并重新挂载持久化高亮
     rehydrateHighlights(storedRecords, prose);
     updateBadges();
+    syncMarksCommentClass();
 
     window.addEventListener('article-notes:synced', () => {
       const incomingRecords = loadHighlights(postSlug);
@@ -788,8 +812,214 @@
 
       storedRecords = incomingRecords;
       updateBadges();
+      syncMarksCommentClass();
       if (drawer?.classList.contains('is-open')) renderDrawerNotes();
     }, { signal });
+
+    // ---------- 正文划线备注 1s 悬停提示框 (Hover Note Tooltip) ----------
+    const hoverTooltip = document.getElementById('article-note-hover-tooltip');
+    const hoverTooltipContent = document.getElementById('note-hover-tooltip-content');
+    const hoverTooltipDate = document.getElementById('note-hover-tooltip-date');
+    const hoverTooltipArrow = document.getElementById('note-hover-tooltip-arrow');
+
+    let hoverTimer: number | null = null;
+    let leaveTimer: number | null = null;
+    let activeTooltipId: string | null = null;
+    let isTooltipVisible = false;
+
+    const HOVER_DELAY = 1000; // 悬停 1s 触发
+    const HIDE_DELAY = 220;   // 移出微缓冲
+
+    function syncMarksCommentClass() {
+      const recordsWithComment = new Set(
+        storedRecords.filter((r) => !r.deleted && Boolean(r.comment?.trim())).map((r) => r.id)
+      );
+      prose.querySelectorAll<HTMLElement>('.article-highlight-mark').forEach((mark) => {
+        const id = mark.dataset.highlightId;
+        mark.classList.toggle('has-note-comment', Boolean(id && recordsWithComment.has(id)));
+      });
+    }
+
+    function cancelHoverTimer() {
+      if (hoverTimer) {
+        window.clearTimeout(hoverTimer);
+        hoverTimer = null;
+      }
+    }
+
+    function cancelLeaveTimer() {
+      if (leaveTimer) {
+        window.clearTimeout(leaveTimer);
+        leaveTimer = null;
+      }
+    }
+
+    function hideHoverTooltip(immediate = false) {
+      cancelHoverTimer();
+      cancelLeaveTimer();
+      if (!hoverTooltip || !isTooltipVisible) return;
+
+      isTooltipVisible = false;
+      activeTooltipId = null;
+      hoverTooltip.classList.remove('is-visible');
+
+      if (immediate) {
+        hoverTooltip.hidden = true;
+        hoverTooltip.setAttribute('aria-hidden', 'true');
+      } else {
+        leaveTimer = window.setTimeout(() => {
+          if (!isTooltipVisible && hoverTooltip) {
+            hoverTooltip.hidden = true;
+            hoverTooltip.setAttribute('aria-hidden', 'true');
+          }
+        }, 200);
+      }
+    }
+
+    function scheduleHideTooltip(delay = HIDE_DELAY) {
+      cancelLeaveTimer();
+      leaveTimer = window.setTimeout(() => {
+        hideHoverTooltip();
+      }, delay);
+    }
+
+    function positionHoverTooltip(targetEl: HTMLElement) {
+      if (!hoverTooltip) return;
+      const rect = targetEl.getBoundingClientRect();
+      const tooltipRect = hoverTooltip.getBoundingClientRect();
+
+      const vw = window.innerWidth;
+      const margin = 14;
+
+      const tooltipWidth = tooltipRect.width || 300;
+      const halfWidth = tooltipWidth / 2;
+      let targetCenterX = rect.left + rect.width / 2;
+      const clampedX = Math.max(margin + halfWidth, Math.min(vw - margin - halfWidth, targetCenterX));
+
+      const arrowOffset = Math.max(-halfWidth + 16, Math.min(halfWidth - 16, targetCenterX - clampedX));
+      if (hoverTooltipArrow) {
+        hoverTooltipArrow.style.left = `calc(50% + ${arrowOffset}px)`;
+      }
+
+      const gap = 10;
+      const tooltipHeight = tooltipRect.height || 120;
+      let placement = 'top';
+
+      if (rect.top - tooltipHeight - gap < 16) {
+        placement = 'bottom';
+        hoverTooltip.style.top = `${Math.round(rect.bottom + gap)}px`;
+      } else {
+        placement = 'top';
+        hoverTooltip.style.top = `${Math.round(rect.top - gap)}px`;
+      }
+
+      hoverTooltip.style.left = `${Math.round(clampedX)}px`;
+      hoverTooltip.dataset.placement = placement;
+    }
+
+    function showHoverTooltip(targetMark: HTMLElement, record: ArticleHighlightRecord) {
+      if (!hoverTooltip || !hoverTooltipContent) return;
+      const comment = record.comment?.trim();
+      if (!comment) return;
+
+      hoverTooltipContent.innerHTML = renderMarkdown(comment);
+
+      if (hoverTooltipDate && record.updatedAt) {
+        const d = new Date(record.updatedAt);
+        hoverTooltipDate.textContent = `${d.getMonth() + 1}月${d.getDate()}日`;
+      } else if (hoverTooltipDate) {
+        hoverTooltipDate.textContent = '';
+      }
+
+      activeTooltipId = record.id;
+      isTooltipVisible = true;
+      hoverTooltip.hidden = false;
+      hoverTooltip.setAttribute('aria-hidden', 'false');
+
+      positionHoverTooltip(targetMark);
+
+      requestAnimationFrame(() => {
+        hoverTooltip.classList.add('is-visible');
+      });
+    }
+
+    prose.addEventListener('mouseover', (e) => {
+      const target = e.target as HTMLElement | null;
+      const mark = target?.closest<HTMLElement>('.article-highlight-mark');
+
+      if (!mark) {
+        cancelHoverTimer();
+        return;
+      }
+
+      const id = mark.dataset.highlightId;
+      if (!id) {
+        cancelHoverTimer();
+        return;
+      }
+
+      const record = storedRecords.find((r) => r.id === id && !r.deleted);
+      if (!record || !record.comment?.trim()) {
+        cancelHoverTimer();
+        return;
+      }
+
+      if (isTooltipVisible && activeTooltipId === id) {
+        cancelLeaveTimer();
+        return;
+      }
+
+      cancelHoverTimer();
+      cancelLeaveTimer();
+
+      hoverTimer = window.setTimeout(() => {
+        showHoverTooltip(mark, record);
+      }, HOVER_DELAY);
+    }, { signal });
+
+    prose.addEventListener('mouseout', (e) => {
+      const target = e.target as HTMLElement | null;
+      const mark = target?.closest<HTMLElement>('.article-highlight-mark');
+      if (!mark) return;
+
+      const related = e.relatedTarget as HTMLElement | null;
+      if (related && related.closest<HTMLElement>('.article-highlight-mark') === mark) {
+        return;
+      }
+      if (hoverTooltip && related && hoverTooltip.contains(related)) {
+        return;
+      }
+
+      cancelHoverTimer();
+
+      if (isTooltipVisible) {
+        scheduleHideTooltip();
+      }
+    }, { signal });
+
+    if (hoverTooltip) {
+      hoverTooltip.addEventListener('mouseenter', () => {
+        cancelLeaveTimer();
+      }, { signal });
+
+      hoverTooltip.addEventListener('mouseleave', (e) => {
+        const related = e.relatedTarget as HTMLElement | null;
+        if (related && related.closest('.article-highlight-mark')) {
+          return;
+        }
+        hideHoverTooltip();
+      }, { signal });
+    }
+
+    window.addEventListener('scroll', () => {
+      cancelHoverTimer();
+      if (isTooltipVisible) hideHoverTooltip(true);
+    }, { signal, passive: true });
+
+    window.addEventListener('resize', () => {
+      cancelHoverTimer();
+      if (isTooltipVisible) hideHoverTooltip(true);
+    }, { signal, passive: true });
 
     // ---------- UI 状态同步 ----------
     function updateBadges() {
@@ -839,6 +1069,7 @@
 
     // ---------- 底部浮动微托盘展示与隐藏 ----------
     function showDock(mode: 'create' | 'manage') {
+      hideHoverTooltip(true);
       if (!dock || !dockCapsule) return;
       if (dockTimeoutId !== null) {
         window.clearTimeout(dockTimeoutId);
@@ -1835,6 +2066,7 @@
                 saveHighlights(postSlug, storedRecords);
               }
               updateBadges();
+              syncMarksCommentClass();
               notifyNotesChanged();
               closeEditor();
               checkCardOverflow(card);
@@ -1941,6 +2173,7 @@
                 saveHighlights(postSlug, storedRecords);
               }
               updateBadges();
+              syncMarksCommentClass();
               notifyNotesChanged();
               closeEditor();
               checkCardOverflow(card);
@@ -2425,6 +2658,7 @@
     // ---------- 抽屉开合 ----------
 
     function openNotesDrawer(opts?: { silent?: boolean } | Event) {
+      hideHoverTooltip(true);
       if (!drawer || !backdrop) return;
       const isSilent = Boolean(opts && !(opts instanceof Event) && opts.silent);
       hideDock();
@@ -2732,6 +2966,7 @@
 
     // astro 换页清理
     (window as any)[CLEANUP_KEY] = () => {
+      hideHoverTooltip(true);
       if (unbindDrawerScroll) unbindDrawerScroll();
       document.body.classList.remove('has-selection-dock-open');
       controller.abort();
@@ -4770,6 +5005,223 @@
     color: #e53935;
     border-color: rgba(229, 57, 53, 0.4);
     background: rgba(229, 57, 53, 0.08);
+  }
+
+  /* =========================================================
+     划线备注 1s 悬停提示框 (Hover Note Tooltip)
+     ========================================================= */
+
+  /* 带有备注的高亮划线：微细金石/墨色虚线下沿与帮助手势光标 */
+  mark.article-highlight-mark.has-note-comment {
+    cursor: help;
+    text-decoration: underline dotted 1.8px var(--accent, rgba(154, 104, 24, 0.7));
+    text-underline-offset: 3px;
+  }
+
+  [data-theme="dark"] mark.article-highlight-mark.has-note-comment {
+    text-decoration-color: var(--accent, rgba(229, 167, 78, 0.75));
+  }
+
+  [data-theme="moss"] mark.article-highlight-mark.has-note-comment {
+    text-decoration-color: var(--accent, rgba(95, 179, 134, 0.8));
+  }
+
+  /* 提示框主体容器 */
+  .note-hover-tooltip {
+    position: fixed;
+    z-index: 10000;
+    pointer-events: auto;
+    width: max-content;
+    max-width: clamp(280px, 32vw, 380px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.22s var(--ease, cubic-bezier(0.16, 1, 0.3, 1)),
+                transform 0.22s var(--ease, cubic-bezier(0.16, 1, 0.3, 1)),
+                visibility 0.22s;
+    user-select: text;
+  }
+
+  .note-hover-tooltip[data-placement="top"] {
+    transform: translate(-50%, -100%) translateY(4px);
+  }
+
+  .note-hover-tooltip[data-placement="bottom"] {
+    transform: translate(-50%, 0) translateY(-4px);
+  }
+
+  .note-hover-tooltip.is-visible {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .note-hover-tooltip.is-visible[data-placement="top"] {
+    transform: translate(-50%, -100%) translateY(0);
+  }
+
+  .note-hover-tooltip.is-visible[data-placement="bottom"] {
+    transform: translate(-50%, 0) translateY(0);
+  }
+
+  /* 提示框卡片内部 */
+  .note-hover-tooltip-card {
+    position: relative;
+    padding: 0.85rem 1rem 0.9rem 1.15rem;
+    border-radius: 8px;
+    background: rgba(253, 251, 249, 0.96);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--rule-strong, rgba(0, 0, 0, 0.16));
+    border-left: 3.5px solid var(--accent, #9a6818);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+  }
+
+  [data-theme="dark"] .note-hover-tooltip-card {
+    background: rgba(26, 26, 26, 0.96);
+    border-color: rgba(255, 255, 255, 0.16);
+    border-left-color: var(--accent, #e5a74e);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  [data-theme="moss"] .note-hover-tooltip-card {
+    background: rgba(24, 30, 26, 0.96);
+    border-left-color: var(--accent, #5fb386);
+  }
+
+  /* Header */
+  .note-hover-tooltip-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-bottom: 0.45rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px dashed var(--rule-soft, rgba(0, 0, 0, 0.08));
+  }
+
+  [data-theme="dark"] .note-hover-tooltip-header {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .note-hover-tooltip-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--font-serif);
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--accent, #9a6818);
+  }
+
+  [data-theme="dark"] .note-hover-tooltip-badge {
+    color: var(--accent, #e5a74e);
+  }
+
+  [data-theme="moss"] .note-hover-tooltip-badge {
+    color: var(--accent, #5fb386);
+  }
+
+  .note-hover-icon {
+    flex-shrink: 0;
+  }
+
+  .note-hover-tooltip-date {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--muted, rgba(0, 0, 0, 0.45));
+  }
+
+  [data-theme="dark"] .note-hover-tooltip-date {
+    color: var(--muted, rgba(255, 255, 255, 0.45));
+  }
+
+  /* Body 内容 */
+  .note-hover-tooltip-body {
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    line-height: 1.65;
+    color: var(--ink, #222);
+    max-height: 220px;
+    overflow-y: auto;
+    word-break: break-word;
+    scrollbar-width: thin;
+  }
+
+  [data-theme="dark"] .note-hover-tooltip-body {
+    color: var(--text, #e8e8e8);
+  }
+
+  .note-hover-tooltip-body > *:first-child {
+    margin-top: 0 !important;
+  }
+
+  .note-hover-tooltip-body > *:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  .note-hover-tooltip-body p {
+    margin: 0.35rem 0;
+  }
+
+  .note-hover-tooltip-body code {
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    padding: 0.12em 0.35em;
+    border-radius: 3px;
+    background: var(--bg-soft, rgba(0, 0, 0, 0.05));
+    border: 1px solid var(--rule-soft, rgba(0, 0, 0, 0.08));
+  }
+
+  [data-theme="dark"] .note-hover-tooltip-body code {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .note-hover-tooltip-body pre {
+    margin: 0.4rem 0;
+    padding: 0.5rem 0.65rem;
+    border-radius: 4px;
+    background: var(--bg-soft, #f4f4f4);
+    font-size: 0.82em;
+    overflow-x: auto;
+  }
+
+  [data-theme="dark"] .note-hover-tooltip-body pre {
+    background: #111;
+  }
+
+  /* 小箭头 Arrow */
+  .note-hover-tooltip-arrow {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    background: rgba(253, 251, 249, 0.96);
+    border: 1px solid var(--rule-strong, rgba(0, 0, 0, 0.16));
+    pointer-events: none;
+  }
+
+  [data-theme="dark"] .note-hover-tooltip-arrow {
+    background: rgba(26, 26, 26, 0.96);
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+
+  [data-theme="moss"] .note-hover-tooltip-arrow {
+    background: rgba(24, 30, 26, 0.96);
+  }
+
+  .note-hover-tooltip[data-placement="top"] .note-hover-tooltip-arrow {
+    bottom: -5.5px;
+    transform: translateX(-50%) rotate(45deg);
+    border-top: none;
+    border-left: none;
+  }
+
+  .note-hover-tooltip[data-placement="bottom"] .note-hover-tooltip-arrow {
+    top: -5.5px;
+    transform: translateX(-50%) rotate(45deg);
+    border-bottom: none;
+    border-right: none;
   }
 
 </style>
