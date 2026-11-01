@@ -1554,29 +1554,35 @@
         container.hidden = !comment;
         if (!comment) return;
 
-        const { prose, code } = splitComment(comment);
-        if (prose) {
-          const text = document.createElement('p');
-          text.className = 'notes-item-comment-text';
-          const label = document.createElement('span');
-          label.className = 'notes-item-comment-label';
-          label.textContent = '备注：';
-          text.append(label, document.createTextNode(prose));
-          container.appendChild(text);
+        // 如果用户直接写了 Markdown 格式（如 ``` 代码块、`行内代码` 等），直接交给 renderMarkdown 渲染；
+        // 若用户直接粘贴裸代码（无反引号），保留 splitComment 智能识别，转为 markdown 代码块包裹
+        let md = comment.trim();
+        if (!md.includes('```')) {
+          const { prose, code } = splitComment(md);
+          if (code) {
+            md = prose ? `${prose}\n\n\`\`\`cpp\n${code}\n\`\`\`` : `\`\`\`cpp\n${code}\n\`\`\``;
+          }
+        }
+
+        const body = document.createElement('div');
+        body.className = 'notes-item-comment-body notes-item-markdown';
+        body.innerHTML = renderMarkdown(md);
+
+        const label = document.createElement('span');
+        label.className = 'notes-item-comment-label';
+        label.textContent = '备注：';
+
+        const firstP = body.querySelector('p');
+        if (firstP && body.firstElementChild === firstP) {
+          firstP.prepend(label);
         } else {
-          const label = document.createElement('span');
-          label.className = 'notes-item-comment-label';
-          label.textContent = '备注：';
-          container.appendChild(label);
+          const header = document.createElement('div');
+          header.className = 'notes-item-comment-header';
+          header.appendChild(label);
+          body.prepend(header);
         }
-        if (code) {
-          const pre = document.createElement('pre');
-          pre.className = 'notes-item-comment-code';
-          const codeEl = document.createElement('code');
-          appendCodeWithBreakPoints(codeEl, code);
-          pre.appendChild(codeEl);
-          container.appendChild(pre);
-        }
+
+        container.appendChild(body);
       }
 
       function buildCard(item: ArticleHighlightRecord, jumpable: boolean, index = 0, retainedRects?: Map<string, DOMRect>): HTMLElement {
@@ -4389,6 +4395,42 @@
   .notes-item-comment-label {
     color: var(--muted-strong);
     font-weight: 600;
+    margin-right: 0.35rem;
+  }
+
+  .notes-item-comment-header {
+    margin-bottom: 0.35rem;
+  }
+
+  .notes-item-comment-body p {
+    margin: 0 0 0.35em 0;
+  }
+
+  .notes-item-comment-body p:last-child {
+    margin-bottom: 0;
+  }
+
+  .notes-item-comment-body pre {
+    margin: 0.45rem 0 0.2rem;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--bg-elev, #fff);
+    color: var(--text);
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    line-height: 1.55;
+    tab-size: 2;
+  }
+
+  .notes-item-comment-body pre code {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    white-space: pre;
   }
 
   .notes-item-comment-text {

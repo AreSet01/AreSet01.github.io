@@ -1781,7 +1781,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           <div class="prose-preview text-xs text-[var(--muted-strong)] bg-[var(--bg-soft)] p-2.5 rounded-lg border border-[var(--rule)] max-h-48 overflow-y-auto">
             ${renderNoteMarkdown(note.text || '')}
           </div>
-          ${note.comment ? `<div class="mt-2 text-xs text-[var(--text)] bg-[var(--bg-base)] p-2 rounded border border-[var(--rule-soft)]"><span class="text-[var(--muted)] font-normal mr-1">💭 想法：</span>${escapeHtml(note.comment)}</div>` : ''}
+          ${note.comment ? `<div class="mt-2 text-xs text-[var(--text)] bg-[var(--bg-base)] p-2 rounded border border-[var(--rule-soft)]"><span class="text-[var(--muted)] font-normal mr-1">💭 想法：</span><div class="prose-preview note-card-annotation-body">${renderNoteMarkdown(note.comment)}</div></div>` : ''}
         `;
       }
 
@@ -2457,7 +2457,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           ${note.comment ? `
             <div class="p-4 bg-[var(--bg-elev)] border border-[var(--rule)] rounded-xl text-xs sm:text-sm text-[var(--muted-strong)]">
               <span class="font-bold text-[var(--text-strong)] block mb-1">随想备忘：</span>
-              <span class="whitespace-pre-line">${escapeHtml(note.comment)}</span>
+              <div class="prose-preview">${renderNoteMarkdown(note.comment)}</div>
             </div>
           ` : ''}
         `;
