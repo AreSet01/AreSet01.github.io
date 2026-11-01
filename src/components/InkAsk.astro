@@ -26,7 +26,7 @@
   } from '../utils/inkAskStorage';
 
   const ENDPOINT = '/api/ask';
-  const MAX_SELECTION = 400;
+  const MAX_SELECTION = 1200;
   const ANCHOR_CHARS = 40;
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const LISTENER_KEY = '__areSetInkAskBound__';
@@ -426,6 +426,20 @@
   const ICON_HISTORY =
     '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 16 14"/></svg>';
 
+  function updateCharCount(textarea: HTMLTextAreaElement | null, countEl: HTMLElement | null, max = 2000) {
+    if (!textarea || !countEl) return;
+    const len = [...textarea.value].length;
+    if (len >= 1600) {
+      const left = max - len;
+      countEl.textContent = left > 0 ? `还可输入 ${left} 字` : '已达 2000 字上限';
+      countEl.classList.toggle('is-limit', left <= 0);
+      countEl.classList.add('is-visible');
+    } else {
+      countEl.textContent = '';
+      countEl.classList.remove('is-visible', 'is-limit');
+    }
+  }
+
   function buildCard(anchor: Anchor): HTMLElement {
     const card = document.createElement('div');
     card.className = 'ink-ask-card';
@@ -459,7 +473,8 @@
         <button type="button" class="ink-ask-pill" data-ask="为什么要这样设计或书写，有没有易踩坑点？">${ICON_PITFALL}<span>为何这样写</span></button>
       </div>
       <form class="ink-ask-form" autocomplete="off">
-        <textarea class="ink-ask-input" name="question" rows="1" maxlength="1000" placeholder="不懂就问，可在此编辑或追加问题… (Enter 发送，Shift+Enter 换行)" enterkeyhint="send"></textarea>
+        <textarea class="ink-ask-input" name="question" rows="1" maxlength="2000" placeholder="不懂就问，可在此编辑或追加问题… (Enter 发送，Shift+Enter 换行)" enterkeyhint="send"></textarea>
+        <span class="ink-ask-char-count" aria-live="polite"></span>
         <button type="button" class="ink-ask-recall" aria-label="撤回刚才的提问并重新编辑" title="撤回刚才的提问并重新编辑 (Esc)">${ICON_RECALL}<span>撤回</span></button>
         <button type="submit" class="ink-ask-send" aria-label="发送">问</button>
       </form>
@@ -908,6 +923,7 @@
         const nextH = Math.min(Math.max(textarea.scrollHeight, 38), 140);
         textarea.style.height = `${nextH}px`;
         textarea.style.overflowY = textarea.scrollHeight > 140 ? 'auto' : 'hidden';
+        updateCharCount(textarea, s.card.querySelector<HTMLElement>('.ink-ask-char-count'));
       }
       s.input.focus({ preventScroll: true });
       s.input.setSelectionRange(s.input.value.length, s.input.value.length);
@@ -1058,12 +1074,14 @@
     }, s.stop.signal);
 
     const textarea = s.input as HTMLTextAreaElement;
+    const cardCharCount = card.querySelector<HTMLElement>('.ink-ask-char-count');
     const autoResize = () => {
       if (!textarea) return;
       textarea.style.height = 'auto';
       const nextH = Math.min(Math.max(textarea.scrollHeight, 38), 140);
       textarea.style.height = `${nextH}px`;
       textarea.style.overflowY = textarea.scrollHeight > 140 ? 'auto' : 'hidden';
+      updateCharCount(textarea, cardCharCount);
     };
 
     textarea.addEventListener('input', autoResize);
@@ -1347,7 +1365,8 @@
               </button>
             </div>
             <div class="ink-ask-drawer-input-wrap">
-              <textarea class="ink-ask-drawer-input" rows="1" maxlength="500" placeholder="向墨问请教本文脉络、概念或细节…" enterkeyhint="send"></textarea>
+              <textarea class="ink-ask-drawer-input" rows="1" maxlength="2000" placeholder="向墨问请教本文脉络、概念或细节…" enterkeyhint="send"></textarea>
+              <span class="ink-ask-char-count ink-ask-drawer-char-count" aria-live="polite"></span>
               <button type="button" class="ink-ask-drawer-recall" aria-label="撤回刚才的提问并重新编辑" title="撤回刚才的提问并重新编辑 (Esc)">
                 ${ICON_RECALL}
                 <span>撤回</span>
@@ -1596,7 +1615,8 @@
         });
       });
 
-      // 自动撑高 textarea
+      // 自动撑高 textarea 并温和提示剩余字数
+      const drawerCharCount = sidebarDrawer.querySelector<HTMLElement>('.ink-ask-drawer-char-count');
       function adjustTextareaHeight() {
         textarea.style.height = 'auto';
         const scrollH = textarea.scrollHeight;
@@ -1607,6 +1627,7 @@
           textarea.style.height = `${Math.max(24, scrollH)}px`;
           textarea.style.overflowY = 'hidden';
         }
+        updateCharCount(textarea, drawerCharCount);
       }
 
       textarea.addEventListener('input', adjustTextareaHeight);
@@ -2955,6 +2976,26 @@
   .ink-ask-input:focus {
     border-color: var(--vermilion);
     box-shadow: 0 0 0 2.5px var(--vermilion-soft);
+  }
+  .ink-ask-char-count {
+    display: none;
+    flex-shrink: 0;
+    align-self: center;
+    font-size: 0.72rem;
+    color: var(--muted);
+    padding: 0 4px;
+    white-space: nowrap;
+    user-select: none;
+    line-height: 1;
+    letter-spacing: 0.02em;
+  }
+  .ink-ask-char-count.is-visible {
+    display: inline-flex;
+    animation: ink-ask-surface 160ms ease forwards;
+  }
+  .ink-ask-char-count.is-limit {
+    color: var(--vermilion);
+    font-weight: 600;
   }
   .ink-ask-send {
     display: grid;

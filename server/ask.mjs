@@ -46,7 +46,7 @@ const config = {
   baseUrl: (process.env.AI_BASE_URL || '').trim().replace(/\/+$/, ''),
   apiKey: (process.env.AI_API_KEY || '').trim(),
   model: (process.env.AI_MODEL || '').trim(),
-  maxTokens: positive('AI_MAX_TOKENS', 2048),
+  maxTokens: positive('AI_MAX_TOKENS', 8192),
   temperature: process.env.AI_TEMPERATURE ? Number(process.env.AI_TEMPERATURE) : undefined,
   siteName: process.env.ASK_SITE_NAME || '梦付千秋',
   siteDir: path.resolve(HERE, process.env.ASK_SITE_DIR || '../dist'),
@@ -517,7 +517,7 @@ function sanitizeNote(raw) {
   };
 }
 
-const LIMITS = { selection: 400, question: 120, anchor: 64, body: 8 * 1024 };
+const LIMITS = { selection: 1200, question: 2000, anchor: 64, body: 128 * 1024 };
 const IDLE_TIMEOUT_MS = 60_000; // 思考型模型首字可能很慢，但一分钟没有任何字节就放弃
 const HEARTBEAT_MS = 15_000; // 让 nginx 和浏览器知道连接还活着
 
@@ -975,7 +975,7 @@ async function handleAsk(req, res) {
   const suffix = typeof input?.suffix === 'string' ? input.suffix.slice(0, LIMITS.anchor) : '';
   if (!isArticleChat && !selection) return sendJson(res, 400, { error: '没有选中内容' });
   if (selection && [...selection].length > LIMITS.selection) return sendJson(res, 400, { error: `选中的内容太长了，请缩短到 ${LIMITS.selection} 字以内` });
-  const maxQuestionLen = Math.max(1000, config.questionLimit || 300);
+  const maxQuestionLen = Math.max(2000, config.questionLimit || 2000);
   if ([...question].length > maxQuestionLen) return sendJson(res, 400, { error: `提问请控制在 ${maxQuestionLen} 字以内` });
 
   let history = [];
@@ -983,7 +983,7 @@ async function handleAsk(req, res) {
     const rawHistory = input.history.slice(-6);
     for (const h of rawHistory) {
       if (h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string') {
-        const text = tidy(h.content).slice(0, 1500);
+        const text = tidy(h.content).slice(0, 3000);
         if (text) {
           history.push({ role: h.role, content: text });
         }
