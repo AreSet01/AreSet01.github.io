@@ -10,6 +10,20 @@
   import { makeResizable, loadPanelSize } from '../utils/panelResize';
   import { bindScrollIsolation } from '../utils/scrollIsolation';
   import { lockScrollAnchor } from '../utils/scrollAnchorLock';
+  import {
+    loadArticleAskStore,
+    getActiveSession,
+    appendTurn as storeAppendTurn,
+    updateActiveTurnAnswer,
+    removeTurn as storeRemoveTurn,
+    archiveAndNewSession,
+    switchActiveSession,
+    deleteSession as storeDeleteSession,
+    clearAllSessions,
+    getRecentHistoryMessages,
+    formatRelativeTime,
+    type AskTurn,
+  } from '../utils/inkAskStorage';
 
   const ENDPOINT = '/api/ask';
   const MAX_SELECTION = 400;
@@ -49,6 +63,7 @@
   let sidebarOverlay: HTMLElement | null = null;
   let sidebarController: AbortController | null = null;
   let recallActiveDrawerTurn: (() => void) | null = null;
+  let reloadDrawerSession: (() => void) | null = null;
 
   const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const useSheet = () => window.innerWidth < 768;
@@ -407,6 +422,9 @@
 
   const ICON_RECALL =
     '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>';
+
+  const ICON_HISTORY =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 16 14"/></svg>';
 
   function buildCard(anchor: Anchor): HTMLElement {
     const card = document.createElement('div');
@@ -797,6 +815,72 @@
   });
   document.addEventListener('pointerup', () => window.setTimeout(refreshSaveNoteLabels, 40), true);
 
+  function renderSavedTurn(
+    thread: HTMLElement,
+    turnData: AskTurn,
+    onRecall?: (turn: HTMLElement, question: string) => void,
+  ) {
+    const turn = document.createElement('section');
+    turn.className = 'ink-ask-turn';
+    turn.dataset.turnId = turnData.id;
+    turn.dataset.question = turnData.question;
+    if (turnData.cached) turn.classList.add('is-cached');
+
+    if (turnData.question) {
+      const q = document.createElement('div');
+      q.className = 'ink-ask-q';
+      const isFirst = thread.children.length === 0;
+      q.innerHTML =
+        `<span class="ink-ask-q-tag">${isFirst ? '提问' : '追问'}</span>` +
+        `<span class="ink-ask-q-text">${escapeHtml(turnData.question)}</span>` +
+        (onRecall
+          ? `<button type="button" class="ink-ask-q-recall" aria-label="撤回提问并放回输入框" title="撤回提问并放回输入框">${ICON_RECALL}<span>撤回</span></button>`
+          : '');
+      if (onRecall) {
+        const recallBtn = q.querySelector<HTMLButtonElement>('.ink-ask-q-recall');
+        recallBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onRecall(turn, turnData.question);
+        });
+      }
+      turn.append(q);
+    }
+
+    const byline = document.createElement('div');
+    byline.className = 'ink-ask-byline';
+    byline.innerHTML = '<span class="companion-mini-seal" aria-hidden="true">墨</span><span class="ink-ask-byline-name">墨问</span>';
+
+    const answer = document.createElement('div');
+    answer.className = 'ink-ask-answer';
+    answer.innerHTML = renderMarkdown(turnData.answer);
+
+    turn.append(byline, answer);
+    addSaveNoteButton(turn, () => turnData.answer, turnData.question, answer);
+    thread.append(turn);
+    return turn;
+  }
+
+  function loadAndRenderActiveSession(
+    thread: HTMLElement,
+    welcome: HTMLElement,
+    onRecall?: (turn: HTMLElement, question: string) => void,
+  ) {
+    thread.innerHTML = '';
+    const active = getActiveSession(location.pathname);
+    if (active.turns.length > 0) {
+      for (const t of active.turns) {
+        renderSavedTurn(thread, t, onRecall);
+      }
+      sidebarDrawer?.classList.add('has-turns');
+      welcome.style.display = 'none';
+      const body = sidebarDrawer?.querySelector<HTMLElement>('.ink-ask-drawer-body');
+      if (body) body.scrollTop = body.scrollHeight;
+    } else {
+      sidebarDrawer?.classList.remove('has-turns');
+      welcome.style.display = '';
+    }
+  }
+
   function recallSessionTurn(s: Session, turnToRecall?: HTMLElement | null, qText?: string) {
     if (s.controller) {
       s.controller.abort();
@@ -899,6 +983,13 @@
       turn.classList.toggle('is-cached', Boolean(finish?.cached));
       paint();
       addSaveNoteButton(turn, () => text, question, answer);
+      storeAppendTurn(location.pathname, {
+        question: question || s.anchor.text,
+        answer: text,
+        selection: s.anchor.text,
+        cached: Boolean(finish?.cached),
+      });
+      reloadDrawerSession?.();
       if (finish?.truncated) note(turn, '回答太长，后面被截断了');
       else if (!finish) note(turn, '连接断了，回答可能不完整');
     } catch (error) {
@@ -1165,6 +1256,9 @@
               <h2 class="ink-ask-drawer-title">墨问 · 伴读</h2>
             </div>
             <div class="ink-ask-drawer-actions">
+              <button type="button" class="ink-ask-drawer-history-btn" aria-label="历史对话" data-tip="历史对话">
+                ${ICON_HISTORY}
+              </button>
               <button type="button" class="ink-ask-drawer-new" aria-label="新开对话" data-tip="新开对话">
                 ${NEW_CHAT_ICON}
               </button>
@@ -1172,6 +1266,16 @@
               <button type="button" class="ink-ask-drawer-close" aria-label="关闭" data-tip="关闭">${CLOSE_ICON}</button>
             </div>
           </div>
+        </div>
+        <div class="ink-ask-history-panel" hidden aria-hidden="true">
+          <div class="ink-ask-history-head">
+            <div class="ink-ask-history-title-wrap">
+              <span class="ink-ask-history-title">往期对话记录</span>
+              <span class="ink-ask-history-count">0</span>
+            </div>
+            <button type="button" class="ink-ask-history-clear" title="清空本篇所有历史对话">清空历史</button>
+          </div>
+          <div class="ink-ask-history-list" role="list"></div>
         </div>
         <div class="ink-ask-drawer-body" data-lenis-prevent>
           <div class="ink-ask-drawer-body-inner">
@@ -1349,6 +1453,96 @@
       const textarea = sidebarDrawer.querySelector<HTMLTextAreaElement>('.ink-ask-drawer-input')!;
 
       const newChatBtn = sidebarDrawer.querySelector<HTMLButtonElement>('.ink-ask-drawer-new')!;
+      const historyBtn = sidebarDrawer.querySelector<HTMLButtonElement>('.ink-ask-drawer-history-btn')!;
+      const historyPanel = sidebarDrawer.querySelector<HTMLElement>('.ink-ask-history-panel')!;
+      const historyList = sidebarDrawer.querySelector<HTMLElement>('.ink-ask-history-list')!;
+      const historyCount = sidebarDrawer.querySelector<HTMLElement>('.ink-ask-history-count')!;
+      const historyClearBtn = sidebarDrawer.querySelector<HTMLButtonElement>('.ink-ask-history-clear')!;
+
+      function renderHistoryList() {
+        const store = loadArticleAskStore(location.pathname);
+        historyList.innerHTML = '';
+        const validSessions = store.sessions.filter((s) => s.turns.length > 0 || s.id === store.activeSessionId);
+        if (historyCount) historyCount.textContent = String(validSessions.length);
+
+        if (validSessions.length === 0 || (validSessions.length === 1 && validSessions[0].turns.length === 0)) {
+          const empty = document.createElement('div');
+          empty.className = 'ink-ask-history-empty';
+          empty.textContent = '暂无历史对话记录';
+          historyList.append(empty);
+          return;
+        }
+
+        for (const s of validSessions) {
+          const item = document.createElement('div');
+          item.className = 'ink-ask-history-item' + (s.id === store.activeSessionId ? ' is-active' : '');
+          item.setAttribute('role', 'listitem');
+
+          const main = document.createElement('button');
+          main.type = 'button';
+          main.className = 'ink-ask-history-item-main';
+          main.innerHTML = `
+            <div class="ink-ask-history-item-title">${escapeHtml(s.title || '伴读对话')}</div>
+            <div class="ink-ask-history-item-meta">
+              <span class="ink-ask-history-item-time">${formatRelativeTime(s.updatedAt)}</span>
+              <span class="ink-ask-history-item-turns">${s.turns.length} 轮对话</span>
+              ${s.id === store.activeSessionId ? '<span class="ink-ask-history-item-badge">当前</span>' : ''}
+            </div>
+          `;
+          main.addEventListener('click', () => {
+            if (sidebarController) {
+              sidebarController.abort();
+              sidebarController = null;
+              form.classList.remove('is-busy');
+            }
+            switchActiveSession(location.pathname, s.id);
+            loadAndRenderActiveSession(thread, welcome, (tTurn, q) => recallDrawerTurn(tTurn, q));
+            toggleHistoryPanel(false);
+          });
+
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'ink-ask-history-item-del';
+          delBtn.setAttribute('aria-label', '删除此会话');
+          delBtn.title = '删除此会话';
+          delBtn.innerHTML = CLOSE_ICON;
+          delBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            storeDeleteSession(location.pathname, s.id);
+            loadAndRenderActiveSession(thread, welcome, (tTurn, q) => recallDrawerTurn(tTurn, q));
+            renderHistoryList();
+          });
+
+          item.append(main, delBtn);
+          historyList.append(item);
+        }
+      }
+
+      function toggleHistoryPanel(show?: boolean) {
+        const willShow = show !== undefined ? show : historyPanel.hidden;
+        historyPanel.hidden = !willShow;
+        historyPanel.setAttribute('aria-hidden', String(!willShow));
+        historyBtn?.classList.toggle('is-active', willShow);
+        if (willShow) {
+          renderHistoryList();
+        }
+      }
+
+      historyBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleHistoryPanel();
+      });
+
+      historyClearBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm('确认清空当前文章的所有墨问历史对话记录吗？此操作无法撤销。')) {
+          clearAllSessions(location.pathname);
+          loadAndRenderActiveSession(thread, welcome, (tTurn, q) => recallDrawerTurn(tTurn, q));
+          renderHistoryList();
+          toggleHistoryPanel(false);
+        }
+      });
+
       let isResetting = false;
       const resetConversation = () => {
         if (isResetting) return;
@@ -1361,6 +1555,8 @@
         textarea.style.height = '24px';
         textarea.style.overflowY = 'hidden';
 
+        toggleHistoryPanel(false);
+
         if (thread.children.length === 0) {
           sidebarDrawer?.classList.remove('has-turns');
           welcome.style.display = '';
@@ -1368,6 +1564,8 @@
           textarea.focus({ preventScroll: true });
           return;
         }
+
+        archiveAndNewSession(location.pathname);
 
         isResetting = true;
         thread.classList.add('is-clearing');
@@ -1436,6 +1634,10 @@
         if (!targetTurn) return;
         const textToRestore = qText || targetTurn.dataset.question || targetTurn.querySelector('.ink-ask-q-text')?.textContent || '';
 
+        if (targetTurn.dataset.turnId) {
+          storeRemoveTurn(location.pathname, targetTurn.dataset.turnId);
+        }
+
         targetTurn.classList.add('is-recalling');
         window.setTimeout(() => {
           targetTurn.remove();
@@ -1486,9 +1688,13 @@
         sidebarController = controller;
         form.classList.add('is-busy');
 
+        const recentHistory = getRecentHistoryMessages(location.pathname, 3);
+        const storedTurn = storeAppendTurn(location.pathname, { question });
+
         const { turn, answer, status } = addTurn(thread, question, () => {
           recallDrawerTurn(turn, question);
         });
+        turn.dataset.turnId = storedTurn.id;
         currentDrawerTurn = turn;
         currentDrawerQuestion = question;
         drawerBody.scrollTop = drawerBody.scrollHeight;
@@ -1533,6 +1739,7 @@
               path: location.pathname,
               isArticle: true,
               question,
+              history: recentHistory,
             }),
             signal: controller.signal,
           });
@@ -1579,6 +1786,7 @@
           turn.classList.toggle('is-cached', Boolean(finish?.cached));
           renderAnswer();
           addSaveNoteButton(turn, () => text, question, answer);
+          updateActiveTurnAnswer(location.pathname, storedTurn.id, text, { cached: Boolean(finish?.cached) });
           if (finish?.truncated) note(turn, '回答太长，后面被截断了');
         } catch (error) {
           if (controller.signal.aborted) return;
@@ -1588,6 +1796,9 @@
           if (text) {
             displayed = text.length;
             renderAnswer();
+            updateActiveTurnAnswer(location.pathname, storedTurn.id, text, { cached: false });
+          } else if (storedTurn?.id) {
+            storeRemoveTurn(location.pathname, storedTurn.id);
           }
           status.hidden = false;
           status.classList.remove('is-leaving');
@@ -1598,6 +1809,9 @@
           retry.className = 'ink-ask-retry';
           retry.textContent = '再试一次';
           retry.addEventListener('click', () => {
+            if (turn.dataset.turnId) {
+              storeRemoveTurn(location.pathname, turn.dataset.turnId);
+            }
             turn.remove();
             askDrawer(question);
           });
@@ -1609,6 +1823,9 @@
           }
         }
       }
+
+      loadAndRenderActiveSession(thread, welcome, (tTurn, q) => recallDrawerTurn(tTurn, q));
+      reloadDrawerSession = () => loadAndRenderActiveSession(thread, welcome, (tTurn, q) => recallDrawerTurn(tTurn, q));
     }
   }
 
@@ -1865,6 +2082,7 @@
 
     document.addEventListener('astro:page-load', () => {
       initInkAsk();
+      reloadDrawerSession?.();
     });
 
     window.addEventListener('companion:ready', () => {
@@ -1876,6 +2094,7 @@
       closeSidebar();
       hideSeal();
       syncAskRegistration = null;
+      reloadDrawerSession = null;
       seal?.remove();
       seal = null;
       sidebarBtn?.remove();
@@ -3050,6 +3269,7 @@
     gap: 3px;
   }
   .ink-ask-drawer-new,
+  .ink-ask-drawer-history-btn,
   .ink-ask-drawer-close,
   .ink-ask-drawer-maximize {
     display: inline-grid;
@@ -3065,6 +3285,7 @@
     transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
   }
   .ink-ask-drawer-new:hover,
+  .ink-ask-drawer-history-btn:hover,
   .ink-ask-drawer-close:hover,
   .ink-ask-drawer-maximize:hover,
   .ink-ask-drawer-maximize:focus-visible {
@@ -3072,6 +3293,165 @@
     color: var(--text-strong);
     border-color: var(--rule-soft);
     background: rgba(var(--accent-rgb, 0, 0, 0), 0.07);
+  }
+  .ink-ask-drawer-history-btn.is-active {
+    color: var(--vermilion);
+    background: var(--vermilion-soft);
+    border-color: rgba(var(--vermilion-rgb, 196, 73, 52), 0.25);
+  }
+
+  /* ---------- 历史对话抽屉折叠面板 ---------- */
+  .ink-ask-history-panel {
+    border-bottom: 1px solid var(--rule-soft);
+    background: var(--bg-elev);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    overflow: hidden;
+    animation: inkHistoryPanelSlide 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    flex-shrink: 0;
+    z-index: 2;
+  }
+  .ink-ask-history-panel[hidden] {
+    display: none !important;
+  }
+  @keyframes inkHistoryPanelSlide {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .ink-ask-history-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.62rem 1rem;
+    border-bottom: 1px dashed var(--rule-soft);
+    font-size: 0.78rem;
+  }
+  .ink-ask-history-title-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .ink-ask-history-title {
+    font-weight: 600;
+    color: var(--text-strong);
+    letter-spacing: 0.02em;
+  }
+  .ink-ask-history-count {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    background: rgba(var(--accent-rgb, 0, 0, 0), 0.05);
+  }
+  .ink-ask-history-clear {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.74rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: color 150ms ease, background 150ms ease;
+  }
+  .ink-ask-history-clear:hover {
+    color: var(--vermilion);
+    background: var(--vermilion-soft);
+  }
+  .ink-ask-history-list {
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 0.4rem 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .ink-ask-history-empty {
+    padding: 1.5rem 0;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .ink-ask-history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.45rem 0.6rem;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    transition: background 150ms ease, border-color 150ms ease;
+  }
+  .ink-ask-history-item:hover {
+    background: rgba(var(--accent-rgb, 0, 0, 0), 0.04);
+  }
+  .ink-ask-history-item.is-active {
+    background: var(--vermilion-soft);
+    border-color: rgba(var(--vermilion-rgb, 196, 73, 52), 0.2);
+  }
+  .ink-ask-history-item-main {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+  }
+  .ink-ask-history-item-title {
+    font-size: 0.83rem;
+    font-weight: 500;
+    color: var(--text-strong);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ink-ask-history-item.is-active .ink-ask-history-item-title {
+    color: var(--vermilion);
+    font-weight: 600;
+  }
+  .ink-ask-history-item-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  .ink-ask-history-item-badge {
+    color: var(--vermilion);
+    font-size: 0.68rem;
+    font-weight: 600;
+  }
+  .ink-ask-history-item-del {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
+    opacity: 0.6;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity 150ms ease, color 150ms ease, background 150ms ease;
+  }
+  .ink-ask-history-item:hover .ink-ask-history-item-del {
+    opacity: 1;
+  }
+  .ink-ask-history-item-del:hover {
+    color: var(--vermilion);
+    background: var(--vermilion-soft);
   }
 
   /* ---------- 书斋居中阅读中轴（单浮岛 / 双卷并排 / 画框全屏一脉相承） ---------- */
