@@ -28,7 +28,7 @@ const readNumber = (value: number | (() => number) | undefined, fallback: number
 
 export function clampPanelSize(size: PanelSize, options: ResizableOptions = {}): PanelSize {
   const minW = options.minWidth ?? 350;
-  const minH = options.minHeight ?? 220;
+  const minH = options.fitContentHeight ? Math.max(options.minHeight ?? 380, 380) : (options.minHeight ?? 220);
   const maxW = Math.max(minW, readNumber(options.maxWidth, window.innerWidth - 24));
   const maxH = Math.max(minH, readNumber(options.maxHeight, window.innerHeight - 24));
   return {
@@ -96,8 +96,12 @@ export function makeResizable(
   let startY = 0;
   let startW = 0;
   let startH = 0;
+  let startConfiguredMaxH = 0;
+  let verticalEngaged = false;
   let dragging = false;
   let pending: PanelSize | null = null;
+
+  const VERTICAL_ENGAGE_PX = 6;
 
   const currentSize = (): PanelSize => {
     const rect = el.getBoundingClientRect();
@@ -121,11 +125,21 @@ export function makeResizable(
     event.preventDefault();
     event.stopPropagation();
     dragging = true;
+    verticalEngaged = false;
     startX = event.clientX;
     startY = event.clientY;
     const size = currentSize();
     startW = size.width;
     startH = size.height;
+    // 自适应高度模式下，真正持久化的是「最大高度上限」而非当前内容撑出的实际高度
+    startConfiguredMaxH = clampPanelSize({
+      width: size.width,
+      height:
+        parseFloat(el.style.maxHeight || '0') ||
+        loadPanelSize(storageKey)?.height ||
+        options.fallback?.height ||
+        size.height,
+    }, options).height;
     el.classList.add('is-resizing');
     try {
       handle.setPointerCapture(event.pointerId);
@@ -135,10 +149,33 @@ export function makeResizable(
   const onPointerMove = (event: PointerEvent) => {
     if (!dragging) return;
     event.preventDefault();
-    pending = apply({
-      width: startW + (event.clientX - startX),
-      height: startH + (event.clientY - startY),
-    });
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+
+    if (!options.fitContentHeight) {
+      pending = apply({ width: startW + dx, height: startH + dy });
+      return;
+    }
+
+    // 自适应高度：纯横向拉宽时只改宽度，保留原有高度上限，避免内容较少时把上限误写成实际高度
+    if (!verticalEngaged && Math.abs(dy) >= VERTICAL_ENGAGE_PX) verticalEngaged = true;
+    if (!verticalEngaged) {
+      const clamped = clampPanelSize({ width: startW + dx, height: startConfiguredMaxH }, options);
+      el.style.width = `${clamped.width}px`;
+      options.onChange?.(clamped);
+      pending = clamped;
+      return;
+    }
+
+    // 纵向拖拽：窗口跟手显示（不因最小高度钳制而突跳），松手后以拖到的高度作为新上限
+    const rawH = startH + dy;
+    const clamped = clampPanelSize({ width: startW + dx, height: rawH }, options);
+    const visualH = Math.min(clamped.height, Math.max(rawH, Math.min(startH, clamped.height)));
+    el.style.width = `${clamped.width}px`;
+    el.style.height = `${Math.round(visualH)}px`;
+    el.style.maxHeight = `${clamped.height}px`;
+    options.onChange?.(clamped);
+    pending = clamped;
   };
 
   const finish = (event: PointerEvent) => {
@@ -148,7 +185,14 @@ export function makeResizable(
     try {
       handle.releasePointerCapture(event.pointerId);
     } catch {}
-    const size = pending ?? currentSize();
+    // 单击手柄而未拖动时不落盘，避免把内容撑出的实际高度误存为上限
+    if (!pending) {
+      if (options.fitContentHeight) {
+        applyPanelSize(el, { width: startW, height: startConfiguredMaxH }, true);
+      }
+      return;
+    }
+    const size = pending;
     savePanelSize(storageKey, size);
     if (options.fitContentHeight) {
       applyPanelSize(el, size, true);
@@ -179,7 +223,10 @@ export function makeResizable(
     if (!el.isConnected) return;
     const rect = el.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
-    apply({ width: rect.width, height: rect.height });
+    const configuredMaxH = options.fitContentHeight
+      ? (parseFloat(el.style.maxHeight || '0') || rect.height)
+      : rect.height;
+    apply({ width: rect.width, height: configuredMaxH });
   };
 
   handle.addEventListener('pointerdown', onPointerDown);

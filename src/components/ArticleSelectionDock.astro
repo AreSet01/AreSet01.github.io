@@ -329,6 +329,7 @@
   <!-- 次级细线分类筛选栏（有笔记时在浮岛 / 并排 / 全屏全态常驻，空状态自动隐去保持清净） -->
   <div class="notes-drawer-filter-bar" id="notes-drawer-filter-bar" hidden>
     <div class="notes-drawer-filter-group" id="notes-drawer-filter-group">
+      <span class="notes-filter-glider" id="notes-filter-glider" aria-hidden="true"></span>
       <button type="button" class="notes-filter-pill is-active" data-notes-filter="all">全部</button>
       <button type="button" class="notes-filter-pill" data-notes-filter="highlight">划线</button>
       <button type="button" class="notes-filter-pill" data-notes-filter="ai">墨问摘录</button>
@@ -452,6 +453,7 @@
       }
       if (drawer.classList.contains('is-open')) {
         renderDrawerNotes({ suppressAnimation: true });
+        requestAnimationFrame(() => syncNotesFilterGlider(true));
       }
     };
 
@@ -509,16 +511,56 @@
 
     const filterBar = document.getElementById('notes-drawer-filter-bar');
     const filterGroup = document.getElementById('notes-drawer-filter-group');
+    const filterGlider = document.getElementById('notes-filter-glider');
     const quickNewBtn = document.getElementById('notes-quick-new-btn');
     let isFilterSwitching = false;
+    // 每次筛选切换或强制复位都会自增，用于作废仍在播放退场动画的旧切换，避免其 220ms 后覆盖最新渲染
+    let filterSwitchToken = 0;
+
+    function syncNotesFilterGlider(immediate = false) {
+      if (!filterGroup || !filterGlider) return;
+      const activePill = filterGroup.querySelector<HTMLElement>('.notes-filter-pill.is-active');
+      if (!activePill) return;
+      const w = activePill.offsetWidth;
+      const h = activePill.offsetHeight;
+      if (w <= 0 || h <= 0) return;
+      const x = activePill.offsetLeft;
+      const y = activePill.offsetTop;
+      const firstInit = !filterGroup.classList.contains('has-glider');
+      filterGroup.classList.add('has-glider');
+      const skipAnim = immediate || firstInit || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (skipAnim) {
+        filterGlider.style.transition = 'none';
+      }
+      filterGlider.style.width = `${w}px`;
+      filterGlider.style.height = `${h}px`;
+      filterGlider.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
+      filterGlider.style.opacity = '1';
+      if (skipAnim) {
+        void filterGlider.offsetWidth;
+        filterGlider.style.transition = '';
+      }
+    }
+
+    function resetFilterPillToAll() {
+      filterSwitchToken++;
+      currentNotesFilter = 'all';
+      isFilterSwitching = false;
+      filterGroup?.querySelectorAll('.notes-filter-pill').forEach((pill) => {
+        pill.classList.toggle('is-active', (pill as HTMLElement).dataset.notesFilter === 'all');
+      });
+      requestAnimationFrame(() => syncNotesFilterGlider());
+    }
     function switchNotesFilter(targetFilter: string) {
       if (isFilterSwitching || targetFilter === currentNotesFilter) return;
       if (!drawerList) return;
+      const token = ++filterSwitchToken;
 
       currentNotesFilter = targetFilter;
       filterGroup?.querySelectorAll('.notes-filter-pill').forEach((pill) => {
         pill.classList.toggle('is-active', (pill as HTMLElement).dataset.notesFilter === targetFilter);
       });
+      syncNotesFilterGlider();
 
       const standaloneRecords = loadHighlights('__standalone__').filter((r) => !r.deleted);
       const seenIds = new Set(storedRecords.map((r) => r.id));
@@ -551,17 +593,26 @@
         }
       }
 
-      if (leavingCards.length > 0) {
+      if (leavingCards.length > 0 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         isFilterSwitching = true;
-        // 用 WAAPI 显式播放退场，避免被内联 animation:none / 其它样式覆盖而“瞬间消失”
-        const exits = leavingCards.map((card) => {
+        // 用 WAAPI 显式播放卷轴卷收退场，避免被内联 animation:none 覆盖而瞬间消失
+        const exits = leavingCards.map((card, idx) => {
           card.classList.add('is-filtering-out');
           return card.animate([
-            { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)', filter: 'blur(0px)' },
-            { opacity: 0, transform: 'translate3d(0, -8px, 0) scale(0.95)', filter: 'blur(2px)' },
+            {
+              opacity: 1,
+              clipPath: 'inset(0 0% 0 0 round 12px)',
+              transform: 'translate3d(0, 0, 0) scale(1)',
+            },
+            {
+              opacity: 0,
+              clipPath: 'inset(0 100% 0 0 round 12px)',
+              transform: 'translate3d(-14px, 0, 0) scale(0.98)',
+            },
           ], {
             duration: 220,
-            easing: 'cubic-bezier(0.4, 0, 1, 1)',
+            delay: Math.min(idx, 5) * 20,
+            easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
             fill: 'forwards',
           }).finished.catch(() => undefined);
         });
@@ -569,11 +620,12 @@
         const finishSwitch = () => {
           if (switched) return;
           switched = true;
+          if (token !== filterSwitchToken) return;
           renderDrawerNotes({ retainedFirstRects });
           isFilterSwitching = false;
         };
         Promise.all(exits).then(finishSwitch);
-        setTimeout(finishSwitch, 320);
+        setTimeout(finishSwitch, 360);
       } else {
         renderDrawerNotes({ retainedFirstRects });
       }
@@ -584,6 +636,9 @@
       if (!btn) return;
       const target = btn.dataset.notesFilter || 'all';
       switchNotesFilter(target);
+    }, { signal });
+    window.addEventListener('resize', () => {
+      requestAnimationFrame(() => syncNotesFilterGlider(true));
     }, { signal });
     let unbindDrawerScroll: (() => void) | null = null;
     if (drawer) {
@@ -793,9 +848,27 @@
 
     // ---------- UI 状态同步 ----------
     function updateBadges() {
-      const standaloneCount = loadHighlights('__standalone__').filter((r) => !r.deleted).length;
-      const articleCount = storedRecords.filter((r) => !r.deleted).length;
-      const count = articleCount + standaloneCount;
+      const standaloneList = loadHighlights('__standalone__').filter((r) => !r.deleted);
+      const articleList = storedRecords.filter((r) => !r.deleted);
+      const seen = new Set(articleList.map((r) => r.id));
+      const allActive = [...articleList, ...standaloneList.filter((r) => !seen.has(r.id))];
+      const count = allActive.length;
+
+      const filterCounts: Record<string, number> = {
+        all: count,
+        highlight: allActive.filter((r) => (r.kind || 'highlight') === 'highlight').length,
+        ai: allActive.filter((r) => r.kind === 'ai').length,
+        free: allActive.filter((r) => r.kind === 'free').length,
+        comment: allActive.filter((r) => !!r.comment?.trim()).length,
+      };
+      const filterLabels: Record<string, string> = {
+        all: '全部',
+        highlight: '划线',
+        ai: '墨问摘录',
+        free: '随笔',
+        comment: '带备注',
+      };
+
       document.querySelectorAll<HTMLElement>('[data-notes-count]').forEach((badge) => {
         badge.textContent = String(count);
         badge.classList.remove('has-bump');
@@ -808,6 +881,18 @@
         headerCount.textContent = String(count);
       }
 
+      if (filterGroup) {
+        filterGroup.querySelectorAll<HTMLElement>('.notes-filter-pill').forEach((pill) => {
+          const fk = pill.dataset.notesFilter || 'all';
+          const c = filterCounts[fk] ?? 0;
+          const label = filterLabels[fk] || pill.textContent?.trim() || '';
+          pill.classList.toggle('is-empty-filter', fk !== 'all' && c === 0);
+          pill.innerHTML = c > 0
+            ? `<span>${label}</span><span class="notes-filter-count">${c}</span>`
+            : `<span>${label}</span>`;
+        });
+      }
+
       if (filterBar) {
         filterBar.hidden = count === 0;
         if (count === 0 && currentNotesFilter !== 'all') {
@@ -815,6 +900,9 @@
           filterGroup?.querySelectorAll('.notes-filter-pill').forEach((pill) => {
             pill.classList.toggle('is-active', (pill as HTMLElement).dataset.notesFilter === 'all');
           });
+        }
+        if (count > 0) {
+          requestAnimationFrame(() => syncNotesFilterGlider());
         }
       }
 
@@ -914,7 +1002,7 @@
         dockTimeoutId = null;
         currentSelectedRange = null;
         activeHighlightId = null;
-      }, 320);
+      }, 210);
     }
 
     // ---------- 划词检测逻辑 ----------
@@ -956,7 +1044,10 @@
     // ---------- 点击已有高亮 Mark 触发管理模式 ----------
     prose.addEventListener('click', (e) => {
       const target = e.target as HTMLElement | null;
-      const mark = target?.closest<HTMLElement>('.article-highlight-mark');
+      const mark =
+        target?.closest<HTMLElement>('.article-highlight-mark') ||
+        target?.closest<HTMLElement>(':not(pre) > code')?.querySelector<HTMLElement>('.article-highlight-mark') ||
+        null;
       if (mark) {
         e.stopPropagation();
         const id = mark.dataset.highlightId;
@@ -989,7 +1080,10 @@
     // 点击页面空白处关闭 Dock
     document.addEventListener('pointerdown', (e) => {
       const target = e.target as HTMLElement | null;
-      if (target?.closest('#article-selection-dock, .article-highlight-mark, #article-highlights-floating-pill, #article-notes-drawer')) {
+      if (
+        target?.closest('#article-selection-dock, .article-highlight-mark, #article-highlights-floating-pill, #article-notes-drawer') ||
+        target?.closest(':not(pre) > code')?.querySelector('.article-highlight-mark')
+      ) {
         return;
       }
       if (isDockVisible) {
@@ -1026,6 +1120,9 @@
         saveHighlights(postSlug, storedRecords);
         updateBadges();
         if (isDrawerOpen) {
+          if (currentNotesFilter !== 'all' && currentNotesFilter !== 'highlight') {
+            resetFilterPillToAll();
+          }
           renderDrawerNotes({ retainedFirstRects, newNoteId: newRecord.id });
         }
         notifyNotesChanged();
@@ -1044,6 +1141,10 @@
 
           m.style.setProperty('--mark-draw-delay', `${delay}ms`);
           m.style.setProperty('--mark-draw-duration', `${duration}ms`);
+          if (m.parentElement?.tagName === 'CODE' && m.parentElement.parentElement?.tagName !== 'PRE') {
+            m.parentElement.style.setProperty('--mark-draw-delay', `${delay}ms`);
+            m.parentElement.style.setProperty('--mark-draw-duration', `${duration}ms`);
+          }
           m.classList.add('is-drawing');
         });
 
@@ -1058,6 +1159,10 @@
             m.classList.remove('is-drawing');
             m.style.removeProperty('--mark-draw-delay');
             m.style.removeProperty('--mark-draw-duration');
+            if (m.parentElement?.tagName === 'CODE' && m.parentElement.parentElement?.tagName !== 'PRE') {
+              m.parentElement.style.removeProperty('--mark-draw-delay');
+              m.parentElement.style.removeProperty('--mark-draw-duration');
+            }
           });
         }, totalDuration + 60);
       }
@@ -1147,15 +1252,59 @@
       }
     }
 
+    function flyGhostCapsule(
+      fromRect: DOMRect | null,
+      getTargetEl: () => HTMLElement | null,
+      snippetText: string
+    ) {
+      if (!fromRect || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const ghost = document.createElement('div');
+      ghost.className = 'selection-fly-ghost';
+      ghost.textContent = snippetText.replace(/\s+/g, ' ').trim().slice(0, 28) || '引文摘录';
+      document.body.appendChild(ghost);
+
+      const startX = fromRect.left + fromRect.width / 2;
+      const startY = fromRect.top + fromRect.height / 2;
+      ghost.style.left = `${Math.round(startX)}px`;
+      ghost.style.top = `${Math.round(startY)}px`;
+
+      requestAnimationFrame(() => {
+        const targetEl = getTargetEl();
+        const tRect = targetEl?.getBoundingClientRect();
+        const endX = tRect && tRect.width > 0 ? tRect.left + tRect.width / 2 : window.innerWidth - 220;
+        const endY = tRect && tRect.height > 0 ? tRect.top + tRect.height / 2 : window.innerHeight - 80;
+        const midX = (startX + endX) / 2;
+        const midY = Math.min(startY, endY) - 64;
+
+        const anim = ghost.animate(
+          [
+            { transform: 'translate(-50%, -50%) scale(1)', opacity: 0.96 },
+            { transform: `translate(calc(-50% + ${Math.round(midX - startX)}px), calc(-50% + ${Math.round(midY - startY)}px)) scale(0.88)`, opacity: 0.92, offset: 0.48 },
+            { transform: `translate(calc(-50% + ${Math.round(endX - startX)}px), calc(-50% + ${Math.round(endY - startY)}px)) scale(0.48)`, opacity: 0 },
+          ],
+          { duration: 380, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
+        );
+        anim.onfinish = () => {
+          ghost.remove();
+          (window as any).__inkSplash?.(endX, endY, 6);
+        };
+        anim.oncancel = () => ghost.remove();
+      });
+    }
+
     // 4. 💬 问墨问
     function triggerAsk() {
       let snippet = '';
+      let sourceRect: DOMRect | null = null;
       if (activeHighlightId) {
         const found = storedRecords.find((r) => r.id === activeHighlightId);
         if (found) snippet = found.text;
+        const markEl = prose.querySelector<HTMLElement>(`mark[data-highlight-id="${activeHighlightId}"]`);
+        if (markEl) sourceRect = markEl.getBoundingClientRect();
       } else if (currentSelectedRange) {
         const info = serializeHighlight(currentSelectedRange, prose);
         snippet = info?.text || currentSelectedRange.toString().trim();
+        sourceRect = currentSelectedRange.getBoundingClientRect();
       }
 
       if (!snippet) return;
@@ -1168,6 +1317,12 @@
           detail: { snippet }
         }));
       }
+
+      flyGhostCapsule(
+        sourceRect,
+        () => document.querySelector<HTMLElement>('.ink-ask-drawer-input-wrap, .ink-ask-drawer-input'),
+        snippet
+      );
     }
 
     // 5. 📋 复制引用
@@ -1296,7 +1451,7 @@
       });
     }
 
-    // 7. 优雅卡片退出动画（保持原位占位纯视觉平移淡出，动画结束后统一重排并执行唯一一次标准 FLIP，彻底消除重复重排与高度突跳）
+    // 7. 拂墨扫出卡片退场动画（保持原位占位纯视觉扫出，动画结束后统一重排并执行唯一一次标准 FLIP，彻底消除重复重排与高度突跳）
     function smoothRemoveNoteCard(targetEl: HTMLElement, isGroup: boolean, onComplete: () => void) {
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         targetEl.remove();
@@ -1308,17 +1463,19 @@
       const anim = targetEl.animate([
         {
           opacity: 1,
+          clipPath: 'inset(0 0% 0 0% round 12px)',
           transform: 'translate3d(0, 0, 0) scale(1)',
           filter: 'blur(0px)',
         },
         {
           opacity: 0,
-          transform: 'translate3d(36px, -4px, 0) scale(0.92)',
-          filter: 'blur(2px)',
+          clipPath: 'inset(0 0% 0 58% round 12px)',
+          transform: 'translate3d(44px, -3px, 0) scale(0.95)',
+          filter: 'blur(3px)',
         }
       ], {
-        duration: 450, // 0.4x 优雅滑出
-        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        duration: 280,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
         fill: 'forwards'
       });
 
@@ -1368,25 +1525,43 @@
       }
 
       if (isDockVisible) {
+        const pulseKeyBtn = (btn: HTMLElement | null | undefined, action: () => void) => {
+          if (btn && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            btn.classList.remove('is-key-pressed');
+            dockCapsule?.classList.remove('has-key-press');
+            void btn.offsetWidth;
+            btn.classList.add('is-key-pressed');
+            dockCapsule?.classList.add('has-key-press');
+            window.setTimeout(() => {
+              btn.classList.remove('is-key-pressed');
+              dockCapsule?.classList.remove('has-key-press');
+              action();
+            }, 95);
+          } else {
+            action();
+          }
+        };
+
         const key = e.key.toUpperCase();
         if (key === 'H' && currentSelectedRange) {
           e.preventDefault();
-          triggerHighlight();
+          pulseKeyBtn(btnHighlight, () => triggerHighlight());
         } else if (key === 'P') {
           e.preventDefault();
-          triggerPin();
+          const targetPinBtn = activeHighlightId ? btnManagePin : btnPin;
+          pulseKeyBtn(targetPinBtn, () => triggerPin(targetPinBtn || undefined));
         } else if (key === 'F') {
           e.preventDefault();
-          triggerSearch();
+          pulseKeyBtn(activeHighlightId ? btnManageSearch : btnSearch, () => triggerSearch());
         } else if (key === 'A') {
           e.preventDefault();
-          triggerAsk();
+          pulseKeyBtn(activeHighlightId ? btnManageAsk : btnAsk, () => triggerAsk());
         } else if (key === 'C') {
           e.preventDefault();
-          triggerCopy();
+          pulseKeyBtn(activeHighlightId ? btnManageCopy : btnCopy, () => triggerCopy());
         } else if (activeHighlightId && (e.key === 'Delete' || e.key === 'Backspace')) {
           e.preventDefault();
-          triggerDeleteHighlight();
+          pulseKeyBtn(btnManageDelete, () => triggerDeleteHighlight());
         }
       }
     }, { signal });
@@ -1475,11 +1650,13 @@
         const empty = document.createElement('div');
         empty.className = 'notes-empty-state' + (opts?.retainedFirstRects ? ' is-filtering-in' : '');
         const isTotallyEmpty = allRecords.length === 0;
+        const NOTES_EMPTY_ORNAMENT_SVG =
+          '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>';
         empty.innerHTML = `
           <div class="notes-empty-emblem" aria-hidden="true">
-            <span class="notes-empty-line"></span>
-            <span class="notes-empty-seal">注</span>
-            <span class="notes-empty-line"></span>
+            <span class="notes-empty-line is-left"></span>
+            <span class="notes-empty-ornament">${NOTES_EMPTY_ORNAMENT_SVG}</span>
+            <span class="notes-empty-line is-right"></span>
           </div>
           <p class="notes-empty-title">${isTotallyEmpty ? '卷中尚无批注' : '此分类下暂无记录'}</p>
           <p class="notes-empty-desc">${
@@ -1580,10 +1757,11 @@
       }
 
       function buildCard(item: ArticleHighlightRecord, jumpable: boolean, index = 0, retainedRects?: Map<string, DOMRect>): HTMLElement {
+        const kind = item.kind || 'highlight';
         const card = document.createElement('div');
         card.className = 'notes-item-card';
         card.dataset.noteId = item.id;
-        card.dataset.noteKind = item.kind || 'highlight';
+        card.dataset.noteKind = kind;
 
         if (retainedRects) {
           // 筛选切换：保留卡只做位置 FLIP，新出现的卡片在渲染后用 WAAPI 补入场
@@ -1649,6 +1827,10 @@
 
         const fadeVeil = document.createElement('div');
         fadeVeil.className = 'notes-card-fade-veil';
+        fadeVeil.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleCardExpansion(card);
+        });
         contentWrap.appendChild(fadeVeil);
 
         card.appendChild(contentWrap);
@@ -1924,6 +2106,44 @@
           actGroup.appendChild(commentBtn);
         }
 
+        if (kind === 'ai' || kind === 'highlight') {
+          const askFollowBtn = document.createElement('button');
+          askFollowBtn.type = 'button';
+          askFollowBtn.className = 'notes-btn notes-btn-ask';
+          askFollowBtn.title = '将此条笔记带入墨问继续追问';
+          askFollowBtn.innerHTML = '<span>追问</span>';
+          askFollowBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const cardRect = card.getBoundingClientRect();
+            const payload = {
+              text: item.text,
+              question: item.question || '',
+              kind,
+              heading: item.headingText || '',
+            };
+            const inkAskApi = (window as any).__inkAsk;
+            const companionApi = (window as any).__companion;
+            if (companionApi?.mode?.() !== 'split' && companionApi?.switchPanel) {
+              companionApi.switchPanel('ask');
+            } else if (inkAskApi?.openSidebar) {
+              inkAskApi.openSidebar();
+            }
+            if (inkAskApi?.mountFollowUpContext) {
+              inkAskApi.mountFollowUpContext(payload);
+            } else if (inkAskApi?.openSidebarWithContext) {
+              inkAskApi.openSidebarWithContext(item.text);
+            } else {
+              window.dispatchEvent(new CustomEvent('inkask:open-with-context', { detail: { snippet: item.text } }));
+            }
+            flyGhostCapsule(
+              cardRect,
+              () => document.querySelector<HTMLElement>('.ink-ask-drawer-input-wrap, .ink-ask-drawer-input'),
+              item.question || item.text
+            );
+          });
+          actGroup.appendChild(askFollowBtn);
+        }
+
         const copyBtn = document.createElement('button');
         copyBtn.type = 'button';
         copyBtn.className = 'notes-btn notes-btn-copy';
@@ -1972,9 +2192,46 @@
         metaRow.append(timeSpan, actGroup);
         card.append(metaRow);
 
+        // 支持并排模式下拖拽笔记卡片到左卷「墨问」作为追问上下文（仅在 split 模式且非文字选区区域启用 draggable，避免劫持正文选字）
+        card.addEventListener('pointerdown', (e: PointerEvent) => {
+          const isSplit = document.documentElement.getAttribute('data-companion-mode') === 'split';
+          const inSelectableText = Boolean(
+            (e.target as HTMLElement | null)?.closest(
+              '.notes-item-quote, .notes-item-comment, .notes-item-ai-answer, textarea, input, button, a'
+            )
+          );
+          card.draggable = isSplit && !inSelectableText;
+        });
+        card.addEventListener('dragstart', (e: DragEvent) => {
+          if (document.documentElement.getAttribute('data-companion-mode') !== 'split') {
+            e.preventDefault();
+            return;
+          }
+          card.classList.add('is-dragging-card');
+          const payload = JSON.stringify({
+            source: 'notes-card',
+            id: item.id,
+            kind,
+            text: item.text,
+            question: item.question || '',
+            heading: item.headingText || '',
+          });
+          e.dataTransfer?.setData('application/x-companion-note', payload);
+          e.dataTransfer?.setData('text/plain', item.text);
+          if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy';
+        });
+        card.addEventListener('dragend', () => {
+          card.classList.remove('is-dragging-card');
+          card.draggable = false;
+        });
+
         card.addEventListener('click', (e) => {
           if ((e.target as HTMLElement).closest('button, input, textarea, a, .notes-item-comment-editor')) return;
-          // 展开只由底部按钮触发；点击卡片本身不展开，避免小红书式整卡点击
+          if (window.getSelection()?.toString().trim()) return;
+          if (card.classList.contains('is-overflowing') && !card.classList.contains('is-expanded')) {
+            toggleCardExpansion(card);
+            return;
+          }
           if (jumpable) jumpToHighlight(item.id);
         });
         return card;
@@ -2079,43 +2336,52 @@
         });
       }
       refreshVisibleCardOverflow();
-      // 重绘滚动与定位：当有新笔记生成时置顶并施加水墨微光提示，否则保持原滚动位置
+      // 重绘滚动与定位：当有新笔记生成时置顶并触发书脊水墨横扫，否则保持原滚动位置
       if (opts?.newNoteId) {
         drawerList.scrollTo({ top: 0, behavior: 'smooth' });
         requestAnimationFrame(() => {
           const newCard = drawerList.querySelector<HTMLElement>(`.notes-item-card[data-note-id="${opts.newNoteId}"]`);
           if (newCard) {
-            newCard.animate([
-              { boxShadow: '0 0 0 0 var(--accent-soft, rgba(215, 150, 20, 0.5))', transform: 'scale(1.02)' },
-              { boxShadow: '0 0 0 8px transparent', transform: 'scale(1)' }
-            ], { duration: 1400, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+            newCard.classList.remove('has-pulse');
+            void newCard.offsetWidth;
+            newCard.classList.add('has-pulse');
+            window.setTimeout(() => newCard.classList.remove('has-pulse'), 800);
           }
         });
       } else if (prevScrollTop > 0) {
         drawerList.scrollTop = prevScrollTop;
       }
 
-      // 新卡片入场或筛选切换：新卡片淡入展开，保留卡片做 FLIP 平滑滑动补间
-      if (opts?.retainedFirstRects) {
+      // 新卡片入场或筛选切换：新卡片自左向右展卷浮现，保留卡片做 FLIP 丝滑补位
+      if (opts?.retainedFirstRects && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         let enterIndex = 0;
         drawerList.querySelectorAll<HTMLElement>('.notes-item-card').forEach((c) => {
           const id = c.dataset.noteId;
           if (id && opts.retainedFirstRects!.has(id)) return;
           const isNewSingleCard = Boolean(opts.newNoteId && id === opts.newNoteId);
+          c.style.animation = 'none';
           c.animate([
-            { opacity: 0, transform: isNewSingleCard ? 'translate3d(0, -12px, 0) scale(0.96)' : 'translate3d(0, 10px, 0) scale(0.96)', filter: 'blur(1px)' },
-            { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)', filter: 'blur(0px)' },
+            {
+              opacity: 0,
+              clipPath: 'inset(0 100% 0 0 round 12px)',
+              transform: isNewSingleCard ? 'translate3d(-14px, -6px, 0)' : 'translate3d(-16px, 0, 0)',
+            },
+            {
+              opacity: 1,
+              clipPath: 'inset(0 0% 0 0 round 12px)',
+              transform: 'translate3d(0, 0, 0)',
+            },
           ], {
-            duration: isNewSingleCard ? 550 : 300,
-            delay: isNewSingleCard ? 0 : Math.min(enterIndex++, 6) * 40,
+            duration: 360,
+            delay: isNewSingleCard ? 0 : Math.min(enterIndex++, 6) * 36,
             easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
-            fill: 'both',
+            fill: 'backwards',
           });
         });
       }
 
-      // 保留卡片的 FLIP 平滑滑动补间 (WAAPI 硬件加速合成，100% 必然播放，支持跨列 2D 弧线补位)
-      if (opts?.retainedFirstRects && opts.retainedFirstRects.size > 0) {
+      // 保留卡片的 FLIP 平滑滑动补间 (WAAPI 硬件加速合成，支持跨列 2D 弧线补位)
+      if (opts?.retainedFirstRects && opts.retainedFirstRects.size > 0 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         const currentCards = Array.from(drawerList.querySelectorAll<HTMLElement>('.notes-item-card'));
         for (const c of currentCards) {
           const id = c.dataset.noteId;
@@ -2130,7 +2396,7 @@
               { transform: `translate3d(${dx}px, ${dy}px, 0)` },
               { transform: 'translate3d(0, 0, 0)' }
             ], {
-              duration: 650, // 0.4x 优雅从容呼吸感节奏: transform 650ms cubic-bezier(0.16, 1, 0.3, 1)
+              duration: 380, // 干脆利落 FLIP 节奏: transform 380ms cubic-bezier(0.16, 1, 0.3, 1)
               easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
             });
           }
@@ -2211,23 +2477,71 @@
           }
         }
 
-        // 自动展开右侧笔记抽屉并定位到目标卡片
-        openNotesDrawer();
-        setTimeout(() => {
-          if (!drawerList) return;
-          const targetCard = drawerList.querySelector<HTMLElement>(`.notes-item-card[data-note-id="${id}"]`);
-          if (targetCard) {
-            targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            targetCard.classList.remove('has-pulse');
-            void targetCard.offsetWidth;
-            targetCard.classList.add('has-pulse');
-            setTimeout(() => targetCard.classList.remove('has-pulse'), 2200);
-          }
-        }, 360);
+        // 自动展开右侧笔记抽屉、重置过滤至全部并定位到目标卡片
+        focusAndPulseNote(id);
       }
     }
 
     // ---------- 新建 / 追加笔记（不绑定正文位置） ----------
+
+    let microToastTimer: number | null = null;
+    function focusAndPulseNote(noteId: string) {
+      const companionApi = (window as any).__companion;
+      if (companionApi?.mode?.() !== 'split' && companionApi?.switchPanel) {
+        companionApi.switchPanel('notes');
+      } else {
+        openNotesDrawer();
+      }
+      if (currentNotesFilter !== 'all') {
+        resetFilterPillToAll();
+      }
+      renderDrawerNotes({ newNoteId: noteId });
+      window.setTimeout(() => {
+        if (!drawerList) return;
+        const targetCard = drawerList.querySelector<HTMLElement>(`.notes-item-card[data-note-id="${CSS.escape(noteId)}"]`);
+        if (targetCard) {
+          targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetCard.classList.remove('has-pulse');
+          void targetCard.offsetWidth;
+          targetCard.classList.add('has-pulse');
+          window.setTimeout(() => targetCard.classList.remove('has-pulse'), 800);
+        }
+      }, 240);
+    }
+
+    function showNoteSavedMicroToast(noteId: string) {
+      let toast = document.getElementById('notes-saved-micro-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'notes-saved-micro-toast';
+        toast.className = 'notes-saved-micro-toast';
+        toast.setAttribute('role', 'status');
+        document.body.appendChild(toast);
+      }
+      toast.innerHTML = `
+        <span class="notes-saved-toast-icon" aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </span>
+        <span class="notes-saved-toast-text">已收录入卷</span>
+        <button type="button" class="notes-saved-toast-action">查看 →</button>
+      `;
+      const actionBtn = toast.querySelector<HTMLButtonElement>('.notes-saved-toast-action');
+      actionBtn?.addEventListener('click', () => {
+        toast?.classList.remove('is-visible');
+        focusAndPulseNote(noteId);
+      }, { once: true });
+
+      toast.hidden = false;
+      void toast.offsetWidth;
+      toast.classList.add('is-visible');
+      if (microToastTimer !== null) window.clearTimeout(microToastTimer);
+      microToastTimer = window.setTimeout(() => {
+        toast?.classList.remove('is-visible');
+        window.setTimeout(() => {
+          if (toast && !toast.classList.contains('is-visible')) toast.hidden = true;
+        }, 240);
+      }, 3600);
+    }
 
     function addNote(input: { text: string; markdown?: string; rawText?: string; kind?: 'ai' | 'free'; question?: string; headingText?: string }): ArticleHighlightRecord | null {
       const text = String(input?.text || '').trim().slice(0, 20000);
@@ -2264,9 +2578,11 @@
       updateBadges();
       if (isDrawerOpen) {
         if (currentNotesFilter !== 'all' && currentNotesFilter !== kind) {
-          switchNotesFilter('all');
+          resetFilterPillToAll();
         }
         renderDrawerNotes({ retainedFirstRects, newNoteId: record.id });
+      } else {
+        showNoteSavedMicroToast(record.id);
       }
       notifyNotesChanged();
       return record;
@@ -2373,8 +2689,11 @@
         saveStandaloneNote(newRecord);
         close();
         showStamp('已保存独立便签');
-        switchNotesFilter('all');
-        renderDrawerNotes({ newNoteId: newRecord.id });
+        const retainedFirstRects = captureDrawerCardRects();
+        if (currentNotesFilter !== 'all' && currentNotesFilter !== 'free') {
+          resetFilterPillToAll();
+        }
+        renderDrawerNotes({ retainedFirstRects, newNoteId: newRecord.id });
         notifyNotesChanged();
         updateBadges();
       };
@@ -2396,6 +2715,7 @@
     function openNotesDrawer(opts?: { silent?: boolean } | Event) {
       if (!drawer || !backdrop) return;
       const isSilent = Boolean(opts && !(opts instanceof Event) && opts.silent);
+      const wasOpen = Boolean(drawer.classList.contains('is-open'));
       hideDock();
       updateBadges();
       renderDrawerNotes(isSilent ? { suppressAnimation: true } : undefined);
@@ -2435,8 +2755,21 @@
         drawer.classList.add('is-open');
         backdrop.classList.add('is-open');
         document.body.classList.add('notes-drawer-open');
+
+        if (!wasOpen && drawerList && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          drawerList.animate?.(
+            [
+              { clipPath: 'circle(8% at 86% 92%)', opacity: 0.38 },
+              { clipPath: 'circle(145% at 86% 92%)', opacity: 1 },
+            ],
+            { duration: 400, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+          );
+        }
       }
-      requestAnimationFrame(() => refreshVisibleCardOverflow());
+      requestAnimationFrame(() => {
+        refreshVisibleCardOverflow();
+        syncNotesFilterGlider(true);
+      });
 
       // 先向协调器汇报当前激活面板（更新 lastActiveKind 并完成单浮岛接管），再广播 article-notes:open
       window.dispatchEvent(new CustomEvent('companion:panel', { detail: { kind: 'notes', open: true } }));
@@ -2547,10 +2880,30 @@
       }
     }, { signal });
 
-    // 清空全部高亮
-    clearAllBtn?.addEventListener('click', () => {
-      if (!storedRecords.some((r) => !r.deleted)) return;
-      if (!window.confirm('确定要清空本文的所有笔记吗？')) return;
+    // 清空全部高亮（书斋内联二次确认，替代突兀的浏览器原生 window.confirm）
+    let clearAllConfirmTimer: number | null = null;
+    clearAllBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!storedRecords.some((r) => !r.deleted)) {
+        closeMenu();
+        showStamp('当前暂无可清空的笔记');
+        return;
+      }
+      const labelSpan = clearAllBtn.querySelector('span');
+      if (clearAllBtn.dataset.confirming !== 'true') {
+        clearAllBtn.dataset.confirming = 'true';
+        if (labelSpan) labelSpan.textContent = '再点一次确认清空';
+        if (clearAllConfirmTimer) window.clearTimeout(clearAllConfirmTimer);
+        clearAllConfirmTimer = window.setTimeout(() => {
+          delete clearAllBtn.dataset.confirming;
+          if (labelSpan) labelSpan.textContent = '清空全部划线';
+        }, 3000);
+        return;
+      }
+      delete clearAllBtn.dataset.confirming;
+      if (labelSpan) labelSpan.textContent = '清空全部划线';
+      if (clearAllConfirmTimer) window.clearTimeout(clearAllConfirmTimer);
+      closeMenu();
 
       const now = Date.now();
       for (const rec of storedRecords) {
@@ -2664,6 +3017,43 @@
     registerWithCompanion();
     window.addEventListener('companion:ready', () => registerWithCompanion(4), { signal });
 
+    // 并排模式下支持将墨问回答拖入右侧笔记区入藏
+    drawerList?.addEventListener('dragover', (e: DragEvent) => {
+      if (document.documentElement.getAttribute('data-companion-mode') !== 'split') return;
+      if (!e.dataTransfer?.types.includes('application/x-inkask-turn')) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      drawerList.classList.add('is-drop-target');
+    }, { signal });
+
+    drawerList?.addEventListener('dragleave', (e: DragEvent) => {
+      const related = e.relatedTarget as Node | null;
+      if (related && drawerList?.contains(related)) return;
+      drawerList?.classList.remove('is-drop-target');
+    }, { signal });
+
+    drawerList?.addEventListener('drop', (e: DragEvent) => {
+      drawerList?.classList.remove('is-drop-target');
+      if (document.documentElement.getAttribute('data-companion-mode') !== 'split') return;
+      const raw = e.dataTransfer?.getData('application/x-inkask-turn');
+      if (!raw) return;
+      e.preventDefault();
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.text) {
+          addNote({
+            text: parsed.text,
+            markdown: parsed.markdown || parsed.text,
+            rawText: parsed.text,
+            kind: 'ai',
+            question: parsed.question || '',
+            headingText: 'AI 问答摘录',
+          });
+          showStamp('已拖入笔记卷中');
+        }
+      } catch {}
+    }, { signal });
+
     // 对外暴露 API 以供外部组件/测试交互
     (window as any).__articleHighlights = {
       getHighlights: () => [...storedRecords],
@@ -2672,6 +3062,7 @@
       openDrawer: openNotesDrawer,
       closeDrawer: closeNotesDrawer,
       jumpToHighlight,
+      focusAndPulseNote,
       addNote,
       exportMarkdown: () => exportHighlightsAsMarkdown(
         postTitle(),
@@ -2684,6 +3075,7 @@
       addNote,
       openDrawer: openNotesDrawer,
       jumpToHighlight,
+      focusAndPulseNote,
       getNotes: () => [...storedRecords],
     };
 
@@ -2797,6 +3189,73 @@
     border-radius: 0 2px 2px 0 !important;
     padding: 0.05em 0.15em 0.05em 0 !important;
     margin: 0 !important;
+  }
+
+  /* 行内代码 (inline <code>) 划线高度与底线对齐修复：
+     由于 .prose :not(pre) > code 字号为 0.86em 且自带边框/内边距，若由内部 <mark> 单独绘制底纹会导致高度矮一截、下划线错位且两侧留白断层。
+     当行内 code 内含划线 mark 时，由 code 容器统一承载与正文等高的双通道渐变底色与 1.5px 底线，内部 mark 退化为纯语义锚点。 */
+  :not(pre) > code:has(mark.article-highlight-mark) {
+    --mark-sweep-line: rgba(215, 140, 10, 0.85);
+    --mark-sweep-bg: rgba(255, 197, 61, 0.38);
+    background-image:
+      linear-gradient(to right, var(--mark-sweep-line), var(--mark-sweep-line)),
+      linear-gradient(to right, var(--mark-sweep-bg), var(--mark-sweep-bg)) !important;
+    background-position: left bottom, left top !important;
+    background-repeat: no-repeat !important;
+    background-size: 100% 1.5px, 100% 100% !important;
+    background-color: transparent !important;
+    border-top: none !important;
+    border-bottom: none !important;
+    border-left: 1px solid transparent !important;
+    border-right: 1px solid transparent !important;
+    border-radius: 0 !important;
+    padding: 0.20em 0.42em 0.125em !important;
+    margin: 0 !important;
+    vertical-align: baseline;
+    cursor: pointer;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  [data-theme="dark"] :not(pre) > code:has(mark.article-highlight-mark) {
+    --mark-sweep-line: rgba(255, 215, 80, 0.9);
+    --mark-sweep-bg: rgba(255, 197, 61, 0.36);
+    color: #F3F4F6 !important;
+  }
+  [data-theme="moss"] :not(pre) > code:has(mark.article-highlight-mark) {
+    --mark-sweep-line: rgba(255, 230, 120, 0.9);
+    --mark-sweep-bg: rgba(255, 215, 95, 0.38);
+    color: #F9FAFB !important;
+  }
+  [data-theme="rice"] :not(pre) > code:has(mark.article-highlight-mark) {
+    --mark-sweep-line: rgba(195, 120, 10, 0.85);
+    --mark-sweep-bg: rgba(235, 160, 20, 0.34);
+    color: #2B241C !important;
+  }
+  :not(pre) > code:has(mark.article-highlight-mark:hover),
+  :not(pre) > code:hover:has(mark.article-highlight-mark) {
+    --mark-sweep-line: rgba(215, 140, 10, 0.95);
+    --mark-sweep-bg: rgba(255, 197, 61, 0.52);
+  }
+  :not(pre) > code:has(mark.article-highlight-mark.is-drawing) {
+    animation: inkSweepDraw 450ms cubic-bezier(0.16, 1, 0.3, 1) both !important;
+    animation-delay: var(--mark-draw-delay, 0ms) !important;
+    animation-duration: var(--mark-draw-duration, 450ms) !important;
+  }
+  :not(pre) > code:has(mark.article-highlight-mark.has-pulse) {
+    animation: article-highlight-pulse 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  :not(pre) > code:has(mark.article-highlight-mark.is-fading-out) {
+    background-size: 0% 1.5px, 0% 100% !important;
+    transition: background-size 380ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+  :not(pre) > code > mark.article-highlight-mark {
+    background: none !important;
+    background-image: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
 
   /* 取消划线：只收走底纹/下划线，文字始终留在原位 */
@@ -2975,21 +3434,21 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
 
-  /* 入场与退场动画 (~420ms enter, ~320ms exit) */
+  /* 入场与退场动画 (280ms enter, 200ms exit) */
   .article-selection-dock.is-entering {
-    animation: selection-dock-in 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: selection-dock-in 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   .article-selection-dock.is-exiting {
-    animation: selection-dock-out 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: selection-dock-out 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 
   .article-selection-dock.is-flipped-top.is-entering {
-    animation: selection-dock-in-top 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: selection-dock-in-top 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   .article-selection-dock.is-flipped-top.is-exiting {
-    animation: selection-dock-out-top 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: selection-dock-out-top 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 
   @keyframes selection-dock-in {
@@ -3616,6 +4075,7 @@
   }
 
   .notes-drawer-filter-group {
+    position: relative;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -3623,7 +4083,34 @@
     margin: 0;
   }
 
+  .notes-filter-glider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    border-radius: 9999px;
+    background: var(--vermilion-soft);
+    border: 1px solid var(--vermilion);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+    will-change: transform, width, height;
+    transition:
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 160ms ease;
+  }
+
+  [data-theme="dark"] .notes-filter-glider {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.34);
+  }
+
   .notes-filter-pill {
+    position: relative;
+    z-index: 1;
     padding: 2.5px 9.5px;
     border-radius: 9999px;
     font-size: 0.74rem;
@@ -3654,6 +4141,11 @@
     background: rgba(255, 255, 255, 0.14);
     color: var(--text-strong);
     border-color: rgba(255, 255, 255, 0.34);
+  }
+
+  .notes-drawer-filter-group.has-glider .notes-filter-pill.is-active {
+    background: transparent;
+    border-color: transparent;
   }
 
   .drawer-drag-handle {
@@ -3863,7 +4355,7 @@
     height: 0 !important;
   }
 
-  /* 东方书斋空状态（与墨问伴读空状态视觉同源） */
+  /* 东方书斋空状态（去方印化：书卷细线纹饰 + 氤氲展翼入场） */
   .notes-empty-state {
     flex: 1;
     display: flex;
@@ -3881,29 +4373,32 @@
     align-items: center;
     justify-content: center;
     gap: 0.85rem;
-    margin-bottom: 0.9rem;
+    margin-bottom: 0.85rem;
     user-select: none;
   }
   .notes-empty-line {
-    width: 40px;
+    width: 42px;
     height: 1px;
     background: linear-gradient(90deg, transparent, var(--rule-strong), transparent);
-    opacity: 0.7;
+    opacity: 0.72;
+    animation: notesEmptyWing 360ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
   }
-  .notes-empty-seal {
-    display: grid;
+  .notes-empty-line.is-left {
+    transform-origin: right center;
+  }
+  .notes-empty-line.is-right {
+    transform-origin: left center;
+  }
+  .notes-empty-ornament {
+    display: inline-grid;
     place-items: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 7px;
-    border: 1.5px solid var(--vermilion);
-    background: var(--vermilion-soft);
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    background: radial-gradient(circle, var(--vermilion-soft) 0%, transparent 74%);
     color: var(--vermilion);
-    box-shadow: inset 0 0 0 2px var(--bg-elev);
-    font-family: var(--font-hand-title);
-    font-size: 1.1rem;
-    font-weight: 700;
     line-height: 1;
+    animation: notesEmptyMist 340ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
   }
 
   .notes-empty-title {
@@ -3913,6 +4408,7 @@
     font-weight: 700;
     letter-spacing: 0.05em;
     color: var(--text-strong);
+    animation: notesEmptyMist 360ms cubic-bezier(0.16, 1, 0.3, 1) 30ms backwards;
   }
 
   .notes-empty-desc {
@@ -3921,6 +4417,30 @@
     line-height: 1.68;
     max-width: 290px;
     color: var(--muted);
+    animation: notesEmptyMist 360ms cubic-bezier(0.16, 1, 0.3, 1) 50ms backwards;
+  }
+
+  @keyframes notesEmptyWing {
+    from {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+    to {
+      opacity: 0.72;
+      transform: scaleX(1);
+    }
+  }
+  @keyframes notesEmptyMist {
+    from {
+      opacity: 0;
+      filter: blur(5px);
+      transform: translate3d(0, 10px, 0);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+      transform: translate3d(0, 0, 0);
+    }
   }
 
   .notes-empty-cta {
@@ -3981,8 +4501,8 @@
     padding: 0.88rem 1.02rem;
     cursor: pointer;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025);
-    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
-    animation: notesCardIn 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    animation: notesCardIn 360ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
   }
   .notes-item-card[data-note-kind="ai"] {
     --note-spine-color: var(--vermilion);
@@ -4158,33 +4678,39 @@
   @keyframes notesCardIn {
     from {
       opacity: 0;
-      transform: translate3d(0, 10px, 0) scale(0.985);
+      clip-path: inset(0 100% 0 0 round 12px);
+      transform: translate3d(-14px, 0, 0);
     }
     to {
       opacity: 1;
-      transform: translate3d(0, 0, 0) scale(1);
+      clip-path: inset(0 0% 0 0 round 12px);
+      transform: translate3d(0, 0, 0);
     }
   }
 
   @keyframes noteFilterOut {
     0% {
       opacity: 1;
+      clip-path: inset(0 0% 0 0 round 12px);
       transform: translate3d(0, 0, 0) scale(1);
     }
     100% {
       opacity: 0;
-      transform: translate3d(0, -8px, 0) scale(0.95);
+      clip-path: inset(0 100% 0 0 round 12px);
+      transform: translate3d(-14px, 0, 0) scale(0.98);
     }
   }
 
   @keyframes noteFilterIn {
     0% {
       opacity: 0;
-      transform: translate3d(0, 10px, 0) scale(0.96);
+      clip-path: inset(0 100% 0 0 round 12px);
+      transform: translate3d(-14px, 0, 0);
     }
     100% {
       opacity: 1;
-      transform: translate3d(0, 0, 0) scale(1);
+      clip-path: inset(0 0% 0 0 round 12px);
+      transform: translate3d(0, 0, 0);
     }
   }
 
@@ -4193,16 +4719,23 @@
   }
 
   .notes-item-card.is-filtering-in {
-    animation: noteFilterIn 280ms cubic-bezier(0.16, 1, 0.3, 1) both !important;
+    animation: noteFilterIn 340ms cubic-bezier(0.16, 1, 0.3, 1) backwards !important;
   }
 
   .notes-empty-state.is-filtering-in {
-    animation: noteFilterIn 280ms cubic-bezier(0.16, 1, 0.3, 1) both !important;
+    animation: notesEmptyMist 320ms cubic-bezier(0.16, 1, 0.3, 1) backwards !important;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .notes-item-card {
-      animation: none;
+    .notes-item-card,
+    .notes-empty-line,
+    .notes-empty-ornament,
+    .notes-empty-title,
+    .notes-empty-desc {
+      animation: none !important;
+    }
+    .notes-filter-glider {
+      transition: none !important;
     }
   }
 
@@ -4583,6 +5116,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
     font-size: 0.72rem;
     color: var(--muted);
   }
@@ -4594,7 +5129,9 @@
   .notes-item-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 4px;
+    margin-left: auto;
   }
 
   .notes-btn {
@@ -4627,6 +5164,183 @@
     color: #e53935;
     border-color: rgba(229, 57, 53, 0.4);
     background: rgba(229, 57, 53, 0.08);
+  }
+
+  .notes-btn-ask {
+    color: var(--vermilion, #c23f2c);
+    border-color: rgba(194, 63, 44, 0.28);
+  }
+  .notes-btn-ask:hover {
+    color: var(--vermilion, #c23f2c);
+    background: var(--vermilion-soft, rgba(194, 63, 44, 0.1));
+    border-color: var(--vermilion, #c23f2c);
+  }
+
+  /* 快捷键按键按压微弹反馈 */
+  .dock-action-btn.is-key-pressed {
+    transform: translateY(1px) scale(0.92) !important;
+    background: rgba(194, 63, 44, 0.14) !important;
+    color: var(--vermilion, #c23f2c) !important;
+  }
+  .dock-action-btn.is-key-pressed .dock-kbd {
+    background: var(--vermilion, #c23f2c);
+    color: #fff;
+    border-color: var(--vermilion, #c23f2c);
+  }
+  .selection-dock-capsule.has-key-press {
+    box-shadow: 0 0 0 4px rgba(194, 63, 44, 0.18), 0 16px 40px rgba(0, 0, 0, 0.16);
+  }
+
+  /* 划词/追问飞入墨问幽灵胶囊 */
+  .selection-fly-ghost {
+    position: fixed;
+    z-index: 100090;
+    max-width: 240px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--vermilion, #c23f2c);
+    background: var(--glass-bg-strong, var(--bg-elev));
+    color: var(--text-strong);
+    font-family: var(--font-body);
+    font-size: 0.76rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 10px 28px rgba(194, 63, 44, 0.24);
+    pointer-events: none;
+  }
+
+  /* 存入笔记轻量底部微胶囊 Toast */
+  .notes-saved-micro-toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translate3d(-50%, 16px, 0) scale(0.95);
+    z-index: 100085;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px 6px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--rule-strong);
+    background: var(--glass-bg-strong, var(--bg-elev));
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    color: var(--text-strong);
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1), transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .notes-saved-micro-toast.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+  .notes-saved-toast-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--vermilion-soft, rgba(194, 63, 44, 0.14));
+    color: var(--vermilion, #c23f2c);
+    flex-shrink: 0;
+  }
+  .notes-saved-toast-action {
+    border: none;
+    background: transparent;
+    color: var(--vermilion, #c23f2c);
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: background 150ms ease, transform 150ms ease;
+  }
+  .notes-saved-toast-action:hover {
+    background: var(--vermilion-soft, rgba(194, 63, 44, 0.1));
+    transform: translateX(1.5px);
+  }
+
+  /* 笔记卡片书脊水墨横扫（720ms 自左书脊向整卡浸润）与拖拽目标提示 */
+  .notes-item-card.has-pulse {
+    border-color: var(--note-spine-color);
+  }
+  .notes-item-card.has-pulse::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      rgba(197, 139, 42, 0.22) 0%,
+      rgba(197, 139, 42, 0.08) 56%,
+      transparent 100%
+    );
+    transform-origin: left center;
+    pointer-events: none;
+    animation: notesCardSpineSweep 720ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .notes-item-card[data-note-kind="ai"].has-pulse::after {
+    background: linear-gradient(
+      90deg,
+      rgba(var(--vermilion-rgb, 194, 63, 44), 0.22) 0%,
+      rgba(var(--vermilion-rgb, 194, 63, 44), 0.08) 56%,
+      transparent 100%
+    );
+  }
+  @keyframes notesCardSpineSweep {
+    0% {
+      opacity: 0.95;
+      transform: scaleX(0.03);
+    }
+    38% {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scaleX(1);
+    }
+  }
+  .notes-drawer-body.is-drop-target {
+    outline: 2px dashed rgba(215, 150, 20, 0.75);
+    outline-offset: -8px;
+    background: rgba(215, 150, 20, 0.04);
+    border-radius: 12px;
+  }
+  .notes-item-card.is-dragging-card {
+    opacity: 0.55;
+    transform: scale(0.98);
+  }
+  .notes-filter-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .notes-filter-pill.is-empty-filter:not(.is-active) {
+    opacity: 0.52;
+  }
+  .notes-filter-count {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    opacity: 0.78;
+    padding: 0 3px;
+    border-radius: 99px;
+    background: rgba(var(--accent-rgb, 0, 0, 0), 0.07);
+  }
+  .notes-filter-pill.is-active .notes-filter-count {
+    background: rgba(255, 255, 255, 0.22);
+    opacity: 1;
+  }
+  .notes-composer-input {
+    max-height: 180px;
+    overflow-y: auto;
   }
 
 </style>

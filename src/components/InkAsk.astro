@@ -109,14 +109,23 @@
     return { left, top, right, bottom, width: right - left, height: bottom - top };
   }
 
-  // ---------- 「问」印 ----------
+  // ---------- 墨问图标与划词悬浮胶囊 ----------
+
+  const ASK_BRAND_ICON =
+    '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 14.5a2 2 0 0 1-2 2H7.5L3 20.5V5.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="m12 7.2 1 2.2 2.2 1-2.2 1-1 2.2-1-2.2-2.2-1 2.2-1z"/></svg>';
+
+  const WELCOME_ORNAMENT_ICON =
+    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5.5A2.5 2.5 0 0 1 4.5 3H11v16H4.5A2.5 2.5 0 0 0 2 21.5z"/><path d="M22 5.5A2.5 2.5 0 0 0 19.5 3H13v16h6.5a2.5 2.5 0 0 1 2.5 2.5z"/><path d="m12 6.5.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8z"/></svg>';
+
+  const SEND_ARROW_ICON =
+    '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>';
 
   function ensureSeal(): HTMLButtonElement {
     if (seal?.isConnected) return seal;
     seal = document.createElement('button');
     seal.type = 'button';
     seal.className = 'ink-ask-seal';
-    seal.textContent = '问';
+    seal.innerHTML = ASK_BRAND_ICON;
     seal.title = '问问 AI（通俗解释）';
     seal.setAttribute('aria-label', '问 AI：通俗解释选中的内容');
     seal.addEventListener('pointerdown', (event) => {
@@ -126,8 +135,8 @@
       const root = prose();
       if (sealRange && root) open(sealRange, root);
     });
-    seal.addEventListener('animationend', (event) => {
-      if (event.pseudoElement) seal?.classList.remove('is-stamping');
+    seal.addEventListener('animationend', () => {
+      seal?.classList.remove('is-popping');
     });
     document.body.append(seal);
     return seal;
@@ -135,7 +144,7 @@
 
   function hideSeal() {
     sealRange = null;
-    seal?.classList.remove('is-shown', 'is-stamping');
+    seal?.classList.remove('is-shown', 'is-popping');
   }
 
   function showSeal(range: Range) {
@@ -154,9 +163,9 @@
     sealRange = range.cloneRange();
     button.classList.add('is-shown');
     if (!wasShown && !reduceMotion()) {
-      button.classList.remove('is-stamping');
+      button.classList.remove('is-popping');
       void button.offsetWidth;
-      button.classList.add('is-stamping');
+      button.classList.add('is-popping');
     }
   }
 
@@ -418,7 +427,7 @@
       <div class="ink-ask-head" title="按住可拖动窗口 (双击最大化/还原)">
         <div class="ink-ask-head-main">
           <span class="ink-ask-drag-handle" aria-hidden="true">${DRAG_ICON}</span>
-          <span class="companion-mini-seal" aria-hidden="true">问</span>
+          <span class="ink-ask-brand-mark" aria-hidden="true">${ASK_BRAND_ICON}</span>
           <p class="ink-ask-heading">
             <span class="ink-ask-title">墨问</span>
             <span class="ink-ask-sep">·</span>
@@ -443,7 +452,7 @@
       <form class="ink-ask-form" autocomplete="off">
         <textarea class="ink-ask-input" name="question" rows="1" maxlength="1000" placeholder="不懂就问，可在此编辑或追加问题… (Enter 发送，Shift+Enter 换行)" enterkeyhint="send"></textarea>
         <button type="button" class="ink-ask-recall" aria-label="撤回刚才的提问并重新编辑" title="撤回刚才的提问并重新编辑 (Esc)">${ICON_RECALL}<span>撤回</span></button>
-        <button type="submit" class="ink-ask-send" aria-label="发送">问</button>
+        <button type="submit" class="ink-ask-send" aria-label="发送">${SEND_ARROW_ICON}</button>
       </form>
       <div class="ink-ask-resize-handle" aria-hidden="true" title="拖拽调整大小（双击恢复默认）"></div>`;
     card.querySelector('.ink-ask-quote')!.textContent = anchor.text;
@@ -625,7 +634,7 @@
     void card.offsetWidth;
     card.classList.add('is-opening');
     card.style.clipPath = `circle(${r}px at ${x}px ${y}px)`;
-    afterTransition(card, 900, () => {
+    afterTransition(card, 440, () => {
       card.classList.remove('is-opening');
       card.style.clipPath = '';
     });
@@ -645,13 +654,13 @@
       return;
     }
     s.ring.classList.add('is-drying');
-    window.setTimeout(() => s.ring.remove(), 600);
+    window.setTimeout(() => s.ring.remove(), 340);
     const { x, y, r } = inkCircle(s);
     s.card.style.clipPath = `circle(${r}px at ${x}px ${y}px)`;
     void s.card.offsetWidth;
     s.card.classList.add('is-closing');
     s.card.style.clipPath = `circle(0px at ${x}px ${y}px)`;
-    afterTransition(s.card, 600, () => s.card.remove());
+    afterTransition(s.card, 300, () => s.card.remove());
   }
 
   // ---------- 一问一答 ----------
@@ -683,7 +692,7 @@
     }
     const byline = document.createElement('div');
     byline.className = 'ink-ask-byline';
-    byline.innerHTML = '<span class="companion-mini-seal" aria-hidden="true">墨</span><span class="ink-ask-byline-name">墨问</span>';
+    byline.innerHTML = `<span class="ink-ask-brand-mark" aria-hidden="true">${ASK_BRAND_ICON}</span><span class="ink-ask-byline-name">墨问</span>`;
     const answer = document.createElement('div');
     answer.className = 'ink-ask-answer';
     const status = document.createElement('p');
@@ -718,15 +727,74 @@
   // 点击按钮的 pointerdown 会先折叠选区，这里在折叠前把选中的片段记下来
   const pendingSelections = new WeakMap<HTMLElement, string>();
 
+  function flyInkToNotes(fromEl: HTMLElement | null) {
+    if (!fromEl || reduceMotion()) return;
+    const startRect = fromEl.getBoundingClientRect();
+    if (startRect.width === 0 && startRect.height === 0) return;
+
+    const isSplit = document.documentElement.getAttribute('data-companion-mode') === 'split';
+    const targetEl = isSplit
+      ? document.querySelector<HTMLElement>('#notes-drawer-list, .notes-drawer-body')
+      : (fromEl.closest('.ink-ask-drawer')?.querySelector<HTMLElement>('.companion-seg-badge, [data-companion-switch="notes"]') ||
+         document.querySelector<HTMLElement>('.companion-seg-badge, #article-highlights-floating-pill'));
+
+    const tRect = targetEl?.getBoundingClientRect();
+    const startX = startRect.left + startRect.width / 2;
+    const startY = startRect.top + startRect.height / 2;
+    const endX = tRect && tRect.width > 0 ? tRect.left + tRect.width / 2 : window.innerWidth - 120;
+    const endY = tRect && tRect.height > 0 ? tRect.top + Math.min(80, tRect.height / 2) : 48;
+
+    const midX = (startX + endX) / 2;
+    const midY = Math.min(startY, endY) - 78;
+    const dxMid = Math.round(midX - startX);
+    const dyMid = Math.round(midY - startY);
+    const dxEnd = Math.round(endX - startX);
+    const dyEnd = Math.round(endY - startY);
+
+    const sizes = [11, 8, 6, 4.5];
+    sizes.forEach((sz, idx) => {
+      const dot = document.createElement('div');
+      dot.className = idx === 0 ? 'ink-save-fly-particle' : 'ink-save-fly-particle is-tail';
+      dot.style.width = `${sz}px`;
+      dot.style.height = `${sz}px`;
+      dot.style.left = `${Math.round(startX)}px`;
+      dot.style.top = `${Math.round(startY)}px`;
+      document.body.appendChild(dot);
+
+      const anim = dot.animate(
+        [
+          { transform: 'translate(-50%, -50%) scale(0.85)', opacity: idx === 0 ? 1 : 0.72 - idx * 0.14 },
+          { transform: `translate(calc(-50% + ${dxMid}px), calc(-50% + ${dyMid}px)) scale(${idx === 0 ? 1.3 : 1.05})`, opacity: idx === 0 ? 0.96 : 0.58 - idx * 0.1, offset: 0.46 },
+          { transform: `translate(calc(-50% + ${dxEnd}px), calc(-50% + ${dyEnd}px)) scale(0.28)`, opacity: 0 },
+        ],
+        {
+          duration: 440,
+          delay: idx * 24,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+          fill: 'forwards',
+        }
+      );
+      anim.onfinish = () => {
+        dot.remove();
+        if (idx === 0) {
+          (window as any).__inkSplash?.(endX, endY, 7);
+        }
+      };
+      anim.oncancel = () => dot.remove();
+    });
+  }
+
   function refreshSaveNoteLabels() {
     document.querySelectorAll<HTMLButtonElement>('.ink-ask-save-note').forEach((btn) => {
       if (btn.classList.contains('is-saved')) return;
       const turn = btn.closest('.ink-ask-turn');
       const answerEl = turn?.querySelector<HTMLElement>('.ink-ask-answer') || null;
-      const partial = Boolean(selectedTextInside(answerEl));
+      const selected = selectedTextInside(answerEl);
+      const partial = Boolean(selected);
+      const labelText = partial ? `存入选中 (${selected.length}字)` : '存入笔记';
       const labelEl = btn.querySelector<HTMLElement>('.ink-ask-save-label');
-      if (labelEl) labelEl.textContent = partial ? '存入选中' : '存入笔记';
-      else btn.textContent = partial ? '存入选中' : '存入笔记';
+      if (labelEl) labelEl.textContent = labelText;
+      else btn.textContent = labelText;
       btn.classList.toggle('is-partial', partial);
     });
   }
@@ -734,6 +802,9 @@
   /** 回答完成后在下方追加书斋操作栏（「存入笔记」+「复制」） */
   function addSaveNoteButton(turn: HTMLElement, getText: () => string, question: string, answerEl: HTMLElement) {
     if (turn.querySelector('.ink-ask-save-note')) return;
+    if (!turn.dataset.turnId) {
+      turn.dataset.turnId = `turn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    }
     const bar = document.createElement('div');
     bar.className = 'ink-ask-turn-actions';
 
@@ -751,6 +822,7 @@
       pendingSelections.delete(answerEl);
       const text = (selected || getText()).trim();
       if (!text) return;
+      flyInkToNotes(btn);
       const detail = { kind: 'ai' as const, text, markdown: text, question, headingText: 'AI 问答摘录' };
       const api = (window as any).__articleNotes;
       if (api && typeof api.addNote === 'function') api.addNote(detail);
@@ -763,6 +835,38 @@
         btn.classList.remove('is-saved');
         refreshSaveNoteLabels();
       }, 1800);
+    });
+
+    // 并排模式下支持将整轮回答直接拖拽至右卷「笔记」（仅在 split 模式且非回答正文选字区启用 draggable，避免阻断「存入选中 (N字)」划词）
+    turn.addEventListener('pointerdown', (e: PointerEvent) => {
+      const isSplit = document.documentElement.getAttribute('data-companion-mode') === 'split';
+      const inAnswerBody = Boolean((e.target as HTMLElement | null)?.closest('.ink-ask-answer, button, a'));
+      turn.draggable = isSplit && !inAnswerBody;
+    });
+    turn.addEventListener('dragstart', (e: DragEvent) => {
+      if (document.documentElement.getAttribute('data-companion-mode') !== 'split') {
+        e.preventDefault();
+        return;
+      }
+      const selected = selectedTextInside(answerEl);
+      const text = (selected || getText()).trim();
+      if (!text) {
+        e.preventDefault();
+        return;
+      }
+      turn.classList.add('is-dragging-turn');
+      const payload = JSON.stringify({
+        text,
+        markdown: text,
+        question,
+      });
+      e.dataTransfer?.setData('application/x-inkask-turn', payload);
+      e.dataTransfer?.setData('text/plain', text);
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy';
+    });
+    turn.addEventListener('dragend', () => {
+      turn.classList.remove('is-dragging-turn');
+      turn.draggable = false;
     });
 
     const copyBtn = document.createElement('button');
@@ -810,7 +914,7 @@
     targetTurn.classList.add('is-recalling');
     window.setTimeout(() => {
       targetTurn.remove();
-    }, 180);
+    }, 200);
 
     if (textToRestore && s.input) {
       s.input.value = textToRestore;
@@ -1161,7 +1265,7 @@
         <div class="ink-ask-drawer-head">
           <div class="ink-ask-drawer-head-inner">
             <div class="ink-ask-drawer-title-area">
-              <span class="companion-mini-seal" aria-hidden="true">问</span>
+              <span class="ink-ask-brand-mark" aria-hidden="true">${ASK_BRAND_ICON}</span>
               <h2 class="ink-ask-drawer-title">墨问 · 伴读</h2>
             </div>
             <div class="ink-ask-drawer-actions">
@@ -1177,9 +1281,9 @@
           <div class="ink-ask-drawer-body-inner">
             <div class="ink-ask-drawer-welcome">
               <div class="ink-ask-welcome-emblem" aria-hidden="true">
-                <span class="ink-ask-welcome-line"></span>
-                <span class="ink-ask-welcome-seal">墨</span>
-                <span class="ink-ask-welcome-line"></span>
+                <span class="ink-ask-welcome-line is-left"></span>
+                <span class="ink-ask-welcome-ornament">${WELCOME_ORNAMENT_ICON}</span>
+                <span class="ink-ask-welcome-line is-right"></span>
               </div>
               <h3 class="ink-ask-welcome-title">展卷伴读 · 疑义相析</h3>
               <p class="ink-ask-welcome-epigraph"></p>
@@ -1244,7 +1348,7 @@
                 ${ICON_RECALL}
                 <span>撤回</span>
               </button>
-              <button type="submit" class="ink-ask-drawer-send" aria-label="发送">问</button>
+              <button type="submit" class="ink-ask-drawer-send" aria-label="发送">${SEND_ARROW_ICON}</button>
             </div>
           </div>
         </form>`;
@@ -1382,7 +1486,7 @@
           drawerBody.scrollTop = 0;
           isResetting = false;
           textarea.focus({ preventScroll: true });
-        }, 260);
+        }, 220);
       };
       newChatBtn?.addEventListener('click', resetConversation);
 
@@ -1390,7 +1494,16 @@
       sidebarDrawer.querySelectorAll<HTMLButtonElement>('.ink-ask-mini-chip, .ink-ask-prompt-card').forEach((card) => {
         card.addEventListener('click', () => {
           const q = card.dataset.ask || card.textContent?.trim() || '';
-          if (q) askDrawer(q);
+          if (!q) return;
+          if (card.classList.contains('ink-ask-prompt-card') && !reduceMotion()) {
+            card.classList.add('is-launching');
+            window.setTimeout(() => {
+              card.classList.remove('is-launching');
+              askDrawer(q);
+            }, 130);
+          } else {
+            askDrawer(q);
+          }
         });
       });
 
@@ -1446,7 +1559,7 @@
             void welcome.offsetWidth;
             welcome.classList.add('is-entering');
           }
-        }, 180);
+        }, 200);
 
         if (textToRestore) {
           textarea.value = textToRestore;
@@ -1468,14 +1581,85 @@
         recallDrawerTurn();
       });
 
+      let activeFollowUpQuote = '';
+      let followUpChipEl: HTMLElement | null = null;
+
+      const clearFollowUpChip = () => {
+        activeFollowUpQuote = '';
+        if (followUpChipEl) {
+          followUpChipEl.remove();
+          followUpChipEl = null;
+        }
+      };
+
+      const mountFollowUpChip = (payload: { text: string; question?: string; kind?: string; heading?: string }) => {
+        const snippet = (payload.text || '').trim();
+        if (!snippet) return;
+        activeFollowUpQuote = snippet;
+        const formInner = sidebarDrawer?.querySelector<HTMLElement>('.ink-ask-drawer-form-inner');
+        const inputWrap = sidebarDrawer?.querySelector<HTMLElement>('.ink-ask-drawer-input-wrap');
+        if (!formInner || !inputWrap) return;
+        if (!followUpChipEl || !formInner.contains(followUpChipEl)) {
+          followUpChipEl = document.createElement('div');
+          followUpChipEl.className = 'ink-ask-followup-chip';
+          formInner.insertBefore(followUpChipEl, inputWrap);
+        }
+        const badgeLabel = payload.kind === 'ai' ? '追问摘录' : '引文追问';
+        const previewText = snippet.replace(/\s+/g, ' ').slice(0, 72) + (snippet.length > 72 ? '…' : '');
+        followUpChipEl.innerHTML = `
+          <span class="ink-ask-followup-badge">${badgeLabel}</span>
+          <span class="ink-ask-followup-text">${escapeHtml(previewText)}</span>
+          <button type="button" class="ink-ask-followup-close" aria-label="移除引用上下文" title="移除引用">×</button>
+        `;
+        followUpChipEl.querySelector('.ink-ask-followup-close')?.addEventListener('click', () => {
+          clearFollowUpChip();
+          textarea.focus({ preventScroll: true });
+        });
+        textarea.placeholder = '针对上方引用继续追问…';
+        textarea.focus({ preventScroll: true });
+      };
+      (sidebarDrawer as any).__mountFollowUpChip = mountFollowUpChip;
+
+      // 并排模式下支持从右卷「笔记」拖入卡片作为追问上下文
+      sidebarDrawer.addEventListener('dragover', (e: DragEvent) => {
+        if (document.documentElement.getAttribute('data-companion-mode') !== 'split') return;
+        if (!e.dataTransfer?.types.includes('application/x-companion-note')) return;
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+        sidebarDrawer?.classList.add('is-drop-target');
+      });
+      sidebarDrawer.addEventListener('dragleave', (e: DragEvent) => {
+        const related = e.relatedTarget as Node | null;
+        if (related && sidebarDrawer?.contains(related)) return;
+        sidebarDrawer?.classList.remove('is-drop-target');
+      });
+      sidebarDrawer.addEventListener('drop', (e: DragEvent) => {
+        sidebarDrawer?.classList.remove('is-drop-target');
+        if (document.documentElement.getAttribute('data-companion-mode') !== 'split') return;
+        const raw = e.dataTransfer?.getData('application/x-companion-note');
+        if (!raw) return;
+        e.preventDefault();
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed?.text) {
+            mountFollowUpChip(parsed);
+          }
+        } catch {}
+      });
+
       form.addEventListener('submit', (e) => {
         e.preventDefault();
-        const q = textarea.value.trim();
-        if (!q) return;
+        const rawQ = textarea.value.trim();
+        if (!rawQ) return;
+        const fullQ = activeFollowUpQuote
+          ? `结合这段内容：「${activeFollowUpQuote.slice(0, 360)}」\n\n${rawQ}`
+          : rawQ;
+        clearFollowUpChip();
+        textarea.placeholder = '向墨问请教本文脉络、术语或延伸思考…';
         textarea.value = '';
         textarea.style.height = '24px';
         textarea.style.overflowY = 'hidden';
-        askDrawer(q);
+        askDrawer(fullQ);
       });
 
       async function askDrawer(question: string) {
@@ -1616,6 +1800,7 @@
     const isSilent = Boolean(opts && !(opts instanceof Event) && opts.silent);
     ensureSidebar();
     setWelcomeEpigraph(sidebarDrawer?.querySelector<HTMLElement>('.ink-ask-welcome-epigraph'));
+    const wasOpen = Boolean(sidebarDrawer?.classList.contains('is-open'));
 
     lockScrollAnchor(500);
 
@@ -1632,6 +1817,26 @@
       sidebarOverlay?.classList.add('is-open');
       sidebarDrawer?.classList.add('is-open');
       document.body.classList.add('ink-ask-drawer-open');
+
+      if (!wasOpen && sidebarDrawer && !reduceMotion()) {
+        const bodyInner = sidebarDrawer.querySelector<HTMLElement>('.ink-ask-drawer-body-inner');
+        bodyInner?.animate?.(
+          [
+            { clipPath: 'circle(8% at 88% 6%)', opacity: 0.38 },
+            { clipPath: 'circle(145% at 88% 6%)', opacity: 1 },
+          ],
+          { duration: 400, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+        );
+        if (!sidebarDrawer.classList.contains('has-turns')) {
+          const welcomeEl = sidebarDrawer.querySelector<HTMLElement>('.ink-ask-drawer-welcome');
+          if (welcomeEl) {
+            welcomeEl.classList.remove('is-entering');
+            void welcomeEl.offsetWidth;
+            welcomeEl.classList.add('is-entering');
+          }
+        }
+      }
+
       sidebarDrawer?.querySelector<HTMLTextAreaElement>('.ink-ask-drawer-input')?.focus({ preventScroll: true });
     }
 
@@ -1702,6 +1907,38 @@
     }
   }
 
+  function mountFollowUpContext(payload: { text: string; question?: string; kind?: string; heading?: string }) {
+    ensureSidebar();
+    openSidebar();
+    const fn = (sidebarDrawer as any)?.__mountFollowUpChip;
+    if (typeof fn === 'function') {
+      fn(payload);
+    } else if (payload?.text) {
+      openSidebarWithContext(payload.text);
+    }
+  }
+
+  function locateTurn(queryOrId: string): boolean {
+    ensureSidebar();
+    openSidebar();
+    if (!sidebarDrawer) return false;
+    const turns = Array.from(sidebarDrawer.querySelectorAll<HTMLElement>('.ink-ask-turn'));
+    const clean = (queryOrId || '').trim();
+    const target =
+      turns.find((t) => t.dataset.turnId === clean || t.id === clean) ||
+      turns.find((t) => (t.dataset.question || '').includes(clean) || (t.textContent || '').includes(clean)) ||
+      turns[turns.length - 1];
+    if (!target) return false;
+    window.setTimeout(() => {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.remove('has-turn-pulse');
+      void target.offsetWidth;
+      target.classList.add('has-turn-pulse');
+      window.setTimeout(() => target.classList.remove('has-turn-pulse'), 800);
+    }, 220);
+    return true;
+  }
+
   function resetConversation() {
     sidebarDrawer?.querySelector<HTMLButtonElement>('.ink-ask-drawer-new')?.click();
   }
@@ -1713,6 +1950,8 @@
     toggleSidebar,
     resetConversation,
     openSidebarWithContext,
+    mountFollowUpContext,
+    locateTurn,
     clampCard: clampCardAwayFromRails,
   };
 
@@ -1889,7 +2128,7 @@
 </script>
 
 <style is:global>
-  /* ---------- 「问」印 ---------- */
+  /* ---------- 划词悬浮墨问胶囊（去方印化：圆润清透水墨微泡） ---------- */
   .ink-ask-seal {
     position: absolute;
     top: 0;
@@ -1900,19 +2139,23 @@
     width: 34px;
     height: 34px;
     padding: 0;
-    border: 2px solid var(--vermilion);
-    border-radius: 4px;
+    border: 1.5px solid rgba(var(--vermilion-rgb, 194, 63, 44), 0.42);
+    border-radius: 999px;
     background: var(--bg-elev);
     color: var(--vermilion);
-    font-family: var(--font-hand-title);
-    font-size: 1.05rem;
     line-height: 1;
-    box-shadow: inset 0 0 6px var(--vermilion-soft), 0 6px 18px var(--ink-mist);
-    transform: rotate(-4deg);
+    box-shadow: 0 6px 18px var(--ink-mist), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    transform: none;
     touch-action: manipulation;
     user-select: none;
     -webkit-user-select: none;
-    transition: transform 260ms var(--ease-bounce), box-shadow 260ms var(--ease);
+    cursor: pointer;
+    transition:
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 180ms ease,
+      border-color 180ms ease,
+      background 180ms ease,
+      color 180ms ease;
   }
   .ink-ask-seal.is-shown {
     display: grid;
@@ -1920,23 +2163,25 @@
   .ink-ask-seal:hover,
   .ink-ask-seal:focus-visible {
     outline: none;
-    transform: rotate(0deg) scale(1.08);
-    box-shadow: inset 0 0 8px var(--vermilion-soft), 0 8px 24px var(--ink-mist);
+    transform: translateY(-1.5px) scale(1.06);
+    border-color: var(--vermilion);
+    background: var(--vermilion-soft);
+    box-shadow: 0 8px 22px var(--ink-mist);
   }
-  .ink-ask-seal.is-stamping {
-    animation: ink-ask-stamp 480ms var(--ease-bounce) backwards;
+  .ink-ask-seal.is-popping {
+    animation: ink-ask-bloom-pop 220ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
   .ink-ask-seal::after {
     content: '';
     position: absolute;
     inset: -2px;
     border: 1px solid var(--vermilion);
-    border-radius: 6px;
+    border-radius: 999px;
     opacity: 0;
     pointer-events: none;
   }
-  .ink-ask-seal.is-stamping::after {
-    animation: ink-ask-splash 620ms var(--ease) 180ms both;
+  .ink-ask-seal.is-popping::after {
+    animation: ink-ask-splash 360ms cubic-bezier(0.16, 1, 0.3, 1) 40ms both;
   }
 
   /* ---------- 墨圈 ---------- */
@@ -1960,19 +2205,19 @@
   .ink-ask-ring-main {
     stroke-width: 2.4;
     opacity: 0.9;
-    transition: stroke-dashoffset 780ms cubic-bezier(0.65, 0, 0.35, 1);
+    transition: stroke-dashoffset 460ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   .ink-ask-ring-echo {
     stroke-width: 1.1;
     opacity: 0.32;
-    transition: stroke-dashoffset 860ms cubic-bezier(0.65, 0, 0.35, 1) 90ms;
+    transition: stroke-dashoffset 520ms cubic-bezier(0.22, 1, 0.36, 1) 50ms;
   }
   .ink-ask-ring.is-drawn path {
     stroke-dashoffset: 0;
   }
   .ink-ask-ring.is-drying {
     opacity: 0;
-    transition: opacity 520ms var(--ease);
+    transition: opacity 300ms ease;
   }
 
   /* ---------- 划词卡片（东方书斋风同步雅化） ---------- */
@@ -2058,11 +2303,11 @@
     transform: none;
   }
   .ink-ask-card.is-opening {
-    transition: clip-path 640ms var(--ease);
+    transition: clip-path 400ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   .ink-ask-card.is-closing {
     pointer-events: none;
-    transition: clip-path 380ms cubic-bezier(0.55, 0, 0.8, 0.3);
+    transition: clip-path 260ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   /* 卡片头部（通透一体，可拖拽） */
@@ -2269,16 +2514,17 @@
     line-height: 1.55;
   }
   .ink-ask-turn {
-    animation: inkAskTurnEnter 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    position: relative;
+    animation: inkAskTurnEnter 320ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
   }
   @keyframes inkAskTurnEnter {
     from {
       opacity: 0;
-      transform: translateY(10px);
+      transform: translate3d(0, 8px, 0);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: translate3d(0, 0, 0);
     }
   }
 
@@ -2288,7 +2534,7 @@
     border-top: 1px solid var(--rule-soft);
   }
 
-  /* 提问签条（克制温润书页批签） */
+  /* 提问签条（右端展卷浮现） */
   .ink-ask-q {
     display: flex;
     align-items: flex-start;
@@ -2301,16 +2547,18 @@
     color: var(--text-strong);
     font-size: 0.88rem;
     line-height: 1.58;
-    animation: inkAskQPop 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: inkAskQPop 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
   @keyframes inkAskQPop {
     from {
       opacity: 0;
-      transform: translateY(6px);
+      clip-path: inset(0 0 0 22% round 11px);
+      transform: translate3d(12px, 4px, 0);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      clip-path: inset(0 0 0 0% round 11px);
+      transform: translate3d(0, 0, 0);
     }
   }
   .ink-ask-q-tag {
@@ -2393,18 +2641,35 @@
 
   .ink-ask-turn.is-recalling {
     opacity: 0 !important;
-    transform: translateY(8px) scale(0.97) !important;
-    transition: opacity 180ms ease, transform 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+    filter: blur(3px) !important;
+    transform: translate3d(0, 12px, 0) scale(0.97) !important;
+    transition:
+      opacity 200ms ease,
+      filter 200ms ease,
+      transform 200ms cubic-bezier(0.4, 0, 0.2, 1) !important;
     pointer-events: none !important;
   }
 
-  /* 墨问回复印记抬头 */
+  /* 墨问回复抬头（氤氲落墨） */
   .ink-ask-byline {
     display: inline-flex;
     align-items: center;
     gap: 0.42rem;
     margin-bottom: 0.38rem;
     user-select: none;
+    animation: inkAskBylineIn 260ms cubic-bezier(0.16, 1, 0.3, 1) 40ms backwards;
+  }
+  @keyframes inkAskBylineIn {
+    from {
+      opacity: 0;
+      filter: blur(3px);
+      transform: translate3d(-6px, 0, 0);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+      transform: translate3d(0, 0, 0);
+    }
   }
   .ink-ask-byline-name {
     font-family: var(--font-hand-title);
@@ -2578,22 +2843,76 @@
   .ink-ask-status.is-error {
     color: var(--text-strong);
   }
+  .ink-ask-status-text {
+    background: linear-gradient(
+      90deg,
+      var(--muted) 0%,
+      var(--vermilion) 50%,
+      var(--muted) 100%
+    );
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: inkAskStatusShimmer 2.1s linear infinite;
+  }
+  @keyframes inkAskStatusShimmer {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: -100% 50%;
+    }
+  }
   .ink-ask-dots {
-    display: inline-flex;
-    gap: 0.26rem;
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
   }
   .ink-ask-dots i {
-    width: 0.32rem;
-    height: 0.32rem;
+    grid-area: 1 / 1;
     border-radius: 50%;
-    background: var(--vermilion);
-    animation: ink-ask-breathe 1.2s ease-in-out infinite;
+    pointer-events: none;
   }
-  .ink-ask-dots i:nth-child(2) {
-    animation-delay: 0.18s;
+  .ink-ask-dots i:nth-child(1) {
+    width: 5px;
+    height: 5px;
+    background: var(--vermilion);
+    animation: ink-ask-core-pulse 1.35s ease-in-out infinite;
+  }
+  .ink-ask-dots i:nth-child(2),
+  .ink-ask-dots i:nth-child(3) {
+    width: 8px;
+    height: 8px;
+    border: 1.25px solid var(--vermilion);
+    background: transparent;
+    animation: ink-ask-ripple-ring 1.35s cubic-bezier(0.16, 1, 0.3, 1) infinite;
   }
   .ink-ask-dots i:nth-child(3) {
-    animation-delay: 0.36s;
+    animation-delay: 0.52s;
+  }
+  @keyframes ink-ask-core-pulse {
+    0%, 100% {
+      transform: scale(0.85);
+      opacity: 0.8;
+    }
+    50% {
+      transform: scale(1.12);
+      opacity: 1;
+    }
+  }
+  @keyframes ink-ask-ripple-ring {
+    0% {
+      transform: scale(0.45);
+      opacity: 0.78;
+    }
+    100% {
+      transform: scale(2.25);
+      opacity: 0;
+    }
   }
   .ink-ask-retry {
     padding: 0.12rem 0.62rem;
@@ -2614,14 +2933,14 @@
     font-size: 0.76rem;
   }
 
-  /* 回答底部轻量操作条（存入笔记 + 复制） */
+  /* 回答底部轻量操作条（存入笔记 + 复制：左起展卷浮现） */
   .ink-ask-turn-actions {
     display: inline-flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.42rem;
     margin-top: 0.55rem;
-    animation: inkSaveNoteIn 240ms var(--ease) both;
+    animation: inkSaveNoteIn 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
 
   .ink-ask-save-note,
@@ -2644,11 +2963,13 @@
   @keyframes inkSaveNoteIn {
     from {
       opacity: 0;
-      transform: translateY(4px);
+      clip-path: inset(0 32% 0 0 round 999px);
+      transform: translate3d(-8px, 3px, 0);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      clip-path: inset(0 0% 0 0 round 999px);
+      transform: translate3d(0, 0, 0);
     }
   }
 
@@ -2735,14 +3056,11 @@
     width: 36px;
     height: 36px;
     border: 1.5px solid var(--vermilion);
-    border-radius: 9px;
+    border-radius: 999px;
     background: var(--vermilion-soft);
     color: var(--vermilion);
-    font-family: var(--font-hand-title);
-    font-size: 0.96rem;
-    font-weight: 700;
     cursor: pointer;
-    transition: transform 160ms var(--ease-bounce), opacity 180ms ease, background 180ms ease, color 180ms ease;
+    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease, background 160ms ease, color 160ms ease, border-color 160ms ease;
   }
   .ink-ask-send:hover,
   .ink-ask-send:focus-visible {
@@ -3101,7 +3419,7 @@
     flex-direction: column;
   }
 
-  /* ---------- 东方书斋雅集空状态（视觉黄金中段落座 + 双框朱印 + 2×2 典雅题签） ---------- */
+  /* ---------- 东方书斋雅集空状态（书卷星芒徽记 + 氤氲展卷级联入场） ---------- */
   .ink-ask-drawer-welcome {
     margin: auto 0;
     padding: clamp(0.85rem, 2.5vh, 2rem) 0;
@@ -3115,28 +3433,29 @@
     align-items: center;
     justify-content: center;
     gap: 0.85rem;
-    margin-bottom: 0.9rem;
+    margin-bottom: 0.85rem;
     user-select: none;
   }
   .ink-ask-welcome-line {
-    width: 44px;
+    width: 46px;
     height: 1px;
     background: linear-gradient(90deg, transparent, var(--rule-strong), transparent);
-    opacity: 0.7;
+    opacity: 0.72;
   }
-  .ink-ask-welcome-seal {
-    display: grid;
+  .ink-ask-welcome-line.is-left {
+    transform-origin: right center;
+  }
+  .ink-ask-welcome-line.is-right {
+    transform-origin: left center;
+  }
+  .ink-ask-welcome-ornament {
+    display: inline-grid;
     place-items: center;
     width: 38px;
     height: 38px;
-    border-radius: 7px;
-    border: 1.5px solid var(--vermilion);
-    background: var(--vermilion-soft);
+    border-radius: 999px;
+    background: radial-gradient(circle, var(--vermilion-soft) 0%, transparent 74%);
     color: var(--vermilion);
-    box-shadow: inset 0 0 0 2px var(--bg-elev);
-    font-family: var(--font-hand-title);
-    font-size: 1.18rem;
-    font-weight: 700;
     line-height: 1;
   }
   .ink-ask-welcome-title {
@@ -3192,6 +3511,8 @@
     }
   }
   .ink-ask-prompt-card {
+    position: relative;
+    overflow: hidden;
     display: flex;
     align-items: flex-start;
     gap: 0.65rem;
@@ -3204,10 +3525,24 @@
     cursor: pointer;
     user-select: none;
     transition:
-      transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
-      border-color 180ms ease,
-      box-shadow 180ms ease,
-      background 180ms ease;
+      transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      background 160ms ease;
+  }
+  .ink-ask-prompt-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, rgba(var(--vermilion-rgb, 194, 63, 44), 0.08) 0%, transparent 62%);
+    opacity: 0;
+    transform: translateX(-18%);
+    transition: opacity 220ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+  .ink-ask-prompt-card:hover::before {
+    opacity: 1;
+    transform: translateX(0);
   }
   [data-theme="dark"] .ink-ask-prompt-card {
     background: rgba(255, 255, 255, 0.035);
@@ -3262,14 +3597,18 @@
     flex-direction: column;
     gap: 1.5rem;
     width: 100%;
-    transition: opacity 260ms ease, transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition:
+      opacity 220ms ease,
+      filter 220ms ease,
+      transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
   }
   .ink-ask-drawer-thread:empty {
     display: none;
   }
   .ink-ask-drawer-thread.is-clearing {
     opacity: 0 !important;
-    transform: translateY(-14px) !important;
+    filter: blur(3px) !important;
+    transform: translate3d(0, -14px, 0) !important;
     pointer-events: none !important;
   }
   .ink-ask-drawer-thread .ink-ask-turn {
@@ -3312,17 +3651,64 @@
     line-height: 1.88;
   }
 
-  .ink-ask-drawer-welcome.is-entering {
-    animation: inkAskWelcomeFadeIn 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  .ink-ask-drawer-welcome.is-entering .ink-ask-welcome-line {
+    animation: inkAskWingDraw 360ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
   }
-  @keyframes inkAskWelcomeFadeIn {
+  .ink-ask-drawer-welcome.is-entering .ink-ask-welcome-ornament {
+    animation: inkAskMistBloom 340ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .ink-ask-drawer-welcome.is-entering .ink-ask-welcome-title,
+  .ink-ask-drawer-welcome.is-entering .ink-ask-welcome-epigraph,
+  .ink-ask-drawer-welcome.is-entering .ink-ask-welcome-desc {
+    animation: inkAskMistBloom 360ms cubic-bezier(0.16, 1, 0.3, 1) 30ms backwards;
+  }
+  .ink-ask-drawer-welcome.is-entering .ink-ask-prompt-card {
+    animation: inkAskCardUnfurl 360ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .ink-ask-drawer-welcome.is-entering .ink-ask-prompt-card:nth-child(1) {
+    animation-delay: 50ms;
+  }
+  .ink-ask-drawer-welcome.is-entering .ink-ask-prompt-card:nth-child(2) {
+    animation-delay: 90ms;
+  }
+  .ink-ask-drawer-welcome.is-entering .ink-ask-prompt-card:nth-child(3) {
+    animation-delay: 130ms;
+  }
+  .ink-ask-drawer-welcome.is-entering .ink-ask-prompt-card:nth-child(4) {
+    animation-delay: 170ms;
+  }
+  @keyframes inkAskWingDraw {
     from {
       opacity: 0;
-      transform: translateY(12px);
+      transform: scaleX(0);
+    }
+    to {
+      opacity: 0.72;
+      transform: scaleX(1);
+    }
+  }
+  @keyframes inkAskMistBloom {
+    from {
+      opacity: 0;
+      filter: blur(5px);
+      transform: translate3d(0, 10px, 0);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      filter: blur(0);
+      transform: translate3d(0, 0, 0);
+    }
+  }
+  @keyframes inkAskCardUnfurl {
+    from {
+      opacity: 0;
+      clip-path: inset(0 24% 0 0 round 12px);
+      transform: translate3d(-10px, 8px, 0);
+    }
+    to {
+      opacity: 1;
+      clip-path: inset(0 0% 0 0 round 12px);
+      transform: translate3d(0, 0, 0);
     }
   }
 
@@ -3473,14 +3859,11 @@
     width: 34px;
     height: 34px;
     border: 1.5px solid var(--vermilion);
-    border-radius: 9px;
+    border-radius: 999px;
     background: var(--vermilion-soft);
     color: var(--vermilion);
-    font-family: var(--font-hand-title);
-    font-size: 0.95rem;
-    font-weight: 700;
     cursor: pointer;
-    transition: transform 160ms var(--ease-bounce), opacity 180ms ease, background 180ms ease, color 180ms ease;
+    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease, background 160ms ease, color 160ms ease, border-color 160ms ease;
   }
   .ink-ask-drawer-send:hover,
   .ink-ask-drawer-send:focus-visible {
@@ -3564,14 +3947,13 @@
     50% { transform: scale(1.025); }
   }
 
-  @keyframes ink-ask-stamp {
-    0% { opacity: 0; transform: scale(1.7) rotate(-16deg); }
-    55% { opacity: 1; transform: scale(0.92) rotate(1deg); }
-    100% { opacity: 1; transform: scale(1) rotate(-4deg); }
+  @keyframes ink-ask-bloom-pop {
+    0% { opacity: 0; transform: scale(0.76); filter: blur(3px); }
+    100% { opacity: 1; transform: scale(1); filter: blur(0); }
   }
   @keyframes ink-ask-splash {
-    0% { opacity: 0.55; transform: scale(0.9); }
-    100% { opacity: 0; transform: scale(1.9); }
+    0% { opacity: 0.55; transform: scale(0.92); }
+    100% { opacity: 0; transform: scale(1.75); }
   }
   @keyframes ink-ask-breathe {
     0%, 100% { opacity: 0.25; transform: scale(0.8); }
@@ -3613,9 +3995,28 @@
       transition: none !important;
     }
     .ink-ask-caret,
-    .ink-ask-dots i {
-      animation: none;
-      opacity: 0.7;
+    .ink-ask-dots i,
+    .ink-ask-status-text,
+    .ink-ask-drawer-welcome.is-entering .ink-ask-welcome-line,
+    .ink-ask-drawer-welcome.is-entering .ink-ask-welcome-ornament,
+    .ink-ask-drawer-welcome.is-entering .ink-ask-welcome-title,
+    .ink-ask-drawer-welcome.is-entering .ink-ask-welcome-epigraph,
+    .ink-ask-drawer-welcome.is-entering .ink-ask-welcome-desc,
+    .ink-ask-drawer-welcome.is-entering .ink-ask-prompt-card,
+    .ink-ask-turn,
+    .ink-ask-q,
+    .ink-ask-byline,
+    .ink-ask-turn-actions {
+      animation: none !important;
+      opacity: 1;
+    }
+    .ink-ask-status-text {
+      background: none;
+      color: var(--muted);
+    }
+    .ink-ask-dots i:nth-child(2),
+    .ink-ask-dots i:nth-child(3) {
+      display: none;
     }
     .ink-ask-turn.is-cached .ink-ask-answer {
       animation: none;
@@ -3629,6 +4030,124 @@
       transition: none;
     }
   }
+  /* 存入笔记抛物线飞墨流光粒子与彗尾 */
+  .ink-save-fly-particle {
+    position: fixed;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ffd56b 0%, var(--vermilion, #c23f2c) 80%);
+    box-shadow: 0 0 14px rgba(235, 168, 35, 0.85), 0 0 4px var(--vermilion, #c23f2c);
+    z-index: 100095;
+    pointer-events: none;
+  }
+  .ink-save-fly-particle.is-tail {
+    box-shadow: 0 0 8px rgba(194, 63, 44, 0.45);
+    filter: blur(0.4px);
+  }
+
+  /* 欢迎题签卡片点击微缩升空反馈 */
+  .ink-ask-prompt-card.is-launching {
+    transform: translateY(-3px) scale(0.96) !important;
+    border-color: var(--vermilion) !important;
+    background: var(--vermilion-soft) !important;
+  }
+
+  /* 笔记追问上下文挂载胶囊条 */
+  .ink-ask-followup-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.36rem 0.65rem;
+    border-radius: 10px;
+    border: 1px solid rgba(194, 63, 44, 0.28);
+    background: var(--vermilion-soft, rgba(194, 63, 44, 0.08));
+    font-family: var(--font-body);
+    font-size: 0.76rem;
+    color: var(--text-strong);
+    animation: inkAskQPop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .ink-ask-followup-badge {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--bg-elev);
+    border: 1px solid rgba(194, 63, 44, 0.28);
+    color: var(--vermilion, #c23f2c);
+    font-size: 0.68rem;
+    font-weight: 600;
+  }
+  .ink-ask-followup-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted-strong);
+  }
+  .ink-ask-followup-close {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--muted-strong);
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-grid;
+    place-items: center;
+    transition: background 150ms ease, color 150ms ease;
+  }
+  .ink-ask-followup-close:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--vermilion, #c23f2c);
+  }
+
+  /* 对照台反查对话轮次：书脊水墨横扫（720ms 鲜明浸润）与并排拖拽态 */
+  .ink-ask-turn.has-turn-pulse {
+    position: relative;
+    border-radius: 10px;
+  }
+  .ink-ask-turn.has-turn-pulse::after {
+    content: '';
+    position: absolute;
+    inset: -6px -10px;
+    border-radius: 10px;
+    border-left: 3px solid var(--vermilion);
+    background: linear-gradient(
+      90deg,
+      rgba(var(--vermilion-rgb, 194, 63, 44), 0.16) 0%,
+      rgba(215, 150, 20, 0.08) 55%,
+      transparent 100%
+    );
+    transform-origin: left center;
+    pointer-events: none;
+    animation: inkAskTurnSweep 720ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes inkAskTurnSweep {
+    0% {
+      opacity: 0.95;
+      transform: scaleX(0.04);
+    }
+    38% {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scaleX(1);
+    }
+  }
+  .ink-ask-turn.is-dragging-turn {
+    opacity: 0.6;
+  }
+  .ink-ask-drawer.is-drop-target .ink-ask-drawer-input-wrap {
+    border-color: var(--vermilion, #c23f2c) !important;
+    box-shadow: 0 0 0 3.5px rgba(194, 63, 44, 0.22) !important;
+  }
+
   @media print {
     .ink-ask-seal,
     .ink-ask-ring,

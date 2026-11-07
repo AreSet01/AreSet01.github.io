@@ -39,13 +39,13 @@ describe('墨问伴读气泡输入重排与取消划线连贯 0.4x FLIP 动效�
 
     assert.ok(!fnBody.includes("maxHeight: '0px'"), '退场动画绝不能提前折叠 maxHeight 为 0px 导致其余卡片提前塌陷');
     assert.ok(!fnBody.includes("paddingTop: '0px'"), '退场动画绝不能提前压缩 paddingTop 产生抖动');
-    assert.ok(fnBody.includes('duration: 450'), '卡片淡出时长应为 450ms');
+    assert.ok(fnBody.includes('duration: 280'), '卡片拂墨扫出时长应为干脆的 280ms');
 
     // 验证在淡出完成之后才获取其余卡片的物理坐标
     assert.ok(content.includes('targetCard.remove();') && content.includes('renderDrawerNotes({ retainedFirstRects });'),
       '必须在淡出完成并捕获坐标后才移除并重排');
-    assert.ok(content.includes('transform 650ms cubic-bezier(0.16, 1, 0.3, 1)'),
-      'FLIP 补位动画过渡时长应设为 650ms 优雅节奏');
+    assert.ok(content.includes('transform 380ms cubic-bezier(0.16, 1, 0.3, 1)'),
+      'FLIP 补位动画过渡时长应设为干脆利落的 380ms');
   });
 
   it('4. InkAsk: 彻底移除贯穿死板底栏背景与边框，通透沉底', () => {
@@ -78,9 +78,9 @@ describe('墨问伴读气泡输入重排与取消划线连贯 0.4x FLIP 动效�
     assert.ok(chipsRowIndex !== -1 && inputWrapIndex !== -1 && chipsRowIndex < inputWrapIndex,
       '小胶囊行必须排布在输入框的正上方紧邻处');
 
-    // 东方书斋空状态双框朱印与 2×2 题签卡片，且全组件彻底清除彩色 Emoji
-    assert.ok(content.includes('ink-ask-welcome-seal') && content.includes('ink-ask-prompt-card'),
-      '空状态必须包含书斋朱印与 2×2 典雅导读题签卡片');
+    // 东方书斋空状态去方印化书卷纹饰与 2×2 题签卡片，且全组件彻底清除彩色 Emoji
+    assert.ok(content.includes('ink-ask-welcome-ornament') && content.includes('ink-ask-prompt-card'),
+      '空状态必须包含无框书卷星芒纹饰与 2×2 典雅导读题签卡片');
     for (const emoji of ['💡', '🔍', '🛠️', '🎯', '✏️', '💬']) {
       assert.ok(!content.includes(emoji), `InkAsk 中不得再残留彩色系统 Emoji (${emoji})，统一使用单色细线 SVG`);
     }

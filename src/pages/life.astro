@@ -1392,7 +1392,10 @@ const countByCategory = {
 
         cards.forEach((c, i) => c.classList.toggle('is-filtered-out', prevHidden[i]));
 
-        const landing = Math.max(0, Math.min(anchorScroll ?? predictedMax, predictedMax));
+        // 锚点只允许「向上追」：切回超集时锚点卡会被前面插入的卡片挤到下方，向下追会让页面自己往下滑。
+      // 看板变高不会触发钳制，保持原滚动位置即可；只有看板变矮 / 锚点上移时才需要预滚动。
+      const anchorLanding = Math.max(0, Math.min(anchorScroll ?? predictedMax, predictedMax));
+      const landing = Math.min(anchorLanding, Math.max(0, scrollBefore));
         if (Math.abs(landing - scrollBefore) > 4) {
           const lenis = (window as any).lenis;
           if (lenis && typeof lenis.scrollTo === 'function') {

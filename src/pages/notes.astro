@@ -34,7 +34,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           <div class="archive-stats-strip notes-stats-strip" id="notes-stats-strip" aria-label="笔记数据概览">
             <span class="stats-glider" data-notes-stats-glider id="notes-stats-glider" aria-hidden="true"></span>
 
-            <div class="stats-item notes-stat-item" data-stats-item title="全部笔记条数">
+            <div class="stats-item notes-stat-item" data-stats-item data-stat-kind="all" role="button" tabindex="0" title="点击筛选全部笔记">
               <span class="stats-label">TOTAL</span>
               <strong class="stats-value" id="stat-total">0</strong>
               <span class="stats-subnote">条总笔记</span>
@@ -42,7 +42,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
             <span class="stats-separator" aria-hidden="true"></span>
 
-            <div class="stats-item notes-stat-item" data-stats-item title="独立随笔便签">
+            <div class="stats-item notes-stat-item" data-stats-item data-stat-kind="free" role="button" tabindex="0" title="点击筛选独立随笔便签">
               <span class="stats-label">MARKDOWN</span>
               <strong class="stats-value" id="stat-free">0</strong>
               <span class="stats-subnote">篇 Markdown 便签</span>
@@ -50,7 +50,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
             <span class="stats-separator" aria-hidden="true"></span>
 
-            <div class="stats-item notes-stat-item" data-stats-item title="文章划线批注">
+            <div class="stats-item notes-stat-item" data-stats-item data-stat-kind="highlight" role="button" tabindex="0" title="点击筛选文章划线批注">
               <span class="stats-label">HIGHLIGHTS</span>
               <strong class="stats-value" id="stat-highlights">0</strong>
               <span class="stats-subnote">处划词批注</span>
@@ -58,7 +58,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
             <span class="stats-separator" aria-hidden="true"></span>
 
-            <div class="stats-item notes-stat-item" data-stats-item title="墨问 AI 问答摘录">
+            <div class="stats-item notes-stat-item" data-stats-item data-stat-kind="ai" role="button" tabindex="0" title="点击筛选墨问 AI 问答摘录">
               <span class="stats-label">INK-ASK</span>
               <strong class="stats-value" id="stat-ai">0</strong>
               <span class="stats-subnote">条 AI 摘录</span>
@@ -528,7 +528,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   }
 
   .notes-stat-item {
-    cursor: default;
+    cursor: pointer;
     transition: color 240ms var(--ease);
   }
   .notes-stat-item .stats-label,
@@ -538,6 +538,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   }
   .notes-stat-item.is-hovered {
     color: var(--text-strong) !important;
+  }
+  /* 当前筛选对应的统计项：标签与数值加深，和下方子页签激活态保持一致 */
+  .notes-stat-item.is-active .stats-label,
+  .notes-stat-item.is-active .stats-value {
+    color: var(--text-strong);
   }
 
   @media (max-width: 767.98px) {
@@ -1404,19 +1409,53 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       items.forEach((item) => {
         item.addEventListener('mouseenter', () => moveGlider(item), { signal });
         item.addEventListener('focus', () => moveGlider(item), { signal });
-        item.addEventListener('click', () => {
+        const activateStatFilter = () => {
           const rect = item.getBoundingClientRect();
           (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+          const statKind = item.getAttribute('data-stat-kind');
+          if (statKind) {
+            const nextKind = statKind !== 'all' && currentFilter.kind === statKind ? 'all' : statKind;
+            const subBtn = document.querySelector<HTMLButtonElement>(`#subtabs-cluster .sub-tab-btn[data-kind="${nextKind}"]`);
+            subBtn?.click();
+          }
+        };
+        item.addEventListener('click', activateStatFilter, { signal });
+        item.addEventListener('keydown', (ev: KeyboardEvent) => {
+          if (ev.key === 'Enter' || ev.key === ' ') {
+            ev.preventDefault();
+            activateStatFilter();
+          }
         }, { signal });
       });
 
       strip.addEventListener('mouseleave', hideGlider, { signal });
     }
 
+    function syncActiveStatKind(kind: string) {
+      document.querySelectorAll<HTMLElement>('.notes-stat-item[data-stat-kind]').forEach((el) => {
+        const match = (el.getAttribute('data-stat-kind') || 'all') === kind;
+        el.classList.toggle('is-active', match);
+        el.setAttribute('aria-pressed', match ? 'true' : 'false');
+      });
+    }
+
     function initSubtabsGlider() {
       const cluster = document.getElementById('subtabs-cluster');
       const glider = document.getElementById('subtabs-glider');
       if (!cluster || !glider) return;
+
+      try {
+        const savedKind = sessionStorage.getItem('notes-subtab-kind');
+        if (savedKind && ['all', 'free', 'highlight', 'ai'].includes(savedKind)) {
+          currentFilter.kind = savedKind;
+          cluster.querySelectorAll<HTMLElement>('.sub-tab-btn').forEach((b) => {
+            const match = (b.getAttribute('data-kind') || 'all') === savedKind;
+            b.classList.toggle('active', match);
+            b.setAttribute('aria-pressed', match ? 'true' : 'false');
+          });
+        }
+      } catch {}
+      syncActiveStatKind(currentFilter.kind);
 
       function updateGlider() {
         const activeBtn = cluster.querySelector<HTMLElement>('.sub-tab-btn.active');
@@ -1449,6 +1488,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           btn.classList.add('active');
           btn.setAttribute('aria-pressed', 'true');
           currentFilter.kind = btn.getAttribute('data-kind') || 'all';
+          syncActiveStatKind(currentFilter.kind);
+          try { sessionStorage.setItem('notes-subtab-kind', currentFilter.kind); } catch {}
 
           const rect = btn.getBoundingClientRect();
           if (rect.width > 0 && rect.height > 0) {
@@ -1778,7 +1819,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             <span class="text-purple-600 dark:text-purple-400 font-bold shrink-0">问：</span>
             <span class="min-w-0 break-words">${escapeHtml(cleanQuestion)}</span>
           </div>` : ''}
-          <div class="prose-preview text-xs text-[var(--muted-strong)] bg-[var(--bg-soft)] p-2.5 rounded-lg border border-[var(--rule)] max-h-48 overflow-y-auto">
+          <div class="prose-preview text-xs text-[var(--muted-strong)] bg-[var(--bg-soft)] p-2.5 rounded-lg border border-[var(--rule)]">
             ${renderNoteMarkdown(note.text || '')}
           </div>
           ${note.comment ? `<div class="mt-2 text-xs text-[var(--text)] bg-[var(--bg-base)] p-2 rounded border border-[var(--rule-soft)]"><span class="text-[var(--muted)] font-normal mr-1">💭 想法：</span>${escapeHtml(note.comment)}</div>` : ''}
@@ -2268,7 +2309,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         oldCols.forEach((col) => container.appendChild(col));
       }
 
-      const landing = Math.max(0, Math.min(anchorScroll ?? predictedMax, predictedMax));
+      // 锚点只允许「向上追」：从子集切回超集（如 AI 问答 → 全部）时，锚点卡在新列表里会被
+      // 前面插入的卡片挤到更下方，若向下追就会出现「切回全部页面自己往下滑」。看板变高不会触发钳制，
+      // 保持原滚动位置即可；只有看板变矮 / 锚点上移时才需要预滚动。
+      const anchorLanding = Math.max(0, Math.min(anchorScroll ?? predictedMax, predictedMax));
+      const landing = Math.min(anchorLanding, Math.max(0, scrollBefore));
       if (Math.abs(landing - scrollBefore) > 4) {
         const lenis = (window as any).lenis;
         if (lenis && typeof lenis.scrollTo === 'function') {
@@ -2710,6 +2755,9 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       }
 
       switchEditorTab('write');
+      delete modal.dataset.confirmDiscard;
+      const cancelBtn = document.getElementById('cancel-modal-btn');
+      if (cancelBtn) cancelBtn.textContent = '取消';
       editorSnapshot = {
         title: titleInput.value.trim(),
         content: contentInput.value.trim(),
@@ -2744,11 +2792,21 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     function closeEditor(force = false) {
       const modal = document.getElementById('editor-modal');
       if (!modal || modal.classList.contains('hidden')) return;
+      const cancelBtn = document.getElementById('cancel-modal-btn');
       if (!force && isEditorDirty()) {
-        if (!window.confirm('当前编辑的内容尚未保存，确定要放弃修改吗？')) {
+        if (modal.dataset.confirmDiscard !== 'true') {
+          modal.dataset.confirmDiscard = 'true';
+          if (cancelBtn) cancelBtn.textContent = '再点一次放弃修改';
+          showToast('内容尚未保存，再次点击取消/关闭将放弃修改');
+          window.setTimeout(() => {
+            delete modal.dataset.confirmDiscard;
+            if (cancelBtn) cancelBtn.textContent = '取消';
+          }, 3000);
           return;
         }
       }
+      delete modal.dataset.confirmDiscard;
+      if (cancelBtn) cancelBtn.textContent = '取消';
       modal.classList.remove('is-open');
       modal.classList.add('is-closed');
       if (editorCloseTimer) window.clearTimeout(editorCloseTimer);

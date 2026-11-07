@@ -1296,6 +1296,9 @@ const hasToc = tocHeadings.length > 1;
               try {
                 history.pushState(null, '', '#' + id);
               } catch (_) {}
+              if (typeof window.__pulseHeadingTarget === 'function') {
+                window.__pulseHeadingTarget(targetEl);
+              }
             }
           }, { signal });
         });
@@ -1605,11 +1608,111 @@ const hasToc = tocHeadings.length > 1;
 
         const controller = new AbortController();
         const { signal } = controller;
-        let lastFocus = null;
-        let previewOverlay = null;
         const previewCache = new Map();
+        let linkPopover = null;
+        let hoverIntentTimer = 0;
+        let hidePopoverTimer = 0;
+        let activePreviewAnchor = null;
+
+        function showInlineStamp(msg) {
+          const existing = document.getElementById('dock-copy-stamp');
+          const textEl = document.getElementById('dock-copy-stamp-text');
+          if (existing && textEl) {
+            textEl.textContent = msg;
+            existing.hidden = false;
+            existing.classList.add('is-active');
+            window.setTimeout(() => {
+              existing.classList.remove('is-active');
+              window.setTimeout(() => { existing.hidden = true; }, 220);
+            }, 1600);
+            return;
+          }
+          let toast = document.getElementById('post-inline-stamp');
+          if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'post-inline-stamp';
+            toast.className = 'dock-copy-stamp';
+            document.body.appendChild(toast);
+          }
+          toast.textContent = msg;
+          toast.hidden = false;
+          void toast.offsetWidth;
+          toast.classList.add('is-active');
+          window.setTimeout(() => {
+            toast.classList.remove('is-active');
+            window.setTimeout(() => { toast.hidden = true; }, 220);
+          }, 1600);
+        }
+
+        function pulseHeadingTarget(el) {
+          if (!el) return;
+          el.classList.remove('is-anchor-target');
+          void el.offsetWidth;
+          el.classList.add('is-anchor-target');
+          window.setTimeout(() => {
+            el.classList.remove('is-anchor-target');
+          }, 1600);
+        }
+        window.__pulseHeadingTarget = pulseHeadingTarget;
+
+        function enhanceCalloutBlocks() {
+          const CALLOUT_META = {
+            NOTE: {
+              label: '笺注 · NOTE',
+              icon: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
+            },
+            TIP: {
+              label: '妙诀 · TIP',
+              icon: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V18h6v-1.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/></svg>',
+            },
+            IMPORTANT: {
+              label: '枢要 · IMPORTANT',
+              icon: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>',
+            },
+            WARNING: {
+              label: '警策 · WARNING',
+              icon: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+            },
+            CAUTION: {
+              label: '慎微 · CAUTION',
+              icon: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+            },
+          };
+
+          prose.querySelectorAll('blockquote').forEach((bq) => {
+            if (bq.dataset.calloutEnhanced === 'true') return;
+            const firstP = bq.querySelector('p');
+            if (!firstP) return;
+            const rawText = firstP.textContent || '';
+            const match = rawText.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i);
+            if (!match) return;
+
+            const typeKey = match[1].toUpperCase();
+            const meta = CALLOUT_META[typeKey] || CALLOUT_META.NOTE;
+            bq.dataset.calloutEnhanced = 'true';
+            bq.classList.add('prose-callout', `is-${typeKey.toLowerCase()}`);
+
+            // Strip the `[!TYPE]` token from the first text node inside firstP
+            const walker = document.createTreeWalker(firstP, NodeFilter.SHOW_TEXT);
+            const firstTextNode = walker.nextNode();
+            if (firstTextNode && firstTextNode.nodeValue) {
+              firstTextNode.nodeValue = firstTextNode.nodeValue.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i, '');
+            }
+            if (firstP.firstChild && firstP.firstChild.nodeName === 'BR') {
+              firstP.firstChild.remove();
+            }
+
+            const header = document.createElement('div');
+            header.className = 'prose-callout-head';
+            header.innerHTML = `<span class="prose-callout-seal">${meta.icon}</span><span class="prose-callout-title">${meta.label}</span>`;
+            bq.prepend(header);
+          });
+        }
 
         function enhanceCodeBlocks() {
+          const COPY_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+          const CHECK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
           prose.querySelectorAll('pre').forEach((pre) => {
             if (pre.dataset.codeEnhanced === 'true') return;
             if (pre.closest('.mermaid-block')) return;
@@ -1638,25 +1741,100 @@ const hasToc = tocHeadings.length > 1;
             label.className = 'code-block-language';
             label.textContent = language;
 
+            // Count lines for collapsible long code blocks (> 18 lines)
+            const lineElements = code.querySelectorAll('.line');
+            const rawLines = (code.textContent || '').replace(/\n$/, '').split('\n');
+            const lineCount = Math.max(lineElements.length, rawLines.length);
+
+            let collapseButton = null;
+            let expandVeil = null;
+            let collapseAnim = null;
+
+            const setCodeCollapsed = (collapsed, animate = true) => {
+              const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+              const COLLAPSED_HEIGHT = 240;
+              if (collapseAnim) {
+                collapseAnim.cancel();
+                collapseAnim = null;
+              }
+              if (collapsed) {
+                const startH = pre.getBoundingClientRect().height;
+                pre.classList.add('is-code-collapsed');
+                if (collapseButton) {
+                  collapseButton.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg><span>展开 (${lineCount}行)</span>`;
+                  collapseButton.setAttribute('aria-expanded', 'false');
+                }
+                if (expandVeil) expandVeil.hidden = false;
+                if (animate && !reduceMotion && startH > COLLAPSED_HEIGHT) {
+                  collapseAnim = pre.animate(
+                    [{ maxHeight: `${startH}px` }, { maxHeight: `${COLLAPSED_HEIGHT}px` }],
+                    { duration: 340, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+                  );
+                  collapseAnim.onfinish = () => { collapseAnim = null; };
+                }
+              } else {
+                const startH = pre.getBoundingClientRect().height;
+                pre.classList.remove('is-code-collapsed');
+                if (collapseButton) {
+                  collapseButton.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"></polyline></svg><span>折叠 (${lineCount}行)</span>`;
+                  collapseButton.setAttribute('aria-expanded', 'true');
+                }
+                if (expandVeil) expandVeil.hidden = true;
+                const endH = pre.scrollHeight;
+                if (animate && !reduceMotion && endH > startH) {
+                  collapseAnim = pre.animate(
+                    [{ maxHeight: `${startH}px` }, { maxHeight: `${endH}px` }],
+                    { duration: 380, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+                  );
+                  collapseAnim.onfinish = () => { collapseAnim = null; };
+                }
+              }
+            };
+
+            if (lineCount > 18) {
+              pre.dataset.lineCount = String(lineCount);
+              collapseButton = document.createElement('button');
+              collapseButton.className = 'code-collapse-button';
+              collapseButton.type = 'button';
+              collapseButton.setAttribute('aria-label', `折叠或展开代码（共 ${lineCount} 行）`);
+              collapseButton.setAttribute('aria-expanded', 'true');
+              collapseButton.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"></polyline></svg><span>折叠 (${lineCount}行)</span>`;
+              collapseButton.addEventListener('click', () => {
+                setCodeCollapsed(!pre.classList.contains('is-code-collapsed'), true);
+              }, { signal });
+
+              expandVeil = document.createElement('div');
+              expandVeil.className = 'code-expand-veil';
+              expandVeil.hidden = true;
+              const veilBtn = document.createElement('button');
+              veilBtn.type = 'button';
+              veilBtn.className = 'code-expand-veil-btn';
+              veilBtn.innerHTML = `<span>展开全部 ${lineCount} 行代码</span><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+              veilBtn.addEventListener('click', () => setCodeCollapsed(false, true), { signal });
+              expandVeil.appendChild(veilBtn);
+            }
+
             const copyButton = document.createElement('button');
             copyButton.className = 'code-copy-button';
             copyButton.type = 'button';
-            copyButton.textContent = 'Copy';
+            copyButton.innerHTML = `${COPY_SVG}<span>Copy</span>`;
             copyButton.setAttribute('aria-label', '复制代码');
 
             copyButton.addEventListener('click', async () => {
               const text = code.textContent || '';
               try {
                 await navigator.clipboard.writeText(text);
-                copyButton.textContent = 'Copied';
+                copyButton.classList.add('is-copied');
+                copyButton.innerHTML = `${CHECK_SVG}<span>Copied</span>`;
                 window.setTimeout(() => {
-                  copyButton.textContent = 'Copy';
-                }, 1400);
+                  copyButton.classList.remove('is-copied');
+                  copyButton.innerHTML = `${COPY_SVG}<span>Copy</span>`;
+                }, 1500);
               } catch {
-                copyButton.textContent = 'Failed';
+                copyButton.innerHTML = `${COPY_SVG}<span>Failed</span>`;
                 window.setTimeout(() => {
-                  copyButton.textContent = 'Copy';
-                }, 1400);
+                  copyButton.innerHTML = `${COPY_SVG}<span>Copy</span>`;
+                }, 1500);
               }
             }, { signal });
 
@@ -1679,8 +1857,47 @@ const hasToc = tocHeadings.length > 1;
               <span>Pin</span>
             `;
 
-            toolbar.append(label, copyButton, pinButton);
+            if (collapseButton) {
+              toolbar.append(label, collapseButton, copyButton, pinButton);
+            } else {
+              toolbar.append(label, copyButton, pinButton);
+            }
             pre.prepend(toolbar);
+            if (expandVeil) pre.appendChild(expandVeil);
+          });
+        }
+
+        function enhanceHeadingAnchors() {
+          prose.querySelectorAll('h2[id], h3[id]').forEach((heading) => {
+            if (heading.dataset.anchorEnhanced === 'true') return;
+            heading.dataset.anchorEnhanced = 'true';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'heading-anchor-btn';
+            btn.setAttribute('aria-label', '复制本节链接');
+            btn.title = '复制章节锚点链接';
+            btn.textContent = '#';
+            btn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              const id = heading.id;
+              const url = `${window.location.origin}${window.location.pathname}#${encodeURIComponent(id)}`;
+              try {
+                await navigator.clipboard.writeText(url);
+                btn.classList.add('is-copied');
+                btn.textContent = '✓';
+                showInlineStamp('已复制章节链接');
+                window.setTimeout(() => {
+                  btn.classList.remove('is-copied');
+                  btn.textContent = '#';
+                }, 1400);
+              } catch {}
+              try {
+                history.replaceState(null, '', `#${encodeURIComponent(id)}`);
+              } catch {}
+              pulseHeadingTarget(heading);
+            }, { signal });
+            heading.appendChild(btn);
           });
         }
 
@@ -1702,14 +1919,247 @@ const hasToc = tocHeadings.length > 1;
                 targetEl.scrollIntoView({ behavior: 'smooth' });
               }
               history.pushState(null, '', href);
+              pulseHeadingTarget(targetEl);
             }
           }, { signal });
         }
 
+        function ensureLinkPopover() {
+          if (linkPopover && document.body.contains(linkPopover)) return linkPopover;
+          linkPopover = document.createElement('aside');
+          linkPopover.className = 'post-link-popover';
+          linkPopover.setAttribute('role', 'tooltip');
+          linkPopover.hidden = true;
+          linkPopover.innerHTML = `
+            <div class="post-link-popover-head">
+              <span class="post-link-popover-badge">章节速览</span>
+              <span class="post-link-popover-meta"></span>
+            </div>
+            <h4 class="post-link-popover-title"></h4>
+            <p class="post-link-popover-excerpt"></p>
+            <div class="post-link-popover-actions">
+              <a class="post-link-popover-go" href="#">直达阅读 →</a>
+              <button type="button" class="post-link-popover-pin">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-2l-2-2V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v8l-2 2v2z"></path></svg>
+                <span>钉入对照台</span>
+              </button>
+            </div>
+          `;
+          document.body.appendChild(linkPopover);
+
+          linkPopover.addEventListener('pointerenter', () => {
+            window.clearTimeout(hidePopoverTimer);
+          }, { signal });
+
+          linkPopover.addEventListener('pointerleave', () => {
+            scheduleHidePopover();
+          }, { signal });
+
+          const goBtn = linkPopover.querySelector('.post-link-popover-go');
+          goBtn?.addEventListener('click', (e) => {
+            const href = goBtn.getAttribute('href') || '';
+            if (href.startsWith('#')) {
+              e.preventDefault();
+              const id = decodeURIComponent(href.slice(1));
+              const targetEl = document.getElementById(id) || prose.querySelector(`#${CSS.escape(id)}`);
+              if (targetEl) {
+                hideLinkPopover();
+                if (window.lenis) window.lenis.scrollTo(targetEl, { offset: -70 });
+                else targetEl.scrollIntoView({ behavior: 'smooth' });
+                history.pushState(null, '', href);
+                pulseHeadingTarget(targetEl);
+              }
+            }
+          }, { signal });
+
+          const pinBtn = linkPopover.querySelector('.post-link-popover-pin');
+          pinBtn?.addEventListener('click', () => {
+            const title = linkPopover.querySelector('.post-link-popover-title')?.textContent || '文内摘录';
+            const excerpt = linkPopover.querySelector('.post-link-popover-excerpt')?.textContent || '';
+            const badge = linkPopover.querySelector('.post-link-popover-badge')?.textContent || '链接速览';
+            if (window.__pinWorkbench && typeof window.__pinWorkbench.pinExcerpt === 'function') {
+              window.__pinWorkbench.pinExcerpt({
+                text: `【${title}】\n${excerpt}`,
+                chapter: badge,
+                triggerEl: pinBtn,
+              });
+              hideLinkPopover();
+            }
+          }, { signal });
+
+          return linkPopover;
+        }
+
+        function hideLinkPopover() {
+          window.clearTimeout(hoverIntentTimer);
+          window.clearTimeout(hidePopoverTimer);
+          activePreviewAnchor = null;
+          if (!linkPopover) return;
+          linkPopover.classList.remove('is-visible');
+          window.setTimeout(() => {
+            if (linkPopover && !linkPopover.classList.contains('is-visible')) {
+              linkPopover.hidden = true;
+            }
+          }, 200);
+        }
+
+        function scheduleHidePopover() {
+          window.clearTimeout(hidePopoverTimer);
+          hidePopoverTimer = window.setTimeout(() => {
+            hideLinkPopover();
+          }, 190);
+        }
+
+        function extractSectionPreview(rootDoc, hashId) {
+          if (hashId) {
+            const target = rootDoc.getElementById(hashId) || (window.CSS && CSS.escape ? rootDoc.querySelector(`#${CSS.escape(hashId)}`) : null);
+            if (target) {
+              const title = (target.textContent || '').replace(/#$/, '').trim();
+              let text = '';
+              let sibling = target.nextElementSibling;
+              while (sibling && !/^H[1-3]$/.test(sibling.tagName) && text.length < 150) {
+                if (sibling.tagName === 'P' || sibling.tagName === 'UL' || sibling.tagName === 'OL' || sibling.tagName === 'BLOCKQUOTE') {
+                  text += (text ? ' ' : '') + (sibling.textContent || '').trim();
+                }
+                sibling = sibling.nextElementSibling;
+              }
+              return {
+                title: title || hashId,
+                excerpt: (text || '点击直达该章节段落阅读详情。').slice(0, 145) + (text.length > 145 ? '…' : ''),
+              };
+            }
+          }
+          const h1 = rootDoc.querySelector('[data-post-title], article h1, main h1, title');
+          const firstP = rootDoc.querySelector('[data-post-prose] > p, article p, main p');
+          const rawTitle = (h1?.textContent || '').trim();
+          const rawExcerpt = (firstP?.textContent || '').trim();
+          return {
+            title: rawTitle || '文章速览',
+            excerpt: (rawExcerpt || '点击直达阅读全文内容。').slice(0, 145) + (rawExcerpt.length > 145 ? '…' : ''),
+          };
+        }
+
+        async function openLinkPopoverForAnchor(anchor) {
+          const rawHref = anchor.getAttribute('href') || '';
+          if (!rawHref) return;
+          let urlObj;
+          try {
+            urlObj = new URL(rawHref, window.location.href);
+          } catch {
+            return;
+          }
+          if (urlObj.origin !== window.location.origin) return;
+          const isSamePageHash = urlObj.pathname === window.location.pathname && urlObj.hash.length > 1;
+          const isInternalPost = /^\/posts\/[^/]+\/?$/.test(urlObj.pathname);
+          if (!isSamePageHash && !isInternalPost) return;
+
+          const pop = ensureLinkPopover();
+          const badgeEl = pop.querySelector('.post-link-popover-badge');
+          const metaEl = pop.querySelector('.post-link-popover-meta');
+          const titleEl = pop.querySelector('.post-link-popover-title');
+          const excerptEl = pop.querySelector('.post-link-popover-excerpt');
+          const goEl = pop.querySelector('.post-link-popover-go');
+
+          const hashId = urlObj.hash ? decodeURIComponent(urlObj.hash.slice(1)) : '';
+          let previewData = null;
+
+          if (isSamePageHash) {
+            previewData = extractSectionPreview(document, hashId);
+            if (badgeEl) badgeEl.textContent = '本文节选';
+            if (metaEl) metaEl.textContent = `#${hashId.slice(0, 20)}`;
+            if (goEl) goEl.setAttribute('href', `#${encodeURIComponent(hashId)}`);
+          } else {
+            if (badgeEl) badgeEl.textContent = '关联文章';
+            if (metaEl) metaEl.textContent = urlObj.pathname.replace(/^\/posts\/|\/$/g, '');
+            if (goEl) goEl.setAttribute('href', urlObj.pathname + urlObj.hash);
+
+            const cacheKey = urlObj.pathname;
+            let doc = previewCache.get(cacheKey);
+            if (!doc) {
+              try {
+                const res = await fetch(urlObj.pathname, { headers: { Accept: 'text/html' } });
+                if (!res.ok) return;
+                const html = await res.text();
+                doc = new DOMParser().parseFromString(html, 'text/html');
+                previewCache.set(cacheKey, doc);
+              } catch {
+                return;
+              }
+            }
+            if (activePreviewAnchor !== anchor) return;
+            previewData = extractSectionPreview(doc, hashId);
+          }
+
+          if (!previewData) return;
+          if (titleEl) titleEl.textContent = previewData.title;
+          if (excerptEl) excerptEl.textContent = previewData.excerpt;
+
+          pop.hidden = false;
+          const rect = anchor.getBoundingClientRect();
+          const popW = Math.min(340, window.innerWidth - 24);
+          let left = rect.left + rect.width / 2 - popW / 2;
+          left = Math.max(12, Math.min(window.innerWidth - popW - 12, left));
+          const preferTop = rect.top > 210;
+          pop.style.width = `${popW}px`;
+          pop.style.left = `${Math.round(left)}px`;
+          if (preferTop) {
+            pop.style.top = `${Math.round(rect.top - 10)}px`;
+            pop.dataset.placement = 'top';
+          } else {
+            pop.style.top = `${Math.round(rect.bottom + 10)}px`;
+            pop.dataset.placement = 'bottom';
+          }
+          void pop.offsetWidth;
+          pop.classList.add('is-visible');
+        }
+
+        function initLinkPreviews() {
+          prose.addEventListener('pointerover', (e) => {
+            if (window.matchMedia('(hover: none)').matches) return;
+            const anchor = e.target instanceof Element ? e.target.closest('a[href]') : null;
+            if (!anchor || anchor.classList.contains('heading-anchor-btn')) return;
+            const href = anchor.getAttribute('href') || '';
+            if (!href.startsWith('#') && !href.startsWith('/posts/') && !href.includes('/posts/')) return;
+            window.clearTimeout(hidePopoverTimer);
+            if (activePreviewAnchor === anchor) return;
+            activePreviewAnchor = anchor;
+            window.clearTimeout(hoverIntentTimer);
+            hoverIntentTimer = window.setTimeout(() => {
+              openLinkPopoverForAnchor(anchor);
+            }, 260);
+          }, { signal });
+
+          prose.addEventListener('pointerout', (e) => {
+            const anchor = e.target instanceof Element ? e.target.closest('a[href]') : null;
+            if (!anchor) return;
+            const related = e.relatedTarget instanceof Element ? e.relatedTarget : null;
+            if (related && (anchor.contains(related) || (linkPopover && linkPopover.contains(related)))) return;
+            window.clearTimeout(hoverIntentTimer);
+            scheduleHidePopover();
+          }, { signal });
+        }
+
+        enhanceCalloutBlocks();
         enhanceCodeBlocks();
+        enhanceHeadingAnchors();
         bindAnchorScroll();
+        initLinkPreviews();
+
+        if (location.hash && location.hash.length > 1) {
+          const initialId = decodeURIComponent(location.hash.slice(1));
+          const initialTarget = document.getElementById(initialId) || (window.CSS && CSS.escape ? prose.querySelector(`#${CSS.escape(initialId)}`) : null);
+          if (initialTarget && /^H[2-3]$/.test(initialTarget.tagName)) {
+            window.setTimeout(() => pulseHeadingTarget(initialTarget), 360);
+          }
+        }
 
         window[cleanupKey] = () => {
+          window.clearTimeout(hoverIntentTimer);
+          window.clearTimeout(hidePopoverTimer);
+          if (linkPopover) {
+            linkPopover.remove();
+            linkPopover = null;
+          }
           controller.abort();
         };
       }
@@ -1967,6 +2417,350 @@ const hasToc = tocHeadings.length > 1;
       opacity: 1;
       background: var(--accent);
       transform: scale(1.35);
+    }
+
+    /* ================= 1. 东方书斋朱批/笺注卡片 (Callout / Admonition) ================= */
+    .prose blockquote.prose-callout {
+      --callout-accent: #8b6f47;
+      --callout-bg: rgba(139, 111, 71, 0.055);
+      --callout-border: rgba(139, 111, 71, 0.28);
+      padding: 1.05rem 1.3rem 1.05rem 1.25rem !important;
+      margin: 1.9em 0 !important;
+      border-radius: 12px !important;
+      border: 1px solid var(--callout-border) !important;
+      border-left: 3.5px solid var(--callout-accent) !important;
+      background: var(--callout-bg) !important;
+      font-family: var(--font-body) !important;
+      font-size: 0.96em !important;
+      line-height: 1.78 !important;
+      color: var(--text) !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+    }
+    .prose blockquote.prose-callout::before,
+    .prose blockquote.prose-callout::after {
+      content: none !important;
+      display: none !important;
+    }
+    .prose blockquote.prose-callout.is-note {
+      --callout-accent: #7a6240;
+      --callout-bg: rgba(139, 111, 71, 0.055);
+      --callout-border: rgba(139, 111, 71, 0.25);
+    }
+    .prose blockquote.prose-callout.is-tip {
+      --callout-accent: #2e7d5b;
+      --callout-bg: rgba(46, 125, 91, 0.06);
+      --callout-border: rgba(46, 125, 91, 0.25);
+    }
+    .prose blockquote.prose-callout.is-important {
+      --callout-accent: var(--vermilion, #c23f2c);
+      --callout-bg: rgba(194, 63, 44, 0.055);
+      --callout-border: rgba(194, 63, 44, 0.26);
+    }
+    .prose blockquote.prose-callout.is-warning {
+      --callout-accent: #c57b18;
+      --callout-bg: rgba(197, 123, 24, 0.065);
+      --callout-border: rgba(197, 123, 24, 0.28);
+    }
+    .prose blockquote.prose-callout.is-caution {
+      --callout-accent: #b83227;
+      --callout-bg: rgba(184, 50, 39, 0.065);
+      --callout-border: rgba(184, 50, 39, 0.3);
+    }
+    [data-theme="dark"] .prose blockquote.prose-callout {
+      --callout-bg: rgba(255, 255, 255, 0.04);
+      --callout-border: rgba(255, 255, 255, 0.14);
+      box-shadow: 0 6px 22px rgba(0, 0, 0, 0.25);
+    }
+    .prose-callout-head {
+      display: flex;
+      align-items: center;
+      gap: 0.48rem;
+      margin-bottom: 0.48rem;
+      font-family: var(--font-hand-title, var(--font-body));
+      font-size: 0.84rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--callout-accent);
+      user-select: none;
+    }
+    .prose-callout-seal {
+      display: inline-grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      background: rgba(0, 0, 0, 0.04);
+      border: 1px solid var(--callout-border);
+      color: var(--callout-accent);
+    }
+    [data-theme="dark"] .prose-callout-seal {
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .prose blockquote.prose-callout > p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* ================= 2. 长代码块折叠与工具栏微动效 ================= */
+    .code-copy-button,
+    .code-collapse-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), color 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+    .code-collapse-button {
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      padding: 0.2rem 0.6rem;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      line-height: 1.2;
+      color: #e4e4e7;
+      background: rgba(255, 255, 255, 0.06);
+      cursor: pointer;
+    }
+    .code-collapse-button:hover {
+      border-color: rgba(255, 255, 255, 0.35);
+      background: rgba(255, 255, 255, 0.14);
+      transform: translateY(-1px);
+    }
+    .code-copy-button.is-copied {
+      border-color: rgba(110, 231, 183, 0.6) !important;
+      color: #6ee7b7 !important;
+      background: rgba(16, 185, 129, 0.16) !important;
+      animation: codeCopySpring 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes codeCopySpring {
+      0% { transform: scale(0.92); }
+      55% { transform: scale(1.07); }
+      100% { transform: scale(1); }
+    }
+    .prose pre.is-code-collapsed {
+      max-height: 240px !important;
+      overflow: hidden !important;
+      position: relative;
+    }
+    .code-expand-veil {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 82px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 12px;
+      background: linear-gradient(to bottom, rgba(20, 20, 22, 0), rgba(20, 20, 22, 0.92) 65%, rgba(20, 20, 22, 0.98));
+      z-index: 4;
+    }
+    .code-expand-veil[hidden] {
+      display: none !important;
+    }
+    [data-theme="moss"] .code-expand-veil {
+      background: linear-gradient(to bottom, rgba(0, 77, 64, 0), rgba(0, 77, 64, 0.92) 65%, rgba(0, 77, 64, 0.98));
+    }
+    [data-theme="rice"] .code-expand-veil {
+      background: linear-gradient(to bottom, rgba(44, 37, 29, 0), rgba(44, 37, 29, 0.92) 65%, rgba(44, 37, 29, 0.98));
+    }
+    .code-expand-veil-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0.34rem 0.95rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      color: #f4f4f5;
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), background 180ms ease, border-color 180ms ease;
+    }
+    .code-expand-veil-btn:hover {
+      background: rgba(255, 255, 255, 0.22);
+      border-color: rgba(255, 255, 255, 0.45);
+      transform: translateY(-1.5px);
+    }
+
+    /* ================= 3. 章节标题锚点自复制与定位脉冲 ================= */
+    .prose h2[id],
+    .prose h3[id] {
+      position: relative;
+      scroll-margin-top: 84px;
+      transition: background-color 300ms ease, box-shadow 300ms ease;
+    }
+    .heading-anchor-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 0.42rem;
+      padding: 0 0.34rem;
+      height: 1.35em;
+      border-radius: 5px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.72em;
+      font-weight: 500;
+      line-height: 1;
+      vertical-align: middle;
+      opacity: 0;
+      transform: translateX(-3px);
+      cursor: pointer;
+      transition: opacity 180ms ease, transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), color 160ms ease, background 160ms ease, border-color 160ms ease;
+    }
+    .prose h2[id]:hover .heading-anchor-btn,
+    .prose h3[id]:hover .heading-anchor-btn,
+    .heading-anchor-btn:focus-visible,
+    .heading-anchor-btn.is-copied {
+      opacity: 0.88;
+      transform: translateX(0);
+    }
+    .heading-anchor-btn:hover,
+    .heading-anchor-btn.is-copied {
+      opacity: 1;
+      color: var(--vermilion, #c23f2c);
+      background: var(--vermilion-soft, rgba(194, 63, 44, 0.1));
+      border-color: rgba(194, 63, 44, 0.28);
+    }
+    .prose .is-anchor-target {
+      animation: headingAnchorPulse 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+      border-radius: 6px;
+    }
+    @keyframes headingAnchorPulse {
+      0% {
+        background-color: rgba(235, 170, 30, 0.24);
+        box-shadow: -8px 0 0 0 var(--vermilion, #c23f2c), 0 0 0 6px rgba(235, 170, 30, 0.18);
+      }
+      55% {
+        background-color: rgba(235, 170, 30, 0.12);
+        box-shadow: -4px 0 0 0 var(--vermilion, #c23f2c), 0 0 0 2px rgba(235, 170, 30, 0.08);
+      }
+      100% {
+        background-color: transparent;
+        box-shadow: 0 0 0 0 transparent;
+      }
+    }
+
+    /* ================= 4. 文内链接悬停书签速览卡 (Link Bookmark Popover) ================= */
+    .post-link-popover {
+      position: fixed;
+      z-index: 100050;
+      padding: 0.85rem 1rem;
+      border-radius: 13px;
+      background: var(--glass-bg-strong, var(--bg-elev));
+      border: 1px solid var(--glass-border-strong, var(--rule-strong));
+      box-shadow: var(--glass-inner-top), 0 18px 42px rgba(0, 0, 0, 0.16), 0 2px 10px rgba(0, 0, 0, 0.06);
+      backdrop-filter: blur(22px) saturate(160%);
+      -webkit-backdrop-filter: blur(22px) saturate(160%);
+      color: var(--text);
+      font-family: var(--font-body);
+      opacity: 0;
+      pointer-events: none;
+      transform: translate3d(0, 6px, 0) scale(0.97);
+      transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1), transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .post-link-popover[data-placement="top"] {
+      transform: translate3d(0, calc(-100% + 6px), 0) scale(0.97);
+    }
+    .post-link-popover.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    .post-link-popover[data-placement="top"].is-visible {
+      transform: translate3d(0, -100%, 0) scale(1);
+    }
+    [data-theme="dark"] .post-link-popover {
+      background: rgba(26, 26, 28, 0.95);
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 22px 50px rgba(0, 0, 0, 0.55);
+    }
+    .post-link-popover-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.38rem;
+    }
+    .post-link-popover-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 7px;
+      border-radius: 4px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--vermilion, #c23f2c);
+      background: var(--vermilion-soft, rgba(194, 63, 44, 0.1));
+      border: 1px solid rgba(194, 63, 44, 0.22);
+    }
+    .post-link-popover-meta {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      max-width: 170px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .post-link-popover-title {
+      margin: 0 0 0.32rem;
+      font-family: var(--font-hand-title, var(--font-body));
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: var(--text-strong);
+      line-height: 1.38;
+    }
+    .post-link-popover-excerpt {
+      margin: 0 0 0.68rem;
+      font-size: 0.8rem;
+      line-height: 1.58;
+      color: var(--muted-strong);
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .post-link-popover-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding-top: 0.48rem;
+      border-top: 1px dashed var(--rule-soft);
+    }
+    .post-link-popover-go {
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: var(--vermilion, #c23f2c);
+      text-decoration: none !important;
+      transition: transform 150ms ease;
+    }
+    .post-link-popover-go:hover {
+      transform: translateX(2px);
+    }
+    .post-link-popover-pin {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--rule);
+      background: var(--bg-soft);
+      color: var(--text-strong);
+      font-size: 0.72rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+    .post-link-popover-pin:hover {
+      border-color: var(--vermilion, #c23f2c);
+      color: var(--vermilion, #c23f2c);
+      background: var(--vermilion-soft, rgba(194, 63, 44, 0.08));
     }
   </style>
 </BaseLayout>

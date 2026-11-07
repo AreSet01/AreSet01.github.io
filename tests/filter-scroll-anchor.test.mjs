@@ -18,6 +18,11 @@ test('普通筛选：换骨前先量落点，用 0.26s 预滚动代替「一帧�
     );
     // 落点兜底顺序：锚点 → 最近卡片 → 新的滚动上限
     assert.match(src, /Math\.min\(anchorScroll \?\? predictedMax, predictedMax\)/, `${name}: 落点必须夹在 [0, 新上限] 内`);
+    // 锚点只向上追：从子集切回超集（AI 问答 → 全部）时不能把页面往下带
+    assert.ok(
+      src.includes('const landing = Math.min(anchorLanding, Math.max(0, scrollBefore));'),
+      `${name}: 落点不得超过筛选前的滚动位置，避免切回「全部」时页面自动下滑`
+    );
   }
 
   // notes 的不可见测量：暂时挂新布局、量完还原旧列

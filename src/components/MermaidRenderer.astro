@@ -198,7 +198,20 @@
 
   // ---------- 全局事件委托（坚不可摧，永远不会丢失监听） ----------
 
-  function setBlockZoom(block: HTMLElement, zoom: number) {
+  function applyBlockTransform(block: HTMLElement) {
+    const renderEl = block.querySelector<HTMLElement>('.mermaid-render');
+    if (!renderEl) return;
+    const zoom = parseFloat(block.dataset.currentZoom || '1.0') || 1.0;
+    const panX = parseFloat(block.dataset.panX || '0') || 0;
+    const panY = parseFloat(block.dataset.panY || '0') || 0;
+    if (zoom === 1.0 && panX === 0 && panY === 0) {
+      renderEl.style.transform = '';
+    } else {
+      renderEl.style.transform = `translate3d(${Math.round(panX)}px, ${Math.round(panY)}px, 0) scale(${zoom})`;
+    }
+  }
+
+  function setBlockZoom(block: HTMLElement, zoom: number, resetPan = false) {
     const renderEl = block.querySelector<HTMLElement>('.mermaid-render');
     const stageEl = block.querySelector<HTMLElement>('.mermaid-stage');
     const zoomVal = block.querySelector<HTMLElement>('.mermaid-zoom-val');
@@ -207,17 +220,99 @@
     const clamped = Math.min(5.0, Math.max(0.4, Math.round(zoom * 100) / 100));
     block.dataset.currentZoom = `${clamped}`;
     if (zoomVal) zoomVal.textContent = `${Math.round(clamped * 100)}%`;
-    renderEl.style.transform = clamped === 1.0 ? '' : `scale(${clamped})`;
+    if (clamped === 1.0 || resetPan) {
+      block.dataset.panX = '0';
+      block.dataset.panY = '0';
+    }
+    applyBlockTransform(block);
     if (clamped > 1.0) {
       stageEl?.classList.add('is-zoomed');
     } else {
       stageEl?.classList.remove('is-zoomed');
-      if (stageEl) {
+      if (stageEl && resetPan) {
         stageEl.scrollLeft = 0;
         stageEl.scrollTop = 0;
       }
     }
   }
+
+  /**
+   * 自动修正 Mermaid SVG 的 foreignObject 与 viewBox 边界：
+   * 解决 stateDiagram-v2 / flowchart 中长中文标签超出 foreignObject 或 SVG viewBox 导致右侧/上下文字被一刀切的问题。
+   */
+  function fixMermaidSvgBounds(svgEl: SVGSVGElement) {
+    try {
+      if (svgEl.dataset.boundsFixed === 'true') return;
+      svgEl.style.overflow = 'visible';
+      const foreignObjects = svgEl.querySelectorAll<SVGForeignObjectElement>('foreignObject');
+      foreignObjects.forEach((fo) => {
+        fo.style.overflow = 'visible';
+        const inner = fo.firstElementChild as HTMLElement | null;
+        if (!inner) return;
+        inner.style.overflow = 'visible';
+        const isEdgeLabel = Boolean(fo.closest('.edgeLabel, .transition, .note'));
+        if (isEdgeLabel) {
+          inner.style.whiteSpace = 'nowrap';
+          inner.style.width = 'max-content';
+          inner.style.maxWidth = 'none';
+        }
+        const foW = parseFloat(fo.getAttribute('width') || '0') || 0;
+        const foH = parseFloat(fo.getAttribute('height') || '0') || 0;
+        const reqW = Math.ceil(Math.max(inner.scrollWidth || 0, inner.offsetWidth || 0));
+        const reqH = Math.ceil(Math.max(inner.scrollHeight || 0, inner.offsetHeight || 0));
+        if (reqW > foW && reqW > 0) {
+          fo.setAttribute('width', String(reqW + 8));
+        }
+        if (reqH > foH && reqH > 0) {
+          fo.setAttribute('height', String(reqH + 4));
+        }
+      });
+
+      const vb = svgEl.viewBox?.baseVal;
+      const vbX = vb && vb.width > 0 ? vb.x : 0;
+      const vbY = vb && vb.height > 0 ? vb.y : 0;
+      const vbW = vb && vb.width > 0 ? vb.width : (parseFloat(svgEl.getAttribute('width') || '0') || 600);
+      const vbH = vb && vb.height > 0 ? vb.height : (parseFloat(svgEl.getAttribute('height') || '0') || 400);
+
+      const bbox = svgEl.getBBox();
+      let minX = Math.min(vbX, bbox.x);
+      let minY = Math.min(vbY, bbox.y);
+      let maxX = Math.max(vbX + vbW, bbox.x + bbox.width);
+      let maxY = Math.max(vbY + vbH, bbox.y + bbox.height);
+
+      // 补充检测 DOM 级 foreignObject / text 的真实屏幕矩形，以初始固定 viewBox (vbX, vbY, vbW, vbH) 为基准换算回 SVG 坐标系
+      const svgRect = svgEl.getBoundingClientRect();
+      if (svgRect.width > 0 && svgRect.height > 0) {
+        const scaleX = vbW / svgRect.width;
+        const scaleY = vbH / svgRect.height;
+        svgEl.querySelectorAll<Element>('foreignObject, text, .edgeLabel, .node, .stateGroup, .cluster').forEach((el) => {
+          const r = el.getBoundingClientRect();
+          if (r.width <= 0 || r.height <= 0) return;
+          const relLeft = vbX + (r.left - svgRect.left) * scaleX;
+          const relRight = vbX + (r.right - svgRect.left) * scaleX;
+          const relTop = vbY + (r.top - svgRect.top) * scaleY;
+          const relBottom = vbY + (r.bottom - svgRect.top) * scaleY;
+          if (relLeft < minX) minX = relLeft;
+          if (relRight > maxX) maxX = relRight;
+          if (relTop < minY) minY = relTop;
+          if (relBottom > maxY) maxY = relBottom;
+        });
+      }
+
+      const pad = 16;
+      const finalX = Math.floor(minX - pad);
+      const finalY = Math.floor(minY - pad);
+      const finalW = Math.max(120, Math.ceil(maxX - minX + pad * 2));
+      const finalH = Math.max(80, Math.ceil(maxY - minY + pad * 2));
+
+      svgEl.setAttribute('viewBox', `${finalX} ${finalY} ${finalW} ${finalH}`);
+      svgEl.style.maxWidth = `${finalW}px`;
+      svgEl.dataset.naturalWidth = String(finalW);
+      svgEl.dataset.naturalHeight = String(finalH);
+      svgEl.dataset.boundsFixed = 'true';
+    } catch {}
+  }
+  (window as any).__fixMermaidSvgBounds = fixMermaidSvgBounds;
 
   function ensureGlobalDelegation() {
     if (globalDelegationBound) return;
@@ -305,18 +400,22 @@
           currentZoom = 1.0;
         }
 
-        setBlockZoom(block, currentZoom);
+        setBlockZoom(block, currentZoom, Boolean(zoomResetBtn));
         return;
       }
     });
 
-    // 局部缩放后的拖拽平移、双指缩放与双击重置（指针事件统一升级）
+    // 卡片内任意缩放比例（含默认 100%）直接按住拖拽漫游、双指缩放与双击复位
     let isStageDragging = false;
     let activeStageEl: HTMLElement | null = null;
     let stageStartX = 0;
     let stageStartY = 0;
     let stageScrollLeft = 0;
     let stageScrollTop = 0;
+    let stageMaxScrollLeft = 0;
+    let stageMaxScrollTop = 0;
+    let stageStartPanX = 0;
+    let stageStartPanY = 0;
     const activePointers = new Map<number, { x: number; y: number }>();
     let initialPinchDistance = 0;
     let initialPinchZoom = 1.0;
@@ -324,6 +423,7 @@
     let lastTapStage: HTMLElement | null = null;
 
     document.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
       const target = e.target as HTMLElement | null;
       const stage = target?.closest<HTMLElement>('.mermaid-stage');
       if (!stage) return;
@@ -332,10 +432,10 @@
 
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-      // 双击/双触快速复位 (Double tap to reset zoom)
+      // 双击/双触快速复位 (Double tap to reset zoom & pan)
       const now = Date.now();
-      if (lastTapStage === stage && now - lastTapTime < 320) {
-        setBlockZoom(block, 1.0);
+      if (lastTapStage === stage && now - lastTapTime < 300) {
+        setBlockZoom(block, 1.0, true);
         lastTapTime = 0;
         lastTapStage = null;
         activePointers.clear();
@@ -364,9 +464,6 @@
         return;
       }
 
-      const currentZoom = parseFloat(block.dataset.currentZoom || '1.0') || 1.0;
-      if (currentZoom <= 1.0) return;
-
       isStageDragging = true;
       stage.classList.add('is-dragging');
       try {
@@ -376,6 +473,10 @@
       stageStartY = e.clientY;
       stageScrollLeft = stage.scrollLeft;
       stageScrollTop = stage.scrollTop;
+      stageMaxScrollLeft = Math.max(0, stage.scrollWidth - stage.clientWidth);
+      stageMaxScrollTop = Math.max(0, stage.scrollHeight - stage.clientHeight);
+      stageStartPanX = parseFloat(block.dataset.panX || '0') || 0;
+      stageStartPanY = parseFloat(block.dataset.panY || '0') || 0;
     });
 
     document.addEventListener('pointermove', (e) => {
@@ -396,10 +497,22 @@
       }
 
       if (!isStageDragging || !activeStageEl) return;
+      const block = activeStageEl.closest<HTMLElement>('.mermaid-block');
+      if (!block) return;
       const dx = e.clientX - stageStartX;
       const dy = e.clientY - stageStartY;
-      activeStageEl.scrollLeft = stageScrollLeft - dx;
-      activeStageEl.scrollTop = stageScrollTop - dy;
+
+      const nextScrollLeft = Math.max(0, Math.min(stageMaxScrollLeft, stageScrollLeft - dx));
+      const consumedX = stageScrollLeft - nextScrollLeft;
+      activeStageEl.scrollLeft = nextScrollLeft;
+      block.dataset.panX = `${stageStartPanX + (dx - consumedX)}`;
+
+      const nextScrollTop = Math.max(0, Math.min(stageMaxScrollTop, stageScrollTop - dy));
+      const consumedY = stageScrollTop - nextScrollTop;
+      activeStageEl.scrollTop = nextScrollTop;
+      block.dataset.panY = `${stageStartPanY + (dy - consumedY)}`;
+
+      applyBlockTransform(block);
     });
 
     const stopStageInteraction = (e: PointerEvent) => {
@@ -630,6 +743,9 @@
         }
 
         const svgEl = renderEl.querySelector<SVGSVGElement>('svg');
+        if (svgEl) {
+          fixMermaidSvgBounds(svgEl);
+        }
         if (svgEl && stageEl) {
           const naturalWidth = svgEl.viewBox?.baseVal?.width || parseFloat(svgEl.getAttribute('width') || '0') || 0;
           if (naturalWidth > 640 && stageEl.clientWidth > 0 && naturalWidth > stageEl.clientWidth - 40) {

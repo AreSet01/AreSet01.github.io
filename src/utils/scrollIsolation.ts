@@ -23,7 +23,7 @@ export function bindScrollIsolation(
 ): () => void {
   const {
     scrollableSelector = '.notes-drawer-body, .ink-ask-drawer-body, .pin-window-body, .pin-sheet-content, [data-scroll-isolated-body]',
-    nestedScrollSelector = 'textarea, pre, code, [data-scrollable]',
+    nestedScrollSelector = 'textarea, pre, code, .pinned-mermaid-stage, .mermaid-stage, [data-scrollable]',
   } = options;
 
   let touchStartY = 0;

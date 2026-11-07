@@ -665,17 +665,23 @@ img {
   color: inherit;
 }
 
-/* Code blocks across ALL themes (Shiki/pre/code have dark background):
-   Ensures crystal-clear visibility and preserves syntax token readability */
+/* Code blocks across ALL themes (Shiki/pre have dark background):
+   Only scope translucent-white selection to <pre> code blocks so inline <code> on light/rice paper keeps crisp vermilion selection! */
 pre ::selection,
 pre *::selection,
-code::selection,
-code *::selection,
+pre code::selection,
+pre code *::selection,
 .shiki ::selection,
 .shiki *::selection,
 .astro-code ::selection,
 .astro-code *::selection {
   background: rgba(255, 255, 255, 0.26) !important;
+  color: inherit !important;
+}
+
+:not(pre) > code::selection,
+:not(pre) > code *::selection {
+  background: rgba(194, 74, 44, 0.26) !important;
   color: inherit !important;
 }
 
@@ -705,13 +711,19 @@ code *::selection,
 
 [data-theme="rice"] pre ::selection,
 [data-theme="rice"] pre *::selection,
-[data-theme="rice"] code::selection,
-[data-theme="rice"] code *::selection,
+[data-theme="rice"] pre code::selection,
+[data-theme="rice"] pre code *::selection,
 [data-theme="rice"] .shiki ::selection,
 [data-theme="rice"] .shiki *::selection,
 [data-theme="rice"] .astro-code ::selection,
 [data-theme="rice"] .astro-code *::selection {
   background: rgba(255, 255, 255, 0.26) !important;
+  color: inherit !important;
+}
+
+[data-theme="rice"] :not(pre) > code::selection,
+[data-theme="rice"] :not(pre) > code *::selection {
+  background: rgba(168, 72, 36, 0.26) !important;
   color: inherit !important;
 }
 
@@ -4524,10 +4536,121 @@ html.theme-switching .prose blockquote {
   display: none;
 }
 
+.image-viewer-toolbar {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  left: 0.85rem;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  pointer-events: none;
+}
+
+.image-viewer-counter {
+  margin-right: auto;
+  padding: 0.25rem 0.68rem;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--glass-bg-strong, var(--bg-elev));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-strong);
+  pointer-events: auto;
+}
+
+.image-viewer-zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--glass-bg-strong, var(--bg-elev));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  pointer-events: auto;
+}
+
+.image-viewer-zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.9rem;
+  height: 1.9rem;
+  padding: 0 0.45rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.image-viewer-zoom-btn:hover {
+  background: rgba(var(--accent-rgb, 0, 0, 0), 0.08);
+  color: var(--accent);
+}
+
+.image-viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  background: var(--glass-bg-strong, var(--bg-elev));
+  color: var(--text-strong);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  cursor: pointer;
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), border-color 180ms ease, color 180ms ease;
+}
+
+.image-viewer-nav[hidden],
+.image-viewer-counter[hidden] {
+  display: none !important;
+}
+
+.image-viewer-prev {
+  left: 0.9rem;
+}
+
+.image-viewer-next {
+  right: 0.9rem;
+}
+
+.image-viewer-nav:hover {
+  transform: translateY(-50%) scale(1.08);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .image-viewer-stage {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+}
+
+.image-viewer-viewport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 6px;
+  min-height: 220px;
 }
 
 .image-viewer-media {
@@ -4539,6 +4662,22 @@ html.theme-switching .prose blockquote {
   border-radius: 4px;
   background: rgba(7, 8, 11, 0.18);
   box-shadow: none;
+  cursor: zoom-in;
+  user-select: none;
+  transform-origin: center center;
+  transition: opacity 150ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.image-viewer-media.is-zoomed {
+  cursor: grab;
+}
+
+.image-viewer-media.is-panning {
+  cursor: grabbing;
+}
+
+.image-viewer-media.is-switching {
+  opacity: 0.25;
 }
 
 .image-viewer-caption {
@@ -4553,20 +4692,22 @@ html.theme-switching .prose blockquote {
 }
 
 .image-viewer-close {
-  position: absolute;
-  top: 0.9rem;
-  right: 0.9rem;
+  position: relative;
+  top: auto;
+  right: auto;
+  pointer-events: auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.3rem;
-  height: 2.3rem;
+  width: 2.2rem;
+  height: 2.2rem;
   border: 1px solid var(--rule);
   border-radius: 50%;
-  background: var(--bg-elev);
+  background: var(--glass-bg-strong, var(--bg-elev));
   color: var(--text-strong);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  cursor: pointer;
   transition:
     transform 240ms var(--ease),
     color 240ms var(--ease),
@@ -8975,14 +9116,15 @@ a.chart-bar-name:hover {
   box-sizing: border-box;
   padding: 1.6em 1.2em;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  justify-content: flex-start;
+  align-items: flex-start;
   min-height: 120px;
-  max-height: min(72vh, 520px);
+  max-height: min(74vh, 580px);
   overflow: auto;
   overscroll-behavior: contain !important;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x pan-y;
+  cursor: grab;
   contain: paint;
 }
 
@@ -8991,11 +9133,15 @@ a.chart-bar-name:hover {
   touch-action: none;
 }
 
+.mermaid-stage.is-dragging,
 .mermaid-stage.is-zoomed.is-dragging {
   cursor: grabbing;
   user-select: none;
   touch-action: none;
   will-change: scroll-position;
+}
+.mermaid-stage.is-dragging .mermaid-render {
+  transition: none !important;
 }
 
 .mermaid-stage::-webkit-scrollbar {
@@ -9020,6 +9166,7 @@ a.chart-bar-name:hover {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  margin: auto;
   box-sizing: border-box;
   display: flex;
   justify-content: center;
@@ -9630,7 +9777,7 @@ body.gallery-lightbox-open {
 .pin-edge-tab {
   --tab-base-y: -50%;
   position: fixed;
-  right: 0;
+  right: var(--pin-edge-offset, 0px);
   top: 40%;
   transform: translateY(var(--tab-base-y)) translateX(100%);
   opacity: 0;
@@ -9652,6 +9799,7 @@ body.gallery-lightbox-open {
   backdrop-filter: blur(14px) saturate(120%);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
   transition: transform 720ms cubic-bezier(0.16, 1, 0.3, 1),
+              right 360ms cubic-bezier(0.16, 1, 0.3, 1),
               opacity 620ms cubic-bezier(0.16, 1, 0.3, 1),
               visibility 720ms,
               background 260ms ease,
@@ -9659,7 +9807,7 @@ body.gallery-lightbox-open {
               box-shadow 320ms ease;
   user-select: none;
   font-family: var(--font-hand-title);
-  will-change: transform, opacity;
+  will-change: transform, right, opacity;
 }
 
 .pin-edge-tab.is-visible {
@@ -9778,10 +9926,10 @@ body.gallery-lightbox-open {
 .pin-float-window {
   position: fixed;
   z-index: 100032;
-  min-width: 350px;
-  width: clamp(350px, 36vw, 540px);
+  min-width: 420px;
+  width: clamp(420px, 38vw, 560px);
   height: auto; /* Auto-hug content height without dead void */
-  max-height: min(80vh, 760px);
+  max-height: min(82vh, 780px);
   display: flex;
   flex-direction: column;
   background: var(--bg-elev);
@@ -10066,14 +10214,19 @@ body.gallery-lightbox-open {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  scrollbar-width: none !important; -ms-overflow-style: none !important;
-  
+  scrollbar-width: thin;
 }
 
 .pin-window-body::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
+  width: 5px;
+  height: 5px;
+}
+.pin-window-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pin-window-body::-webkit-scrollbar-thumb {
+  background: var(--rule);
+  border-radius: 99px;
 }
 
 /* 拖拽右下角缩放（双击恢复默认） */
@@ -10169,6 +10322,7 @@ body.gallery-lightbox-open {
 .pinned-card {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0 !important;
   background: var(--bg-soft);
   border: 1px solid var(--rule);
   border-radius: 12px;
@@ -10187,8 +10341,8 @@ body.gallery-lightbox-open {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.55rem 0.8rem;
+  gap: 0.4rem;
+  padding: 0.5rem 0.7rem;
   background: var(--bg-elev);
   border-bottom: 1px solid var(--rule);
   user-select: none;
@@ -10198,9 +10352,9 @@ body.gallery-lightbox-open {
 .pinned-card-meta {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.4rem;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto;
 }
 
 .pinned-card-badge {
@@ -10270,7 +10424,7 @@ body.gallery-lightbox-open {
 }
 
 .pinned-btn-copy {
-  min-width: 58px;
+  min-width: 44px;
   justify-content: center;
   text-align: center;
 }
@@ -10361,13 +10515,25 @@ body.gallery-lightbox-open {
   padding: 1rem;
   background: var(--bg-soft);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-start;
+  max-height: 420px;
   overflow: auto;
+  overscroll-behavior: contain;
+  cursor: grab;
+  scrollbar-width: thin;
+}
+.pinned-mermaid-stage.is-dragging {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .pinned-mermaid-stage svg {
-  max-width: 100%;
+  display: block;
+  margin: auto;
+  width: 100%;
+  min-width: 340px;
+  max-width: none;
   height: auto;
 }
 
@@ -10866,8 +11032,9 @@ html[data-companion-mode="split"] .companion-seg {
   display: none !important;
 }
 
-/* ---------- 左侧轻量分段切换器 [问 墨问 | ✒ 笔记 N] ---------- */
+/* ---------- 左侧轻量分段切换器 [墨问 | 笔记 N]（实体滑块胶囊 + 细线图标） ---------- */
 .companion-seg {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -10876,10 +11043,58 @@ html[data-companion-mode="split"] .companion-seg {
   background: rgba(var(--accent-rgb, 0, 0, 0), 0.05);
   border: 1px solid var(--rule-soft);
 }
+.companion-seg-glider {
+  display: block;
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 0;
+  border-radius: 7px;
+  background: var(--bg-elev);
+  border: 1px solid var(--rule-soft);
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  will-change: transform, width;
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease;
+}
+[data-theme="dark"] .companion-seg-glider {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.34);
+}
+[data-theme="moss"] .companion-seg-glider {
+  background: rgba(255, 241, 244, 0.15);
+  border-color: rgba(255, 241, 244, 0.24);
+}
+@media (prefers-reduced-motion: reduce) {
+  .companion-seg-glider {
+    transition: none;
+  }
+}
+html[data-companion-mode="split"] .ink-ask-sidebar-trigger,
+html[data-companion-mode="split"] #article-highlights-floating-pill,
+html[data-companion-mode="split"] #article-search-floating-pill,
+html[data-companion-mode="ask-full"] .ink-ask-sidebar-trigger,
+html[data-companion-mode="ask-full"] #article-highlights-floating-pill,
+html[data-companion-mode="ask-full"] #article-search-floating-pill,
+html[data-companion-mode="notes-full"] .ink-ask-sidebar-trigger,
+html[data-companion-mode="notes-full"] #article-highlights-floating-pill,
+html[data-companion-mode="notes-full"] #article-search-floating-pill {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 [data-theme="dark"] .companion-seg {
   background: rgba(255, 255, 255, 0.045);
 }
 .companion-seg-btn {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -10896,7 +11111,7 @@ html[data-companion-mode="split"] .companion-seg {
   cursor: pointer;
   white-space: nowrap;
   user-select: none;
-  transition: color 160ms ease, background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 .companion-seg-btn:hover:not(.is-active) {
   color: var(--text-strong);
@@ -10917,38 +11132,34 @@ html[data-companion-mode="split"] .companion-seg {
   background: rgba(255, 241, 244, 0.14);
   border-color: rgba(255, 241, 244, 0.22);
 }
+.companion-seg.has-glider .companion-seg-btn.is-active {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
 
-/* 迷你朱砂方印（与左上角导航栏「汐」印一脉相承） */
-.companion-mini-seal {
+/* 细线伴读徽标与分段图标（去方印化，统一清透笔触） */
+.ink-ask-brand-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 17px;
-  height: 17px;
-  border-radius: 3px;
-  background: var(--vermilion);
-  color: var(--bg-elev);
-  font-family: var(--font-hand-title);
-  font-size: 0.68rem;
-  font-weight: 600;
-  line-height: 1;
+  width: 16px;
+  height: 16px;
+  color: var(--vermilion);
   flex-shrink: 0;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
-}
-[data-theme="dark"] .companion-mini-seal {
-  color: var(--bg-base);
-}
-[data-theme="moss"] .companion-mini-seal {
-  color: var(--moss-badge-text, #004D40);
-}
-.companion-seg-btn:not(.is-active) .companion-mini-seal {
-  opacity: 0.72;
+  opacity: 0.92;
 }
 .companion-seg-icon {
-  width: 13px;
-  height: 13px;
+  width: 13.5px;
+  height: 13.5px;
   flex-shrink: 0;
-  opacity: 0.85;
+  opacity: 0.78;
+  transition: color 160ms ease, opacity 160ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.companion-seg-btn.is-active .companion-seg-icon {
+  color: var(--vermilion);
+  opacity: 1;
+  transform: scale(1.06);
 }
 .companion-seg-badge {
   display: inline-flex;
@@ -10968,6 +11179,33 @@ html[data-companion-mode="split"] .companion-seg {
 .companion-seg-btn.is-active .companion-seg-badge {
   background: var(--vermilion-soft);
   color: var(--vermilion);
+}
+.companion-seg-badge.has-bump {
+  animation: companionBadgeBump 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes companionBadgeBump {
+  0% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.34);
+    background: var(--vermilion);
+    color: var(--bg-elev);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+#companion-splitter.is-snapped-50::before {
+  opacity: 1;
+  background: linear-gradient(to bottom, transparent, var(--vermilion), transparent);
+}
+#companion-splitter.is-snapped-50::after {
+  background: var(--vermilion);
+  opacity: 1;
+  height: 64px;
+  box-shadow: 0 0 0 4px rgba(194, 63, 44, 0.24), 0 6px 18px rgba(194, 63, 44, 0.3);
+  transform: scaleX(1.35);
 }
 
 /* ---------- 右侧统一纯图标窗口工具栏（30×30px 极简幽灵按钮 + 悬浮微提示） ---------- */
