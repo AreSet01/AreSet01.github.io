@@ -6803,7 +6803,9 @@ html[data-font="kai"] .post-title {
   white-space: pre-wrap;
 }
 
-.post-title.is-split-ready {
+.post-title.is-split-ready,
+.post-title.is-split-ready .post-title-calligraphy,
+.post-title.is-split-ready .post-title-char {
   will-change: transform, opacity;
 }
 
@@ -6828,7 +6830,6 @@ html[data-font="kai"] .post-title {
   display: block;
   position: relative;
   overflow: visible;
-  will-change: transform, opacity;
 }
 
 .post-title-brush-canvas {
@@ -6841,13 +6842,6 @@ html[data-font="kai"] .post-title {
   position: relative;
   z-index: 2;
   text-wrap: balance;
-}
-
-.post-title-char {
-  display: inline-block;
-  white-space: pre-wrap;
-  backface-visibility: hidden;
-  will-change: transform, opacity, filter;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -7136,8 +7130,7 @@ html[data-font="kai"] .post-title {
   transform: translate(-50%, -50%) rotate(45deg) scale(0);
   transition:
     transform 420ms var(--article-ease-surface),
-    background-color 280ms var(--article-ease-surface),
-    box-shadow 360ms var(--article-ease-surface);
+    background-color 280ms var(--article-ease-surface);
 }
 
 .post-spine-dot::after {
@@ -7153,7 +7146,6 @@ html[data-font="kai"] .post-title {
 .post-spine-dot.is-lit {
   transform: translate(-50%, -50%) rotate(45deg) scale(1);
   background: var(--vermilion);
-  box-shadow: 0 0 10px rgba(194, 63, 44, 0.28);
 }
 
 .post-spine-dot.is-lit::after {
@@ -11418,8 +11410,7 @@ html[data-companion-mode="split"] #companion-splitter {
   transition:
     height 220ms var(--article-ease-surface),
     opacity 180ms ease,
-    background 180ms ease,
-    box-shadow 220ms ease;
+    background 180ms ease;
 }
 #companion-splitter:hover::before,
 html[data-companion-resizing="true"] #companion-splitter::before {
@@ -11431,7 +11422,6 @@ html[data-companion-resizing="true"] #companion-splitter::after {
   background: var(--vermilion, #c23f2c);
   opacity: 1;
   height: 58px;
-  box-shadow: 0 0 10px rgba(194, 63, 44, 0.32);
 }
 #companion-splitter:focus-visible {
   outline: none;

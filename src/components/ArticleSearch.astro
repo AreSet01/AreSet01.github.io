@@ -1106,12 +1106,14 @@
       }
     }
 
-    // Drag-and-drop HUD (rAF-throttled)
+    // Drag-and-drop HUD (rAF-throttled, pointerdown-cached dimensions)
     let isDragging = false;
     let dragStartX = 0;
     let dragStartY = 0;
     let hudStartX = 0;
     let hudStartY = 0;
+    let cachedMaxX = 12;
+    let cachedMaxY = 12;
     let hudDragRaf = 0;
     let pendingHudX = 0;
     let pendingHudY = 0;
@@ -1133,6 +1135,10 @@
         dragStartY = e.clientY;
 
         const rect = hud.getBoundingClientRect();
+        const maxX = Math.max(12, window.innerWidth - hud.offsetWidth - 12);
+        const maxY = Math.max(12, window.innerHeight - hud.offsetHeight - 12);
+        cachedMaxX = maxX;
+        cachedMaxY = maxY;
         hudStartX = rect.left;
         hudStartY = rect.top;
         pendingHudX = hudStartX;
@@ -1150,11 +1156,8 @@
         const deltaX = e.clientX - dragStartX;
         const deltaY = e.clientY - dragStartY;
 
-        const maxX = Math.max(12, window.innerWidth - hud.offsetWidth - 12);
-        const maxY = Math.max(12, window.innerHeight - hud.offsetHeight - 12);
-
-        pendingHudX = Math.max(12, Math.min(maxX, hudStartX + deltaX));
-        pendingHudY = Math.max(12, Math.min(maxY, hudStartY + deltaY));
+        pendingHudX = Math.max(12, Math.min(cachedMaxX, hudStartX + deltaX));
+        pendingHudY = Math.max(12, Math.min(cachedMaxY, hudStartY + deltaY));
 
         if (!hudDragRaf) {
           hudDragRaf = window.requestAnimationFrame(flushHudDrag);

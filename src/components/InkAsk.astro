@@ -57,6 +57,7 @@
   let session: Session | null = null;
   let mouseDown = false;
   let settleTimer = 0;
+  let resizeFrame = 0;
 
   // 侧边栏状态
   let sidebarBtn: HTMLButtonElement | null = null;
@@ -306,6 +307,8 @@
     let startY = 0;
     let initialLeft = 0;
     let initialTop = 0;
+    let cachedCardWidth = 0;
+    let cachedCardHeight = 0;
     let isDragging = false;
     let isPullingSheet = false;
     let sheetPullStartY = 0;
@@ -357,6 +360,8 @@
       const rect = card.getBoundingClientRect();
       initialLeft = rect.left + window.scrollX;
       initialTop = rect.top + window.scrollY;
+      cachedCardWidth = rect.width;
+      cachedCardHeight = rect.height;
       pendingLeft = initialLeft;
       pendingTop = initialTop;
 
@@ -381,12 +386,10 @@
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
 
-      const width = card.offsetWidth;
-      const height = card.offsetHeight;
       const minX = 16 + window.scrollX;
-      const maxX = window.innerWidth - width - 16 + window.scrollX;
+      const maxX = window.innerWidth - cachedCardWidth - 16 + window.scrollX;
       const minY = 16 + window.scrollY;
-      const maxY = window.innerHeight - height - 16 + window.scrollY;
+      const maxY = window.innerHeight - cachedCardHeight - 16 + window.scrollY;
 
       pendingLeft = Math.max(minX, Math.min(maxX, initialLeft + dx));
       pendingTop = Math.max(minY, Math.min(maxY, initialTop + dy));
@@ -2311,6 +2314,32 @@
     probe().then(() => {});
   }
 
+  (window as any).__areSetInkAskCleanup__?.();
+  (window as any).__areSetInkAskCleanup__ = () => {
+    if (settleTimer) {
+      window.clearTimeout(settleTimer);
+      settleTimer = 0;
+    }
+    if (resizeFrame) {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = 0;
+    }
+    mouseDown = false;
+    close(true);
+    closeSidebar();
+    hideSeal();
+    syncAskRegistration = null;
+    reloadDrawerSession = null;
+    seal?.remove();
+    seal = null;
+    sidebarBtn?.remove();
+    sidebarBtn = null;
+    sidebarOverlay?.remove();
+    sidebarOverlay = null;
+    sidebarDrawer?.remove();
+    sidebarDrawer = null;
+  };
+
   initInkAsk();
 
   if (!(window as any)[LISTENER_KEY]) {
@@ -2429,10 +2458,10 @@
       }
     });
 
-    let resizeFrame = 0;
     window.addEventListener('resize', () => {
       cancelAnimationFrame(resizeFrame);
       resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = 0;
         hideSeal();
         if (session) place(session);
       });
@@ -2448,19 +2477,7 @@
     });
 
     document.addEventListener('astro:before-swap', () => {
-      close(true);
-      closeSidebar();
-      hideSeal();
-      syncAskRegistration = null;
-      reloadDrawerSession = null;
-      seal?.remove();
-      seal = null;
-      sidebarBtn?.remove();
-      sidebarBtn = null;
-      sidebarOverlay?.remove();
-      sidebarOverlay = null;
-      sidebarDrawer?.remove();
-      sidebarDrawer = null;
+      (window as any).__areSetInkAskCleanup__?.();
     });
   }
 </script>
@@ -4591,10 +4608,28 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .ink-ask-ring path {
+    .ink-ask-seal,
+    .ink-ask-ring,
+    .ink-ask-ring.is-drying,
+    .ink-ask-ring path,
+    .ink-ask-ring.is-drying path {
       transition: none !important;
     }
+    .ink-ask-seal.is-popping,
+    .ink-ask-seal.is-popping::before,
+    .ink-ask-seal.is-popping::after {
+      animation: none !important;
+      transition: none !important;
+    }
+    .ink-ask-card.is-opening,
+    .ink-ask-card.is-closing {
+      animation: none !important;
+      transition: none !important;
+      clip-path: none !important;
+    }
     .ink-ask-caret,
+    .ink-ask-caret::after,
+    .ink-ask-caret.is-settling,
     .ink-ask-dots i,
     .ink-ask-status-text,
     .ink-ask-drawer-welcome.is-entering .ink-ask-welcome-line,
@@ -4604,6 +4639,8 @@
     .ink-ask-drawer-welcome.is-entering .ink-ask-welcome-desc,
     .ink-ask-drawer-welcome.is-entering .ink-ask-prompt-card,
     .ink-ask-turn,
+    .ink-ask-turn.has-turn-pulse::after,
+    .ink-ask-followup-chip,
     .ink-ask-q,
     .ink-ask-byline,
     .ink-ask-turn-actions {

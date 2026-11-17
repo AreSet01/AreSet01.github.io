@@ -519,4 +519,248 @@ describe('Reader & Companion Motion Upgrade Suite (宣纸批注 · 朱砂钤印 
       assert.match(readSrc(rel), /prefers-reduced-motion:\s*reduce/, `${rel} 必须支持 prefers-reduced-motion: reduce`);
     }
   });
+
+  it('9. 复审专项回归: PinWorkbench 单次绑定不叠加、Mermaid/InkAsk Cleanup 契约、pointermove 零 offsetWidth 回流与按需 will-change', async () => {
+    const workbench = readSrc('src/components/PinWorkbench.astro');
+    const mermaid = readSrc('src/components/MermaidRenderer.astro');
+    const inkAsk = readSrc('src/components/InkAsk.astro');
+    const search = readSrc('src/components/ArticleSearch.astro');
+    const globalCss = readSrc('src/styles/global.css');
+
+    // (A) PinWorkbench JSDOM 生命周期验证：多次 page-load / before-swap / 脚本重入绝不叠加拖拽监听，pointermove 零 offsetWidth 读取
+    const pinMarkup = workbench.slice(workbench.indexOf('<!-- Right Edge Dock Tab'), workbench.indexOf('<script>'));
+    const pinRawScript = workbench.match(/<script>([\s\S]*?)<\/script>/)[1]
+      .replace(/import \{ makeResizable \} from .*?;/, 'const makeResizable = () => ({ destroy() {} });')
+      .replace(/import \{ bindScrollIsolation \} from .*?;/, 'const bindScrollIsolation = () => {};');
+    const pinJs = stripTs(pinRawScript);
+
+    const pinDom = new JSDOM(pinMarkup, { url: 'http://localhost/posts/pin-check', runScripts: 'outside-only' });
+    const pinWin = pinDom.window;
+    Object.defineProperty(pinWin, 'innerWidth', { configurable: true, value: 1280 });
+    Object.defineProperty(pinWin, 'innerHeight', { configurable: true, value: 840 });
+    pinWin.matchMedia = () => ({ matches: false });
+
+    const pinRafQueue = new Map();
+    let pinRafSeq = 0;
+    pinWin.requestAnimationFrame = (cb) => {
+      const id = ++pinRafSeq;
+      pinRafQueue.set(id, cb);
+      return id;
+    };
+    pinWin.cancelAnimationFrame = (id) => {
+      pinRafQueue.delete(id);
+    };
+
+    try {
+      pinWin.eval(pinJs);
+      // 模拟重复脚本求值 + 多次 View Transitions 切页循环
+      pinWin.eval(pinJs);
+      for (let cycle = 0; cycle < 4; cycle++) {
+        pinWin.document.dispatchEvent(new pinWin.Event('astro:before-swap'));
+        pinWin.document.dispatchEvent(new pinWin.Event('astro:page-load'));
+      }
+      pinWin.document.dispatchEvent(new pinWin.Event('astro:page-load'));
+
+      assert.equal(pinWin.__areSetPinWorkbenchBound__, true, 'PinWorkbench 必须挂载 __areSetPinWorkbenchBound__ 幂等守卫');
+      assert.equal(typeof pinWin.__areSetPinWorkbenchCleanup__, 'function', 'PinWorkbench 必须暴露 __areSetPinWorkbenchCleanup__');
+
+      const floatWindow = pinWin.document.getElementById('pin-float-window');
+      const dragHandle = pinWin.document.getElementById('pin-window-drag-handle');
+      floatWindow.getBoundingClientRect = () => ({ left: 200, top: 120, width: 480, height: 520, right: 680, bottom: 640 });
+
+      // 若 pointermove 内读取 offsetWidth / offsetHeight 将直接抛错，验证零强制同步回流
+      let forbidOffsetReads = false;
+      Object.defineProperty(floatWindow, 'offsetWidth', {
+        configurable: true,
+        get() {
+          if (forbidOffsetReads) throw new Error('Forbidden offsetWidth read inside pointermove');
+          return 480;
+        },
+      });
+      Object.defineProperty(floatWindow, 'offsetHeight', {
+        configurable: true,
+        get() {
+          if (forbidOffsetReads) throw new Error('Forbidden offsetHeight read inside pointermove');
+          return 520;
+        },
+      });
+
+      let winMoveListenerAdds = 0;
+      const origWinAdd = pinWin.addEventListener.bind(pinWin);
+      pinWin.addEventListener = (type, listener, opts) => {
+        if (type === 'pointermove') winMoveListenerAdds += 1;
+        return origWinAdd(type, listener, opts);
+      };
+
+      dragHandle.dispatchEvent(new pinWin.MouseEvent('pointerdown', { clientX: 240, clientY: 140, button: 0, bubbles: true, cancelable: true }));
+      assert.equal(winMoveListenerAdds, 1, '多次切页与初始化后，单次拖拽仅能注册唯一 1 个 window pointermove 监听器');
+
+      forbidOffsetReads = true;
+      pinWin.dispatchEvent(new pinWin.MouseEvent('pointermove', { clientX: 300, clientY: 190, button: 0, bubbles: true }));
+      pinWin.dispatchEvent(new pinWin.MouseEvent('pointermove', { clientX: 340, clientY: 215, button: 0, bubbles: true }));
+      forbidOffsetReads = false;
+
+      assert.equal(pinRafQueue.size, 1, '同帧多次 pointermove 仅排队唯一 1 个 rAF，绝无多监听竞争 rAF');
+      const [flushPinDrag] = pinRafQueue.values();
+      pinRafQueue.clear();
+      flushPinDrag(16);
+      assert.equal(floatWindow.style.left, '300px');
+      assert.equal(floatWindow.style.top, '195px');
+
+      // 拖拽中途触发 cleanup：未决 rAF 与拖拽态必须立即清零
+      pinWin.dispatchEvent(new pinWin.MouseEvent('pointermove', { clientX: 360, clientY: 230, button: 0, bubbles: true }));
+      assert.equal(pinRafQueue.size, 1);
+      pinWin.__areSetPinWorkbenchCleanup__();
+      assert.equal(pinRafQueue.size, 0, '__areSetPinWorkbenchCleanup__ 必须取消未决 dragRaf');
+      assert.equal(floatWindow.classList.contains('is-dragging'), false, 'cleanup 必须移除 is-dragging 状态');
+    } finally {
+      pinWin.close();
+    }
+
+    // (B) MermaidRenderer 生命周期契约 + 全屏/内嵌画布 pointermove 单帧 rAF 合帧验证
+    const mermaidMarkup = mermaid.slice(mermaid.indexOf('<div class="mermaid-modal-overlay"'), mermaid.indexOf('<script>'));
+    const mermaidBlock = `
+      <div class="mermaid-block" data-mermaid-code="${encodeURIComponent('graph TD; A-->B;')}">
+        <button class="mermaid-btn-copy"><span>Copy</span></button>
+        <button class="mermaid-btn-expand"></button>
+        <div class="mermaid-stage"><div class="mermaid-render"><svg></svg></div></div>
+      </div>`;
+    const mDom = new JSDOM(mermaidMarkup + mermaidBlock, { url: 'http://localhost/posts/m-raf', runScripts: 'outside-only' });
+    const mWin = mDom.window;
+    mWin.matchMedia = () => ({ matches: true }); // 关闭惯性以纯粹断言拖拽帧合并与松手同步落盘
+    Object.defineProperty(mWin.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async () => {} },
+    });
+
+    const mRafs = new Map();
+    let mRafId = 0;
+    mWin.requestAnimationFrame = (fn) => { const id = ++mRafId; mRafs.set(id, fn); return id; };
+    mWin.cancelAnimationFrame = (id) => { mRafs.delete(id); };
+
+    const mScript = stripTs(
+      mermaid.match(/<script>([\s\S]*?)<\/script>/)[1]
+        .replace(/import \{ waitForPostEntrance \} from .*?;/, 'const waitForPostEntrance = () => new Promise(() => {});')
+    );
+
+    try {
+      mWin.eval(mScript);
+      mWin.document.dispatchEvent(new mWin.Event('astro:page-load'));
+      assert.equal(mWin.__areSetMermaidBound__, true, 'MermaidRenderer 必须设置 __areSetMermaidBound__ 守卫');
+      assert.equal(typeof mWin.__areSetMermaidCleanup__, 'function', 'MermaidRenderer 必须暴露幂等 __areSetMermaidCleanup__');
+
+      mWin.document.querySelector('.mermaid-btn-expand').click();
+      const modalContent = mWin.document.getElementById('mermaid-modal-content');
+      const modalCanvas = mWin.document.getElementById('mermaid-modal-canvas');
+
+      const fireM = (target, type, x, y) => {
+        const ev = new mWin.MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true });
+        ev.pointerId = 1;
+        ev.pointerType = 'mouse';
+        target.dispatchEvent(ev);
+      };
+
+      fireM(modalContent, 'pointerdown', 10, 10);
+      fireM(mWin, 'pointermove', 30, 25);
+      fireM(mWin, 'pointermove', 60, 45);
+      assert.equal(modalCanvas.style.transform, 'translate(0px, 0px) scale(1)', 'pointermove 期间不得同步改写 modal transform');
+      assert.equal(mRafs.size, 1, '全屏弹窗多次 pointermove 必须合并至单个 rAF');
+
+      const [flushModalPan] = mRafs.values();
+      mRafs.clear();
+      flushModalPan(16);
+      assert.equal(modalCanvas.style.transform, 'translate(50px, 35px) scale(1)', 'rAF 触发时一次性冲刷最新坐标');
+
+      // 再移动一次并立即松手：pointerup 同步冲刷最后一帧
+      fireM(mWin, 'pointermove', 75, 55);
+      fireM(mWin, 'pointerup', 75, 55);
+      assert.equal(modalCanvas.style.transform, 'translate(65px, 45px) scale(1)', '松手时同步冲刷最后一帧');
+      assert.equal(mRafs.size, 0);
+
+      // 内嵌 .mermaid-stage 同样合并至单个 rAF
+      mWin.__areSetMermaidCleanup__();
+      const stage = mWin.document.querySelector('.mermaid-stage');
+      const blockEl = mWin.document.querySelector('.mermaid-block');
+      fireM(stage, 'pointerdown', 100, 100);
+      fireM(mWin.document, 'pointermove', 120, 115);
+      fireM(mWin.document, 'pointermove', 145, 130);
+      assert.equal(blockEl.dataset.panX || '', '', '内嵌画布 pointermove 期间不得同步写 DOM');
+      assert.equal(mRafs.size, 1, '内嵌画布多次 pointermove 必须合并至单个 rAF');
+      fireM(mWin.document, 'pointerup', 145, 130);
+      assert.equal(blockEl.dataset.panX, '45', '内嵌画布松手同步冲刷终态');
+
+      // 幂等多次调用不报错
+      mWin.__areSetMermaidCleanup__();
+      mWin.__areSetMermaidCleanup__();
+    } finally {
+      mWin.close();
+    }
+
+    // (C) InkAsk Cleanup 契约 + 三处拖拽 pointermove 零 offsetWidth/offsetHeight 读取静态验证
+    assert.match(inkAsk, /__areSetInkAskCleanup__\s*=\s*\(\)\s*=>/, 'InkAsk 必须暴露幂等 window.__areSetInkAskCleanup__');
+    assert.match(inkAsk, /clearTimeout\(settleTimer\)/, 'InkAsk cleanup 必须清理 settleTimer');
+    assert.match(inkAsk, /cancelAnimationFrame\(resizeFrame\)/, 'InkAsk cleanup 必须清理 resizeFrame');
+
+    const searchMoveSlice = search.slice(
+      search.indexOf("dragHandle.addEventListener('pointermove'"),
+      search.indexOf('const stopDrag =')
+    );
+    assert.doesNotMatch(searchMoveSlice, /offsetWidth|offsetHeight|getBoundingClientRect/, 'ArticleSearch pointermove 内严禁读取布局属性');
+
+    const pinMoveSlice = workbench.slice(
+      workbench.indexOf('function bindDrag('),
+      workbench.indexOf('function bindEvents(')
+    );
+    const pinOnMoveSlice = pinMoveSlice.slice(
+      pinMoveSlice.indexOf('const onPointerMove ='),
+      pinMoveSlice.indexOf('const onPointerUp =')
+    );
+    assert.doesNotMatch(pinOnMoveSlice, /offsetWidth|offsetHeight|getBoundingClientRect/, 'PinWorkbench pointermove 内严禁读取布局属性');
+
+    const inkOnMoveSlice = inkAsk.slice(
+      inkAsk.indexOf('const onPointerMove = (ev: PointerEvent) => {'),
+      inkAsk.indexOf('const onPointerUp = (ev: PointerEvent) => {')
+    );
+    assert.doesNotMatch(inkOnMoveSlice, /offsetWidth|offsetHeight|getBoundingClientRect/, 'InkAsk pointermove 内严禁读取布局属性');
+
+    // (D) global.css: .post-title-char 仅在 .is-split-ready 期间按需提升 will-change（零 filter），且无 box-shadow 直接过渡
+    const titleCssStart = globalCss.indexOf('.post-title-word {');
+    const titleCssEnd = globalCss.indexOf('/* ---------- Date typewriter:');
+    const titleCssSlice = globalCss.slice(titleCssStart, titleCssEnd);
+    assert.doesNotMatch(titleCssSlice, /will-change:[^;]*filter/i, '.post-title-char 严禁残留 will-change: ... filter');
+
+    const titleDom = new JSDOM(`
+      <!doctype html>
+      <html>
+        <head><style>${titleCssSlice}</style></head>
+        <body>
+          <h1 class="post-title"><span class="post-title-calligraphy"><span class="post-title-char">墨</span></span></h1>
+          <h1 class="post-title is-split-ready"><span class="post-title-calligraphy"><span class="post-title-char">韵</span></span></h1>
+        </body>
+      </html>
+    `);
+    try {
+      const [restingChar, activeChar] = titleDom.window.document.querySelectorAll('.post-title-char');
+      const [restingCal, activeCal] = titleDom.window.document.querySelectorAll('.post-title-calligraphy');
+      assert.equal(titleDom.window.getComputedStyle(restingChar).willChange, 'auto', '静止阅读态 .post-title-char 不得常驻占用合成层');
+      assert.equal(titleDom.window.getComputedStyle(restingCal).willChange, 'auto', '静止阅读态 .post-title-calligraphy 不得常驻占用合成层');
+      assert.equal(titleDom.window.getComputedStyle(activeChar).willChange, 'transform, opacity', '动画期 .is-split-ready .post-title-char 按需开启 transform, opacity');
+      assert.equal(titleDom.window.getComputedStyle(activeCal).willChange, 'transform, opacity', '动画期 .is-split-ready .post-title-calligraphy 按需开启 transform, opacity');
+    } finally {
+      titleDom.window.close();
+    }
+
+    const spineDotSlice = globalCss.slice(globalCss.indexOf('.post-spine-dot {'), globalCss.indexOf('.post-spine-dot::after'));
+    assert.doesNotMatch(spineDotSlice, /box-shadow/, '.post-spine-dot 不得直接过渡 box-shadow');
+    const splitterAfterSlice = globalCss.slice(globalCss.indexOf('#companion-splitter::after {'), globalCss.indexOf('#companion-splitter:hover::before'));
+    assert.doesNotMatch(splitterAfterSlice, /box-shadow/, '#companion-splitter::after 不得直接过渡 box-shadow');
+
+    // (E) InkAsk prefers-reduced-motion 完整覆盖印章弹出、墨圈收干与卡片墨晕开合
+    const inkReducedSlice = inkAsk.slice(inkAsk.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
+    assert.match(inkReducedSlice, /\.ink-ask-seal\.is-popping/, 'reduced-motion 须覆盖 .ink-ask-seal.is-popping');
+    assert.match(inkReducedSlice, /\.ink-ask-seal\.is-popping::before/, 'reduced-motion 须覆盖 .ink-ask-seal.is-popping::before');
+    assert.match(inkReducedSlice, /\.ink-ask-seal\.is-popping::after/, 'reduced-motion 须覆盖 .ink-ask-seal.is-popping::after');
+    assert.match(inkReducedSlice, /\.ink-ask-ring\.is-drying/, 'reduced-motion 须覆盖 .ink-ask-ring.is-drying');
+    assert.match(inkReducedSlice, /\.ink-ask-card\.is-opening[\s\S]*?\.ink-ask-card\.is-closing[\s\S]*?clip-path:\s*none\s*!important/, 'reduced-motion 须禁用 .ink-ask-card 开合 clip-path 过渡');
+  });
 });

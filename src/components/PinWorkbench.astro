@@ -122,14 +122,21 @@
     let isWindowOpen = false;
     let isClearing = false;
     let isExiting = false;
-    let bound = false;
     let userPos: { left: number; top: number } | null = null;
+    let lifecycleController: AbortController | null = null;
+    let activeWindowDragRaf = 0;
+    let activeSheetDragRaf = 0;
+    let companionSyncTimer = 0;
 
     function isMobile() {
       return window.innerWidth < 768;
     }
 
     function initPinWorkbench() {
+      (window as any).__areSetPinWorkbenchCleanup__?.();
+      lifecycleController = new AbortController();
+      const { signal } = lifecycleController;
+
       pinnedItems = [];
       isAllCollapsed = false;
       isWindowOpen = false;
@@ -197,7 +204,7 @@
       }
 
       syncUIState();
-      bindEvents();
+      bindEvents(signal);
     }
 
     function syncUIState() {
@@ -1361,28 +1368,28 @@
       }
     }
 
-    // ---------- 移动端 Bottom Sheet 下拉手势（rAF 节流 + 速度感知） ----------
+    // ---------- 移动端 Bottom Sheet 下拉手势（rAF 节流 + 速度感知 + AbortSignal 管控） ----------
     function bindSheetDrag() {
+      const signal = lifecycleController?.signal;
+      if (!signal) return;
       const sheet = document.getElementById('pin-sheet-drawer');
       const sheetHandle = sheet?.querySelector<HTMLElement>('.pin-sheet-handle');
       if (!sheet || !sheetHandle) return;
-      if ((sheetHandle as any).__dragBound) return;
-      (sheetHandle as any).__dragBound = true;
 
       let startY = 0;
       let currentTranslate = 0;
       let lastY = 0;
       let lastT = 0;
       let velocityY = 0;
-      let sheetRaf = 0;
 
       const applySheetFrame = () => {
-        sheetRaf = 0;
+        activeSheetDragRaf = 0;
+        if (signal.aborted) return;
         sheet.style.transform = currentTranslate > 0 ? `translate3d(0, ${currentTranslate}px, 0)` : '';
       };
 
       sheetHandle.addEventListener('pointerdown', (e: PointerEvent) => {
-        if (!isMobile()) return;
+        if (!isMobile() || signal.aborted) return;
         startY = e.clientY;
         lastY = e.clientY;
         lastT = performance.now();
@@ -1394,6 +1401,7 @@
         } catch {}
 
         const onPointerMove = (ev: PointerEvent) => {
+          if (signal.aborted) return;
           const now = performance.now();
           const dt = Math.max(1, now - lastT);
           velocityY = (ev.clientY - lastY) / dt;
@@ -1401,13 +1409,13 @@
           lastT = now;
           const dy = ev.clientY - startY;
           currentTranslate = dy > 0 ? dy : 0;
-          if (!sheetRaf) sheetRaf = window.requestAnimationFrame(applySheetFrame);
+          if (!activeSheetDragRaf) activeSheetDragRaf = window.requestAnimationFrame(applySheetFrame);
         };
 
         const onPointerUp = (ev: PointerEvent) => {
-          if (sheetRaf) {
-            window.cancelAnimationFrame(sheetRaf);
-            sheetRaf = 0;
+          if (activeSheetDragRaf) {
+            window.cancelAnimationFrame(activeSheetDragRaf);
+            activeSheetDragRaf = 0;
           }
           try {
             sheetHandle.releasePointerCapture(ev.pointerId);
@@ -1423,14 +1431,14 @@
           }
         };
 
-        window.addEventListener('pointermove', onPointerMove);
-        window.addEventListener('pointerup', onPointerUp);
-        window.addEventListener('pointercancel', onPointerUp);
-      });
+        window.addEventListener('pointermove', onPointerMove, { signal });
+        window.addEventListener('pointerup', onPointerUp, { signal });
+        window.addEventListener('pointercancel', onPointerUp, { signal });
+      }, { signal });
     }
 
-    // ---------- 拖拽移动逻辑 (rAF 节流 Zero-Jitter Smooth Drag) ----------
-    function bindDrag() {
+    // ---------- 拖拽移动逻辑 (rAF 节流 + pointerdown 缓存几何 + AbortSignal 管控) ----------
+    function bindDrag(signal: AbortSignal) {
       const floatWindow = document.getElementById('pin-float-window');
       const dragHandle = document.getElementById('pin-window-drag-handle');
       if (!floatWindow || !dragHandle) return;
@@ -1441,26 +1449,34 @@
         floatWindow.style.zIndex = '100045';
         const notesDrawer = document.getElementById('article-notes-drawer');
         if (notesDrawer) notesDrawer.style.zIndex = '100035';
-      });
+      }, { signal });
 
       let isDragging = false;
       let startX = 0;
       let startY = 0;
       let initialLeft = 0;
       let initialTop = 0;
+      let cachedWinWidth = 0;
+      let cachedWinHeight = 0;
       let pendingLeft = 0;
       let pendingTop = 0;
-      let dragRaf = 0;
 
       const applyWindowDrag = () => {
-        dragRaf = 0;
-        if (!isDragging) return;
+        activeWindowDragRaf = 0;
+        if (!isDragging || signal.aborted) return;
         floatWindow.style.left = `${Math.round(pendingLeft)}px`;
         floatWindow.style.top = `${Math.round(pendingTop)}px`;
         userPos = { left: pendingLeft, top: pendingTop };
       };
 
+      signal.addEventListener('abort', () => {
+        (dragHandle as any).__dragBound = false;
+        isDragging = false;
+        floatWindow.classList.remove('is-dragging');
+      }, { once: true });
+
       dragHandle.addEventListener('pointerdown', (e: PointerEvent) => {
+        if (signal.aborted) return;
         if ((e.target as HTMLElement).closest('button, a, input, select, textarea')) return;
         if (e.button !== 0) return;
         if (isMobile()) return;
@@ -1473,6 +1489,8 @@
         const rect = floatWindow.getBoundingClientRect();
         initialLeft = rect.left;
         initialTop = rect.top;
+        cachedWinWidth = rect.width;
+        cachedWinHeight = rect.height;
         pendingLeft = initialLeft;
         pendingTop = initialTop;
 
@@ -1482,27 +1500,38 @@
         } catch {}
 
         const onPointerMove = (ev: PointerEvent) => {
-          if (!isDragging) return;
+          if (!isDragging || signal.aborted) return;
           const dx = ev.clientX - startX;
           const dy = ev.clientY - startY;
 
-          const winWidth = floatWindow.offsetWidth;
-          const winHeight = floatWindow.offsetHeight;
           const minX = 8;
-          const maxX = Math.max(minX, window.innerWidth - winWidth - 8);
+          const maxX = Math.max(minX, window.innerWidth - cachedWinWidth - 8);
           const minY = 8;
-          const maxY = Math.max(minY, window.innerHeight - winHeight - 8);
+          const maxY = Math.max(minY, window.innerHeight - cachedWinHeight - 8);
 
           pendingLeft = Math.max(minX, Math.min(maxX, initialLeft + dx));
           pendingTop = Math.max(minY, Math.min(maxY, initialTop + dy));
-          if (!dragRaf) dragRaf = window.requestAnimationFrame(applyWindowDrag);
+          if (!activeWindowDragRaf) activeWindowDragRaf = window.requestAnimationFrame(applyWindowDrag);
+        };
+
+        const abortActiveDrag = () => {
+          if (activeWindowDragRaf) {
+            window.cancelAnimationFrame(activeWindowDragRaf);
+            activeWindowDragRaf = 0;
+          }
+          isDragging = false;
+          floatWindow.classList.remove('is-dragging');
+          window.removeEventListener('pointermove', onPointerMove);
+          window.removeEventListener('pointerup', onPointerUp);
+          window.removeEventListener('pointercancel', onPointerUp);
         };
 
         const onPointerUp = (ev: PointerEvent) => {
+          signal.removeEventListener('abort', abortActiveDrag);
           if (!isDragging) return;
-          if (dragRaf) {
-            window.cancelAnimationFrame(dragRaf);
-            dragRaf = 0;
+          if (activeWindowDragRaf) {
+            window.cancelAnimationFrame(activeWindowDragRaf);
+            activeWindowDragRaf = 0;
           }
           floatWindow.style.left = `${Math.round(pendingLeft)}px`;
           floatWindow.style.top = `${Math.round(pendingTop)}px`;
@@ -1517,20 +1546,15 @@
           window.removeEventListener('pointercancel', onPointerUp);
         };
 
+        signal.addEventListener('abort', abortActiveDrag, { once: true });
         window.addEventListener('pointermove', onPointerMove);
         window.addEventListener('pointerup', onPointerUp);
         window.addEventListener('pointercancel', onPointerUp);
-      });
+      }, { signal });
     }
 
-    function bindEvents() {
-      bindDrag();
-      bindSheetDrag();
-
-      if (bound) return;
-      bound = true;
-
-      bindDrag();
+    function bindEvents(signal: AbortSignal) {
+      bindDrag(signal);
       bindSheetDrag();
 
       // Click delegation
@@ -1593,7 +1617,7 @@
           closeMobileSheet();
           return;
         }
-      });
+      }, { signal });
 
       function trapPinTab(container: HTMLElement, e: KeyboardEvent) {
         if (e.key !== 'Tab') return;
@@ -1650,25 +1674,27 @@
             return;
           }
         }
-      });
+      }, { signal });
 
       window.addEventListener('resize', () => {
         getActiveRailOffset();
         if (isWindowOpen && !isMobile()) {
           ensureWindowPosition();
         }
-      });
+      }, { signal });
 
       window.addEventListener('companion:panel', () => {
-        window.setTimeout(() => {
+        if (companionSyncTimer) window.clearTimeout(companionSyncTimer);
+        companionSyncTimer = window.setTimeout(() => {
+          companionSyncTimer = 0;
           getActiveRailOffset();
           if (isWindowOpen && !isMobile()) ensureWindowPosition();
         }, 20);
-      });
+      }, { signal });
 
       window.addEventListener('pin-workbench:add-excerpt', (e: any) => {
         if (e.detail) pinExcerpt(e.detail);
-      });
+      }, { signal });
     }
 
     (window as any).__pinWorkbench = {
@@ -1681,21 +1707,44 @@
       pinExcerpt,
     };
 
+    (window as any).__areSetPinWorkbenchCleanup__?.();
+    (window as any).__initPinWorkbench = initPinWorkbench;
+
     (window as any).__areSetPinWorkbenchCleanup__ = () => {
+      if (activeWindowDragRaf) {
+        window.cancelAnimationFrame(activeWindowDragRaf);
+        activeWindowDragRaf = 0;
+      }
+      if (activeSheetDragRaf) {
+        window.cancelAnimationFrame(activeSheetDragRaf);
+        activeSheetDragRaf = 0;
+      }
+      if (companionSyncTimer) {
+        window.clearTimeout(companionSyncTimer);
+        companionSyncTimer = 0;
+      }
+      lifecycleController?.abort();
+      lifecycleController = null;
       document.querySelectorAll('.pin-fly-ghost, .pin-fly-arc-svg, .pin-ink-ripple').forEach((n) => n.remove());
       const floatWindow = document.getElementById('pin-float-window');
-      const prevResize = (floatWindow as any)?.__pinResize;
-      if (prevResize && typeof prevResize.destroy === 'function') prevResize.destroy();
+      if (floatWindow) {
+        floatWindow.classList.remove('is-dragging');
+        const prevResize = (floatWindow as any).__pinResize;
+        if (prevResize && typeof prevResize.destroy === 'function') prevResize.destroy();
+        (floatWindow as any).__pinResize = null;
+      }
       document.body.classList.remove('pin-sheet-open');
     };
 
-    document.addEventListener('astro:before-swap', () => {
-      (window as any).__areSetPinWorkbenchCleanup__?.();
-    });
-
-    document.addEventListener('astro:page-load', () => {
-      initPinWorkbench();
-    });
+    if (!(window as any).__areSetPinWorkbenchBound__) {
+      (window as any).__areSetPinWorkbenchBound__ = true;
+      document.addEventListener('astro:before-swap', () => {
+        (window as any).__areSetPinWorkbenchCleanup__?.();
+      });
+      document.addEventListener('astro:page-load', () => {
+        (window as any).__initPinWorkbench?.();
+      });
+    }
 
     initPinWorkbench();
   })();

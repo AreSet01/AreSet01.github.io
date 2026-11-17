@@ -59,8 +59,16 @@
   let modalTranslateY = 0;
   let modalInertiaRaf = 0;
   let stageInertiaRaf = 0;
+  let modalPanRaf = 0;
+  let stagePanRaf = 0;
+  const copyTimers = new Set<number>();
+  let resetStageInteractionState: (() => void) | null = null;
 
   function cancelModalInertia() {
+    if (modalPanRaf) {
+      cancelAnimationFrame(modalPanRaf);
+      modalPanRaf = 0;
+    }
     if (modalInertiaRaf) {
       cancelAnimationFrame(modalInertiaRaf);
       modalInertiaRaf = 0;
@@ -68,6 +76,10 @@
   }
 
   function cancelStageInertia() {
+    if (stagePanRaf) {
+      cancelAnimationFrame(stagePanRaf);
+      stagePanRaf = 0;
+    }
     if (stageInertiaRaf) {
       cancelAnimationFrame(stageInertiaRaf);
       stageInertiaRaf = 0;
@@ -192,6 +204,7 @@
 
     if (modalContent) {
       let isModalDragging = false;
+      let hasPendingModalPan = false;
       let modalDragStartX = 0;
       let modalDragStartY = 0;
       let modalLastX = 0;
@@ -203,6 +216,7 @@
 
       modalContent.addEventListener('pointerdown', (e) => {
         cancelModalInertia();
+        hasPendingModalPan = false;
         isModalDragging = true;
         modalDragStartX = e.clientX - modalTranslateX;
         modalDragStartY = e.clientY - modalTranslateY;
@@ -229,12 +243,28 @@
         modalMoveSamples += 1;
         modalTranslateX = e.clientX - modalDragStartX;
         modalTranslateY = e.clientY - modalDragStartY;
-        updateModalTransform();
+        hasPendingModalPan = true;
+        if (!modalPanRaf) {
+          modalPanRaf = requestAnimationFrame(() => {
+            modalPanRaf = 0;
+            if (!hasPendingModalPan || modal.hidden || signal.aborted) return;
+            hasPendingModalPan = false;
+            updateModalTransform();
+          });
+        }
       }, { signal });
 
       const stopDragging = () => {
         if (isModalDragging) {
           isModalDragging = false;
+          if (modalPanRaf) {
+            cancelAnimationFrame(modalPanRaf);
+            modalPanRaf = 0;
+          }
+          if (hasPendingModalPan && !modal.hidden && !signal.aborted) {
+            hasPendingModalPan = false;
+            updateModalTransform();
+          }
           modalContent.classList.remove('is-dragging');
           const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
           const speed = Math.hypot(modalVx, modalVy);
@@ -394,8 +424,9 @@
   (window as any).__fixMermaidSvgBounds = fixMermaidSvgBounds;
 
   function ensureGlobalDelegation() {
-    if (globalDelegationBound) return;
+    if (globalDelegationBound || (window as any).__areSetMermaidDelegationBound__) return;
     globalDelegationBound = true;
+    (window as any).__areSetMermaidDelegationBound__ = true;
 
     document.addEventListener('click', async (e) => {
       const target = e.target as HTMLElement | null;
@@ -415,10 +446,12 @@
           const original = span.textContent;
           copyBtn.classList.add('is-copied');
           span.textContent = '钤印已录';
-          setTimeout(() => {
+          const copyTimer = window.setTimeout(() => {
+            copyTimers.delete(copyTimer);
             copyBtn.classList.remove('is-copied');
             span.textContent = original;
           }, 1500);
+          copyTimers.add(copyTimer);
         } catch {}
         return;
       }
@@ -488,7 +521,7 @@
       }
     });
 
-    // 卡片内任意缩放比例（含默认 100%）直接按住拖拽漫游、丝滑阻尼惯性、双指缩放与双击复位
+    // 卡片内任意缩放比例（含默认 100%）直接按住拖拽漫游、单帧 rAF 合帧、丝滑阻尼惯性、双指缩放与双击复位
     let isStageDragging = false;
     let activeStageEl: HTMLElement | null = null;
     let stageStartX = 0;
@@ -505,11 +538,69 @@
     let stageVx = 0;
     let stageVy = 0;
     let stageMoveSamples = 0;
+    let hasPendingStagePan = false;
+    let pendingStageDx = 0;
+    let pendingStageDy = 0;
+    let pendingPinchRatio: number | null = null;
     const activePointers = new Map<number, { x: number; y: number }>();
     let initialPinchDistance = 0;
     let initialPinchZoom = 1.0;
     let lastTapTime = 0;
     let lastTapStage: HTMLElement | null = null;
+
+    const flushStagePan = () => {
+      stagePanRaf = 0;
+      if (!activeStageEl) {
+        hasPendingStagePan = false;
+        pendingPinchRatio = null;
+        return;
+      }
+      const block = activeStageEl.closest<HTMLElement>('.mermaid-block');
+      if (!block) {
+        hasPendingStagePan = false;
+        pendingPinchRatio = null;
+        return;
+      }
+      if (pendingPinchRatio !== null) {
+        const ratio = pendingPinchRatio;
+        pendingPinchRatio = null;
+        setBlockZoom(block, initialPinchZoom * ratio);
+        return;
+      }
+      if (!hasPendingStagePan) return;
+      hasPendingStagePan = false;
+
+      const dx = pendingStageDx;
+      const dy = pendingStageDy;
+
+      const nextScrollLeft = Math.max(0, Math.min(stageMaxScrollLeft, stageScrollLeft - dx));
+      const consumedX = stageScrollLeft - nextScrollLeft;
+      activeStageEl.scrollLeft = nextScrollLeft;
+      block.dataset.panX = `${stageStartPanX + (dx - consumedX)}`;
+
+      const nextScrollTop = Math.max(0, Math.min(stageMaxScrollTop, stageScrollTop - dy));
+      const consumedY = stageScrollTop - nextScrollTop;
+      activeStageEl.scrollTop = nextScrollTop;
+      block.dataset.panY = `${stageStartPanY + (dy - consumedY)}`;
+
+      applyBlockTransform(block);
+    };
+
+    resetStageInteractionState = () => {
+      if (stagePanRaf) {
+        cancelAnimationFrame(stagePanRaf);
+        stagePanRaf = 0;
+      }
+      hasPendingStagePan = false;
+      pendingPinchRatio = null;
+      isStageDragging = false;
+      initialPinchDistance = 0;
+      activePointers.clear();
+      if (activeStageEl) {
+        activeStageEl.classList.remove('is-dragging');
+        activeStageEl = null;
+      }
+    };
 
     document.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -520,6 +611,8 @@
       if (!block) return;
 
       cancelStageInertia();
+      hasPendingStagePan = false;
+      pendingPinchRatio = null;
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       // 双击/双触快速复位 (Double tap to reset zoom & pan)
@@ -579,22 +672,19 @@
       if (!activePointers.has(e.pointerId)) return;
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-      // 双指手势 Pinch-to-zoom 运算
+      // 双指手势 Pinch-to-zoom 运算（合并至单帧 rAF）
       if (activePointers.size === 2 && activeStageEl) {
-        const block = activeStageEl.closest<HTMLElement>('.mermaid-block');
-        if (!block) return;
         const pts = Array.from(activePointers.values());
         const curDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
         if (initialPinchDistance > 10) {
           const ratio = curDist / initialPinchDistance;
-          setBlockZoom(block, initialPinchZoom * ratio);
+          pendingPinchRatio = ratio;
+          if (!stagePanRaf) stagePanRaf = requestAnimationFrame(flushStagePan);
         }
         return;
       }
 
       if (!isStageDragging || !activeStageEl) return;
-      const block = activeStageEl.closest<HTMLElement>('.mermaid-block');
-      if (!block) return;
       const now = performance.now();
       const dt = now - stageLastT;
       if (dt > 0) {
@@ -606,20 +696,12 @@
       stageLastT = now;
       stageMoveSamples += 1;
 
-      const dx = e.clientX - stageStartX;
-      const dy = e.clientY - stageStartY;
-
-      const nextScrollLeft = Math.max(0, Math.min(stageMaxScrollLeft, stageScrollLeft - dx));
-      const consumedX = stageScrollLeft - nextScrollLeft;
-      activeStageEl.scrollLeft = nextScrollLeft;
-      block.dataset.panX = `${stageStartPanX + (dx - consumedX)}`;
-
-      const nextScrollTop = Math.max(0, Math.min(stageMaxScrollTop, stageScrollTop - dy));
-      const consumedY = stageScrollTop - nextScrollTop;
-      activeStageEl.scrollTop = nextScrollTop;
-      block.dataset.panY = `${stageStartPanY + (dy - consumedY)}`;
-
-      applyBlockTransform(block);
+      pendingStageDx = e.clientX - stageStartX;
+      pendingStageDy = e.clientY - stageStartY;
+      hasPendingStagePan = true;
+      if (!stagePanRaf) {
+        stagePanRaf = requestAnimationFrame(flushStagePan);
+      }
     });
 
     const stopStageInteraction = (e: PointerEvent) => {
@@ -628,6 +710,13 @@
         initialPinchDistance = 0;
       }
       if (activePointers.size === 0) {
+        if (stagePanRaf) {
+          cancelAnimationFrame(stagePanRaf);
+          stagePanRaf = 0;
+        }
+        if (hasPendingStagePan || pendingPinchRatio !== null) {
+          flushStagePan();
+        }
         const releasedStage = activeStageEl;
         const wasDragging = isStageDragging;
         if (activeStageEl) {
@@ -927,33 +1016,52 @@
     }
   }
 
-  // ---------- 生命周期注册 ----------
+  // ---------- 幂等销毁与生命周期注册 ----------
 
-  // 1. Astro View Transitions 统一入口（每次页面载入/切页均会派发）
-  document.addEventListener('astro:page-load', () => {
-    initMermaid();
-  });
+  (window as any).__areSetMermaidCleanup__?.();
+  (window as any).__initMermaid = initMermaid;
 
-  // 2. 首次非 SPA 运行环境或脚本晚于 page-load 执行的兜底
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    initMermaid();
-  }
-
-  // 3. 主题切换时重新渲染
-  window.addEventListener('theme-change', () => {
-    initMermaid();
-  });
-
-  // 4. 页面即将切换时清理 Modal 与惯性状态
-  document.addEventListener('astro:before-swap', () => {
+  (window as any).__areSetMermaidCleanup__ = () => {
     activeSessionId++;
     cancelModalInertia();
     cancelStageInertia();
+    resetStageInteractionState?.();
+    copyTimers.forEach((id) => window.clearTimeout(id));
+    copyTimers.clear();
     renderController?.abort();
     renderController = null;
     closeModal();
     modalController?.abort();
     modalController = null;
     boundModal = null;
-  });
+  };
+
+  if (!(window as any).__areSetMermaidBound__) {
+    (window as any).__areSetMermaidBound__ = true;
+
+    // 1. Astro View Transitions 统一入口（每次页面载入/切页均会派发）
+    document.addEventListener('astro:page-load', () => {
+      (window as any).__initMermaid?.();
+    });
+
+    // 2. 主题切换时重新渲染
+    window.addEventListener('theme-change', () => {
+      (window as any).__initMermaid?.();
+    });
+
+    // 3. 页面即将切换时执行幂等清理契约
+    document.addEventListener('astro:before-swap', () => {
+      (window as any).__areSetMermaidCleanup__?.();
+    });
+  }
+
+  // 首次加载时立即挂载全局委托，并在非 SPA 或脚本晚于 page-load 执行时兜底初始化
+  ensureGlobalDelegation();
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    initMermaid();
+  } else {
+    document.addEventListener('DOMContentLoaded', () => {
+      (window as any).__initMermaid?.();
+    }, { once: true });
+  }
 </script>
