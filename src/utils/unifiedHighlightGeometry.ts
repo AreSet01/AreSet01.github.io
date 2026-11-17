@@ -318,3 +318,17 @@ export function classifyRectsToGeometry(
     bands,
   };
 }
+
+/**
+ * Compute adaptive calligraphic wet-ink brush duration (in ms) from highlight geometry:
+ * short single-line phrases sweep crisply (~420ms), while wide bands and multi-line blocks
+ * breathe naturally up to ~600ms for wet-ink permeation + fiber drying settle.
+ */
+export function computeWetInkStrokeDuration(geom: RegionGeometry): number {
+  if (geom.mode === 'none') return 420;
+  if (geom.mode === 'single' && geom.band) {
+    return Math.round(Math.min(540, Math.max(400, 360 + geom.band.width * 0.28)));
+  }
+  const lineCount = Math.max(2, geom.bands.length);
+  return Math.round(Math.min(600, Math.max(450, 410 + lineCount * 24)));
+}

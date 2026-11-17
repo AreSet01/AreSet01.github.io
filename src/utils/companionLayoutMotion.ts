@@ -83,7 +83,9 @@ export function createCompanionLayoutMotion() {
       frame.setAttribute('aria-hidden', 'true');
       Object.assign(frame.style, {
         position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`,
-        width: `${rect.width}px`, height: `${rect.height}px`, ...surface,
+        width: `${rect.width}px`, height: `${rect.height}px`,
+        willChange: 'transform, opacity',
+        ...surface,
       });
       state.frames.set(panel, frame);
       document.body.appendChild(frame);

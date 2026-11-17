@@ -28,9 +28,12 @@ const readNumber = (value: number | (() => number) | undefined, fallback: number
 
 export function clampPanelSize(size: PanelSize, options: ResizableOptions = {}): PanelSize {
   const minW = options.minWidth ?? 350;
-  const minH = options.fitContentHeight ? Math.max(options.minHeight ?? 380, 380) : (options.minHeight ?? 220);
-  const maxW = Math.max(minW, readNumber(options.maxWidth, window.innerWidth - 24));
-  const maxH = Math.max(minH, readNumber(options.maxHeight, window.innerHeight - 24));
+  const defaultMinH = options.minHeight ?? 220;
+  const minH = options.minHeight !== undefined ? defaultMinH : (options.fitContentHeight ? 380 : defaultMinH);
+  const vpW = typeof window !== 'undefined' ? window.innerWidth : 1280;
+  const vpH = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const maxW = Math.max(minW, readNumber(options.maxWidth, vpW - 24));
+  const maxH = Math.max(minH, readNumber(options.maxHeight, vpH - 24));
   return {
     width: Math.round(Math.min(Math.max(size.width, minW), maxW)),
     height: Math.round(Math.min(Math.max(size.height, minH), maxH)),
@@ -100,6 +103,9 @@ export function makeResizable(
   let verticalEngaged = false;
   let dragging = false;
   let pending: PanelSize | null = null;
+  let resizeRaf = 0;
+  let queuedDx: number | null = null;
+  let queuedDy: number | null = null;
 
   const VERTICAL_ENGAGE_PX = 6;
 
@@ -120,38 +126,7 @@ export function makeResizable(
     return clamped;
   };
 
-  const onPointerDown = (event: PointerEvent) => {
-    if (event.button !== 0 && event.pointerType === 'mouse') return;
-    event.preventDefault();
-    event.stopPropagation();
-    dragging = true;
-    verticalEngaged = false;
-    startX = event.clientX;
-    startY = event.clientY;
-    const size = currentSize();
-    startW = size.width;
-    startH = size.height;
-    // 自适应高度模式下，真正持久化的是「最大高度上限」而非当前内容撑出的实际高度
-    startConfiguredMaxH = clampPanelSize({
-      width: size.width,
-      height:
-        parseFloat(el.style.maxHeight || '0') ||
-        loadPanelSize(storageKey)?.height ||
-        options.fallback?.height ||
-        size.height,
-    }, options).height;
-    el.classList.add('is-resizing');
-    try {
-      handle.setPointerCapture(event.pointerId);
-    } catch {}
-  };
-
-  const onPointerMove = (event: PointerEvent) => {
-    if (!dragging) return;
-    event.preventDefault();
-    const dx = event.clientX - startX;
-    const dy = event.clientY - startY;
-
+  const commitDragDelta = (dx: number, dy: number) => {
     if (!options.fitContentHeight) {
       pending = apply({ width: startW + dx, height: startH + dy });
       return;
@@ -178,10 +153,73 @@ export function makeResizable(
     pending = clamped;
   };
 
+  const flushResizeFrame = () => {
+    resizeRaf = 0;
+    if (!dragging || queuedDx === null || queuedDy === null) return;
+    const dx = queuedDx;
+    const dy = queuedDy;
+    queuedDx = null;
+    queuedDy = null;
+    commitDragDelta(dx, dy);
+  };
+
+  const onPointerDown = (event: PointerEvent) => {
+    if (event.button !== 0 && event.pointerType === 'mouse') return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragging = true;
+    verticalEngaged = false;
+    queuedDx = null;
+    queuedDy = null;
+    startX = event.clientX;
+    startY = event.clientY;
+    const size = currentSize();
+    startW = size.width;
+    startH = size.height;
+    // 自适应高度模式下，真正持久化的是「最大高度上限」而非当前内容撑出的实际高度
+    startConfiguredMaxH = clampPanelSize({
+      width: size.width,
+      height:
+        parseFloat(el.style.maxHeight || '0') ||
+        loadPanelSize(storageKey)?.height ||
+        options.fallback?.height ||
+        size.height,
+    }, options).height;
+    el.classList.add('is-resizing');
+    el.setAttribute('data-resizing', 'true');
+    try {
+      handle.setPointerCapture(event.pointerId);
+    } catch {}
+  };
+
+  const onPointerMove = (event: PointerEvent) => {
+    if (!dragging) return;
+    event.preventDefault();
+    queuedDx = event.clientX - startX;
+    queuedDy = event.clientY - startY;
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      if (!resizeRaf) {
+        resizeRaf = window.requestAnimationFrame(flushResizeFrame);
+      }
+    } else {
+      flushResizeFrame();
+    }
+  };
+
   const finish = (event: PointerEvent) => {
     if (!dragging) return;
+    if (resizeRaf && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+      window.cancelAnimationFrame(resizeRaf);
+      resizeRaf = 0;
+    }
+    if (queuedDx !== null && queuedDy !== null) {
+      commitDragDelta(queuedDx, queuedDy);
+      queuedDx = null;
+      queuedDy = null;
+    }
     dragging = false;
     el.classList.remove('is-resizing');
+    el.removeAttribute('data-resizing');
     try {
       handle.releasePointerCapture(event.pointerId);
     } catch {}
@@ -240,6 +278,12 @@ export function makeResizable(
     getSize: currentSize,
     reset: () => onDoubleClick(new MouseEvent('dblclick')),
     destroy: () => {
+      if (resizeRaf && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(resizeRaf);
+        resizeRaf = 0;
+      }
+      el.classList.remove('is-resizing');
+      el.removeAttribute('data-resizing');
       handle.removeEventListener('pointerdown', onPointerDown);
       handle.removeEventListener('pointermove', onPointerMove);
       handle.removeEventListener('pointerup', finish);

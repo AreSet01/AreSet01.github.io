@@ -336,9 +336,8 @@
 
       const wantFull = mode === 'ask-full' || mode === 'notes-full';
       const wasOtherOpen = Boolean(other?.api.isOpen());
-      // 左墨问 · 右笔记：切向笔记则新卷自右展卷，切向墨问则新卷自左展卷
-      const dirX = targetKind === 'notes' ? 18 : -18;
-      const clipFrom = targetKind === 'notes' ? 'inset(0 0% 0 24%)' : 'inset(0 24% 0 0%)';
+      // 左墨问 · 右笔记：轻盈方位滑移与透明度过渡，彻底移除动态 blur 与剧烈 clipPath 跳变
+      const dirX = targetKind === 'notes' ? 6 : -6;
 
       const prevActiveSegBtn = other?.el.querySelector<HTMLElement>(
         `[data-companion-switch="${otherKind}"]`
@@ -367,7 +366,7 @@
         // 1. 真实胶囊底块平滑滑向目标页签，文字保持原位不跳动
         syncSegGlider(target.el, prevSegOffset);
 
-        // 2. 面板内部主体顺应空间方位执行鲜明的卷轴展卷入场，外框稳如磐石不闪烁
+        // 2. 面板内部主体轻巧淡入微移（~240ms，零 blur，零重度裁剪），外框稳如磐石
         const stageEls = target.el.querySelectorAll<HTMLElement>(
           '.ink-ask-drawer-body, .ink-ask-drawer-form, .notes-drawer-filter-bar, .notes-drawer-body'
         );
@@ -377,19 +376,15 @@
             [
               {
                 opacity: 0,
-                clipPath: clipFrom,
                 transform: `translate3d(${dirX}px, 0, 0)`,
-                filter: 'blur(2px)',
               },
               {
                 opacity: 1,
-                clipPath: 'inset(0 0% 0 0%)',
                 transform: 'translate3d(0, 0, 0)',
-                filter: 'blur(0px)',
               },
             ],
-            480 + idx * 30,
-            readArticleMotion().layoutEase
+            240 + idx * 18,
+            readArticleMotion().surfaceEase
           );
         });
       } else {
@@ -540,8 +535,7 @@
         });
         const targetEl = panels[kind]?.el;
         if (targetEl && !reduceMotion()) {
-          const dirX = kind === 'notes' ? 26 : -26;
-          const clipFrom = kind === 'notes' ? 'inset(0 0% 0 22%)' : 'inset(0 22% 0 0%)';
+          const dirX = kind === 'notes' ? 6 : -6;
           const stageEls = targetEl.querySelectorAll<HTMLElement>(
             '.ink-ask-drawer-body, .ink-ask-drawer-form, .notes-drawer-filter-bar, .notes-drawer-body'
           );
@@ -551,19 +545,15 @@
               [
                 {
                   opacity: 0,
-                  clipPath: clipFrom,
                   transform: `translate3d(${dirX}px, 0, 0)`,
-                  filter: 'blur(2px)',
                 },
                 {
                   opacity: 1,
-                  clipPath: 'inset(0 0% 0 0%)',
                   transform: 'translate3d(0, 0, 0)',
-                  filter: 'blur(0px)',
                 },
               ],
-              480 + idx * 30,
-              readArticleMotion().layoutEase
+              240 + idx * 18,
+              readArticleMotion().surfaceEase
             );
           });
         }
@@ -574,16 +564,18 @@
       }
     }
 
-    // ---------------------------------------------------------------- 分隔条拖拽
+    // ---------------------------------------------------------------- 分隔条拖拽（全程 rAF 节流）
+    let splitDragRaf = 0;
+    let pendingClientX: number | null = null;
+
     function applyRatio() {
       root.style.setProperty('--companion-split', splitRatioCssValue(ratio));
       if (ratioLabel) ratioLabel.textContent = `${Math.round(ratio * 100)}%`;
       splitter!.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
     }
 
-    function onSplitterMove(e: PointerEvent) {
-      if (!dragging) return;
-      let nextRatio = clampToViewport(ratioFromPointer(e.clientX, window.innerWidth, SPLITTER_WIDTH, getFramePad()));
+    function commitSplitterPointer(clientX: number) {
+      let nextRatio = clampToViewport(ratioFromPointer(clientX, window.innerWidth, SPLITTER_WIDTH, getFramePad()));
       if (Math.abs(nextRatio - 0.5) < 0.012) {
         if (Math.abs(ratio - 0.5) >= 0.001) {
           splitter?.classList.remove('is-snapped-50');
@@ -598,11 +590,28 @@
       applyRatio();
     }
 
+    function flushSplitterFrame() {
+      splitDragRaf = 0;
+      if (!dragging || pendingClientX === null) return;
+      const cx = pendingClientX;
+      pendingClientX = null;
+      commitSplitterPointer(cx);
+    }
+
+    function onSplitterMove(e: PointerEvent) {
+      if (!dragging) return;
+      pendingClientX = e.clientX;
+      if (!splitDragRaf) {
+        splitDragRaf = requestAnimationFrame(flushSplitterFrame);
+      }
+    }
+
     splitter.addEventListener(
       'pointerdown',
       (e) => {
         if (mode !== 'split') return;
         dragging = true;
+        pendingClientX = null;
         document.body.classList.add('companion-resizing');
         root.setAttribute('data-companion-resizing', 'true');
         try {
@@ -621,6 +630,14 @@
 
     function endSplitDrag() {
       if (!dragging) return;
+      if (splitDragRaf) {
+        cancelAnimationFrame(splitDragRaf);
+        splitDragRaf = 0;
+      }
+      if (pendingClientX !== null) {
+        commitSplitterPointer(pendingClientX);
+        pendingClientX = null;
+      }
       dragging = false;
       document.body.classList.remove('companion-resizing');
       root.removeAttribute('data-companion-resizing');
@@ -833,6 +850,9 @@
     );
 
     (window as any)[CLEANUP_KEY] = () => {
+      if (splitDragRaf) cancelAnimationFrame(splitDragRaf);
+      cancelAnimationFrame(ratioResetFrame);
+      window.clearTimeout(resizeTimer);
       layoutMotion.cancel();
       controller.abort();
       delete (window as any).__companion;

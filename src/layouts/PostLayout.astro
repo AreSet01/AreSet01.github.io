@@ -347,10 +347,50 @@ const hasToc = tocHeadings.length > 1;
             .join('');
         }
 
-        function unlock() {
-          if (content) content.hidden = false;
-          if (panel) panel.hidden = true;
+        let unsealing = false;
+
+        function finishUnlock(withUnfurl) {
+          if (content) {
+            content.hidden = false;
+            if (withUnfurl) {
+              content.classList.remove('is-unfurling');
+              void content.offsetWidth;
+              content.classList.add('is-unfurling');
+              window.setTimeout(() => {
+                content.classList.remove('is-unfurling');
+              }, 580);
+            }
+          }
+          if (panel) {
+            panel.hidden = true;
+            panel.classList.remove('is-unsealing');
+          }
           article?.setAttribute('data-locked-post', 'false');
+          try { window.lenis?.resize(); } catch {}
+          try { window.ScrollTrigger?.refresh(); } catch {}
+        }
+
+        function unlock(animate = false) {
+          const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          if (!animate || reduceMotion || !panel) {
+            finishUnlock(false);
+            return;
+          }
+          if (unsealing) return;
+          unsealing = true;
+          panel.classList.add('is-unsealing');
+          let done = false;
+          const complete = () => {
+            if (done) return;
+            done = true;
+            unsealing = false;
+            finishUnlock(true);
+            window.dispatchEvent(new CustomEvent('post-unlocked'));
+          };
+          panel.addEventListener('animationend', (e) => {
+            if (e.target === panel) complete();
+          }, { once: true });
+          window.setTimeout(complete, 400);
         }
 
         if (!article || !panel || !content || !form || !expectedHash) return;
@@ -358,24 +398,39 @@ const hasToc = tocHeadings.length > 1;
         form.dataset.lockBound = 'true';
 
         if (getStoredUnlock()) {
-          unlock();
+          unlock(false);
           return;
         }
 
         form.addEventListener('submit', async (event) => {
           event.preventDefault();
+          if (unsealing) return;
           const formData = new FormData(form);
           const password = String(formData.get('password') ?? '');
           if (!password) return;
+          const inputEl = form.querySelector('.lock-input');
 
           try {
             const digest = await sha256(password);
             if (digest === expectedHash) {
+              if (message) message.textContent = '';
               setStoredUnlock();
-              unlock();
-              window.dispatchEvent(new CustomEvent('post-unlocked'));
-            } else if (message) {
-              message.textContent = 'Password is incorrect.';
+              const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+              if (reduceMotion) {
+                unlock(false);
+                window.dispatchEvent(new CustomEvent('post-unlocked'));
+              } else {
+                unlock(true);
+              }
+            } else {
+              if (message) {
+                message.textContent = 'Password is incorrect.';
+              }
+              if (inputEl) {
+                inputEl.classList.remove('is-error-shake');
+                void inputEl.offsetWidth;
+                inputEl.classList.add('is-error-shake');
+              }
             }
           } catch {
             if (message) {
@@ -621,8 +676,8 @@ const hasToc = tocHeadings.length > 1;
           gsap.killTweensOf(postBodyEl);
           gsap.fromTo(
             postBodyEl,
-            { opacity: 0, y: 24 },
-            { opacity: 1, y: 0, duration: 1.0, ease: 'post-enter', clearProps: 'transform,opacity' }
+            { opacity: 0, y: 14 },
+            { opacity: 1, y: 0, duration: 0.68, ease: 'post-enter', clearProps: 'transform,opacity' }
           );
         }
         const inkAskBtn = document.querySelector<HTMLElement>('.ink-ask-sidebar-trigger');
@@ -630,12 +685,16 @@ const hasToc = tocHeadings.length > 1;
           gsap.killTweensOf(inkAskBtn);
           gsap.fromTo(
             inkAskBtn,
-            { opacity: 0, y: -8 },
-            { opacity: 1, y: 0, duration: 0.72, delay: 0.12, ease: 'post-enter', clearProps: 'transform,opacity' }
+            { opacity: 0, y: -6 },
+            { opacity: 1, y: 0, duration: 0.56, delay: 0.08, ease: 'post-enter', clearProps: 'transform,opacity' }
           );
         }
 
-        startTypewriterDate(instantDate);
+        if (instantDate) {
+          startTypewriterDate(true);
+        } else {
+          startTypewriterDate(false);
+        }
         if (typeof (window as any).__revealInViewBlocks__ === 'function') {
           if (reduceMotion) {
             (window as any).__revealInViewBlocks__();
@@ -748,9 +807,8 @@ const hasToc = tocHeadings.length > 1;
 
         if (charNodes.length) {
           gsap.set(charNodes, {
-            y: 14,
+            y: 12,
             opacity: 0,
-            filter: 'blur(4px)',
             force3D: true,
           });
         }
@@ -791,7 +849,7 @@ const hasToc = tocHeadings.length > 1;
         });
         titleEntranceTimeline = tl;
 
-        // Living Calligraphy Choreography: 【错落淡入 · Stagger Fade】字韵流转
+        // Living Calligraphy Choreography: 【错落淡入 · Stagger Fade】纯合成字韵流转（零动态 blur）
         const charDuration = 0.72;
         const totalStagger = Math.min(0.34, 0.02 * charNodes.length);
         const staggerEach = charNodes.length > 0 ? totalStagger / charNodes.length : 0.02;
@@ -804,18 +862,16 @@ const hasToc = tocHeadings.length > 1;
           ease: 'post-enter',
         }, 0.02);
 
-        // Step 1: Stagger Fade across all word & character units
+        // Step 1: Stagger Fade across all word & character units (transform + opacity only)
         if (charNodes.length) {
           tl.fromTo(charNodes,
             {
-              y: 14,
+              y: 12,
               opacity: 0,
-              filter: 'blur(4px)',
             },
             {
               y: 0,
               opacity: 1,
-              filter: 'blur(0px)',
               duration: charDuration,
               stagger: staggerEach,
               ease: 'post-enter',
@@ -825,8 +881,8 @@ const hasToc = tocHeadings.length > 1;
           );
         } else if (titleText) {
           tl.fromTo(titleText,
-            { y: 14, opacity: 0, filter: 'blur(4px)' },
-            { y: 0, opacity: 1, filter: 'blur(0px)', duration: charDuration, ease: 'post-enter' },
+            { y: 12, opacity: 0 },
+            { y: 0, opacity: 1, duration: charDuration, ease: 'post-enter' },
             0.04
           );
         }
@@ -835,7 +891,7 @@ const hasToc = tocHeadings.length > 1;
           // Freeze optical center title state with other components held in pre-enter
           tl.addPause();
         } else {
-          // Step 2: Smoothly glide from optical center to docked layout position in Header (图一位置)
+          // Step 2: Smoothly glide from optical center to docked layout position in Header
           tl.to(title, {
             x: 0,
             y: 0,
@@ -846,74 +902,7 @@ const hasToc = tocHeadings.length > 1;
         }
       }
 
-      function replayTitleInPlace() {
-        if (signal.aborted || !title || reduceMotion) return;
-        if (charNodes.length) {
-          gsap.killTweensOf(charNodes);
-          gsap.fromTo(charNodes,
-            { y: 10, opacity: 0.2, filter: 'blur(4px)' },
-            {
-              y: 0, opacity: 1, filter: 'blur(0px)',
-              duration: 0.76, ease: 'post-enter', stagger: { amount: 0.28 },
-              onComplete: () => {
-                gsap.set(charNodes, { clearProps: 'transform,opacity,filter' });
-              },
-            }
-          );
-        } else if (titleText) {
-          gsap.killTweensOf(titleText);
-          gsap.fromTo(titleText,
-            { y: 10, opacity: 0.2, filter: 'blur(4px)' },
-            {
-              y: 0, opacity: 1, filter: 'blur(0px)',
-              duration: 0.76, ease: 'post-enter',
-              onComplete: () => {
-                gsap.set(titleText, { clearProps: 'transform,opacity,filter' });
-              },
-            }
-          );
-        }
-        startTypewriterDate(false);
-      }
-
-      function resetTitleAndDate() {
-        if (charNodes.length && isTitleDocked) {
-          gsap.killTweensOf(charNodes);
-          gsap.set(charNodes, { opacity: 0.2, y: 10, filter: 'blur(4px)' });
-        } else if (titleText && isTitleDocked) {
-          gsap.killTweensOf(titleText);
-          gsap.set(titleText, { opacity: 0.3, y: 12, filter: 'blur(4px)' });
-        }
-        if (title && isTitleDocked) {
-          title.classList.add('is-split-ready');
-        }
-        if (typed && isTitleDocked) {
-          typewriterTimers.forEach((id) => window.clearTimeout(id));
-          typewriterTimers.length = 0;
-          typed.classList.remove('is-typing');
-          typed.textContent = '';
-        }
-      }
-
-      // Bidirectional replay: observe header entering and exiting viewport
-      let headerCanReplay = false;
-      if (header && !reduceMotion) {
-        const headerObserver = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => {
-            if (!entry.isIntersecting && entry.boundingClientRect.bottom <= 0) {
-              // Scrolled down past the header: silently reset and arm for replay
-              headerCanReplay = true;
-              resetTitleAndDate();
-            } else if (entry.isIntersecting && headerCanReplay) {
-              // Scrolled back up to top: replay title and date entrance in-place
-              headerCanReplay = false;
-              replayTitleInPlace();
-            }
-          });
-        }, { threshold: 0 });
-        headerObserver.observe(header);
-        signal.addEventListener('abort', () => headerObserver.disconnect());
-      }
+      // Docked header & date remain stable once revealed (no scrollback wipe/re-blur flashing)
 
       try {
         const isPendingTransition = Boolean((window as any).__postTransitionPending);
@@ -936,7 +925,7 @@ const hasToc = tocHeadings.length > 1;
         fastForwardTitle();
       }
 
-      // ---------- Blocks: tag each direct child, reveal via IntersectionObserver ----------
+      // ---------- Blocks: tag each direct child, reveal once per visit via IntersectionObserver ----------
       // Direct tagging without DOM mutations (no wrapper insertion) for pure GPU transitions
       const tBlocks0 = performance.now();
       const blocks = Array.from(prose.children) as HTMLElement[];
@@ -944,8 +933,8 @@ const hasToc = tocHeadings.length > 1;
         const kind = el.dataset.pr || revealKind(el);
         el.dataset.pr = kind;
         el.classList.add('pr');
-        if (kind === 'table') el.querySelectorAll('tr').forEach((row, i) => row.style.setProperty('--i', String(Math.min(i, 12))));
-        if (kind === 'list') Array.from(el.children).forEach((li, i) => (li as HTMLElement).style.setProperty('--i', String(Math.min(i, 8))));
+        if (kind === 'table') el.querySelectorAll('tr').forEach((row, i) => row.style.setProperty('--i', String(Math.min(i, 3))));
+        if (kind === 'list') Array.from(el.children).forEach((li, i) => (li as HTMLElement).style.setProperty('--i', String(Math.min(i, 3))));
       });
       const tBlocksDuration = performance.now() - tBlocks0;
       if (tBlocksDuration > 2) {
@@ -955,8 +944,10 @@ const hasToc = tocHeadings.length > 1;
       if (reduceMotion) {
         blocks.forEach((el) => el.classList.add('is-in'));
       } else {
-        // 方案 B 完整落地：双阈值迟滞（Dual-threshold Hysteresis）观察器架构
+        // 单次宣纸显形观察器：每个段落/标题在同一次阅读会话中只温润显现一次，
+        // 一旦落定即 unobserve，彻底消除上下回滚反复闪烁重播与定位漂移。
         let observersAttached = false;
+        let activeRevealObserver: IntersectionObserver | null = null;
 
         const revealInViewBlocks = () => {
           if (!isTitleDocked && !reduceMotion) return;
@@ -966,8 +957,11 @@ const hasToc = tocHeadings.length > 1;
             const rect = el.getBoundingClientRect();
             if ((rect.top < vh * 0.96 && rect.bottom > 0) || (index < 3 && rect.top < vh)) {
               el.classList.add('is-in');
+              activeRevealObserver?.unobserve(el);
             } else if (rect.bottom <= 0 && rect.top !== 0) {
               el.classList.add('pr-instant', 'is-in');
+              activeRevealObserver?.unobserve(el);
+              requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('pr-instant')));
             }
           });
         };
@@ -976,43 +970,31 @@ const hasToc = tocHeadings.length > 1;
           if (observersAttached || signal.aborted) return;
           observersAttached = true;
 
-          // 1. revealObserver (rootMargin: '0px 0px -4% 0px'):
-          //    元素滚动进入视口安全区时触发，添加 .is-in 播放统一的舒缓进场动画。
-          //    绝不在视口内或视口边缘拔除 .is-in，彻底杜绝上下滑动与动画播放中途来回拉扯造成的撕裂抽搐。
-          //    从视口上方进入的块（深链接或恢复滚动位置后向上滑）静默显形，绝不逆着手势播位移。
           const revealObserver = new IntersectionObserver((entries) => {
             if (!isTitleDocked && !reduceMotion) return;
             entries.forEach((entry) => {
               if (entry.isIntersecting) {
                 const el = entry.target as HTMLElement;
-                if (el.classList.contains('is-in')) return;
+                if (el.classList.contains('is-in')) {
+                  revealObserver.unobserve(el);
+                  return;
+                }
                 if (entry.boundingClientRect.top < 0) {
                   el.classList.add('pr-instant', 'is-in');
                   requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('pr-instant')));
                 } else {
                   el.classList.add('is-in');
                 }
+                revealObserver.unobserve(el);
               }
             });
           }, { rootMargin: '0px 0px -4% 0px', threshold: 0 });
-
-          // 2. resetObserver (rootMargin: '120px 0px 120px 0px'):
-          //    仅当元素彻底离开视口安全缓冲区（超出屏幕外 >120px）时，才静默重置 .is-in。
-          //    并且只给落到视口「下方」的块重新上膛：留在上方的块保持进场态，
-          //    于是向上滚动全程没有任何内容逆着手势位移，而向下滚动的往返重播完整保留。
-          //    无需任何 setTimeout 异步定时器，无布局抖动，零抽搐。
-          const resetObserver = new IntersectionObserver((entries) => {
-            entries.forEach((entry) => {
-              if (!entry.isIntersecting) {
-                if (entry.boundingClientRect.top <= 0) return;
-                entry.target.classList.remove('is-in');
-              }
-            });
-          }, { rootMargin: '120px 0px 120px 0px', threshold: 0 });
+          activeRevealObserver = revealObserver;
 
           blocks.forEach((el) => {
-            revealObserver.observe(el);
-            resetObserver.observe(el);
+            if (!el.classList.contains('is-in')) {
+              revealObserver.observe(el);
+            }
           });
 
           revealInViewBlocks();
@@ -1020,7 +1002,7 @@ const hasToc = tocHeadings.length > 1;
 
           signal.addEventListener('abort', () => {
             revealObserver.disconnect();
-            resetObserver.disconnect();
+            activeRevealObserver = null;
           });
         };
 
@@ -1041,7 +1023,7 @@ const hasToc = tocHeadings.length > 1;
         }, { signal });
       }
 
-      // ---------- Reading spine: draws with scroll, ink dots per h2 ----------
+      // ---------- Reading spine: brush-damped scroll stroke, cinnabar halo dots per h2 ----------
       const body = document.querySelector<HTMLElement>('[data-post-body]');
       const spine = document.querySelector<HTMLElement>('[data-post-spine]');
       const spineLine = document.querySelector<SVGLineElement>('[data-post-spine-line]');
@@ -1073,16 +1055,41 @@ const hasToc = tocHeadings.length > 1;
 
       if (body && spine && spineLine && !reduceMotion) {
         requestAnimationFrame(() => placeDots());
-        // Written straight from scroll progress (pathLength="1", so offset 1 → 0 is empty → full)
+        // Smooth damped brush stroke interpolation (pathLength="1", offset 1 → 0 is empty → full)
+        let targetDash = 1;
+        let currentDash = 1;
+        let spineRaf = 0;
         spineLine.style.strokeDashoffset = '1';
+
+        const stepSpineBrush = () => {
+          spineRaf = 0;
+          if (signal.aborted) return;
+          const diff = targetDash - currentDash;
+          if (Math.abs(diff) <= 0.0015) {
+            currentDash = targetDash;
+            spineLine.style.strokeDashoffset = currentDash.toFixed(4);
+            return;
+          }
+          currentDash += diff * 0.26;
+          spineLine.style.strokeDashoffset = currentDash.toFixed(4);
+          spineRaf = requestAnimationFrame(stepSpineBrush);
+        };
+
         ScrollTrigger.create({
           id: `${TRIGGER_PREFIX}spine`,
           trigger: body,
           start: 'top 65%',
           end: 'bottom 55%',
           onUpdate: (self) => {
-            spineLine.style.strokeDashoffset = String(1 - self.progress);
+            targetDash = Math.max(0, Math.min(1, 1 - self.progress));
+            if (!spineRaf && !signal.aborted) {
+              spineRaf = requestAnimationFrame(stepSpineBrush);
+            }
           },
+        });
+        signal.addEventListener('abort', () => {
+          if (spineRaf) cancelAnimationFrame(spineRaf);
+          spineRaf = 0;
         });
 
         const headings = Array.from(prose.querySelectorAll<HTMLElement>('h2'));
@@ -1394,18 +1401,17 @@ const hasToc = tocHeadings.length > 1;
               // preventing the 13.6px sudden jump at animation end.
               const targetHeight = expander.scrollHeight;
               const remainingFraction = targetHeight > 0 ? (targetHeight - currentHeight) / targetHeight : 1;
-              const duration = Math.max(180, Math.round(620 * Math.min(1, Math.max(0.2, remainingFraction))));
+              const baseExpandMs = Math.min(500, Math.max(320, 260 + targetHeight * 0.34));
+              const duration = Math.max(180, Math.round(baseExpandMs * Math.min(1, Math.max(0.24, remainingFraction))));
 
               tocAnim = expander.animate([
                 {
                   height: `${currentHeight}px`,
                   opacity: currentOpacity,
-                  transform: `translate3d(0, ${-6 * (1 - (currentHeight / (targetHeight || 1)))}px, 0)`,
                 },
                 {
                   height: `${targetHeight}px`,
                   opacity: 1,
-                  transform: 'translate3d(0, 0, 0)',
                 }
               ], {
                 duration,
@@ -1459,18 +1465,17 @@ const hasToc = tocHeadings.length > 1;
               const totalHeight = expander.scrollHeight || currentHeight;
 
               const remainingFraction = totalHeight > 0 ? currentHeight / totalHeight : 1;
-              const duration = Math.max(180, Math.round(560 * Math.min(1, Math.max(0.2, remainingFraction))));
+              const baseCollapseMs = Math.min(440, Math.max(280, 220 + totalHeight * 0.3));
+              const duration = Math.max(160, Math.round(baseCollapseMs * Math.min(1, Math.max(0.24, remainingFraction))));
 
               tocAnim = expander.animate([
                 {
                   height: `${currentHeight}px`,
                   opacity: currentOpacity,
-                  transform: 'translate3d(0, 0, 0)',
                 },
                 {
                   height: '0px',
                   opacity: 0,
-                  transform: 'translate3d(0, -6px, 0)',
                 }
               ], {
                 duration,
@@ -1664,14 +1669,79 @@ const hasToc = tocHeadings.length > 1;
           }, 1600);
         }
 
-        function pulseHeadingTarget(el) {
+        let pendingHeadingRaf = 0;
+        let pendingHeadingDeadline = 0;
+        let activeAnchorClearTimer = 0;
+        let activeAnchorEl = null;
+
+        function cancelPendingHeadingArrival() {
+          if (pendingHeadingRaf) {
+            cancelAnimationFrame(pendingHeadingRaf);
+            pendingHeadingRaf = 0;
+          }
+          if (pendingHeadingDeadline) {
+            window.clearTimeout(pendingHeadingDeadline);
+            pendingHeadingDeadline = 0;
+          }
+        }
+
+        function fireHeadingSweepNow(el) {
           if (!el) return;
+          if (activeAnchorEl && activeAnchorEl !== el) {
+            activeAnchorEl.classList.remove('is-anchor-target');
+          }
+          window.clearTimeout(activeAnchorClearTimer);
+          activeAnchorEl = el;
           el.classList.remove('is-anchor-target');
           void el.offsetWidth;
           el.classList.add('is-anchor-target');
-          window.setTimeout(() => {
+          activeAnchorClearTimer = window.setTimeout(() => {
             el.classList.remove('is-anchor-target');
-          }, 1600);
+            if (activeAnchorEl === el) activeAnchorEl = null;
+          }, 1100);
+        }
+
+        function pulseHeadingTarget(el) {
+          if (!el) return;
+          cancelPendingHeadingArrival();
+          const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          const vh = window.innerHeight || document.documentElement.clientHeight || 800;
+          const initialTop = el.getBoundingClientRect().top;
+          if (reduceMotion || (initialTop >= -24 && initialTop <= Math.min(220, vh * 0.36))) {
+            fireHeadingSweepNow(el);
+            return;
+          }
+
+          let lastTop = initialTop;
+          let settledFrames = 0;
+          let arrived = false;
+          const settle = () => {
+            if (arrived || signal.aborted) return;
+            arrived = true;
+            cancelPendingHeadingArrival();
+            fireHeadingSweepNow(el);
+          };
+
+          const watchArrival = () => {
+            if (arrived || signal.aborted) return;
+            const top = el.getBoundingClientRect().top;
+            const delta = Math.abs(top - lastTop);
+            lastTop = top;
+            const inReadingBand = top >= -40 && top <= Math.max(240, vh * 0.48);
+            if (inReadingBand && (Math.abs(top - 70) <= 36 || delta < 1.2)) {
+              settledFrames += 1;
+              if (settledFrames >= 2) {
+                settle();
+                return;
+              }
+            } else {
+              settledFrames = 0;
+            }
+            pendingHeadingRaf = requestAnimationFrame(watchArrival);
+          };
+
+          pendingHeadingRaf = requestAnimationFrame(watchArrival);
+          pendingHeadingDeadline = window.setTimeout(settle, 920);
         }
         window.__pulseHeadingTarget = pulseHeadingTarget;
 
@@ -1731,7 +1801,7 @@ const hasToc = tocHeadings.length > 1;
 
         function enhanceCodeBlocks() {
           const COPY_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
-          const CHECK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+          const SEAL_STAMP_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><polyline points="17 8.5 10.5 15.5 7 12"></polyline></svg>';
 
           prose.querySelectorAll('pre').forEach((pre) => {
             if (pre.dataset.codeEnhanced === 'true') return;
@@ -1776,9 +1846,12 @@ const hasToc = tocHeadings.length > 1;
               // Capture the visible height before cancelling an in-flight reversal.
               const startH = pre.getBoundingClientRect().height;
               if (collapseAnim) {
+                collapseAnim.onfinish = null;
+                collapseAnim.oncancel = null;
                 collapseAnim.cancel();
                 collapseAnim = null;
               }
+              pre.style.maxHeight = '';
               if (collapsed) {
                 pre.classList.add('is-code-collapsed');
                 if (collapseButton) {
@@ -1787,14 +1860,20 @@ const hasToc = tocHeadings.length > 1;
                 }
                 if (expandVeil) expandVeil.hidden = false;
                 if (animate && !reduceMotion && startH > COLLAPSED_HEIGHT) {
+                  const deltaH = startH - COLLAPSED_HEIGHT;
+                  const duration = Math.round(Math.min(500, Math.max(280, 230 + deltaH * 0.22)));
                   collapseAnim = pre.animate(
                     [{ maxHeight: `${startH}px` }, { maxHeight: `${COLLAPSED_HEIGHT}px` }],
-                    { duration: 520, easing: contentEase }
+                    { duration, easing: contentEase }
                   );
                   collapseAnim.onfinish = () => {
                     collapseAnim = null;
+                    pre.style.maxHeight = '';
                     try { window.lenis?.resize(); } catch (_) {}
                     try { window.ScrollTrigger?.refresh(); } catch (_) {}
+                  };
+                  collapseAnim.oncancel = () => {
+                    collapseAnim = null;
                   };
                 }
               } else {
@@ -1806,14 +1885,20 @@ const hasToc = tocHeadings.length > 1;
                 if (expandVeil) expandVeil.hidden = true;
                 const endH = pre.scrollHeight;
                 if (animate && !reduceMotion && endH > startH) {
+                  const deltaH = endH - startH;
+                  const duration = Math.round(Math.min(580, Math.max(320, 260 + deltaH * 0.24)));
                   collapseAnim = pre.animate(
                     [{ maxHeight: `${startH}px` }, { maxHeight: `${endH}px` }],
-                    { duration: 600, easing: contentEase }
+                    { duration, easing: contentEase }
                   );
                   collapseAnim.onfinish = () => {
                     collapseAnim = null;
+                    pre.style.maxHeight = '';
                     try { window.lenis?.resize(); } catch (_) {}
                     try { window.ScrollTrigger?.refresh(); } catch (_) {}
+                  };
+                  collapseAnim.oncancel = () => {
+                    collapseAnim = null;
                   };
                 }
               }
@@ -1847,20 +1932,24 @@ const hasToc = tocHeadings.length > 1;
             copyButton.type = 'button';
             copyButton.innerHTML = `${COPY_SVG}<span>Copy</span>`;
             copyButton.setAttribute('aria-label', '复制代码');
+            let copyResetTimer = 0;
 
             copyButton.addEventListener('click', async () => {
               const text = code.textContent || '';
               try {
                 await navigator.clipboard.writeText(text);
+                window.clearTimeout(copyResetTimer);
+                copyButton.classList.remove('is-copied');
+                void copyButton.offsetWidth;
                 copyButton.classList.add('is-copied');
-                copyButton.innerHTML = `${CHECK_SVG}<span>Copied</span>`;
-                window.setTimeout(() => {
+                copyButton.innerHTML = `${SEAL_STAMP_SVG}<span>钤印已录</span>`;
+                copyResetTimer = window.setTimeout(() => {
                   copyButton.classList.remove('is-copied');
                   copyButton.innerHTML = `${COPY_SVG}<span>Copy</span>`;
-                }, 1500);
+                }, 1600);
               } catch {
                 copyButton.innerHTML = `${COPY_SVG}<span>Failed</span>`;
-                window.setTimeout(() => {
+                copyResetTimer = window.setTimeout(() => {
                   copyButton.innerHTML = `${COPY_SVG}<span>Copy</span>`;
                 }, 1500);
               }
@@ -2182,6 +2271,12 @@ const hasToc = tocHeadings.length > 1;
         }
 
         window[cleanupKey] = () => {
+          cancelPendingHeadingArrival();
+          window.clearTimeout(activeAnchorClearTimer);
+          if (activeAnchorEl) {
+            activeAnchorEl.classList.remove('is-anchor-target');
+            activeAnchorEl = null;
+          }
           window.clearTimeout(hoverIntentTimer);
           window.clearTimeout(hidePopoverTimer);
           if (linkPopover) {
@@ -2252,7 +2347,7 @@ const hasToc = tocHeadings.length > 1;
       align-items: center;
       justify-content: center;
       color: var(--muted);
-      transition: transform 620ms var(--article-ease-layout), color 200ms ease;
+      transition: transform 420ms var(--article-ease-layout), color 200ms ease;
     }
     .post-toc[open] .post-toc-caret {
       transform: rotate(0deg);
@@ -2266,7 +2361,7 @@ const hasToc = tocHeadings.length > 1;
     }
     .post-toc-expander {
       overflow: hidden;
-      will-change: height, opacity, transform;
+      will-change: height, opacity;
     }
     .post-toc-kicker {
       font-family: var(--font-mono);
@@ -2554,15 +2649,16 @@ const hasToc = tocHeadings.length > 1;
       transform: translateY(-1px);
     }
     .code-copy-button.is-copied {
-      border-color: rgba(110, 231, 183, 0.6) !important;
-      color: #6ee7b7 !important;
-      background: rgba(16, 185, 129, 0.16) !important;
-      animation: codeCopySpring 480ms var(--article-ease-surface);
+      border-color: rgba(218, 82, 62, 0.72) !important;
+      color: #fecaca !important;
+      background: rgba(194, 63, 44, 0.24) !important;
+      letter-spacing: 0.04em;
+      animation: codeCopySealStamp 280ms var(--article-ease-surface);
     }
-    @keyframes codeCopySpring {
-      0% { transform: scale(0.97); }
-      55% { transform: scale(1.025); }
-      100% { transform: scale(1); }
+    @keyframes codeCopySealStamp {
+      0% { transform: scale(1.1) rotate(-2deg); opacity: 0.86; }
+      58% { transform: scale(0.97) rotate(0.5deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
     }
     .prose pre.is-code-collapsed {
       max-height: 240px;
@@ -2614,12 +2710,30 @@ const hasToc = tocHeadings.length > 1;
       transform: translateY(-1.5px);
     }
 
-    /* ================= 3. 章节标题锚点自复制与定位脉冲 ================= */
+    /* ================= 3. 章节标题锚点自复制与抵达「水墨底纹轻拂」反馈 ================= */
     .prose h2[id],
     .prose h3[id] {
       position: relative;
       scroll-margin-top: 84px;
-      transition: background-color 300ms ease, box-shadow 300ms ease;
+    }
+    .prose h2[id]::after,
+    .prose h3[id]::after {
+      content: '';
+      position: absolute;
+      inset: -4px -8px;
+      border-left: 2.5px solid var(--vermilion, #c23f2c);
+      border-radius: 3px 6px 6px 3px;
+      background: linear-gradient(
+        90deg,
+        var(--vermilion-soft, rgba(194, 63, 44, 0.14)) 0%,
+        rgba(194, 63, 44, 0.06) 46%,
+        transparent 100%
+      );
+      opacity: 0;
+      transform: scaleX(0.08);
+      transform-origin: left center;
+      pointer-events: none;
+      z-index: -1;
     }
     .heading-anchor-btn {
       display: inline-flex;
@@ -2657,21 +2771,27 @@ const hasToc = tocHeadings.length > 1;
       border-color: rgba(194, 63, 44, 0.28);
     }
     .prose .is-anchor-target {
-      animation: headingAnchorPulse 1.5s cubic-bezier(0.16, 1, 0.3, 1);
-      border-radius: 6px;
+      isolation: isolate;
     }
-    @keyframes headingAnchorPulse {
+    .prose .is-anchor-target::after {
+      animation: headingInkWashSweep 1050ms var(--article-ease-surface) forwards;
+    }
+    @keyframes headingInkWashSweep {
       0% {
-        background-color: rgba(235, 170, 30, 0.24);
-        box-shadow: -8px 0 0 0 var(--vermilion, #c23f2c), 0 0 0 6px rgba(235, 170, 30, 0.18);
+        opacity: 0;
+        transform: scaleX(0.06);
       }
-      55% {
-        background-color: rgba(235, 170, 30, 0.12);
-        box-shadow: -4px 0 0 0 var(--vermilion, #c23f2c), 0 0 0 2px rgba(235, 170, 30, 0.08);
+      24% {
+        opacity: 1;
+        transform: scaleX(1);
+      }
+      62% {
+        opacity: 0.78;
+        transform: scaleX(1);
       }
       100% {
-        background-color: transparent;
-        box-shadow: 0 0 0 0 transparent;
+        opacity: 0;
+        transform: scaleX(1);
       }
     }
 

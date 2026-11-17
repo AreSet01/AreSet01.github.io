@@ -391,6 +391,7 @@
     collectRangeTextRects,
     collectMarkRects,
     classifyRectsToGeometry,
+    computeWetInkStrokeDuration,
   } from '../utils/unifiedHighlightGeometry';
 
   initNotesSync();
@@ -1078,12 +1079,15 @@
           overlayEl.classList.toggle('is-fading-out', marks.some((m) => m.classList.contains('is-fading-out')));
 
           if (animateId === id) {
+            const strokeMs = computeWetInkStrokeDuration(geom);
+            overlayEl.style.setProperty('--wet-ink-duration', `${strokeMs}ms`);
             overlayEl.classList.remove('is-drawing');
             void overlayEl.offsetWidth;
             overlayEl.classList.add('is-drawing');
             window.setTimeout(() => {
               overlayEl?.classList.remove('is-drawing');
-            }, 520);
+              overlayEl?.style.removeProperty('--wet-ink-duration');
+            }, strokeMs + 80);
           }
         } else {
           marks.forEach((m) => m.classList.remove('is-block-highlight', 'is-band-highlight'));
@@ -1488,25 +1492,50 @@
     }
 
     let isDockInteracting = false;
+    let dockExitCleanup: (() => void) | null = null;
 
     function hideDock() {
       if (!dock || !isDockVisible) return;
       isDockVisible = false;
       document.body.classList.remove('has-selection-dock-open');
+      if (dockExitCleanup) {
+        dockExitCleanup();
+        dockExitCleanup = null;
+      }
 
       dock.classList.remove('is-entering');
-      dock.classList.add('is-exiting');
-
-      dockTimeoutId = window.setTimeout(() => {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const finalizeHide = () => {
+        if (dockTimeoutId !== null) {
+          window.clearTimeout(dockTimeoutId);
+          dockTimeoutId = null;
+        }
+        if (dockExitCleanup) {
+          dockExitCleanup();
+          dockExitCleanup = null;
+        }
+        if (isDockVisible) return;
         dock.classList.remove('is-exiting', 'is-flipped-top');
         copyStamp?.classList.remove('is-flipped-top');
         dock.hidden = true;
         dock.style.display = 'none';
-        dockTimeoutId = null;
         currentSelectedRange = null;
         activeHighlightId = null;
         syncActiveBlockState();
-      }, 210);
+      };
+
+      if (reduceMotion) {
+        finalizeHide();
+        return;
+      }
+
+      dock.classList.add('is-exiting');
+      const onExitEnd = (ev: AnimationEvent) => {
+        if (ev.target === dock) finalizeHide();
+      };
+      dock.addEventListener('animationend', onExitEnd);
+      dockExitCleanup = () => dock?.removeEventListener('animationend', onExitEnd);
+      dockTimeoutId = window.setTimeout(finalizeHide, 200);
     }
 
     // 智能原子吸附：选区触及公式或代码时，自动扩展包裹整个公式/代码块，绝不半途截断损坏排版
@@ -2091,19 +2120,15 @@
       const anim = targetEl.animate([
         {
           opacity: 1,
-          clipPath: 'inset(0 0% 0 0% round 12px)',
           transform: 'translate3d(0, 0, 0) scale(1)',
-          filter: 'blur(0px)',
         },
         {
           opacity: 0,
-          clipPath: 'inset(0 0% 0 58% round 12px)',
-          transform: 'translate3d(44px, -3px, 0) scale(0.95)',
-          filter: 'blur(3px)',
+          transform: 'translate3d(24px, -2px, 0) scale(0.97)',
         }
       ], {
         duration: 280,
-        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        easing: readArticleMotion().surfaceEase,
         fill: 'forwards'
       });
 
@@ -3402,16 +3427,6 @@
         drawer.classList.add('is-open');
         backdrop.classList.add('is-open');
         document.body.classList.add('notes-drawer-open');
-
-        if (!wasOpen && drawerList && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-          drawerList.animate?.(
-            [
-              { clipPath: 'circle(8% at 86% 92%)', opacity: 0.38 },
-              { clipPath: 'circle(145% at 86% 92%)', opacity: 1 },
-            ],
-            { duration: readArticleMotion().panelMs, easing: readArticleMotion().surfaceEase }
-          );
-        }
       }
       requestAnimationFrame(() => {
         refreshVisibleCardOverflow();
@@ -3479,6 +3494,69 @@
     floatingPill?.addEventListener('click', openNotesDrawer, { signal });
     drawerCloseBtn?.addEventListener('click', closeNotesDrawer, { signal });
     backdrop?.addEventListener('click', closeNotesDrawer, { signal });
+
+    // 移动端底部手卷抽屉下滑手势关闭（rAF 节流 + 速度感知，零掉帧）
+    const notesDragZone = drawer?.querySelector<HTMLElement>('.drawer-drag-handle');
+    if (drawer && notesDragZone) {
+      let isPullingNotesSheet = false;
+      let startY = 0;
+      let latestDeltaY = 0;
+      let lastMoveY = 0;
+      let lastMoveTime = 0;
+      let velocityY = 0;
+      let sheetRaf = 0;
+
+      const applySheetPull = () => {
+        sheetRaf = 0;
+        if (!isPullingNotesSheet || !drawer) return;
+        drawer.style.transform = `translate3d(0, ${latestDeltaY}px, 0)`;
+      };
+
+      notesDragZone.addEventListener('pointerdown', (ev: PointerEvent) => {
+        if (window.innerWidth >= 1024 || drawer.classList.contains('is-maximized')) return;
+        isPullingNotesSheet = true;
+        startY = ev.clientY;
+        lastMoveY = ev.clientY;
+        lastMoveTime = performance.now();
+        latestDeltaY = 0;
+        velocityY = 0;
+        drawer.style.transition = 'none';
+        try { notesDragZone.setPointerCapture(ev.pointerId); } catch {}
+      }, { signal });
+
+      notesDragZone.addEventListener('pointermove', (ev: PointerEvent) => {
+        if (!isPullingNotesSheet) return;
+        const now = performance.now();
+        const dt = Math.max(1, now - lastMoveTime);
+        velocityY = (ev.clientY - lastMoveY) / dt;
+        lastMoveY = ev.clientY;
+        lastMoveTime = now;
+        latestDeltaY = Math.max(0, ev.clientY - startY);
+        if (!sheetRaf) {
+          sheetRaf = window.requestAnimationFrame(applySheetPull);
+        }
+      }, { signal });
+
+      const finishNotesSheetPull = (ev: PointerEvent) => {
+        if (!isPullingNotesSheet) return;
+        isPullingNotesSheet = false;
+        if (sheetRaf) {
+          window.cancelAnimationFrame(sheetRaf);
+          sheetRaf = 0;
+        }
+        try { notesDragZone.releasePointerCapture(ev.pointerId); } catch {}
+        drawer.style.transition = '';
+        if (latestDeltaY > 96 || (latestDeltaY > 36 && velocityY > 0.55)) {
+          drawer.style.transform = '';
+          closeNotesDrawer();
+        } else {
+          drawer.style.transform = '';
+        }
+      };
+
+      notesDragZone.addEventListener('pointerup', finishNotesSheetPull, { signal });
+      notesDragZone.addEventListener('pointercancel', finishNotesSheetPull, { signal });
+    }
     newNoteBtn?.addEventListener('click', openNoteComposer, { signal });
     quickNewBtn?.addEventListener('click', openNoteComposer, { signal });
     // 与「墨问」侧栏解耦：不再互相关闭，摆位交给 CompanionLayout
@@ -4057,23 +4135,29 @@
     --mark-sweep-bg: rgba(235, 160, 20, 0.48);
   }
 
-  /* 水墨舒展划线入场动效 (Ink-Sweep: 0.4x 优雅慢调，如同毛笔下笔由左向右徐徐在宣纸上划过) */
+  /* 湿墨运笔晕染划线入场动效 (Wet-Ink Brush: 从左至右湿墨浸润宣纸并缓缓收干稳固) */
   mark.article-highlight-mark.is-drawing,
   pre code mark.article-highlight-mark.is-drawing,
   [data-theme="dark"] mark.article-highlight-mark.is-drawing,
   [data-theme="moss"] mark.article-highlight-mark.is-drawing,
   [data-theme="rice"] mark.article-highlight-mark.is-drawing {
-    animation: inkSweepDraw 450ms cubic-bezier(0.16, 1, 0.3, 1) both !important;
+    animation: inkSweepDraw 450ms var(--article-ease-surface, cubic-bezier(0.22, 0.61, 0.36, 1)) both !important;
     animation-delay: var(--mark-draw-delay, 0ms) !important;
     animation-duration: var(--mark-draw-duration, 450ms) !important;
   }
 
   @keyframes inkSweepDraw {
     0% {
-      background-size: 0% 1.5px, 0% 100%;
+      background-size: 0% 2.4px, 0% 100%;
+      opacity: 0.72;
+    }
+    68% {
+      background-size: 100% 2.1px, 98% 100%;
+      opacity: 1;
     }
     100% {
       background-size: 100% 1.5px, 100% 100%;
+      opacity: 1;
     }
   }
 
@@ -4088,22 +4172,26 @@
     }
   }
 
-  /* 导航定位脉冲动效 */
+  /* 导航定位脉冲动效（宣纸墨痕轻震，零多帧扩散阴影重绘） */
   mark.article-highlight-mark.has-pulse {
-    animation: article-highlight-pulse 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: article-highlight-pulse 900ms var(--article-ease-surface) forwards;
   }
 
   @keyframes article-highlight-pulse {
     0% {
-      box-shadow: 0 0 0 0 rgba(255, 197, 61, 0.85);
-      background-color: rgba(255, 197, 61, 0.75) !important;
+      background-color: rgba(255, 197, 61, 0.62) !important;
+      outline: 1.5px solid var(--vermilion, #c23f2c);
+      outline-offset: 1px;
     }
-    45% {
-      box-shadow: 0 0 0 10px rgba(255, 197, 61, 0);
-      background-color: rgba(255, 197, 61, 0.48) !important;
+    55% {
+      background-color: rgba(255, 197, 61, 0.32) !important;
+      outline: 1px solid rgba(194, 63, 44, 0.45);
+      outline-offset: 3px;
     }
     100% {
-      box-shadow: 0 0 0 0 rgba(255, 197, 61, 0);
+      background-color: transparent !important;
+      outline: 1px solid transparent;
+      outline-offset: 5px;
     }
   }
 
@@ -4172,6 +4260,7 @@
 
   .article-highlight-band {
     position: absolute;
+    overflow: hidden;
     border-radius: 4px;
     background-image:
       linear-gradient(to right, var(--mark-sweep-line), var(--mark-sweep-line)),
@@ -4180,21 +4269,43 @@
     background-repeat: no-repeat;
     background-size: 100% 1.5px, 100% 100%;
     pointer-events: none;
-    transition: background-image 200ms ease, filter 200ms ease, opacity 360ms ease, clip-path 360ms ease;
+    transition: opacity 280ms var(--article-ease-surface), clip-path 280ms var(--article-ease-surface);
+  }
+
+  .article-highlight-band::after,
+  .article-highlight-block::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(215, 140, 10, 0.24) 68%,
+      rgba(194, 63, 44, 0.28) 92%,
+      transparent 100%
+    );
+    opacity: 0;
+    transform: translate3d(-100%, 0, 0);
+    pointer-events: none;
   }
 
   .article-highlight-band.is-hovered,
   .article-highlight-band.is-active {
-    filter: brightness(1.02) saturate(1.18);
-    box-shadow: 0 0 0 1px rgba(215, 140, 10, 0.22);
+    box-shadow: 0 0 0 1px rgba(215, 140, 10, 0.28);
+    background-color: rgba(255, 197, 61, 0.1);
   }
 
   .article-highlight-band.is-drawing {
-    animation: unifiedBlockSweep 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: unifiedBlockSweep var(--wet-ink-duration, 450ms) var(--article-ease-surface) both;
+  }
+
+  .article-highlight-band.is-drawing::after,
+  .article-highlight-block.is-drawing::after {
+    animation: wetInkBrushFront var(--wet-ink-duration, 450ms) var(--article-ease-surface) forwards;
   }
 
   .article-highlight-band.has-pulse {
-    animation: unifiedBlockPulse 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: unifiedBlockPulse 920ms var(--article-ease-surface) forwards;
   }
 
   .article-highlight-band.is-fading-out {
@@ -4222,6 +4333,7 @@
     --hl-block-border: rgba(215, 140, 10, 0.86);
     --hl-block-ring: rgba(215, 140, 10, 0.28);
     position: absolute;
+    overflow: hidden;
     left: -10px;
     right: -10px;
     border-radius: 8px;
@@ -4230,7 +4342,7 @@
     box-shadow: inset 0 0 0 1px rgba(215, 140, 10, 0.08);
     pointer-events: none;
     transform-origin: left center;
-    transition: background-color 220ms ease, box-shadow 220ms ease, border-color 220ms ease, opacity 360ms ease, transform 360ms ease;
+    transition: background-color 220ms ease, border-color 220ms ease, opacity 320ms var(--article-ease-surface), transform 320ms var(--article-ease-surface);
   }
 
   [data-theme="dark"] .article-highlight-block {
@@ -4262,34 +4374,57 @@
   }
 
   .article-highlight-block.is-drawing {
-    animation: unifiedBlockSweep 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: unifiedBlockSweep var(--wet-ink-duration, 480ms) var(--article-ease-surface) both;
   }
 
   @keyframes unifiedBlockSweep {
     0% {
-      opacity: 0.25;
-      clip-path: inset(0 100% 0 0 round 8px);
+      opacity: 0.42;
+      clip-path: inset(0 100% 0 0 round 6px);
+    }
+    68% {
+      opacity: 1;
+      clip-path: inset(0 0% 0 0 round 6px);
     }
     100% {
       opacity: 1;
-      clip-path: inset(0 0 0 0 round 8px);
+      clip-path: inset(0 0% 0 0 round 6px);
+    }
+  }
+
+  @keyframes wetInkBrushFront {
+    0% {
+      opacity: 0.88;
+      transform: translate3d(-96%, 0, 0);
+    }
+    68% {
+      opacity: 0.65;
+      transform: translate3d(4%, 0, 0);
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(18%, 0, 0);
     }
   }
 
   .article-highlight-block.has-pulse {
-    animation: unifiedBlockPulse 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: unifiedBlockPulse 920ms var(--article-ease-surface) forwards;
   }
 
   @keyframes unifiedBlockPulse {
     0% {
-      box-shadow: 0 0 0 0 rgba(255, 197, 61, 0.72);
       background: var(--hl-block-bg-hover);
+      outline: 2px solid var(--vermilion, #c23f2c);
+      outline-offset: 1px;
     }
-    45% {
-      box-shadow: 0 0 0 10px rgba(255, 197, 61, 0);
+    55% {
+      background: var(--hl-block-bg-hover);
+      outline: 1px solid rgba(194, 63, 44, 0.4);
+      outline-offset: 4px;
     }
     100% {
-      box-shadow: 0 0 0 0 rgba(255, 197, 61, 0);
+      outline: 1px solid transparent;
+      outline-offset: 7px;
     }
   }
 
@@ -4400,33 +4535,31 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
 
-  /* 入场与退场动画 (380ms enter, 200ms exit) */
+  /* 入场与退场动画：轻盈宣纸墨笺舒展 (~220ms enter, 170ms exit，零动态 blur) */
   .article-selection-dock.is-entering {
-    animation: selection-dock-in 380ms var(--article-ease-surface) forwards;
+    animation: selection-dock-in 220ms var(--article-ease-surface) forwards;
   }
 
   .article-selection-dock.is-exiting {
-    animation: selection-dock-out 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: selection-dock-out 170ms var(--article-ease-layout) forwards;
   }
 
   .article-selection-dock.is-flipped-top.is-entering {
-    animation: selection-dock-in-top 380ms var(--article-ease-surface) forwards;
+    animation: selection-dock-in-top 220ms var(--article-ease-surface) forwards;
   }
 
   .article-selection-dock.is-flipped-top.is-exiting {
-    animation: selection-dock-out-top 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: selection-dock-out-top 170ms var(--article-ease-layout) forwards;
   }
 
   @keyframes selection-dock-in {
     from {
       opacity: 0;
-      transform: translate3d(-50%, 26px, 0) scale(0.95);
-      filter: blur(4px);
+      transform: translate3d(-50%, 8px, 0) scale(0.97);
     }
     to {
       opacity: 1;
       transform: translate3d(-50%, 0, 0) scale(1);
-      filter: blur(0);
     }
   }
 
@@ -4434,25 +4567,21 @@
     from {
       opacity: 1;
       transform: translate3d(-50%, 0, 0) scale(1);
-      filter: blur(0);
     }
     to {
       opacity: 0;
-      transform: translate3d(-50%, 20px, 0) scale(0.95);
-      filter: blur(3px);
+      transform: translate3d(-50%, 6px, 0) scale(0.975);
     }
   }
 
   @keyframes selection-dock-in-top {
     from {
       opacity: 0;
-      transform: translate3d(-50%, -26px, 0) scale(0.95);
-      filter: blur(4px);
+      transform: translate3d(-50%, -8px, 0) scale(0.97);
     }
     to {
       opacity: 1;
       transform: translate3d(-50%, 0, 0) scale(1);
-      filter: blur(0);
     }
   }
 
@@ -4460,12 +4589,10 @@
     from {
       opacity: 1;
       transform: translate3d(-50%, 0, 0) scale(1);
-      filter: blur(0);
     }
     to {
       opacity: 0;
-      transform: translate3d(-50%, -20px, 0) scale(0.95);
-      filter: blur(3px);
+      transform: translate3d(-50%, -6px, 0) scale(0.975);
     }
   }
 
@@ -5122,6 +5249,13 @@
     margin: 10px auto 2px auto;
     opacity: 0.5;
     flex-shrink: 0;
+    touch-action: none;
+    position: relative;
+  }
+  .drawer-drag-handle::before {
+    content: '';
+    position: absolute;
+    inset: -12px -28px;
   }
 
   /* Drawer Header（与 global.css 52px 通透一体书卷顶栏同步） */
@@ -5399,12 +5533,10 @@
   @keyframes notesEmptyMist {
     from {
       opacity: 0;
-      filter: blur(5px);
-      transform: translate3d(0, 10px, 0);
+      transform: translate3d(0, 8px, 0);
     }
     to {
       opacity: 1;
-      filter: blur(0);
       transform: translate3d(0, 0, 0);
     }
   }
@@ -6372,40 +6504,42 @@
     cursor: help !important;
   }
 
-  /* 提示框主体容器 */
+  /* 提示框主体容器：宣纸笺注卡温润浮现与收拢 */
   .note-hover-tooltip {
     position: fixed;
     z-index: 10000;
-    pointer-events: auto;
+    pointer-events: none;
     width: max-content;
     max-width: clamp(280px, 32vw, 380px);
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.22s var(--ease, cubic-bezier(0.16, 1, 0.3, 1)),
-                transform 0.22s var(--ease, cubic-bezier(0.16, 1, 0.3, 1)),
-                visibility 0.22s;
+    transition: opacity 200ms var(--article-ease-surface),
+                transform 220ms var(--article-ease-surface),
+                visibility 200ms;
+    will-change: transform, opacity;
     user-select: text;
   }
 
   .note-hover-tooltip[data-placement="top"] {
-    transform: translate(-50%, -100%) translateY(4px);
+    transform: translate3d(-50%, calc(-100% + 6px), 0) scale(0.98);
   }
 
   .note-hover-tooltip[data-placement="bottom"] {
-    transform: translate(-50%, 0) translateY(-4px);
+    transform: translate3d(-50%, -6px, 0) scale(0.98);
   }
 
   .note-hover-tooltip.is-visible {
     opacity: 1;
     visibility: visible;
+    pointer-events: auto;
   }
 
   .note-hover-tooltip.is-visible[data-placement="top"] {
-    transform: translate(-50%, -100%) translateY(0);
+    transform: translate3d(-50%, -100%, 0) scale(1);
   }
 
   .note-hover-tooltip.is-visible[data-placement="bottom"] {
-    transform: translate(-50%, 0) translateY(0);
+    transform: translate3d(-50%, 0, 0) scale(1);
   }
 
   /* 提示框卡片内部 */
@@ -6413,11 +6547,11 @@
     position: relative;
     padding: 0.85rem 1rem 0.9rem 1.15rem;
     border-radius: 8px;
-    background: rgba(253, 251, 249, 0.96);
+    background: rgba(253, 251, 247, 0.97);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border: 1px solid var(--rule-strong, rgba(0, 0, 0, 0.16));
-    border-left: 3.5px solid var(--accent, #9a6818);
+    border-left: 3.5px solid var(--vermilion, var(--accent, #9a6818));
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.04);
     overflow: hidden;
   }
@@ -6432,6 +6566,12 @@
   [data-theme="moss"] .note-hover-tooltip-card {
     background: rgba(24, 30, 26, 0.96);
     border-left-color: var(--accent, #5fb386);
+  }
+
+  [data-theme="rice"] .note-hover-tooltip-card {
+    background: rgba(247, 240, 226, 0.97);
+    border-color: rgba(107, 91, 69, 0.24);
+    border-left-color: var(--vermilion, #a83c28);
   }
 
   /* Header */
@@ -6554,6 +6694,11 @@
 
   [data-theme="moss"] .note-hover-tooltip-arrow {
     background: rgba(24, 30, 26, 0.96);
+  }
+
+  [data-theme="rice"] .note-hover-tooltip-arrow {
+    background: rgba(247, 240, 226, 0.97);
+    border-color: rgba(107, 91, 69, 0.24);
   }
 
   .note-hover-tooltip[data-placement="top"] .note-hover-tooltip-arrow {

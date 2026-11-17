@@ -29,9 +29,9 @@ export function waitForPostEntrance(signal: AbortSignal): Promise<boolean> {
         window.clearTimeout(settleTimer);
         settleTimer = 0;
       } else if (!settleTimer) {
-        // The body fades in for 1s after docking. A near-viewport diagram must
+        // The body fades in for ~680ms after docking. A near-viewport diagram must
         // not bypass this wait and import/parse Mermaid during that animation.
-        settleTimer = window.setTimeout(() => finish(true), 1100);
+        settleTimer = window.setTimeout(() => finish(true), 760);
       }
     };
     // Observe only the hold attributes, including the layout's fallback release.
