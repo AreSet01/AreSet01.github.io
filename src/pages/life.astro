@@ -89,8 +89,9 @@ const countByCategory = {
         </button>
       </div>
 
-      <!-- 一级分类切换 Tab -->
-      <div slot="categories" class="life-category-tabs collection-category-tabs" data-enter="bottom" data-no-replay>
+      <!-- 一级分类切换 Tab（含毛笔笔触游标） -->
+      <div slot="categories" class="life-category-tabs collection-category-tabs" id="life-category-tabs" data-enter="bottom" data-no-replay>
+        <span class="life-tab-brush-glider" id="life-tab-brush-glider" aria-hidden="true"></span>
         {categories.map((cat) => (
           <button
             type="button"
@@ -130,6 +131,16 @@ const countByCategory = {
                   {item.city}
                 </span>
               </div>
+              <button
+                type="button"
+                class="life-card-folio-btn"
+                data-open-life-folio={item.id}
+                aria-label={`翻阅手账详笺：${item.title}`}
+                title="翻阅手账书页详笺"
+              >
+                <span>展卷</span>
+                <span aria-hidden="true">↗</span>
+              </button>
             </div>
 
             <!-- 卡片主标题与星级 -->
@@ -155,8 +166,8 @@ const countByCategory = {
                   <span>游历小笺 · 避坑备忘</span>
                 </div>
                 <ul class="life-card-tips-list">
-                  {item.tips.map((tip) => (
-                    <li>{tip}</li>
+                  {item.tips.map((tip, tipIdx) => (
+                    <li style={`--tip-idx: ${tipIdx};`}>{tip}</li>
                   ))}
                 </ul>
               </div>
@@ -267,6 +278,8 @@ const countByCategory = {
   }
 
   .life-random-btn {
+    position: relative;
+    isolation: isolate;
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
@@ -279,7 +292,11 @@ const countByCategory = {
     border: 1px solid var(--rule-strong);
     border-radius: var(--radius-control);
     cursor: pointer;
-    transition: all 260ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition:
+      transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 220ms var(--ease),
+      color 220ms var(--ease),
+      border-color 220ms var(--ease);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     white-space: nowrap !important;
     flex-shrink: 0;
@@ -303,12 +320,11 @@ const countByCategory = {
   .life-random-btn:hover {
     background: var(--text-strong);
     color: var(--bg-base);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    transform: translate3d(0, -2px, 0);
   }
 
   .life-random-btn:active {
-    transform: translateY(1px) scale(0.98);
+    transform: translate3d(0, 1px, 0) scale(0.98);
   }
 
   .life-random-dice {
@@ -352,7 +368,7 @@ const countByCategory = {
     font-weight: 600;
   }
 
-  /* 搜索框 */
+  /* 搜索框（零 box-shadow 重绘） */
   .life-search-wrapper {
     position: relative;
     display: flex;
@@ -361,7 +377,7 @@ const countByCategory = {
     border: 1px solid var(--rule);
     background: var(--bg-soft);
     cursor: default;
-    transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
+    transition: border-color 220ms var(--ease), background-color 220ms var(--ease);
   }
 
   .life-search-wrapper:focus-within {
@@ -416,9 +432,48 @@ const countByCategory = {
     transform: scale(1.15);
   }
 
-  /* 一级分类 Tab：布局与搜索框共用 CollectionFilters */
+  /* 一级分类 Tab + 毛笔笔触游标 (Calligraphic Brush-Stroke Glider) */
+  .life-category-tabs {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .life-tab-brush-glider {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100px;
+    height: 36px;
+    transform-origin: 0 0;
+    z-index: 0;
+    pointer-events: none;
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px);
+    background: var(--ink-strong);
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1, 1);
+    transition:
+      transform 400ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 220ms var(--ease);
+  }
+  /* 游标底端朱砂飞白笔锋 */
+  .life-tab-brush-glider::after {
+    content: '';
+    position: absolute;
+    left: 16%;
+    right: 16%;
+    bottom: -2px;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, transparent, var(--vermilion, #c84b31), transparent);
+    opacity: 0.85;
+  }
+  .life-tab-brush-glider.is-ready {
+    opacity: 1;
+  }
+
   .life-cat-tab {
     position: relative;
+    z-index: 1;
     isolation: isolate;
     overflow: hidden;
     display: inline-flex;
@@ -435,24 +490,14 @@ const countByCategory = {
     user-select: none;
     box-sizing: border-box;
     transition:
-      color 420ms var(--ease),
-      border-color 320ms var(--ease),
-      transform 320ms var(--ease-bounce);
+      color 320ms var(--ease),
+      border-color 280ms var(--ease),
+      transform 300ms var(--ease-bounce);
   }
 
-  .life-cat-tab::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
+  /* 当笔触游标未就绪时的静默降级底色 */
+  .life-category-tabs:not(.has-brush-glider) .life-cat-tab.is-active {
     background: var(--ink-strong);
-    transform: scaleX(0);
-    transform-origin: left center;
-    transition: transform 520ms var(--ease);
-  }
-
-  .life-cat-tab.is-active::before {
-    transform: scaleX(1);
   }
 
   .life-cat-tab:not(.is-active):hover {
@@ -530,16 +575,53 @@ const countByCategory = {
     }
   }
 
-  /* 卡片本体（文人雅集生活卡片，统一 12px 圆角与柔和底色） */
+  /* 卡片本体（纸境手账页：适配四主题底色 + 伪元素阴影，零 box-shadow 重绘） */
   .life-card {
     position: relative;
+    isolation: isolate;
     display: flex;
     flex-direction: column;
     padding: 1.6rem 1.8rem;
-    background: rgba(248, 246, 242, 0.9);
+    background: rgba(249, 247, 242, 0.92);
     border: 1px solid var(--rule);
     border-radius: 12px !important;
-    box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 4px 18px -2px rgba(20, 21, 23, 0.04);
+  }
+  [data-theme="dark"] .life-card {
+    background: rgba(25, 26, 30, 0.9);
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.36);
+  }
+  [data-theme="moss"] .life-card {
+    background: color-mix(in srgb, var(--bg-elev) 92%, transparent);
+    box-shadow: 0 6px 20px -4px rgba(0, 30, 24, 0.22);
+  }
+  [data-theme="rice"] .life-card {
+    background: rgba(242, 233, 216, 0.93);
+    box-shadow: 0 5px 18px -3px rgba(74, 53, 32, 0.08);
+  }
+
+  /* 伪元素悬浮纸面抬升阴影 + 右侧微弱书页折痕层次（仅合成 opacity） */
+  .life-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow:
+      0 18px 36px -10px rgba(var(--accent-rgb), 0.14),
+      0 6px 16px -4px rgba(20, 21, 23, 0.08);
+    opacity: 0;
+    transition: opacity 340ms var(--ease-card);
+  }
+  [data-theme="dark"] .life-card::after {
+    box-shadow:
+      0 20px 42px -10px rgba(0, 0, 0, 0.56),
+      0 0 22px -8px rgba(224, 109, 83, 0.2);
+  }
+  .life-card:hover::after,
+  .life-card:focus-within::after {
+    opacity: 1;
   }
 
   .life-card.is-filtered-out {
@@ -548,10 +630,10 @@ const countByCategory = {
 
   /* 由统一 GSAP tilt 引擎管理 3D 变换，杜绝 CSS transform 过渡与 GSAP 逐帧抢控制权 */
   .life-card.is-entered:not(.is-reflowing):not(.is-entering) {
-    transition: box-shadow 240ms var(--ease), border-color 240ms var(--ease);
+    transition: border-color 280ms var(--ease-card), background-color 280ms var(--ease-card);
   }
-
   .life-card.is-entered:hover {
+    border-color: var(--rule-strong);
     will-change: transform;
   }
 
@@ -609,6 +691,34 @@ const countByCategory = {
     font-family: var(--font-mono);
     color: var(--muted-strong);
     font-weight: 600;
+  }
+
+  .life-card-folio-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    padding: 0.18rem 0.55rem;
+    border-radius: var(--radius-control);
+    border: 1px solid var(--rule);
+    background: var(--bg-soft);
+    color: var(--muted-strong);
+    font-size: 0.7rem;
+    font-family: var(--font-serif);
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    opacity: 0.78;
+    transition:
+      opacity 220ms var(--ease),
+      color 220ms var(--ease),
+      border-color 220ms var(--ease),
+      transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .life-card:hover .life-card-folio-btn,
+  .life-card-folio-btn:focus-visible {
+    opacity: 1;
+    color: var(--vermilion, #c84b31);
+    border-color: color-mix(in srgb, var(--vermilion, #c84b31) 48%, var(--rule-strong));
+    transform: translate3d(1px, -1px, 0);
   }
 
 
@@ -698,14 +808,36 @@ const countByCategory = {
     line-height: 1;
   }
 
+  /* 手账时间脉络墨韵级联 (Temporal Ink-Vein Cascade) */
   .life-card-tips-list {
+    position: relative;
     list-style: none;
-    padding: 0.1rem 0 0.1rem 0.85rem;
+    padding: 0.15rem 0 0.15rem 0.95rem;
     margin: 0;
     border-left: 1px solid var(--rule-strong);
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0.42rem;
+  }
+  .life-card-tips-list::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 0;
+    bottom: 0;
+    width: 1.5px;
+    background: linear-gradient(180deg, var(--vermilion, #c84b31), var(--accent), transparent);
+    transform: scaleY(0.28);
+    transform-origin: top center;
+    opacity: 0.45;
+    transition:
+      transform 460ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 320ms var(--ease-card);
+  }
+  .life-card:hover .life-card-tips-list::before,
+  .life-card:focus-within .life-card-tips-list::before {
+    transform: scaleY(1);
+    opacity: 0.95;
   }
 
   .life-card-tips-list li {
@@ -715,26 +847,58 @@ const countByCategory = {
     font-size: 0.84rem;
     font-weight: 500;
     color: var(--text);
+    transform: translate3d(0, 0, 0);
+    transition:
+      transform 340ms calc(var(--tip-idx, 0) * 45ms) cubic-bezier(0.22, 1, 0.36, 1),
+      color 260ms calc(var(--tip-idx, 0) * 45ms) var(--ease);
+  }
+  .life-card:hover .life-card-tips-list li {
+    transform: translate3d(3px, 0, 0);
+    color: var(--text-strong);
   }
 
   .life-card-tips-list li::before {
-    content: '•';
+    content: '';
     position: absolute;
-    left: 0.1rem;
-    top: -0.05rem;
-    color: var(--accent);
-    opacity: 0.7;
+    left: 0.08rem;
+    top: 0.56rem;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--accent);
+    opacity: 0.62;
+    transform: scale(0.88);
+    transition:
+      transform 320ms calc(var(--tip-idx, 0) * 45ms) var(--ease-bounce),
+      background-color 260ms calc(var(--tip-idx, 0) * 45ms) var(--ease),
+      opacity 260ms calc(var(--tip-idx, 0) * 45ms) var(--ease);
+  }
+  .life-card:hover .life-card-tips-list li::before {
+    background: var(--vermilion, #c84b31);
+    opacity: 1;
+    transform: scale(1.18);
   }
 
   .life-card-best-time {
-    display: flex;
+    position: relative;
+    display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.42rem;
     font-size: 0.76rem;
     font-family: var(--font-mono);
     color: var(--muted-strong);
     font-weight: 600;
     margin: 0.6rem 0 0.85rem;
+    padding: 0.22rem 0.62rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--bg-soft) 82%, transparent);
+    border: 1px dashed var(--rule-strong);
+    align-self: flex-start;
+    transition: border-color 260ms var(--ease), color 260ms var(--ease);
+  }
+  .life-card:hover .life-card-best-time {
+    border-color: color-mix(in srgb, var(--vermilion, #c84b31) 42%, var(--rule-strong));
+    color: var(--text-strong);
   }
 
   .best-time-icon {
@@ -862,13 +1026,17 @@ const countByCategory = {
     border: 1px solid var(--rule-strong);
     border-radius: var(--radius-control);
     cursor: pointer;
-    transition: all 220ms ease;
+    transition:
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 220ms var(--ease),
+      color 220ms var(--ease),
+      border-color 220ms var(--ease);
   }
 
   .life-reset-btn:hover {
     background: var(--text-strong);
     color: var(--bg-base);
-    transform: translateY(-1px);
+    transform: translate3d(0, -1px, 0);
   }
 
   :global(body.life-modal-open) {
@@ -876,7 +1044,7 @@ const countByCategory = {
     overscroll-behavior: none !important;
   }
 
-  /* 抽签 Modal */
+  /* 抽签与手账详笺 Modal：3D 线装书页翻阅动效 (Thread-Bound Folio Page Turn) */
   .life-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -885,12 +1053,13 @@ const countByCategory = {
     align-items: center;
     justify-content: center;
     padding: 1.5rem;
-    background: rgba(0, 0, 0, 0.52);
+    perspective: 1200px;
+    background: rgba(12, 13, 16, 0.54);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 280ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 300ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .life-modal-backdrop.is-open {
@@ -905,24 +1074,41 @@ const countByCategory = {
   .life-modal-dialog {
     position: relative;
     width: 100%;
-    max-width: 480px;
-    max-height: min(90vh, 640px);
+    max-width: 500px;
+    max-height: min(90vh, 660px);
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;
     scrollbar-width: none !important; -ms-overflow-style: none !important; -webkit-overflow-scrolling: touch;
     background: var(--bg-base);
+    background-image: linear-gradient(
+      90deg,
+      rgba(20, 21, 23, 0.06) 0px,
+      rgba(20, 21, 23, 0.015) 14px,
+      transparent 34px
+    );
     border: 1px solid var(--rule-strong);
-    border-radius: 14px;
-    padding: 2rem;
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
-    transform: scale(0.92) translateY(12px);
+    border-left: 3px solid color-mix(in srgb, var(--vermilion, #c84b31) 52%, var(--rule-strong));
+    border-radius: 6px 14px 14px 6px;
+    padding: 2rem 2rem 1.85rem 2.15rem;
+    box-shadow: 0 26px 64px -10px rgba(0, 0, 0, 0.28);
+    transform-origin: left center;
+    transform: rotateY(-14deg) rotateX(3deg) translate3d(-12px, 14px, 0) scale(0.95);
     opacity: 0;
-    transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1), opacity 320ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition:
+      transform 440ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  [data-theme="dark"] .life-modal-dialog {
+    background-image: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.04) 0px,
+      transparent 30px
+    );
   }
 
   .life-modal-backdrop.is-open .life-modal-dialog {
-    transform: scale(1) translateY(0);
+    transform: rotateY(0deg) rotateX(0deg) translate3d(0, 0, 0) scale(1);
     opacity: 1;
   }
 
@@ -946,17 +1132,22 @@ const countByCategory = {
 
   .life-modal-header {
     text-align: center;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.35rem;
   }
 
+  /* 朱砂印信签章 */
   .modal-seal {
     display: inline-block;
     font-size: 0.72rem;
-    padding: 0.15rem 0.45rem;
-    border: 1px solid var(--text-strong);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    padding: 0.16rem 0.52rem;
+    border: 1.5px solid color-mix(in srgb, var(--vermilion, #c84b31) 78%, transparent);
     border-radius: 3px;
-    color: var(--text-strong);
-    margin-bottom: 0.5rem;
+    color: var(--vermilion, #c84b31);
+    background: color-mix(in srgb, var(--vermilion, #c84b31) 8%, transparent);
+    margin-bottom: 0.55rem;
+    transform: rotate(-3deg);
   }
 
   .modal-title {
@@ -975,12 +1166,13 @@ const countByCategory = {
 
   .life-modal-body {
     min-height: 160px;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.45rem;
+    transform-origin: left center;
   }
 
   @media (max-width: 639px) {
     .life-modal-dialog {
-      padding: 1.5rem 1.15rem;
+      padding: 1.5rem 1.15rem 1.4rem 1.3rem;
       margin: 1rem;
       max-width: calc(100vw - 2rem);
     }
@@ -1001,16 +1193,44 @@ const countByCategory = {
     flex: 1 1 130px;
     text-align: center;
     cursor: pointer;
-    transition: all 180ms ease;
+    transition:
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 180ms var(--ease),
+      background-color 180ms var(--ease),
+      border-color 180ms var(--ease);
   }
 
   .life-modal-reroll-btn:hover {
     opacity: 0.92;
-    transform: translateY(-1px);
+    transform: translate3d(0, -1px, 0);
   }
 
   .life-modal-locate-btn:hover {
-    transform: translateY(-1px);
+    transform: translate3d(0, -1px, 0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .life-random-btn,
+    .life-random-dice,
+    .life-tab-brush-glider,
+    .life-cat-tab,
+    .life-card,
+    .life-card::after,
+    .life-card-folio-btn,
+    .life-card-tips-list::before,
+    .life-card-tips-list li,
+    .life-card-tips-list li::before,
+    .life-reset-btn,
+    .life-modal-backdrop,
+    .life-modal-dialog,
+    .life-modal-reroll-btn,
+    .life-modal-locate-btn {
+      animation: none !important;
+      transition: none !important;
+    }
+    .life-modal-dialog {
+      transform: none !important;
+    }
   }
 </style>
 
@@ -1067,16 +1287,58 @@ const countByCategory = {
     const searchClear = document.getElementById('life-search-clear');
     const emptyState = document.getElementById('life-empty-state');
     const resetBtn = document.getElementById('life-reset-filters-btn');
+    const catTabsWrap = document.getElementById('life-category-tabs');
+    const tabBrushGlider = document.getElementById('life-tab-brush-glider');
     const catTabs = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-category-tab]'));
     const diceIcon = document.getElementById('life-dice-icon');
 
-    // 抽签 Modal 相关
+    // 抽签与手账详笺 Modal 相关
     const randomBtn = document.getElementById('life-random-btn');
     const modal = document.getElementById('life-lottery-modal');
     const modalClose = document.getElementById('life-modal-close');
     const modalContent = document.getElementById('life-modal-content');
     const modalReroll = document.getElementById('life-modal-reroll');
     const modalLocate = document.getElementById('life-modal-locate');
+    const modalSeal = modal?.querySelector<HTMLElement>('.modal-seal') || null;
+    const modalTitleEl = document.getElementById('modal-life-title');
+    const modalSubtitleEl = modal?.querySelector<HTMLElement>('.modal-subtitle') || null;
+
+    function syncLifeTabBrushGlider(immediate = false) {
+      if (!catTabsWrap || !tabBrushGlider) return;
+      const activeTab = catTabsWrap.querySelector<HTMLElement>('.life-cat-tab.is-active') || catTabs[0];
+      if (!activeTab) return;
+      const wrapRect = catTabsWrap.getBoundingClientRect();
+      const tabRect = activeTab.getBoundingClientRect();
+      if (!tabRect.width || !tabRect.height) return;
+      const x = tabRect.left - wrapRect.left + catTabsWrap.scrollLeft;
+      const y = tabRect.top - wrapRect.top + catTabsWrap.scrollTop;
+      const sx = Math.max(0.05, tabRect.width / 100);
+      const sy = Math.max(0.05, tabRect.height / 36);
+      const halfH = tabRect.height * 0.5;
+      tabBrushGlider.style.setProperty('--pill-rx', `${(halfH / sx).toFixed(2)}px`);
+      tabBrushGlider.style.setProperty('--pill-ry', `${(halfH / sy).toFixed(2)}px`);
+      const nextTransform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
+      if (immediate || reduceMotion) {
+        tabBrushGlider.style.transition = 'none';
+        tabBrushGlider.style.transform = nextTransform;
+        requestAnimationFrame(() => {
+          if (tabBrushGlider) tabBrushGlider.style.transition = '';
+        });
+      } else {
+        tabBrushGlider.style.transform = nextTransform;
+      }
+      catTabsWrap.classList.add('has-brush-glider');
+      tabBrushGlider.classList.add('is-ready');
+    }
+
+    requestAnimationFrame(() => syncLifeTabBrushGlider(true));
+    document.fonts?.ready?.then(() => syncLifeTabBrushGlider(true)).catch(() => {});
+    const tabGliderRO = typeof ResizeObserver !== 'undefined' && catTabsWrap
+      ? new ResizeObserver(() => syncLifeTabBrushGlider(true))
+      : null;
+    if (tabGliderRO && catTabsWrap) {
+      tabGliderRO.observe(catTabsWrap);
+    }
 
     /**
      * 将卡片状态从动画或隐藏完全交付给页面，确保在动画结束后不受任何行内样式干扰
@@ -1489,6 +1751,7 @@ const countByCategory = {
         catTabs.forEach((t) => t.classList.remove('is-active'));
         tab.classList.add('is-active');
         currentCategory = newCat;
+        syncLifeTabBrushGlider(false);
 
         const rect = tab.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
@@ -1499,7 +1762,7 @@ const countByCategory = {
       }, { signal });
     });
 
-    // 卡片内小标签点击直接填入搜索框并即时过滤
+    // 卡片内小标签点击直接填入搜索框并即时过滤；点击「展卷」或标题翻阅手账书页详笺
     cards.forEach((card) => {
       const chips = card.querySelectorAll<HTMLElement>('[data-click-tag]');
       chips.forEach((chip) => {
@@ -1518,6 +1781,16 @@ const countByCategory = {
 
           const rect = chip.getBoundingClientRect();
           (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+        }, { signal });
+      });
+
+      const folioBtn = card.querySelector<HTMLElement>('[data-open-life-folio]');
+      const titleEl = card.querySelector<HTMLElement>('.life-card-title');
+      [folioBtn, titleEl].filter(Boolean).forEach((trigger) => {
+        trigger!.style.cursor = 'pointer';
+        trigger!.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openCardFolio(card, trigger!);
         }, { signal });
       });
     });
@@ -1564,6 +1837,7 @@ const countByCategory = {
 
         catTabs.forEach((t) => t.classList.remove('is-active'));
         catTabs[0]?.classList.add('is-active');
+        syncLifeTabBrushGlider(false);
 
         const rect = resetBtn.getBoundingClientRect();
         (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 14);
@@ -1573,13 +1847,25 @@ const countByCategory = {
     }
 
     // =========================================================
-    // 灵感抽签 Modal 与交互动效
+    // 灵感抽签 & 手账书页翻阅详笺 Modal (3D Book-Page Flip)
     // =========================================================
     let isModalOpen = false;
+    let modalHideTimer = 0;
+    const spotlightTimers = new Set<number>();
 
-    function openModal() {
+    function trackTimer(fn: () => void, ms: number) {
+      const id = window.setTimeout(() => {
+        spotlightTimers.delete(id);
+        fn();
+      }, ms);
+      spotlightTimers.add(id);
+      return id;
+    }
+
+    function openModal(originEl?: HTMLElement | null, isLottery = true) {
       if (!modal) return;
       isModalOpen = true;
+      window.clearTimeout(modalHideTimer);
 
       // 避免 Lenis 与弹窗内滚动打架
       if ((window as any).lenis) {
@@ -1592,14 +1878,23 @@ const countByCategory = {
       });
       document.body.classList.add('life-modal-open');
 
-      // 掷骰子动画与水墨飞溅
-      if (diceIcon && !reduceMotion) {
-        gsap.fromTo(diceIcon, { rotation: 0, scale: 1 }, { rotation: 720, scale: 1.35, duration: 0.65, ease: 'back.out(2)', clearProps: 'scale' });
+      if (!reduceMotion) {
+        if (isLottery && diceIcon) {
+          gsap.fromTo(diceIcon, { rotation: 0, scale: 1 }, { rotation: 720, scale: 1.35, duration: 0.65, ease: 'back.out(2)', clearProps: 'scale' });
+        }
+        if (modalSeal) {
+          gsap.fromTo(
+            modalSeal,
+            { scale: 1.46, rotation: -12, opacity: 0.25 },
+            { scale: 1, rotation: -3, opacity: 1, duration: 0.38, ease: 'back.out(2.1)' }
+          );
+        }
       }
 
-      const btnRect = randomBtn?.getBoundingClientRect();
-      if (btnRect) {
-        (window as any).__inkSplash?.(btnRect.left + btnRect.width / 2, btnRect.top + btnRect.height / 2, 16);
+      const splashTarget = originEl || randomBtn;
+      const btnRect = splashTarget?.getBoundingClientRect();
+      if (btnRect && btnRect.width > 0) {
+        (window as any).__inkSplash?.(btnRect.left + btnRect.width / 2, btnRect.top + btnRect.height / 2, isLottery ? 16 : 10);
       }
     }
 
@@ -1614,11 +1909,88 @@ const countByCategory = {
         (window as any).lenis.start();
       }
 
-      window.setTimeout(() => {
+      window.clearTimeout(modalHideTimer);
+      modalHideTimer = window.setTimeout(() => {
         if (!isModalOpen) {
           modal.classList.add('hidden');
         }
-      }, 300);
+      }, 320);
+    }
+
+    function renderCardFolioContent(pickedCard: HTMLElement, mode: 'lottery' | 'folio') {
+      currentLotteryCard = pickedCard;
+      const title = pickedCard.querySelector('.life-card-title')?.textContent || '';
+      const categoryBadge = pickedCard.querySelector('.life-card-category-badge')?.textContent || '';
+      const city = pickedCard.querySelector('.life-card-city')?.textContent || '';
+      const ratingHtml = pickedCard.querySelector('.life-card-rating')?.innerHTML || '';
+      const summary = pickedCard.querySelector('.life-card-summary')?.textContent || '';
+      const bestTime = pickedCard.querySelector('.life-card-best-time')?.textContent?.trim() || '';
+      const tipNodes = Array.from(pickedCard.querySelectorAll('.life-card-tips-list li'));
+      const mapHref = pickedCard.querySelector<HTMLAnchorElement>('.life-map-link')?.getAttribute('href') || '';
+
+      if (modalSeal) modalSeal.textContent = mode === 'lottery' ? '抽签' : '拾光';
+      if (modalTitleEl) modalTitleEl.textContent = mode === 'lottery' ? '🎲 今日灵感签' : '📖 手账书页详笺';
+      if (modalSubtitleEl) {
+        modalSubtitleEl.textContent = mode === 'lottery'
+          ? '既然犹豫不决，不妨把脚步交给机缘~'
+          : '展卷细读一处好风光，留作他日出游备忘。';
+      }
+
+      if (modalContent) {
+        const tipsHtml = tipNodes.length > 0
+          ? `<ul class="mt-3 pt-3 border-t border-[var(--rule)] space-y-1.5 text-xs text-[var(--text)]">${tipNodes
+              .map((li) => `<li class="flex items-start gap-2 leading-relaxed"><span class="text-[var(--vermilion)] shrink-0">•</span><span>${li.textContent || ''}</span></li>`)
+              .join('')}</ul>`
+          : '';
+        const mapHtml = mapHref
+          ? `<a href="${mapHref}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline">${bestTime ? '· ' : ''}地图导航 ↗</a>`
+          : '';
+
+        modalContent.innerHTML = `
+          <div class="p-4 sm:p-5 rounded-xl bg-[var(--bg-soft)] border border-[var(--rule)] space-y-2.5">
+            <div class="flex items-center justify-between text-xs gap-2 flex-wrap">
+              <span class="px-2 py-0.5 rounded border border-[var(--rule)] bg-[var(--bg-base)] font-medium text-[var(--text-strong)]">${categoryBadge}</span>
+              <span class="font-mono text-[var(--muted)]">${city}</span>
+            </div>
+            <div class="flex items-baseline justify-between gap-2">
+              <h4 class="text-xl font-bold text-[var(--text-strong)]" style="font-family: var(--font-hand);">${title}</h4>
+              <span class="text-xs text-[var(--vermilion)] shrink-0">${ratingHtml}</span>
+            </div>
+            <p class="text-sm italic text-[var(--muted-strong)] leading-relaxed" style="font-family: var(--font-serif);">${summary}</p>
+            ${tipsHtml}
+            ${(bestTime || mapHtml) ? `<div class="pt-1 flex items-center flex-wrap gap-2 text-xs font-mono text-[var(--muted)]">${bestTime ? `<span>${bestTime}</span>` : ''}${mapHtml}</div>` : ''}
+          </div>
+        `;
+
+        if (!reduceMotion) {
+          gsap.killTweensOf(modalContent);
+          gsap.fromTo(
+            modalContent,
+            {
+              opacity: 0,
+              rotateY: -15,
+              x: 14,
+              scale: 0.975,
+              transformPerspective: 960,
+              transformOrigin: 'left center',
+            },
+            {
+              opacity: 1,
+              rotateY: 0,
+              x: 0,
+              scale: 1,
+              duration: 0.44,
+              ease: 'ink',
+              clearProps: 'transform',
+            }
+          );
+        }
+      }
+    }
+
+    function openCardFolio(card: HTMLElement, originEl?: HTMLElement | null) {
+      renderCardFolioContent(card, 'folio');
+      openModal(originEl, false);
     }
 
     let lastPickedId = '';
@@ -1636,34 +2008,10 @@ const countByCategory = {
       }
 
       const pickedCard = poolToPick[Math.floor(Math.random() * poolToPick.length)];
-      currentLotteryCard = pickedCard;
       lastPickedId = pickedCard.getAttribute('data-life-id') || '';
 
-      const title = pickedCard.querySelector('.life-card-title')?.textContent || '';
-      const categoryBadge = pickedCard.querySelector('.life-card-category-badge')?.textContent || '';
-      const city = pickedCard.querySelector('.life-card-city')?.textContent || '';
-      const summary = pickedCard.querySelector('.life-card-summary')?.textContent || '';
-      const bestTime = pickedCard.querySelector('.life-card-best-time')?.textContent || '';
-
-      if (modalContent) {
-        modalContent.innerHTML = `
-          <div class="p-4 rounded-lg bg-[var(--bg-soft)] border border-[var(--rule)]">
-            <div class="flex items-center justify-between text-xs mb-2">
-              <span class="px-2 py-0.5 rounded border border-[var(--rule)] bg-[var(--bg-base)] font-medium text-[var(--text-strong)]">${categoryBadge}</span>
-              <span class="font-mono text-[var(--muted)]">${city}</span>
-            </div>
-            <h4 class="text-xl font-bold text-[var(--text-strong)] mb-2" style="font-family: var(--font-hand);">${title}</h4>
-            <p class="text-sm italic text-[var(--muted-strong)] mb-3" style="font-family: var(--font-serif);">${summary}</p>
-            ${bestTime ? `<p class="text-xs font-mono text-[var(--muted)]">${bestTime}</p>` : ''}
-          </div>
-        `;
-
-        if (!reduceMotion) {
-          gsap.fromTo(modalContent, { opacity: 0, y: 12, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.38, ease: 'ink' });
-        }
-      }
-
-      openModal();
+      renderCardFolioContent(pickedCard, 'lottery');
+      openModal(randomBtn, true);
     }
 
     if (randomBtn) {
@@ -1708,13 +2056,14 @@ const countByCategory = {
           if (searchClear) searchClear.classList.add('hidden');
           catTabs.forEach((t) => t.classList.remove('is-active'));
           catTabs[0]?.classList.add('is-active');
+          syncLifeTabBrushGlider(true);
           applyFilters(false);
         }
 
         closeModal();
 
         // 统一使用 Lenis 平滑滚动，严防原生 smooth scroll 与 Lenis 冲突导致卡住
-        window.setTimeout(() => {
+        trackTimer(() => {
           if ((window as any).lenis) {
             (window as any).lenis.scrollTo(target, {
               offset: -100,
@@ -1727,32 +2076,43 @@ const countByCategory = {
 
           // 施加聚焦高光动画与水墨飞溅
           target.classList.add('is-spotlight');
-          window.setTimeout(() => {
+          trackTimer(() => {
             const rect = target.getBoundingClientRect();
             (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 20);
           }, 550);
 
-          window.setTimeout(() => {
+          trackTimer(() => {
             target.classList.remove('is-spotlight');
           }, 3200);
         }, 150);
       }, { signal });
     }
 
-    // 页面卸载或重新载入时的清理函数
+    // 页面卸载或重新载入时的清理函数（零定时器/Observer/补间泄漏）
     (window as any)[CLEANUP_KEY] = () => {
       activeContainer = null;
       controller.abort();
+      tabGliderRO?.disconnect();
       window.clearTimeout(searchTimer);
+      window.clearTimeout(modalHideTimer);
+      spotlightTimers.forEach((tid) => window.clearTimeout(tid));
+      spotlightTimers.clear();
       if (filterTimeline) {
         filterTimeline.kill();
         filterTimeline = null;
       }
+      gsap.killTweensOf(container);
+      if (emptyState) gsap.killTweensOf(emptyState);
+      if (modalContent) gsap.killTweensOf(modalContent);
+      if (diceIcon) gsap.killTweensOf(diceIcon);
+      if (modalSeal) gsap.killTweensOf(modalSeal);
       if (isModalOpen) {
         if ((window as any).lenis) {
           (window as any).lenis.start();
         }
         document.body.classList.remove('life-modal-open');
+        modal?.classList.remove('is-open');
+        modal?.classList.add('hidden');
         isModalOpen = false;
       }
       cards.forEach((card) => {

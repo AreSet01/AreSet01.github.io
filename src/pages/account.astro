@@ -14,7 +14,8 @@ import Header from '../components/Header.astro';
       </header>
 
       <div id="authView" class="account-card">
-        <div class="account-tabs" role="tablist" aria-label="登录或注册">
+        <div class="account-tabs" id="accountTabs" role="tablist" aria-label="登录或注册">
+          <span class="account-tab-glider" id="accountTabGlider" aria-hidden="true"></span>
           <button type="button" id="tabLogin" class="account-tab is-active" role="tab" aria-selected="true">登录</button>
           <button type="button" id="tabRegister" class="account-tab" role="tab" aria-selected="false">用邀请码注册</button>
         </div>
@@ -46,9 +47,17 @@ import Header from '../components/Header.astro';
 
       <div id="profileView" class="account-card" hidden>
         <div class="account-profile-head">
-          <div>
-            <p class="account-kicker">Signed in</p>
-            <p class="account-username" id="profileUsername">—</p>
+          <div class="account-profile-identity">
+            <div>
+              <p class="account-kicker">Signed in · 印信通行</p>
+              <p class="account-username" id="profileUsername">—</p>
+            </div>
+            <!-- 朱砂钤印核验章 -->
+            <div class="account-cinnabar-seal-wrap" id="accountSealWrap" aria-hidden="true">
+              <span class="seal-ink-ring ring-a"></span>
+              <span class="seal-ink-ring ring-b"></span>
+              <span class="account-cinnabar-seal" id="accountSealStamp">钤印核验</span>
+            </div>
           </div>
           <button type="button" id="logoutBtn" class="account-ghost-btn">退出登录</button>
         </div>
@@ -74,6 +83,29 @@ import Header from '../components/Header.astro';
           <div class="account-sync-status-body">
             <p class="account-sync-status" id="syncStatus">正在检查本地与云端数据…</p>
             <p class="account-sync-detail" id="syncDetail">本地版本: — · 云端版本: — · 待提交: 0 · 待拉取: 0</p>
+          </div>
+
+          <!-- 云墨流转同步桥：本机砚台 ⇄ 云端藏书阁 -->
+          <div class="sync-ink-bridge" id="syncInkBridge" data-flow="checking" aria-hidden="true">
+            <div class="bridge-node is-local">
+              <span class="bridge-node-title">本机砚台</span>
+              <span class="bridge-node-meta" id="bridgeLocalMeta">待提交 0</span>
+            </div>
+            <div class="bridge-conduit">
+              <svg class="bridge-svg" viewBox="0 0 220 36" preserveAspectRatio="none">
+                <path class="bridge-track-bg" d="M 10 13 C 75 3, 145 23, 210 13" fill="none" />
+                <path class="bridge-track-bg" d="M 210 23 C 145 33, 75 13, 10 23" fill="none" />
+                <path class="bridge-stream stream-push" pathLength="1" d="M 10 13 C 75 3, 145 23, 210 13" fill="none" />
+                <path class="bridge-stream stream-pull" pathLength="1" d="M 210 23 C 145 33, 75 13, 10 23" fill="none" />
+              </svg>
+              <span class="ink-flow-droplet droplet-push"></span>
+              <span class="ink-flow-droplet droplet-pull"></span>
+              <span class="bridge-confluence-seal" id="bridgeConfluenceLabel">云墨</span>
+            </div>
+            <div class="bridge-node is-cloud">
+              <span class="bridge-node-title">云端藏书阁</span>
+              <span class="bridge-node-meta" id="bridgeCloudMeta">待拉取 0</span>
+            </div>
           </div>
 
           <!-- 两步同步核心操作 -->
@@ -144,31 +176,121 @@ import Header from '../components/Header.astro';
   initMindmapSync();
 
   const CLEANUP_KEY = '__areSetAccountCleanup__';
+  const LISTENER_KEY = '__areSetAccountPageBound__';
 
   function initAccountPage() {
     const previousCleanup = (window as any)[CLEANUP_KEY];
     if (typeof previousCleanup === 'function') previousCleanup();
 
+    const shell = document.querySelector<HTMLElement>('[data-account-shell]');
+    if (!shell) return;
+
     const controller = new AbortController();
     const { signal } = controller;
-    (window as any)[CLEANUP_KEY] = () => controller.abort();
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const trackedTimers = new Set<number>();
+
+    function scheduleTimer(fn: () => void, ms: number): number {
+      const id = window.setTimeout(() => {
+        trackedTimers.delete(id);
+        fn();
+      }, ms);
+      trackedTimers.add(id);
+      return id;
+    }
 
     const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
 
-    const shell = document.querySelector<HTMLElement>('[data-account-shell]');
     const authView = $('authView');
     const profileView = $('profileView');
     const authMessage = $('authMessage') as HTMLParagraphElement | null;
+    const accountTabs = $('accountTabs');
+    const accountTabGlider = $('accountTabGlider');
     const tabLogin = $('tabLogin');
     const tabRegister = $('tabRegister');
     const loginForm = $('loginForm') as HTMLFormElement | null;
     const registerForm = $('registerForm') as HTMLFormElement | null;
     const profileUsername = $('profileUsername');
+    const sealWrap = $('accountSealWrap');
+    const sealStamp = $('accountSealStamp');
+    const syncInkBridge = $('syncInkBridge');
+    const bridgeLocalMeta = $('bridgeLocalMeta');
+    const bridgeCloudMeta = $('bridgeCloudMeta');
+    const bridgeConfluenceLabel = $('bridgeConfluenceLabel');
     const syncStatus = $('syncStatus');
     const serviceHint = $('authServiceHint') as HTMLParagraphElement | null;
 
+    function syncAccountTabGlider(immediate = false) {
+      if (!accountTabs || !accountTabGlider) return;
+      const activeBtn = accountTabs.querySelector<HTMLElement>('.account-tab.is-active');
+      if (!activeBtn || !activeBtn.offsetWidth) return;
+      const sx = Math.max(0.05, activeBtn.offsetWidth / 100);
+      accountTabGlider.style.setProperty('--pill-rx', `${(7 / sx).toFixed(2)}px`);
+      const nextTransform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
+      if (immediate || reduceMotion) {
+        accountTabGlider.style.transition = 'none';
+        accountTabGlider.style.transform = nextTransform;
+        requestAnimationFrame(() => {
+          if (accountTabGlider) accountTabGlider.style.transition = '';
+        });
+      } else {
+        accountTabGlider.style.transform = nextTransform;
+      }
+      accountTabGlider.classList.add('is-ready');
+    }
+
+    const tabsRO = typeof ResizeObserver !== 'undefined' && accountTabs
+      ? new ResizeObserver(() => syncAccountTabGlider(true))
+      : null;
+    if (tabsRO && accountTabs) tabsRO.observe(accountTabs);
+
     // 入场：下一帧挂 is-ready，让 CSS 过渡跑起来
-    requestAnimationFrame(() => shell?.classList.add('is-ready'));
+    requestAnimationFrame(() => {
+      shell.classList.add('is-ready');
+      syncAccountTabGlider(true);
+    });
+
+    type SyncFlowMode = 'idle' | 'checking' | 'pushing' | 'pulling' | 'bidirectional' | 'synced' | 'error';
+    const FLOW_LABELS: Record<SyncFlowMode, string> = {
+      idle: '待命',
+      checking: '巡验',
+      pushing: '呈送 →',
+      pulling: '← 采撷',
+      bidirectional: '⇄ 流转',
+      synced: '印合',
+      error: '阻滞',
+    };
+
+    function setSyncInkFlowState(mode: SyncFlowMode) {
+      if (syncInkBridge) syncInkBridge.setAttribute('data-flow', mode);
+      if (bridgeConfluenceLabel) bridgeConfluenceLabel.textContent = FLOW_LABELS[mode] || '云墨';
+    }
+
+    let sealStampTimer = 0;
+    function triggerSealVerificationRitual(stampLabel = '钤印核验') {
+      if (sealStamp) sealStamp.textContent = stampLabel;
+      if (!sealWrap || reduceMotion) return;
+      window.clearTimeout(sealStampTimer);
+      sealWrap.classList.remove('is-stamping');
+      requestAnimationFrame(() => {
+        sealWrap.classList.add('is-stamping');
+        const rect = sealWrap.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 10);
+        }
+        sealStampTimer = scheduleTimer(() => {
+          sealWrap.classList.remove('is-stamping');
+        }, 720);
+      });
+    }
+
+    (window as any)[CLEANUP_KEY] = () => {
+      controller.abort();
+      tabsRO?.disconnect();
+      trackedTimers.forEach((tid) => window.clearTimeout(tid));
+      trackedTimers.clear();
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
 
     type JsonResult = { res: Response; data: any };
 
@@ -190,15 +312,22 @@ import Header from '../components/Header.astro';
       return { res, data };
     }
 
+    function popMessageEl(el: HTMLElement) {
+      if (reduceMotion || typeof el.animate !== 'function') return;
+      el.animate(
+        [
+          { opacity: 0, transform: 'translate3d(0, -5px, 0)' },
+          { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+        ],
+        { duration: 260, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+      );
+    }
+
     function setServiceHint(message: string) {
       if (!serviceHint) return;
       serviceHint.hidden = !message;
       serviceHint.textContent = message;
-      if (message) {
-        serviceHint.classList.remove('is-pop');
-        void serviceHint.offsetWidth;
-        serviceHint.classList.add('is-pop');
-      }
+      if (message) popMessageEl(serviceHint);
     }
 
     const AUTH_PROXY_HINT = '账号接口没有生效：请确认服务器 nginx 已把 /api/auth 转发到 blog-ask，并执行 nginx -t && systemctl reload nginx。';
@@ -208,11 +337,7 @@ import Header from '../components/Header.astro';
       authMessage.hidden = !message;
       authMessage.textContent = message;
       authMessage.dataset.type = type;
-      if (message) {
-        authMessage.classList.remove('is-pop');
-        void authMessage.offsetWidth;
-        authMessage.classList.add('is-pop');
-      }
+      if (message) popMessageEl(authMessage);
     }
 
     function switchTab(tab: 'login' | 'register') {
@@ -225,22 +350,26 @@ import Header from '../components/Header.astro';
       loginForm.hidden = !login;
       registerForm.hidden = login;
       setMessage('');
+      requestAnimationFrame(() => syncAccountTabGlider(false));
     }
 
     tabLogin?.addEventListener('click', () => switchTab('login'), { signal });
     tabRegister?.addEventListener('click', () => switchTab('register'), { signal });
 
+    let feedbackHideTimer = 0;
+    let feedbackClearTimer = 0;
     function setFeedback(msg: string, type: 'ok' | 'error' | 'info' = 'info') {
       const fb = $('syncActionFeedback');
       if (!fb) return;
       fb.textContent = msg;
       fb.setAttribute('data-type', type);
       fb.style.opacity = '1';
-      window.clearTimeout((fb as any).__timer);
+      window.clearTimeout(feedbackHideTimer);
+      window.clearTimeout(feedbackClearTimer);
       if (msg) {
-        (fb as any).__timer = window.setTimeout(() => {
+        feedbackHideTimer = scheduleTimer(() => {
           fb.style.opacity = '0';
-          setTimeout(() => {
+          feedbackClearTimer = scheduleTimer(() => {
             if (fb.style.opacity === '0') fb.textContent = '';
           }, 300);
         }, 5000);
@@ -264,6 +393,9 @@ import Header from '../components/Header.astro';
 
       if (syncBadge) syncBadge.setAttribute('data-state', 'checking');
       if (syncBadgeText) syncBadgeText.textContent = '校验中…';
+      if (syncInkBridge?.getAttribute('data-flow') === 'idle') {
+        setSyncInkFlowState('checking');
+      }
 
       try {
         const [notesSt, mmSt] = await Promise.all([
@@ -274,6 +406,7 @@ import Header from '../components/Header.astro';
           if (syncBadge) syncBadge.setAttribute('data-state', notesSt.state || 'error');
           if (syncBadgeText) syncBadgeText.textContent = notesSt.state === 'need-login' ? '未登录' : '校验异常';
           if (syncStatus) syncStatus.textContent = notesSt.message || '无法获取同步状态';
+          setSyncInkFlowState('error');
           return;
         }
 
@@ -292,6 +425,13 @@ import Header from '../components/Header.astro';
 
         if (syncBadge) syncBadge.setAttribute('data-state', combinedState);
         if (syncBadgeText) syncBadgeText.textContent = stateLabels[combinedState] || '已校验';
+        if (bridgeLocalMeta) {
+          bridgeLocalMeta.textContent = totalPending > 0 ? `待提交 ${totalPending}` : `r${notesSt.localRev} 已净`;
+        }
+        if (bridgeCloudMeta) {
+          bridgeCloudMeta.textContent = totalIncoming > 0 ? `待拉取 ${totalIncoming}` : `r${notesSt.serverRev} 齐平`;
+        }
+        setSyncInkFlowState(combinedState === 'latest' ? 'synced' : 'idle');
         if (syncStatus) {
           syncStatus.textContent = combinedState === 'latest'
             ? '笔记与思维导图均已是最新，与云端完全同步'
@@ -326,15 +466,19 @@ import Header from '../components/Header.astro';
         if (syncBadge) syncBadge.setAttribute('data-state', 'error');
         if (syncBadgeText) syncBadgeText.textContent = '校验失败';
         if (syncStatus) syncStatus.textContent = '网络异常，无法校验最新状态';
+        setSyncInkFlowState('error');
       }
     }
 
-    function showProfile(user: { username: string }) {
+    function showProfile(user: { username: string }, stampTitle = '钤印核验') {
       authView?.setAttribute('hidden', '');
       profileView?.removeAttribute('hidden');
       setServiceHint('');
       if (profileUsername) profileUsername.textContent = user.username;
-      requestAnimationFrame(() => profileView?.classList.add('is-in'));
+      requestAnimationFrame(() => {
+        profileView?.classList.add('is-in');
+        triggerSealVerificationRitual(stampTitle);
+      });
       void refreshSyncStatus();
     }
 
@@ -342,7 +486,10 @@ import Header from '../components/Header.astro';
       profileView?.setAttribute('hidden', '');
       profileView?.classList.remove('is-in');
       authView?.removeAttribute('hidden');
-      requestAnimationFrame(() => authView?.classList.add('is-in'));
+      requestAnimationFrame(() => {
+        authView?.classList.add('is-in');
+        syncAccountTabGlider(true);
+      });
     }
 
     async function checkSession() {
@@ -378,11 +525,13 @@ import Header from '../components/Header.astro';
           if (res.status === 404) setServiceHint(AUTH_PROXY_HINT);
           return;
         }
-        showProfile(data.user);
+        showProfile(data.user, '朱砂钤印');
+        setSyncInkFlowState('bidirectional');
         await Promise.all([
           (window as any).__notesSync?.syncNow?.({ migrate: true }),
           (window as any).__mindmapsSync?.syncNow?.({ migrate: true }),
         ]);
+        await refreshSyncStatus();
       } finally {
         if (submit) submit.disabled = false;
       }
@@ -411,11 +560,13 @@ import Header from '../components/Header.astro';
           if (res.status === 404) setServiceHint(AUTH_PROXY_HINT);
           return;
         }
-        showProfile(data.user);
+        showProfile(data.user, '新印落籍');
+        setSyncInkFlowState('bidirectional');
         await Promise.all([
           (window as any).__notesSync?.syncNow?.({ migrate: true }),
           (window as any).__mindmapsSync?.syncNow?.({ migrate: true }),
         ]);
+        await refreshSyncStatus();
       } finally {
         if (submit) submit.disabled = false;
       }
@@ -430,11 +581,13 @@ import Header from '../components/Header.astro';
     $('checkSyncBtn')?.addEventListener('click', async () => {
       const btn = $('checkSyncBtn') as HTMLButtonElement | null;
       if (btn) btn.classList.add('is-spinning');
+      setSyncInkFlowState('checking');
       try {
         await refreshSyncStatus();
+        triggerSealVerificationRitual('印信已核');
         setFeedback('✓ 校验完成，最新状态已同步呈现', 'ok');
       } finally {
-        setTimeout(() => btn?.classList.remove('is-spinning'), 500);
+        scheduleTimer(() => btn?.classList.remove('is-spinning'), 500);
       }
     }, { signal });
 
@@ -447,7 +600,8 @@ import Header from '../components/Header.astro';
       }
       const btn = $('pushSyncBtn') as HTMLButtonElement | null;
       if (btn) btn.disabled = true;
-      setFeedback('正在提交本地笔记与导图到云端…', 'info');
+      setSyncInkFlowState('pushing');
+      setFeedback('正在呈送本地笔记与导图至云端藏书阁…', 'info');
       try {
         const [nRes, mRes] = await Promise.all([
           notesSync.pushSync(),
@@ -457,10 +611,13 @@ import Header from '../components/Header.astro';
           const totalPushed = (nRes.pushedCount || 0) + (mRes.pushedCount || 0);
           setFeedback(totalPushed > 0 ? `✓ 提交完成（笔记 ${nRes.pushedCount || 0} 条 · 导图 ${mRes.pushedCount || 0} 张）` : '本地暂无待提交的更改（已最新）', 'ok');
           await refreshSyncStatus();
+          triggerSealVerificationRitual('呈送钤印');
         } else {
+          setSyncInkFlowState('error');
           setFeedback(`提交失败：${(!nRes.ok ? nRes.reason : mRes.reason) || '网络错误'}`, 'error');
         }
       } catch (err: any) {
+        setSyncInkFlowState('error');
         setFeedback(`提交异常：${err?.message || '未知错误'}`, 'error');
       } finally {
         if (btn) btn.disabled = false;
@@ -476,7 +633,8 @@ import Header from '../components/Header.astro';
       }
       const btn = $('pullSyncBtn') as HTMLButtonElement | null;
       if (btn) btn.disabled = true;
-      setFeedback('正在从云端拉取最新笔记与导图…', 'info');
+      setSyncInkFlowState('pulling');
+      setFeedback('正在从云端藏书阁采撷最新笔记与导图…', 'info');
       try {
         const [nRes, mRes] = await Promise.all([
           notesSync.pullSync(),
@@ -486,10 +644,13 @@ import Header from '../components/Header.astro';
           const totalPulled = (nRes.pulledCount || 0) + (mRes.pulledCount || 0);
           setFeedback(totalPulled > 0 ? `✓ 拉取完成（笔记 ${nRes.pulledCount || 0} 条 · 导图 ${mRes.pulledCount || 0} 张）` : '✓ 云端暂无新内容，本地已是最新', 'ok');
           await refreshSyncStatus();
+          triggerSealVerificationRitual('采撷钤印');
         } else {
+          setSyncInkFlowState('error');
           setFeedback(`拉取失败：${(!nRes.ok ? nRes.reason : mRes.reason) || '网络错误'}`, 'error');
         }
       } catch (err: any) {
+        setSyncInkFlowState('error');
         setFeedback(`拉取异常：${err?.message || '未知错误'}`, 'error');
       } finally {
         if (btn) btn.disabled = false;
@@ -505,7 +666,8 @@ import Header from '../components/Header.astro';
       }
       const btn = $('syncNowBtn') as HTMLButtonElement | null;
       if (btn) btn.disabled = true;
-      setFeedback('正在进行双向全量同步…', 'info');
+      setSyncInkFlowState('bidirectional');
+      setFeedback('正在进行云墨流转双向全量同步…', 'info');
       try {
         const [nRes, mRes] = await Promise.all([
           notesSync.syncNow({ migrate: true }),
@@ -517,15 +679,27 @@ import Header from '../components/Header.astro';
             'ok'
           );
           await refreshSyncStatus();
+          triggerSealVerificationRitual('双向契合');
         } else {
+          setSyncInkFlowState('error');
           setFeedback(`同步失败：${(!nRes.ok ? nRes.reason : mRes.reason) || '网络错误'}`, 'error');
         }
       } catch (err: any) {
+        setSyncInkFlowState('error');
         setFeedback(`同步异常：${err?.message || '未知错误'}`, 'error');
       } finally {
         if (btn) btn.disabled = false;
       }
     }, { signal });
+
+    window.addEventListener('mindmaps:sync-phase', ((e: CustomEvent) => {
+      const detail = e.detail || {};
+      if (detail.phase === 'start') {
+        if (detail.mode === 'push') setSyncInkFlowState('pushing');
+        else if (detail.mode === 'pull') setSyncInkFlowState('pulling');
+        else setSyncInkFlowState('bidirectional');
+      }
+    }) as EventListener, { signal });
 
     window.addEventListener('article-notes:synced', () => {
       void refreshSyncStatus();
@@ -565,10 +739,16 @@ import Header from '../components/Header.astro';
     }, { signal });
 
     void checkSession();
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+    }, { signal });
   }
 
   initAccountPage();
-  document.addEventListener('astro:page-load', initAccountPage);
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', initAccountPage);
+    (window as any)[LISTENER_KEY] = true;
+  }
 </script>
 
 <style>
@@ -653,6 +833,7 @@ import Header from '../components/Header.astro';
 
   .account-card {
     position: relative;
+    isolation: isolate;
     overflow: hidden;
     border: 1px solid var(--rule-strong);
     border-radius: 14px;
@@ -665,8 +846,18 @@ import Header from '../components/Header.astro';
     transition:
       opacity 460ms var(--ease-card) 120ms,
       transform 760ms var(--ease-card) 120ms,
-      box-shadow 420ms var(--ease-card),
       border-color 320ms var(--ease-card);
+  }
+  .account-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: var(--glass-shadow-lg);
+    opacity: 0;
+    transition: opacity 380ms var(--ease-card);
   }
 
   .account-shell.is-ready .account-card {
@@ -679,27 +870,55 @@ import Header from '../components/Header.astro';
     position: absolute;
     inset: 0 0 auto 0;
     height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    opacity: 0.5;
+    background: linear-gradient(90deg, transparent, var(--vermilion, var(--accent)), transparent);
+    opacity: 0.65;
     pointer-events: none;
   }
 
   .account-card:hover {
     border-color: var(--accent);
-    box-shadow: var(--glass-shadow-lg);
+  }
+  .account-card:hover::after {
+    opacity: 1;
   }
 
   .account-tabs {
+    position: relative;
+    isolation: isolate;
     display: flex;
     gap: 0.4rem;
     padding: 0.25rem;
     margin-bottom: 1.2rem;
     border-radius: 10px;
     background: var(--bg-soft);
+    border: 1px solid var(--rule-soft);
+  }
+
+  .account-tab-glider {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 0;
+    width: 100px;
+    transform-origin: 0 50%;
+    z-index: 0;
+    border-radius: var(--pill-rx, 7px) / 7px;
+    background: var(--bg-elev);
+    border: 1px solid var(--rule);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 180ms var(--ease);
+  }
+  .account-tab-glider.is-ready {
+    opacity: 1;
   }
 
   .account-tab {
     position: relative;
+    z-index: 1;
     flex: 1;
     padding: 0.55rem 0.8rem;
     border: 0;
@@ -710,10 +929,8 @@ import Header from '../components/Header.astro';
     font-size: 0.85rem;
     cursor: pointer;
     transition:
-      background 240ms cubic-bezier(0.16, 1, 0.3, 1),
-      color 240ms ease,
-      transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
-      box-shadow 240ms ease;
+      color 240ms var(--ease),
+      transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .account-tab:hover {
@@ -721,10 +938,8 @@ import Header from '../components/Header.astro';
   }
 
   .account-tab.is-active {
-    background: var(--bg-elev);
     color: var(--text-strong);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    font-weight: 600;
   }
 
   .account-form {
@@ -770,15 +985,14 @@ import Header from '../components/Header.astro';
     font-size: 0.9rem;
     outline: none;
     transition:
-      border-color 200ms ease,
-      box-shadow 220ms ease,
+      border-color 200ms var(--ease),
       transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .account-input:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-soft);
-    transform: translateY(-1px);
+    transform: translate3d(0, -1px, 0);
   }
 
   .account-input--mono {
@@ -798,17 +1012,16 @@ import Header from '../components/Header.astro';
     font-family: var(--font-mono);
     font-size: 0.82rem;
     cursor: pointer;
+    box-shadow: 0 4px 14px -6px rgba(0, 0, 0, 0.35);
     transition:
-      opacity 200ms ease,
-      transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
-      box-shadow 220ms ease;
+      opacity 200ms var(--ease),
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .account-submit:hover,
   .account-primary-btn:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
-    box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.45);
+    opacity: 0.92;
+    transform: translate3d(0, -1.5px, 0);
   }
 
   .account-submit:active,
@@ -874,6 +1087,83 @@ import Header from '../components/Header.astro';
     gap: 1rem;
     padding-bottom: 1rem;
     border-bottom: 1px solid var(--rule-soft);
+    flex-wrap: wrap;
+  }
+
+  .account-profile-identity {
+    display: flex;
+    align-items: center;
+    gap: 0.95rem;
+    flex-wrap: wrap;
+  }
+
+  /* 朱砂钤印核验仪式章 (Cinnabar Seal Verification Ritual) */
+  .account-cinnabar-seal-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .account-cinnabar-seal {
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.22rem 0.58rem;
+    border: 1.5px solid color-mix(in srgb, var(--vermilion, #c84b31) 82%, transparent);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--vermilion, #c84b31) 10%, transparent);
+    color: var(--vermilion, #c84b31);
+    font-family: var(--font-serif);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    transform: rotate(-4deg) scale(1);
+    user-select: none;
+  }
+  .seal-ink-ring {
+    position: absolute;
+    inset: -4px;
+    border-radius: 6px;
+    border: 1.5px solid color-mix(in srgb, var(--vermilion, #c84b31) 60%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.75);
+  }
+  .account-cinnabar-seal-wrap.is-stamping .account-cinnabar-seal {
+    animation: cinnabarSealStamp 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .account-cinnabar-seal-wrap.is-stamping .seal-ink-ring.ring-a {
+    animation: cinnabarRingRipple 580ms 90ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .account-cinnabar-seal-wrap.is-stamping .seal-ink-ring.ring-b {
+    animation: cinnabarRingRipple 680ms 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes cinnabarSealStamp {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, -10px, 0) scale(1.68) rotate(-14deg);
+    }
+    62% {
+      opacity: 1;
+      transform: translate3d(0, 1px, 0) scale(0.95) rotate(-2deg);
+    }
+    100% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1) rotate(-4deg);
+    }
+  }
+
+  @keyframes cinnabarRingRipple {
+    0% {
+      opacity: 0.68;
+      transform: scale(0.82) rotate(-4deg);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.75) rotate(-4deg);
+    }
   }
 
   .account-username {
@@ -881,6 +1171,163 @@ import Header from '../components/Header.astro';
     font-family: var(--font-hand-title);
     font-size: 1.5rem;
     color: var(--text-strong);
+  }
+
+  /* 云墨流转同步桥 (Cloud-Ink Flowing Sync Conduit) */
+  .sync-ink-bridge {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 10px;
+    background: var(--bg-elev);
+    border: 1px solid var(--rule);
+  }
+  .bridge-node {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 4.8rem;
+  }
+  .bridge-node.is-cloud {
+    text-align: right;
+  }
+  .bridge-node-title {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--text-strong);
+    font-family: var(--font-serif);
+  }
+  .bridge-node-meta {
+    font-size: 0.66rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+  }
+  .bridge-conduit {
+    position: relative;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .bridge-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .bridge-track-bg {
+    stroke: var(--rule-strong);
+    stroke-width: 1.25;
+    stroke-dasharray: 3 4;
+    opacity: 0.55;
+  }
+  .bridge-stream {
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 0.34 0.66;
+    stroke-dashoffset: 0;
+    opacity: 0;
+    transition: opacity 260ms var(--ease);
+  }
+  .bridge-stream.stream-push {
+    stroke: var(--vermilion, #c84b31);
+  }
+  .bridge-stream.stream-pull {
+    stroke: #2563eb;
+  }
+  [data-theme="dark"] .bridge-stream.stream-pull {
+    stroke: #60a5fa;
+  }
+
+  .ink-flow-droplet {
+    position: absolute;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .ink-flow-droplet.droplet-push {
+    left: 8%;
+    margin-top: -7px;
+    background: var(--vermilion, #c84b31);
+  }
+  .ink-flow-droplet.droplet-pull {
+    right: 8%;
+    margin-top: 1px;
+    background: #2563eb;
+  }
+  [data-theme="dark"] .ink-flow-droplet.droplet-pull {
+    background: #60a5fa;
+  }
+
+  .bridge-confluence-seal {
+    position: relative;
+    z-index: 2;
+    padding: 0.1rem 0.42rem;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    background: var(--bg-soft);
+    border: 1px solid var(--rule-strong);
+    color: var(--muted-strong);
+    transition:
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      color 240ms var(--ease),
+      border-color 240ms var(--ease),
+      background-color 240ms var(--ease);
+  }
+
+  .sync-ink-bridge[data-flow="pushing"] .stream-push,
+  .sync-ink-bridge[data-flow="bidirectional"] .stream-push {
+    opacity: 0.92;
+    animation: inkStreamFlow 920ms linear infinite;
+  }
+  .sync-ink-bridge[data-flow="pulling"] .stream-pull,
+  .sync-ink-bridge[data-flow="bidirectional"] .stream-pull {
+    opacity: 0.92;
+    animation: inkStreamFlow 920ms linear infinite;
+  }
+  .sync-ink-bridge[data-flow="pushing"] .droplet-push,
+  .sync-ink-bridge[data-flow="bidirectional"] .droplet-push {
+    animation: dropletGlideRight 920ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  .sync-ink-bridge[data-flow="pulling"] .droplet-pull,
+  .sync-ink-bridge[data-flow="bidirectional"] .droplet-pull {
+    animation: dropletGlideLeft 920ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  .sync-ink-bridge[data-flow="synced"] .bridge-confluence-seal {
+    color: #16a34a;
+    border-color: rgba(34, 197, 94, 0.45);
+    background: rgba(34, 197, 94, 0.1);
+  }
+  [data-theme="dark"] .sync-ink-bridge[data-flow="synced"] .bridge-confluence-seal {
+    color: #4ade80;
+  }
+  .sync-ink-bridge[data-flow="error"] .bridge-confluence-seal {
+    color: #dc2626;
+    border-color: rgba(220, 38, 38, 0.45);
+  }
+
+  @keyframes inkStreamFlow {
+    from { stroke-dashoffset: 1; }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes dropletGlideRight {
+    0% { opacity: 0; transform: translate3d(0, 0, 0) scale(0.7); }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translate3d(130px, 0, 0) scale(1.05); }
+  }
+  @keyframes dropletGlideLeft {
+    0% { opacity: 0; transform: translate3d(0, 0, 0) scale(0.7); }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translate3d(-130px, 0, 0) scale(1.05); }
   }
 
   /* 多设备同步控制卡片 */
@@ -933,7 +1380,10 @@ import Header from '../components/Header.astro';
     background: var(--bg-elev);
     border: 1px solid var(--rule-soft);
     color: var(--muted-strong);
-    transition: all 200ms ease;
+    transition:
+      background-color 200ms var(--ease),
+      border-color 200ms var(--ease),
+      color 200ms var(--ease);
   }
 
   .sync-badge-dot {
@@ -1007,7 +1457,11 @@ import Header from '../components/Header.astro';
     font-family: var(--font-body);
     font-weight: 500;
     cursor: pointer;
-    transition: all 180ms ease;
+    transition:
+      background-color 180ms var(--ease),
+      border-color 180ms var(--ease),
+      color 180ms var(--ease),
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .account-check-btn:hover {
@@ -1069,14 +1523,31 @@ import Header from '../components/Header.astro';
     border: 1px solid var(--rule-strong);
     background: var(--bg-elev);
     cursor: pointer;
-    transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition:
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 200ms var(--ease),
+      background-color 200ms var(--ease);
     position: relative;
+    isolation: isolate;
     overflow: hidden;
+  }
+  .account-step-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    transition: opacity 220ms var(--ease);
   }
 
   .account-step-btn:hover {
-    transform: translateY(-1.5px);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+    transform: translate3d(0, -1.5px, 0);
+  }
+  .account-step-btn:hover::after {
+    opacity: 1;
   }
 
   .account-push-btn:hover {
@@ -1283,7 +1754,7 @@ import Header from '../components/Header.astro';
   @media (prefers-reduced-motion: reduce) {
     .account-shell,
     .account-head,
-    .account-card,
+    .account-card:not([hidden]),
     .account-form:not([hidden]),
     .account-message.is-pop,
     #profileView:not([hidden]) {
@@ -1291,6 +1762,24 @@ import Header from '../components/Header.astro';
       transition: none !important;
       opacity: 1 !important;
       transform: none !important;
+    }
+    .account-card::after,
+    .account-tab-glider,
+    .bridge-stream,
+    .ink-flow-droplet {
+      animation: none !important;
+      transition: none !important;
+    }
+    .account-cinnabar-seal-wrap.is-stamping .account-cinnabar-seal {
+      animation: none !important;
+      transition: none !important;
+      opacity: 1 !important;
+      transform: rotate(-4deg) !important;
+    }
+    .seal-ink-ring,
+    .ink-flow-droplet {
+      animation: none !important;
+      opacity: 0 !important;
     }
   }
 </style>

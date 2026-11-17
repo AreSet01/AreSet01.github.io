@@ -544,6 +544,12 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             <div id="mm-note-preview" class="hidden mt-2.5 prose-preview text-xs max-h-48 overflow-y-auto bg-[var(--bg-soft)] border border-[var(--rule)] rounded-lg p-2.5"></div>
           </div>
 
+          <!-- 缩略舆图小地图：零重排 GPU 视口框实时跟手巡览 -->
+          <div class="mm-minimap" id="mm-minimap" aria-label="思维导图缩略舆图" title="点击或拖拽快速巡览画布">
+            <svg class="mm-minimap-svg" id="mm-minimap-svg" viewBox="0 0 156 96" aria-hidden="true"></svg>
+            <div class="mm-minimap-vp" id="mm-minimap-vp" aria-hidden="true"></div>
+          </div>
+
           <!-- 修复显示不全问题：采用统一的底栏 HUD Flexbox 容器，绝不越界裁切 -->
           <div class="mm-canvas-hud" aria-label="画布快捷键提示与缩放控制">
             <div class="mm-canvas-kbd-hint" title="Tab 子节点 · Enter 同级 · Space/双击 编辑 · / 折叠 · 拖拽移动/排序 · 空白处长按左键框选多选 · Ctrl+Z 撤销">
@@ -623,7 +629,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   </div>
 
   <!-- 8. Toast 反馈 -->
-  <div id="mm-toast" role="status" aria-live="polite" aria-atomic="true" class="fixed bottom-6 right-6 z-[70] transform translate-y-12 opacity-0 transition-all duration-300 pointer-events-none bg-[var(--ink-strong)] text-[var(--bg-base)] px-4 py-2.5 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2">
+  <div id="mm-toast" role="status" aria-live="polite" aria-atomic="true" class="fixed bottom-6 right-6 z-[70] transform translate-y-12 opacity-0 transition-[transform,opacity] duration-300 pointer-events-none bg-[var(--ink-strong)] text-[var(--bg-base)] px-4 py-2.5 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
       <polyline points="20 6 9 17 4 12"></polyline>
     </svg>
@@ -656,11 +662,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     height: 13px;
     border-radius: 9999px;
     background-color: var(--dot-color);
-    transition: all 260ms var(--ease);
+    transition: transform 240ms var(--ease-bounce), background-color 200ms var(--ease);
   }
   .color-dot-btn:hover { transform: scale(1.18); }
   .color-dot-btn.active { border-color: var(--ink-strong); transform: scale(1.12); }
-  .color-dot-btn.active::after { width: 15px; height: 15px; }
+  .color-dot-btn.active::after { transform: scale(1.15); }
   .color-dot-btn:focus-visible {
     outline: 2px solid var(--ink-strong);
     outline-offset: 2px;
@@ -674,7 +680,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     color: var(--muted-strong);
     background: transparent;
     cursor: pointer;
-    transition: all 240ms var(--ease);
+    transition:
+      background-color 220ms var(--ease),
+      color 220ms var(--ease),
+      border-color 220ms var(--ease),
+      transform 200ms var(--ease);
   }
   .all-color-pill.active,
   .all-color-pill:hover {
@@ -728,7 +738,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     user-select: none;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+    transition: border-color 0.3s var(--ease), transform 0.3s var(--ease);
   }
   .notes-stat-item {
     cursor: pointer;
@@ -769,11 +779,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     top: 4px;
     bottom: 4px;
     left: 0;
-    border-radius: var(--radius-control);
+    width: 100px;
+    transform-origin: 0 50%;
+    border-radius: var(--pill-rx, 9999px) / 9999px;
     background: var(--ink-strong);
     z-index: 1;
     pointer-events: none;
-    transition: transform 380ms var(--ease), width 380ms var(--ease);
+    transition: transform 380ms var(--ease), opacity 180ms var(--ease);
   }
   :global(#mm-subtabs-cluster .sub-tab-btn) {
     position: relative;
@@ -830,7 +842,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     min-width: 0;
   }
 
-  /* 导图卡片（挂靠 global.css 里的 .notes-card 四主题覆盖 + 专属排版） */
+  /* 导图卡片（挂靠 global.css 里的 .notes-card 四主题覆盖 + 专属纸境墨韵浮光，零 box-shadow 重绘） */
   :global(.mm-card) {
     display: flex !important;
     flex-direction: column;
@@ -844,11 +856,40 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.04);
     cursor: pointer;
     position: relative;
-    transition: box-shadow 300ms var(--ease), border-color 240ms var(--ease), transform 260ms var(--ease), background 260ms var(--ease);
+    isolation: isolate;
+    transition: border-color 260ms var(--ease), transform 280ms var(--ease-card), background-color 260ms var(--ease);
+  }
+  :global(.mm-card)::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+      115% 88% at 0% 48%,
+      color-mix(in srgb, var(--note-accent, #c83e37) 14%, transparent) 0%,
+      transparent 54%
+    );
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 320ms var(--ease-card);
+  }
+  :global(.mm-card)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 14px 30px -6px rgba(var(--accent-rgb), 0.12), 0 4px 12px -2px rgba(var(--accent-rgb), 0.06);
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+    transition: opacity 340ms var(--ease-card);
   }
   :global(.mm-card:hover) {
     border-color: var(--rule-strong);
-    box-shadow: 0 12px 28px -6px rgba(var(--accent-rgb), 0.1), 0 4px 12px -2px rgba(var(--accent-rgb), 0.05) !important;
+  }
+  :global(.mm-card:hover)::before,
+  :global(.mm-card:hover)::after {
+    opacity: 1;
   }
   :global(.mm-card.is-entering),
   :global(.mm-card.is-reflowing) {
@@ -1129,8 +1170,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     transition:
       transform 240ms var(--ease-elastic),
       border-color 180ms var(--ease),
-      background-color 180ms var(--ease),
-      box-shadow 220ms var(--ease);
+      background-color 180ms var(--ease);
   }
   .mm-cselect-modal-trigger {
     height: 2.15rem;
@@ -1144,7 +1184,6 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   .mm-cselect-trigger:hover {
     border-color: var(--ink-strong);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
   }
   .mm-cselect-trigger:active {
     transform: translateY(0) scale(0.95);
@@ -1152,7 +1191,6 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   .mm-cselect-trigger:focus-visible,
   .mm-cselect-trigger[aria-expanded="true"] {
     border-color: var(--ink-strong);
-    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--ink-strong) 14%, transparent);
   }
   .mm-cselect-caret {
     flex-shrink: 0;
@@ -1327,11 +1365,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     outline: none;
     max-width: 11rem;
     width: 8.5rem;
-    transition: border-color 180ms var(--ease), box-shadow 180ms var(--ease);
+    transition: border-color 180ms var(--ease), background-color 180ms var(--ease);
   }
   .mm-wb-tags-input:focus {
     border-color: var(--ink-strong);
-    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--ink-strong) 12%, transparent);
+    background: var(--bg-base);
   }
 
   .mm-wb-switchers {
@@ -1355,12 +1393,14 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     top: 2px;
     bottom: 2px;
     left: 0;
-    border-radius: 9999px;
+    width: 100px;
+    transform-origin: 0 50%;
+    border-radius: var(--pill-rx, 9999px) / 9999px;
     background: var(--ink-strong);
     z-index: 1;
     pointer-events: none;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
-    transition: transform 360ms var(--ease-elastic), width 300ms var(--ease);
+    transition: transform 360ms var(--ease-elastic);
   }
   .mm-seg-btn {
     position: relative;
@@ -1401,7 +1441,6 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       border-color 180ms var(--ease),
       background-color 180ms var(--ease),
       color 180ms var(--ease),
-      box-shadow 220ms var(--ease),
       opacity 180ms var(--ease);
   }
   .mm-wb-chip-btn {
@@ -1412,7 +1451,6 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   .mm-wb-chip-btn:hover {
     border-color: var(--ink-strong);
     transform: translateY(-1px);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.07);
   }
   .mm-wb-chip-btn:active {
     transform: translateY(0) scale(0.94);
@@ -1438,7 +1476,6 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     color: var(--text-strong);
     border-color: var(--ink-strong);
     transform: translateY(-1px);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.07);
   }
   .mm-wb-icon-btn:active {
     transform: translateY(0) scale(0.91);
@@ -1456,7 +1493,6 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   .mm-wb-primary-btn:hover {
     opacity: 0.92;
     transform: translateY(-1px);
-    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.16);
   }
   .mm-wb-primary-btn:active {
     transform: translateY(0) scale(0.94);
@@ -1690,22 +1726,39 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     padding: 0 0.15rem;
   }
   .mm-node-cdot {
+    position: relative;
     width: 13px;
     height: 13px;
     border-radius: 9999px;
     background: var(--nc);
     border: 2px solid transparent;
     cursor: pointer;
-    transition: transform 240ms var(--ease-elastic), box-shadow 180ms var(--ease);
+    transition: transform 240ms var(--ease-elastic), border-color 180ms var(--ease);
   }
   .mm-node-cdot:hover { transform: scale(1.24); }
   .mm-node-cdot:active { transform: scale(0.88); }
   .mm-node-cdot.is-selected {
-    transform: scale(1.1);
+    transform: scale(1.12);
     box-shadow: 0 0 0 2px var(--bg-elev), 0 0 0 3.5px var(--nc);
   }
 
   /* 交互视口与画布层：外层独立平移（不缩放置灰） + 内层 CSS zoom 矢量重绘，彻底解决高倍率文本发糊 */
+  .mm-canvas-pane {
+    --mm-cinnabar: #b83b32;
+    --mm-cinnabar-soft: rgba(184, 59, 50, 0.14);
+  }
+  :global([data-theme="dark"]) .mm-canvas-pane {
+    --mm-cinnabar: #e06c60;
+    --mm-cinnabar-soft: rgba(224, 108, 96, 0.2);
+  }
+  :global([data-theme="moss"]) .mm-canvas-pane {
+    --mm-cinnabar: #FFC2D1;
+    --mm-cinnabar-soft: rgba(255, 194, 209, 0.22);
+  }
+  :global([data-theme="rice"]) .mm-canvas-pane {
+    --mm-cinnabar: #a63429;
+    --mm-cinnabar-soft: rgba(166, 52, 41, 0.14);
+  }
   .mm-canvas-viewport {
     position: absolute;
     inset: 0;
@@ -1747,6 +1800,10 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     overflow: visible;
     pointer-events: none;
   }
+  .mm-links-svg :global(path) {
+    stroke-linejoin: round;
+    transition: stroke 220ms var(--ease), stroke-width 220ms var(--ease);
+  }
   .mm-exit-layer {
     z-index: 3;
   }
@@ -1766,33 +1823,32 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     top: 0;
     pointer-events: none;
     z-index: 28;
-    border: 1.5px solid #2589ff;
-    background: rgba(37, 137, 255, 0.12);
-    border-radius: 6px;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25) inset;
+    border: 1.5px dashed var(--mm-cinnabar, #b83b32);
+    background: var(--mm-cinnabar-soft, rgba(184, 59, 50, 0.1));
+    border-radius: 8px;
   }
   .mm-marquee-box.hidden { display: none; }
   .mm-hold-pulse {
     position: absolute;
     left: 0;
     top: 0;
-    width: 36px;
-    height: 36px;
-    margin: -18px 0 0 -18px;
+    width: 38px;
+    height: 38px;
+    margin: -19px 0 0 -19px;
     border-radius: 9999px;
-    border: 2px solid #2589ff;
-    background: rgba(37, 137, 255, 0.16);
+    border: 2px solid var(--mm-cinnabar, #b83b32);
+    background: var(--mm-cinnabar-soft, rgba(184, 59, 50, 0.16));
     pointer-events: none;
     z-index: 29;
-    animation: mmHoldPulse 360ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation: mmHoldPulse 380ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
   .mm-hold-pulse.hidden { display: none; }
   @keyframes mmHoldPulse {
-    from { opacity: 0.95; transform: scale(0.45); }
-    to { opacity: 0; transform: scale(1.65); }
+    from { opacity: 0.92; transform: scale(0.42); }
+    to { opacity: 0; transform: scale(1.75); }
   }
 
-  /* 画布节点元素（JS 动态生成必须带 :global） */
+  /* 画布节点元素（JS 动态生成必须带 :global，零 box-shadow 重绘 + 温润朱砂水墨呼吸印框） */
   :global(.mm-node) {
     position: absolute;
     width: max-content;
@@ -1803,32 +1859,41 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     border: 1.5px solid color-mix(in srgb, var(--node-color, var(--rule-strong)) 45%, var(--rule));
     background: var(--bg-elev);
     color: var(--text-strong);
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.055);
     pointer-events: auto;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 0.38rem;
     box-sizing: border-box;
-    contain: layout style;
+    contain: style;
     transition:
-      box-shadow 180ms var(--ease),
       border-color 180ms var(--ease),
-      opacity 180ms var(--ease);
+      opacity 180ms var(--ease),
+      background-color 180ms var(--ease);
     z-index: 2;
+  }
+  :global(.mm-node)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.11);
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+    transition: opacity 220ms var(--ease);
   }
   :global(.mm-nodes-layer.is-live-typing .mm-node) {
     transition:
-      left 140ms cubic-bezier(0.22, 1, 0.36, 1),
-      top 140ms cubic-bezier(0.22, 1, 0.36, 1),
-      width 130ms cubic-bezier(0.22, 1, 0.36, 1),
-      min-height 130ms cubic-bezier(0.22, 1, 0.36, 1),
       border-color 150ms var(--ease),
       opacity 160ms var(--ease);
   }
   :global(.mm-node:hover) {
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
     border-color: var(--node-color, var(--ink-strong));
+  }
+  :global(.mm-node:hover)::after {
+    opacity: 1;
   }
   :global(.mm-node.is-root) {
     background: var(--ink-strong);
@@ -1841,25 +1906,60 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
     z-index: 4;
   }
+  :global(.mm-node.is-selected)::before {
+    content: '';
+    position: absolute;
+    inset: -4.5px;
+    border-radius: 14px;
+    border: 1.5px solid color-mix(in srgb, var(--node-color, var(--mm-cinnabar, #b83b32)) 58%, var(--mm-cinnabar, #b83b32));
+    background: radial-gradient(
+      circle at 50% 50%,
+      color-mix(in srgb, var(--mm-cinnabar, #b83b32) 12%, transparent) 0%,
+      transparent 72%
+    );
+    pointer-events: none;
+    animation: mmInkSealBreathe 2.8s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  }
+  :global(.mm-node.is-selected.is-root)::before {
+    inset: -5px;
+    border-radius: 17px;
+    border-color: var(--mm-cinnabar, #b83b32);
+  }
+  @keyframes mmInkSealBreathe {
+    0%, 100% {
+      opacity: 0.56;
+      transform: scale3d(0.992, 0.992, 1);
+    }
+    50% {
+      opacity: 0.98;
+      transform: scale3d(1.022, 1.022, 1);
+    }
+  }
   :global(.mm-node.is-selected:not(.is-root)) {
-    border-color: var(--node-color, var(--ink-strong));
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-color, #42a5f5) 26%, transparent), 0 6px 16px rgba(0, 0, 0, 0.08);
+    border-color: color-mix(in srgb, var(--node-color, var(--ink-strong)) 72%, var(--mm-cinnabar, #b83b32));
     z-index: 5;
   }
   :global(.mm-node.is-selected.is-root) {
-    box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--ink-strong) 25%, transparent), 0 10px 24px rgba(0, 0, 0, 0.2);
+    z-index: 6;
   }
   :global(.mm-node.is-dragging-source) {
-    opacity: 0.26 !important;
+    opacity: 0.28 !important;
     border-style: dashed !important;
-    filter: grayscale(0.45);
     pointer-events: none;
   }
   :global(.mm-node.is-drop-target) {
-    border-color: #42a5f5 !important;
-    box-shadow: 0 0 0 4px rgba(66, 165, 245, 0.28), 0 10px 22px rgba(66, 165, 245, 0.2) !important;
+    border-color: var(--mm-cinnabar, #b83b32) !important;
     transform: scale(1.04);
     z-index: 8;
+  }
+  :global(.mm-node.is-drop-target)::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 14px;
+    border: 2px solid var(--mm-cinnabar, #b83b32);
+    opacity: 0.85;
+    pointer-events: none;
   }
   :global(.mm-node.is-exiting) {
     opacity: 0 !important;
@@ -1900,7 +2000,6 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     color: inherit;
     font: inherit;
     padding: 0;
-    transition: width 120ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   :global(.mm-collapse-btn) {
     position: absolute;
@@ -1981,24 +2080,27 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   }
   .mm-drag-ghost.hidden { display: none; }
 
-  /* 置于拖拽浮影之上的落点方向标识胶囊（永不被浮影遮挡） */
+  /* 置于拖拽浮影之上的落点方向标识胶囊（永不被浮影遮挡，朱砂印信配色） */
   .mm-drop-pill {
     position: fixed;
     left: 0;
     top: 0;
     z-index: 126;
     pointer-events: none;
-    background: #2589ff;
+    background: var(--mm-cinnabar, #b83b32);
     color: #fff;
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     padding: 0.18rem 0.58rem;
     border-radius: 9999px;
-    border: 1.5px solid rgba(255, 255, 255, 0.78);
+    border: 1.5px solid rgba(255, 255, 255, 0.82);
     white-space: nowrap;
-    box-shadow: 0 6px 18px rgba(37, 137, 255, 0.42);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
     will-change: transform;
+  }
+  :global([data-theme="moss"]) .mm-drop-pill {
+    color: #004D40;
   }
   .mm-drop-pill.hidden { display: none; }
 
@@ -2007,8 +2109,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     position: absolute;
     height: 3.5px;
     border-radius: 9999px;
-    background: #2589ff;
-    box-shadow: 0 0 0 3.5px rgba(37, 137, 255, 0.28);
+    background: var(--mm-cinnabar, #b83b32);
     pointer-events: none;
     z-index: 35;
   }
@@ -2017,6 +2118,58 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     height: 46px;
   }
   .mm-reorder-indicator.hidden { display: none; }
+
+  /* 缩略舆图小地图（宣纸微缩印谱，单 rAF GPU 视口框跟手巡览） */
+  .mm-minimap {
+    position: absolute;
+    right: 0.85rem;
+    bottom: 3.15rem;
+    width: 156px;
+    height: 96px;
+    border-radius: 11px;
+    border: 1px solid var(--rule-strong);
+    background: color-mix(in srgb, var(--bg-elev) 88%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    cursor: grab;
+    z-index: 24;
+    user-select: none;
+    touch-action: none;
+    transition: opacity 220ms var(--ease), transform 220ms var(--ease), border-color 200ms var(--ease);
+  }
+  .mm-minimap:hover {
+    border-color: var(--ink-strong);
+    transform: translateY(-1px);
+  }
+  .mm-minimap.is-dragging {
+    cursor: grabbing;
+    border-color: var(--mm-cinnabar, #b83b32);
+  }
+  .mm-minimap-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+  }
+  .mm-minimap-vp {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 48px;
+    height: 32px;
+    border-radius: 4px;
+    border: 1.4px solid var(--mm-cinnabar, #b83b32);
+    background: var(--mm-cinnabar-soft, rgba(184, 59, 50, 0.14));
+    pointer-events: none;
+    transform-origin: 0 0;
+  }
+  @media (max-width: 720px) {
+    .mm-minimap {
+      display: none;
+    }
+  }
 
   /* 备注弹层 */
   .mm-note-popover {
@@ -2181,9 +2334,17 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     .mm-node-cdot,
     .mm-zoom-btn,
     .mm-zoom-text-btn,
+    .mm-minimap,
+    .mm-hold-pulse,
     :global(.mm-cselect-opt),
     :global(.mm-collapse-btn),
-    :global(.mm-card-action-btn) {
+    :global(.mm-card-action-btn),
+    :global(.mm-card),
+    :global(.mm-card)::before,
+    :global(.mm-card)::after,
+    :global(.mm-node),
+    :global(.mm-node)::after,
+    :global(.mm-node.is-selected)::before {
       transition: none !important;
       animation: none !important;
     }
@@ -2200,10 +2361,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     addChildNode,
     addMindMapCategory,
     addSiblingNode,
+    buildInkBranchPath,
     buildMindMapFromArticle,
     buildTopologyPreviewSvg,
     cloneNode,
     colorHex,
+    computeInkBranchOpacity,
+    computeInkBranchStrokeWidth,
     countNodes,
     countSubtreeDescendants,
     createBlankMindMap,
@@ -2245,8 +2409,9 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
   initMindmapSync();
 
-  const CLEANUP_KEY = '__areSetMindmapPageCleanup';
-  const LISTENER_KEY = '__areSetMindmapPageListener';
+  const CLEANUP_KEY = '__areSetMindmapPageCleanup__';
+  const LEGACY_CLEANUP_KEY = '__areSetMindmapPageCleanup';
+  const LISTENER_KEY = '__areSetMindmapPageListener__';
 
   interface PostMetaItem {
     slug: string;
@@ -2270,10 +2435,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
   function initMindmapPage() {
     const container = document.getElementById('mindmaps-container');
-    const oldCleanup = (window as any)[CLEANUP_KEY];
+    const oldCleanup = (window as any)[CLEANUP_KEY] || (window as any)[LEGACY_CLEANUP_KEY];
     if (!container) {
       if (typeof oldCleanup === 'function') oldCleanup();
       (window as any)[CLEANUP_KEY] = undefined;
+      (window as any)[LEGACY_CLEANUP_KEY] = undefined;
       return;
     }
     if (container.dataset.mmInit === '1') return;
@@ -2368,6 +2534,9 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     const noteTextarea = document.getElementById('mm-note-textarea') as HTMLTextAreaElement;
     const notePreview = document.getElementById('mm-note-preview')!;
     const noteModeBtn = document.getElementById('mm-note-mode-btn')!;
+    const minimapEl = document.getElementById('mm-minimap')!;
+    const minimapSvg = document.getElementById('mm-minimap-svg') as unknown as SVGSVGElement;
+    const minimapVpEl = document.getElementById('mm-minimap-vp')!;
     const zoomLabel = document.getElementById('mm-zoom-label')!;
     const splitResizer = document.getElementById('mm-split-resizer')!;
     const outlinePane = document.getElementById('mm-outline-pane')!;
@@ -2398,6 +2567,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     let panX = 120;
     let panY = 120;
     let zoom = 1;
+    let stageRasterZoom = 1;
     let stageW = 900;
     let stageH = 600;
     let laidOutBoxes = new Map<string, NodeBox>();
@@ -2409,6 +2579,10 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     const linkDomMap = new Map<string, SVGPathElement>();
     let outlinePendingBaseline: { boxes: Map<string, NodeBox>; rootIds: Set<string> } | null = null;
     let panAnimCleanupTimer: number | null = null;
+    let viewportRafId: number | null = null;
+    let linkMorphRafId: number | null = null;
+    let wheelSettleTimer: number | null = null;
+    let holdPulseTimer: number | null = null;
     let autosaveTimer: number | null = null;
     let outlineSyncTimer: number | null = null;
     let suppressOutlineInput = false;
@@ -2567,12 +2741,15 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     // ---------- Subtabs Glider & Dynamic Categories ----------
     function updateSubtabsGlider() {
       const activeBtn = subtabsCluster.querySelector<HTMLElement>('.sub-tab-btn.active');
-      if (!activeBtn) {
-        subtabsGlider.style.width = '0px';
+      if (!activeBtn || !activeBtn.offsetWidth) {
+        subtabsGlider.style.opacity = '0';
         return;
       }
-      subtabsGlider.style.width = `${activeBtn.offsetWidth}px`;
-      subtabsGlider.style.transform = `translateX(${activeBtn.offsetLeft}px)`;
+      const sx = Math.max(0.05, activeBtn.offsetWidth / 100);
+      const halfH = Math.max(8, activeBtn.offsetHeight * 0.5);
+      subtabsGlider.style.opacity = '1';
+      subtabsGlider.style.setProperty('--pill-rx', `${(halfH / sx).toFixed(2)}px`);
+      subtabsGlider.style.transform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
     }
 
     function renderSubtabs() {
@@ -2864,16 +3041,18 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const glider = container.querySelector<HTMLElement>('.mm-seg-glider');
       const activeBtn = container.querySelector<HTMLElement>('.mm-seg-btn.is-active');
       if (!glider || !activeBtn || !activeBtn.offsetWidth) return;
+      const sx = Math.max(0.05, activeBtn.offsetWidth / 100);
+      const halfH = Math.max(8, activeBtn.offsetHeight * 0.5);
+      glider.style.setProperty('--pill-rx', `${(halfH / sx).toFixed(2)}px`);
+      const nextTransform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
       if (immediate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        const prev = glider.style.transition;
         glider.style.transition = 'none';
-        glider.style.width = `${activeBtn.offsetWidth}px`;
-        glider.style.transform = `translateX(${activeBtn.offsetLeft}px)`;
-        void glider.offsetWidth;
-        glider.style.transition = prev;
+        glider.style.transform = nextTransform;
+        requestAnimationFrame(() => {
+          glider.style.transition = '';
+        });
       } else {
-        glider.style.width = `${activeBtn.offsetWidth}px`;
-        glider.style.transform = `translateX(${activeBtn.offsetLeft}px)`;
+        glider.style.transform = nextTransform;
       }
     }
 
@@ -3666,21 +3845,254 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     wbUndoBtn.addEventListener('click', performUndo, { signal });
     wbRedoBtn.addEventListener('click', performRedo, { signal });
 
-    // ---------- Canvas Layout & Link Engine ----------
+    // ---------- Single-rAF Viewport Physics Engine & Cached Geometry ----------
+    let cachedVpRect: DOMRect = canvasViewport.getBoundingClientRect();
+    let cachedPaneRect: DOMRect = canvasPane.getBoundingClientRect();
+    let lastDisplayedZoomPct = -1;
+
+    function refreshViewportMetrics() {
+      if (wbModal.classList.contains('hidden')) return;
+      cachedVpRect = canvasViewport.getBoundingClientRect();
+      cachedPaneRect = canvasPane.getBoundingClientRect();
+    }
+
+    const vpResizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => {
+          refreshViewportMetrics();
+          syncMinimapViewport();
+        })
+      : null;
+    if (vpResizeObserver) {
+      vpResizeObserver.observe(canvasViewport);
+      vpResizeObserver.observe(canvasPane);
+      signal.addEventListener('abort', () => vpResizeObserver.disconnect(), { once: true });
+    }
+
+    // Minimap projection state & zero-reflow viewport indicator
+    const MINIMAP_W = 156;
+    const MINIMAP_H = 96;
+    const MINIMAP_PAD = 8;
+    let minimapScale = 0.1;
+    let minimapOffX = MINIMAP_PAD;
+    let minimapOffY = MINIMAP_PAD;
+    let lastMinimapVpW = -1;
+    let lastMinimapVpH = -1;
+
+    function syncMinimapViewport() {
+      if (!activeMap || viewMode === 'outline') return;
+      const vpW = cachedVpRect.width || 800;
+      const vpH = cachedVpRect.height || 520;
+      const visLeft = (-panX / zoom) * minimapScale + minimapOffX;
+      const visTop = (-panY / zoom) * minimapScale + minimapOffY;
+      const visW = (vpW / zoom) * minimapScale;
+      const visH = (vpH / zoom) * minimapScale;
+
+      const clampedX = Math.max(2, Math.min(MINIMAP_W - 14, visLeft));
+      const clampedY = Math.max(2, Math.min(MINIMAP_H - 12, visTop));
+      const clampedW = Math.max(12, Math.min(MINIMAP_W - clampedX - 2, visW));
+      const clampedH = Math.max(10, Math.min(MINIMAP_H - clampedY - 2, visH));
+
+      if (Math.abs(clampedW - lastMinimapVpW) > 0.35) {
+        lastMinimapVpW = clampedW;
+        minimapVpEl.style.width = `${clampedW.toFixed(1)}px`;
+      }
+      if (Math.abs(clampedH - lastMinimapVpH) > 0.35) {
+        lastMinimapVpH = clampedH;
+        minimapVpEl.style.height = `${clampedH.toFixed(1)}px`;
+      }
+      minimapVpEl.style.transform = `translate3d(${clampedX.toFixed(1)}px, ${clampedY.toFixed(1)}px, 0)`;
+    }
+
+    function renderMinimapTopology() {
+      if (!activeMap || laidOutBoxes.size === 0) {
+        minimapSvg.innerHTML = '';
+        return;
+      }
+      const usableW = MINIMAP_W - MINIMAP_PAD * 2;
+      const usableH = MINIMAP_H - MINIMAP_PAD * 2;
+      minimapScale = Math.min(usableW / Math.max(1, stageW), usableH / Math.max(1, stageH));
+      minimapOffX = (MINIMAP_W - stageW * minimapScale) / 2;
+      minimapOffY = (MINIMAP_H - stageH * minimapScale) / 2;
+
+      const parts: string[] = [];
+      for (const box of laidOutBoxes.values()) {
+        if (!box.parentId) continue;
+        const pBox = laidOutBoxes.get(box.parentId);
+        if (!pBox) continue;
+        const mp = {
+          x: pBox.x * minimapScale + minimapOffX,
+          y: pBox.y * minimapScale + minimapOffY,
+          w: pBox.w * minimapScale,
+          h: pBox.h * minimapScale,
+          side: pBox.side,
+        };
+        const mc = {
+          x: box.x * minimapScale + minimapOffX,
+          y: box.y * minimapScale + minimapOffY,
+          w: box.w * minimapScale,
+          h: box.h * minimapScale,
+          side: box.side,
+        };
+        parts.push(
+          `<path d="${buildInkBranchPath(mp, mc)}" fill="none" stroke="${box.color}" stroke-opacity="0.58" stroke-width="${box.depth === 1 ? '1.15' : '0.85'}" stroke-linecap="round"/>`
+        );
+      }
+      for (const box of laidOutBoxes.values()) {
+        const rx = (box.x * minimapScale + minimapOffX).toFixed(1);
+        const ry = (box.y * minimapScale + minimapOffY).toFixed(1);
+        const rw = Math.max(3, box.w * minimapScale).toFixed(1);
+        const rh = Math.max(2.2, box.h * minimapScale).toFixed(1);
+        const fill = box.depth === 0 ? 'var(--ink-strong)' : box.color;
+        const op = box.depth === 0 ? '0.92' : '0.68';
+        parts.push(`<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="1.5" fill="${fill}" fill-opacity="${op}"/>`);
+      }
+      minimapSvg.innerHTML = parts.join('');
+      syncMinimapViewport();
+    }
+
+    // Unified rAF state for pan dragging, momentum inertia, and damped focal wheel zoom
+    let pendingPointerPan: { x: number; y: number } | null = null;
+    let panVelX = 0;
+    let panVelY = 0;
+    let lastPanSampleX = 0;
+    let lastPanSampleY = 0;
+    let lastPanSampleTime = 0;
+    let isInertiaActive = false;
+    let isWheelDamping = false;
+    let wheelTargetZoom = 1;
+    let wheelAnchorX = 0;
+    let wheelAnchorY = 0;
+    let lastViewportTickTime = 0;
+
+    function syncZoomLabelOnly() {
+      const pct = Math.round(zoom * 100);
+      if (pct !== lastDisplayedZoomPct) {
+        lastDisplayedZoomPct = pct;
+        zoomLabel.textContent = `${pct}%`;
+      }
+    }
+
+    function commitGpuViewportFrame() {
+      const relScale = stageRasterZoom > 0 ? zoom / stageRasterZoom : 1;
+      if (Math.abs(relScale - 1) > 0.0006) {
+        canvasPan.style.transform = `translate3d(${panX.toFixed(2)}px, ${panY.toFixed(2)}px, 0) scale(${relScale.toFixed(5)})`;
+      } else {
+        canvasPan.style.transform = `translate3d(${panX.toFixed(1)}px, ${panY.toFixed(1)}px, 0)`;
+      }
+      syncZoomLabelOnly();
+      syncMinimapViewport();
+    }
+
+    function settleStageRasterZoom() {
+      if (wheelSettleTimer) {
+        window.clearTimeout(wheelSettleTimer);
+        wheelSettleTimer = null;
+      }
+      stageRasterZoom = zoom;
+      (canvasStage.style as CSSStyleDeclaration & { zoom: string }).zoom = zoom.toFixed(4);
+      canvasPan.style.transform = `translate3d(${panX.toFixed(1)}px, ${panY.toFixed(1)}px, 0)`;
+      if (!isInertiaActive && !pendingPointerPan && !isWheelDamping) {
+        canvasPan.style.willChange = '';
+      }
+      syncZoomLabelOnly();
+      syncMinimapViewport();
+    }
+
+    function tickViewportPhysics(now: number) {
+      viewportRafId = null;
+      const dt = lastViewportTickTime > 0 ? Math.min(0.05, Math.max(0.001, (now - lastViewportTickTime) / 1000)) : 1 / 60;
+      lastViewportTickTime = now;
+
+      if (pendingPointerPan) {
+        panX = pendingPointerPan.x;
+        panY = pendingPointerPan.y;
+        pendingPointerPan = null;
+      } else if (isInertiaActive) {
+        panX += panVelX * dt;
+        panY += panVelY * dt;
+        const decay = Math.exp(-5.6 * dt);
+        panVelX *= decay;
+        panVelY *= decay;
+        if (Math.hypot(panVelX, panVelY) < 12) {
+          isInertiaActive = false;
+          panVelX = 0;
+          panVelY = 0;
+        }
+      }
+
+      if (isWheelDamping) {
+        const alpha = 1 - Math.exp(-20 * dt);
+        const prevZoom = zoom;
+        const diff = wheelTargetZoom - prevZoom;
+        if (Math.abs(diff) < 0.0012) {
+          zoom = wheelTargetZoom;
+          isWheelDamping = false;
+        } else {
+          zoom = prevZoom + diff * alpha;
+        }
+        panX = wheelAnchorX - ((wheelAnchorX - panX) / prevZoom) * zoom;
+        panY = wheelAnchorY - ((wheelAnchorY - panY) / prevZoom) * zoom;
+
+        if (!isWheelDamping) {
+          if (wheelSettleTimer) window.clearTimeout(wheelSettleTimer);
+          wheelSettleTimer = window.setTimeout(() => {
+            wheelSettleTimer = null;
+            if (!isWheelDamping) settleStageRasterZoom();
+          }, 70);
+        }
+      }
+
+      commitGpuViewportFrame();
+
+      if (pendingPointerPan || isInertiaActive || isWheelDamping) {
+        viewportRafId = requestAnimationFrame(tickViewportPhysics);
+      } else {
+        lastViewportTickTime = 0;
+        if (!wheelSettleTimer) canvasPan.style.willChange = '';
+      }
+    }
+
+    function requestViewportFrame() {
+      if (viewportRafId !== null) return;
+      canvasPan.style.willChange = 'transform';
+      viewportRafId = requestAnimationFrame(tickViewportPhysics);
+    }
+
     function stopPanAnimation() {
       if (panAnimCleanupTimer) {
         window.clearTimeout(panAnimCleanupTimer);
         panAnimCleanupTimer = null;
       }
+      if (viewportRafId !== null) {
+        cancelAnimationFrame(viewportRafId);
+        viewportRafId = null;
+      }
+      if (wheelSettleTimer) {
+        window.clearTimeout(wheelSettleTimer);
+        wheelSettleTimer = null;
+      }
+      pendingPointerPan = null;
+      isInertiaActive = false;
+      panVelX = 0;
+      panVelY = 0;
+      if (isWheelDamping || Math.abs(stageRasterZoom - zoom) > 0.0006) {
+        isWheelDamping = false;
+        stageRasterZoom = zoom;
+        (canvasStage.style as CSSStyleDeclaration & { zoom: string }).zoom = zoom.toFixed(4);
+      }
+      lastViewportTickTime = 0;
       canvasPan.style.transition = '';
       canvasPan.style.willChange = '';
     }
 
     function applyViewportTransform() {
       stopPanAnimation();
+      stageRasterZoom = zoom;
+      wheelTargetZoom = zoom;
       canvasPan.style.transform = `translate3d(${panX.toFixed(1)}px, ${panY.toFixed(1)}px, 0)`;
       (canvasStage.style as CSSStyleDeclaration & { zoom: string }).zoom = zoom.toFixed(4);
-      zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+      syncZoomLabelOnly();
+      syncMinimapViewport();
     }
 
     // 仅使用单次 CSS zoom 重绘 + GPU compositor 缩放平移，彻底消除逐帧 zoom 重排卡顿
@@ -3702,23 +4114,26 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       panX = targetPanX;
       panY = targetPanY;
       zoom = targetZoom;
+      stageRasterZoom = zoom;
+      wheelTargetZoom = zoom;
 
       (canvasStage.style as CSSStyleDeclaration & { zoom: string }).zoom = zoom.toFixed(4);
-      zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+      syncZoomLabelOnly();
+      syncMinimapViewport();
 
       const relScale = oldZoom / zoom;
       canvasPan.style.willChange = 'transform';
       canvasPan.style.transition = 'none';
       canvasPan.style.transform = `translate3d(${oldPanX.toFixed(1)}px, ${oldPanY.toFixed(1)}px, 0) scale(${relScale.toFixed(4)})`;
       void canvasPan.offsetWidth;
-      canvasPan.style.transition = 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)';
+      canvasPan.style.transition = 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1)';
       canvasPan.style.transform = `translate3d(${panX.toFixed(1)}px, ${panY.toFixed(1)}px, 0) scale(1)`;
       panAnimCleanupTimer = window.setTimeout(() => {
         panAnimCleanupTimer = null;
         canvasPan.style.transition = '';
         canvasPan.style.transform = `translate3d(${panX.toFixed(1)}px, ${panY.toFixed(1)}px, 0)`;
         canvasPan.style.willChange = '';
-      }, 270);
+      }, 290);
     }
 
     function fallbackMeasureSize(textLen: number): { w: number; h: number } {
@@ -4007,26 +4422,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     }
 
     function buildLinkPath(parent: NodeBox, child: NodeBox): string {
-      if (child.side === 'down') {
-        const x1 = parent.x + parent.w / 2;
-        const y1 = parent.y + parent.h;
-        const x2 = child.x + child.w / 2;
-        const y2 = child.y;
-        const midY = (y1 + y2) / 2;
-        return `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
-      }
-      const dir = child.side === 'left' ? -1 : 1;
-      const x1 = dir === 1 ? parent.x + parent.w : parent.x;
-      const y1 = parent.y + parent.h / 2;
-      const x2 = dir === 1 ? child.x : child.x + child.w;
-      const y2 = child.y + child.h / 2;
-      const ctrl = Math.abs(x2 - x1) * 0.48;
-      return `M ${x1} ${y1} C ${x1 + dir * ctrl} ${y1}, ${x2 - dir * ctrl} ${y2}, ${x2} ${y2}`;
+      return buildInkBranchPath(parent, child);
     }
 
     function fitCanvasToViewport(animate = false) {
       if (!activeMap || laidOutBoxes.size === 0) return;
-      const vpRect = canvasViewport.getBoundingClientRect();
+      refreshViewportMetrics();
+      const vpRect = cachedVpRect;
       if (!vpRect.width || !vpRect.height) return;
       const padX = 72;
       const padTop = 76;
@@ -4042,7 +4444,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     function centerOnRoot() {
       if (!activeMap) return;
       const rootBox = laidOutBoxes.get(activeMap.root.id);
-      const vpRect = canvasViewport.getBoundingClientRect();
+      refreshViewportMetrics();
+      const vpRect = cachedVpRect;
       if (!rootBox || !vpRect.width) return;
       const nextPanX = vpRect.width / 2 - (rootBox.x + rootBox.w / 2) * zoom;
       const nextPanY = vpRect.height / 2 - (rootBox.y + rootBox.h / 2) * zoom;
@@ -4303,7 +4706,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
     function ensureTreeComfortablyVisible(animate = true) {
       if (!activeMap || laidOutBoxes.size === 0 || viewMode === 'outline') return;
-      const vpRect = canvasViewport.getBoundingClientRect();
+      refreshViewportMetrics();
+      const vpRect = cachedVpRect;
       if (!vpRect.width || !vpRect.height) return;
 
       let minX = Infinity;
@@ -4384,14 +4788,16 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           }
         }
 
-        // Capture outgoing SVG connector path if parent existed before
+        // Capture outgoing SVG connector path if parent existed before (water-ink stroke retraction)
         if (oldBox.parentId && prevBoxes.has(oldBox.parentId)) {
           const prevP = prevBoxes.get(oldBox.parentId);
           if (prevP && 'w' in prevP) {
             const shiftedP: NodeBox = { ...(prevP as NodeBox), x: (prevP as NodeBox).x + anchorShiftX, y: (prevP as NodeBox).y + anchorShiftY };
             const shiftedC: NodeBox = { ...oldBox, x: oldX, y: oldY };
+            const sw = computeInkBranchStrokeWidth(oldBox.depth).toFixed(2);
+            const so = computeInkBranchOpacity(oldBox.depth).toFixed(2);
             svgPaths.push(
-              `<path d="${buildLinkPath(shiftedP, shiftedC)}" fill="none" stroke="${oldBox.color}" stroke-opacity="0.65" stroke-width="${oldBox.depth === 1 ? 2.2 : 1.6}" stroke-linecap="round"/>`
+              `<path class="mm-exit-branch" pathLength="1" stroke-dasharray="1" stroke-dashoffset="0" d="${buildLinkPath(shiftedP, shiftedC)}" fill="none" stroke="${oldBox.color}" stroke-opacity="${so}" stroke-width="${sw}" stroke-linecap="round"/>`
             );
           }
         }
@@ -4428,9 +4834,18 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         exitSvg.style.pointerEvents = 'none';
         exitSvg.innerHTML = svgPaths.join('');
         exitLayer.appendChild(exitSvg);
+        exitSvg.querySelectorAll<SVGPathElement>('.mm-exit-branch').forEach((p) => {
+          p.animate(
+            [
+              { strokeDashoffset: '0', opacity: 0.92 },
+              { strokeDashoffset: '1', opacity: 0 },
+            ],
+            { duration: 220, easing: 'cubic-bezier(0.32, 0, 0.2, 1)', fill: 'forwards' }
+          );
+        });
         const svgAnim = exitSvg.animate(
-          [{ opacity: 0.9 }, { opacity: 0 }],
-          { duration: 150, easing: 'ease-out', fill: 'forwards' }
+          [{ opacity: 1 }, { opacity: 0 }],
+          { duration: 225, easing: 'cubic-bezier(0.32, 0, 0.2, 1)', fill: 'forwards' }
         );
         svgAnim.onfinish = () => exitSvg.remove();
       }
@@ -4444,14 +4859,14 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             c.isCollapse
               ? [
                   { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
-                  { opacity: 0, transform: `translate3d(${c.dx.toFixed(1)}px, ${c.dy.toFixed(1)}px, 0) scale(0.56)` },
+                  { opacity: 0, transform: `translate3d(${c.dx.toFixed(1)}px, ${c.dy.toFixed(1)}px, 0) scale(0.58)` },
                 ]
               : [
-                  { opacity: 1, transform: 'scale(1)' },
-                  { opacity: 0, transform: 'scale(0.7)' },
+                  { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
+                  { opacity: 0, transform: 'translate3d(0, -4px, 0) scale(0.72)' },
                 ],
             {
-              duration: c.isCollapse ? 190 : 165,
+              duration: c.isCollapse ? 230 : 185,
               easing: c.isCollapse ? 'cubic-bezier(0.32, 0, 0.2, 1)' : 'cubic-bezier(0.22, 1, 0.36, 1)',
               fill: 'forwards',
             }
@@ -4651,16 +5066,20 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       dragPreviewSvg.setAttribute('viewBox', `0 0 ${stageW} ${stageH}`);
 
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (linkMorphRafId !== null) {
+        cancelAnimationFrame(linkMorphRafId);
+        linkMorphRafId = null;
+      }
 
       // Spawn collapse-into-parent or delete shrink-fade exit animations cleanly in non-blocking overlay
       if (prevRects && prevRects.size > 0 && !reduceMotion && !opts.skipExitClones) {
         spawnExitAnimations(prevRects, laidOutBoxes, anchorShiftX, anchorShiftY, activeMap.root);
       }
 
-      // 1. Keyed SVG Bezier Link Reconciliation (no blanket innerHTML teardown)
+      // 1. Keyed SVG Calligraphic Bezier Link Reconciliation (hierarchical ink brush taper)
       const activeLinkIds = new Set<string>();
       const svgNS = 'http://www.w3.org/2000/svg';
-      const newLinks: SVGPathElement[] = [];
+      const newLinks: Array<{ pathEl: SVGPathElement; box: NodeBox }> = [];
       for (const box of laidOutBoxes.values()) {
         if (!box.parentId) continue;
         const pBox = laidOutBoxes.get(box.parentId);
@@ -4668,19 +5087,21 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         const id = box.node.id;
         activeLinkIds.add(id);
         const d = buildLinkPath(pBox, box);
-        const sw = box.depth === 1 ? '2.2' : '1.6';
+        const sw = computeInkBranchStrokeWidth(box.depth).toFixed(2);
+        const so = computeInkBranchOpacity(box.depth).toFixed(2);
         let pathEl = linkDomMap.get(id);
         if (!pathEl) {
           pathEl = document.createElementNS(svgNS, 'path');
           pathEl.setAttribute('fill', 'none');
-          pathEl.setAttribute('stroke-opacity', '0.72');
           pathEl.setAttribute('stroke-linecap', 'round');
+          pathEl.setAttribute('pathLength', '1');
           linkDomMap.set(id, pathEl);
           linksSvg.appendChild(pathEl);
-          newLinks.push(pathEl);
+          newLinks.push({ pathEl, box });
         }
         pathEl.setAttribute('d', d);
         pathEl.setAttribute('stroke', box.color);
+        pathEl.setAttribute('stroke-opacity', so);
         pathEl.setAttribute('stroke-width', sw);
       }
       for (const [id, pathEl] of linkDomMap.entries()) {
@@ -4688,13 +5109,6 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           pathEl.remove();
           linkDomMap.delete(id);
         }
-      }
-      if (opts.animateLinks && !reduceMotion && newLinks.length > 0 && newLinks.length < laidOutBoxes.size) {
-        for (const p of newLinks) {
-          p.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
-        }
-      } else if (opts.animateLinks && !reduceMotion && laidOutBoxes.size <= 80) {
-        linksSvg.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 210, easing: 'ease-out' });
       }
 
       // 2. Keyed Interactive Node DOM Reconciliation (reuses unchanged elements & listeners)
@@ -4712,8 +5126,30 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       }
 
       const newNodesFrag = document.createDocumentFragment();
-      const flipNodes: Array<{ el: HTMLElement; dx: number; dy: number }> = [];
-      const enterNodes: HTMLElement[] = [];
+      const flipNodes: Array<{ id: string; el: HTMLElement; dx: number; dy: number }> = [];
+      const flipDeltas = new Map<string, { dx: number; dy: number }>();
+      const enterNodes: Array<{ el: HTMLElement; box: NodeBox; spawnDx: number; spawnDy: number }> = [];
+
+      const findSpawnOrigin = (box: NodeBox): { x: number; y: number; w: number; h: number } | null => {
+        let curParentId = box.parentId;
+        while (curParentId) {
+          if (prevRects && prevRects.has(curParentId)) {
+            const prevAnc = prevRects.get(curParentId)!;
+            const curAnc = laidOutBoxes.get(curParentId);
+            return {
+              x: prevAnc.x + anchorShiftX,
+              y: prevAnc.y + anchorShiftY,
+              w: 'w' in prevAnc ? prevAnc.w : (curAnc?.w || box.w),
+              h: 'h' in prevAnc ? prevAnc.h : (curAnc?.h || box.h),
+            };
+          }
+          curParentId = laidOutBoxes.get(curParentId)?.parentId || null;
+        }
+        if (box.parentId && laidOutBoxes.has(box.parentId)) {
+          return laidOutBoxes.get(box.parentId)!;
+        }
+        return null;
+      };
 
       for (const box of laidOutBoxes.values()) {
         const isSel = activeSel.has(box.node.id);
@@ -4726,15 +5162,50 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           const dx = prev.x + anchorShiftX - box.x;
           const dy = prev.y + anchorShiftY - box.y;
           if (Math.hypot(dx, dy) > 1.5) {
-            flipNodes.push({ el, dx, dy });
+            flipNodes.push({ id: box.node.id, el, dx, dy });
+            flipDeltas.set(box.node.id, { dx, dy });
           }
         } else if (isExplicitEnter || (prevRects && prevRects.size > 0 && !prevRects.has(box.node.id))) {
-          enterNodes.push(el);
+          const origin = findSpawnOrigin(box);
+          const spawnDx = origin ? (origin.x + origin.w * 0.5) - (box.x + box.w * 0.5) : 0;
+          const spawnDy = origin ? (origin.y + origin.h * 0.5) - (box.y + box.h * 0.5) : 0;
+          enterNodes.push({ el, box, spawnDx, spawnDy });
         }
       }
       if (newNodesFrag.childNodes.length > 0) nodesLayer.appendChild(newNodesFrag);
 
-      // Pure GPU WAAPI FLIP for moved/reflowed nodes (no style mutation / timeout timer churn)
+      // 3. Water-ink branch stroke unfurling (毛笔运笔舒展: pathLength=1 strokeDashoffset 1 -> 0)
+      const minEnterDepth = enterNodes.length > 0
+        ? enterNodes.reduce((m, n) => Math.min(m, n.box.depth), Infinity)
+        : 1;
+
+      if (!reduceMotion && newLinks.length > 0 && (opts.animateLinks || enterNodes.length > 0) && newLinks.length < laidOutBoxes.size) {
+        for (const { pathEl, box } of newLinks) {
+          const relDepth = Math.max(0, box.depth - minEnterDepth);
+          const delay = Math.min(130, relDepth * 32);
+          pathEl.style.strokeDasharray = '1';
+          pathEl.style.strokeDashoffset = '1';
+          const anim = pathEl.animate(
+            [
+              { strokeDashoffset: '1', opacity: 0.2 },
+              { strokeDashoffset: '0', opacity: 1 },
+            ],
+            {
+              duration: 340,
+              delay,
+              easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+              fill: 'forwards',
+            }
+          );
+          anim.onfinish = () => {
+            pathEl.style.strokeDasharray = '';
+            pathEl.style.strokeDashoffset = '';
+          };
+        }
+      }
+
+      // 4. Pure GPU WAAPI FLIP for moved/reflowed nodes + Continuous Bezier Link Morph (zero detachment)
+      const FLIP_DURATION_MS = 280;
       if (flipNodes.length > 0 && !reduceMotion) {
         for (const item of flipNodes) {
           item.el.animate(
@@ -4743,26 +5214,70 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
               { transform: 'translate3d(0, 0, 0)' },
             ],
             {
-              duration: 240,
+              duration: FLIP_DURATION_MS,
               easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
             }
           );
         }
+
+        if (laidOutBoxes.size <= 160) {
+          const morphPairs: Array<{ pathEl: SVGPathElement; pBox: NodeBox; cBox: NodeBox; pDelta?: { dx: number; dy: number }; cDelta?: { dx: number; dy: number } }> = [];
+          for (const box of laidOutBoxes.values()) {
+            if (!box.parentId) continue;
+            const pDelta = flipDeltas.get(box.parentId);
+            const cDelta = flipDeltas.get(box.node.id);
+            if (!pDelta && !cDelta) continue;
+            const pBox = laidOutBoxes.get(box.parentId);
+            const pathEl = linkDomMap.get(box.node.id);
+            if (pBox && pathEl) {
+              morphPairs.push({ pathEl, pBox, cBox: box, pDelta, cDelta });
+            }
+          }
+          if (morphPairs.length > 0) {
+            const morphStart = performance.now();
+            const stepMorph = (now: number) => {
+              const rawT = Math.min(1, Math.max(0, (now - morphStart) / FLIP_DURATION_MS));
+              // Matches cubic-bezier(0.22, 1, 0.36, 1) ease-out curve
+              const eased = 1 - Math.pow(1 - rawT, 3.25);
+              const rem = 1 - eased;
+              for (const pair of morphPairs) {
+                const ip = pair.pDelta
+                  ? { ...pair.pBox, x: pair.pBox.x + pair.pDelta.dx * rem, y: pair.pBox.y + pair.pDelta.dy * rem }
+                  : pair.pBox;
+                const ic = pair.cDelta
+                  ? { ...pair.cBox, x: pair.cBox.x + pair.cDelta.dx * rem, y: pair.cBox.y + pair.cDelta.dy * rem }
+                  : pair.cBox;
+                pair.pathEl.setAttribute('d', buildLinkPath(ip, ic));
+              }
+              if (rawT < 1) {
+                linkMorphRafId = requestAnimationFrame(stepMorph);
+              } else {
+                linkMorphRafId = null;
+              }
+            };
+            linkMorphRafId = requestAnimationFrame(stepMorph);
+          }
+        }
       }
 
-      // Lightweight GPU spring pop-in for newly added / revealed nodes
+      // 5. Water-ink parent-origin sprouting for newly added / expanded child nodes
       if (enterNodes.length > 0 && !reduceMotion) {
-        const step = enterNodes.length > 1 ? Math.min(14, 110 / enterNodes.length) : 0;
-        enterNodes.forEach((el, idx) => {
+        const siblingStep = enterNodes.length > 1 ? Math.min(14, 96 / enterNodes.length) : 0;
+        enterNodes.forEach(({ el, box, spawnDx, spawnDy }, idx) => {
+          const relDepth = Math.max(0, box.depth - minEnterDepth);
+          const delay = Math.min(150, relDepth * 30 + idx * siblingStep);
+          const startX = (spawnDx * 0.8).toFixed(1);
+          const startY = (spawnDy * 0.8).toFixed(1);
           el.animate(
             [
-              { opacity: 0, transform: 'scale(0.74)' },
-              { opacity: 1, transform: 'scale(1)' },
+              { opacity: 0, transform: `translate3d(${startX}px, ${startY}px, 0) scale(0.74)` },
+              { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1.018)', offset: 0.78 },
+              { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
             ],
             {
-              duration: 220,
-              delay: idx * step,
-              easing: 'cubic-bezier(0.34, 1.45, 0.64, 1)',
+              duration: 340,
+              delay,
+              easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
               fill: 'backwards',
             }
           );
@@ -4771,6 +5286,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
       const { total, hidden } = countNodes(activeMap.root);
       wbNodeStats.textContent = hidden > 0 ? `${total} 节点（${hidden} 已收起）` : `${total} 节点`;
+      renderMinimapTopology();
       syncNodePillState();
       if (autoFit) {
         fitCanvasToViewport(!reduceMotion && Boolean(prevRects && prevRects.size > 0));
@@ -4826,6 +5342,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       });
     }
 
+    const dropPillSizeCache = new Map<string, { w: number; h: number }>();
+
     function findDropCandidate(clientX: number, clientY: number, dragId: string): {
       targetId: string | null;
       mode: 'inside' | 'before' | 'after';
@@ -4834,7 +5352,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const dragNode = findNodeById(activeMap.root, dragId);
       if (!dragNode) return { targetId: null, mode: 'inside' };
 
-      const vpRect = canvasViewport.getBoundingClientRect();
+      const vpRect = cachedVpRect;
       const wx = (clientX - vpRect.left - panX) / zoom;
       const wy = (clientY - vpRect.top - panY) / zoom;
 
@@ -4874,21 +5392,31 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       anchorTopY: number,
       anchorBottomY: number,
       vpRect: DOMRect,
-      ghostRect: DOMRect
+      ghostBounds: { top: number; bottom: number }
     ) {
-      dropPillEl.textContent = label;
+      if (dropPillEl.textContent !== label) {
+        dropPillEl.textContent = label;
+      }
       dropPillEl.classList.remove('hidden');
-      const pw = dropPillEl.offsetWidth || 72;
-      const ph = dropPillEl.offsetHeight || 26;
+      let pillDim = dropPillSizeCache.get(label);
+      if (!pillDim) {
+        pillDim = {
+          w: dropPillEl.offsetWidth || 72,
+          h: dropPillEl.offsetHeight || 26,
+        };
+        dropPillSizeCache.set(label, pillDim);
+      }
+      const pw = pillDim.w;
+      const ph = pillDim.h;
       const clearance = 10;
       const x = Math.max(vpRect.left + 8, Math.min(vpRect.right - pw - 8, anchorCenterX - pw / 2));
       let y = placement === 'above'
-        ? Math.min(anchorTopY, ghostRect.top) - ph - clearance
-        : Math.max(anchorBottomY, ghostRect.bottom) + clearance;
+        ? Math.min(anchorTopY, ghostBounds.top) - ph - clearance
+        : Math.max(anchorBottomY, ghostBounds.bottom) + clearance;
       if (placement === 'above' && y < vpRect.top + 8) {
-        y = Math.max(anchorBottomY, ghostRect.bottom) + clearance;
+        y = Math.max(anchorBottomY, ghostBounds.bottom) + clearance;
       } else if (placement === 'below' && y + ph > vpRect.bottom - 8) {
-        y = Math.min(anchorTopY, ghostRect.top) - ph - clearance;
+        y = Math.min(anchorTopY, ghostBounds.top) - ph - clearance;
       }
       y = Math.max(vpRect.top + 8, Math.min(vpRect.bottom - ph - 8, y));
       dropPillEl.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
@@ -4903,7 +5431,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const ghostTop = lastClientY - offsetY;
       dragGhostEl.style.transform = `translate3d(${ghostLeft.toFixed(1)}px, ${ghostTop.toFixed(1)}px, 0) scale(1.03) rotate(0.5deg)`;
 
-      // 2. Hit-test candidate target + render SVG live guide & unobstructed floating drop pill
+      // 2. Hit-test candidate target + render SVG live guide & unobstructed floating drop pill (zero DOM reflow)
       const { targetId, mode } = findDropCandidate(lastClientX, lastClientY, dragId);
       dragState.targetId = targetId;
       dragState.mode = mode;
@@ -4925,8 +5453,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const tBox = laidOutBoxes.get(targetId);
       if (!tBox) return;
 
-      const vpRect = canvasViewport.getBoundingClientRect();
-      const ghostRect = dragGhostEl.getBoundingClientRect();
+      const vpRect = cachedVpRect;
+      const ghostBounds = { top: ghostTop, bottom: ghostTop + height };
       const ghostStageX = (ghostLeft - vpRect.left - panX) / zoom + width / 2;
       const ghostStageY = (ghostTop - vpRect.top - panY) / zoom + height / 2;
       let nextPreviewSvg = '';
@@ -4951,7 +5479,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           tScreenTop,
           tScreenBottom,
           vpRect,
-          ghostRect
+          ghostBounds
         );
       } else {
         if (tBox.side === 'down') {
@@ -4972,7 +5500,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             barScreenTop,
             barScreenBottom,
             vpRect,
-            ghostRect
+            ghostBounds
           );
         } else {
           reorderIndicatorEl.classList.remove('is-vertical');
@@ -4991,7 +5519,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             barScreenY,
             barScreenY + 4,
             vpRect,
-            ghostRect
+            ghostBounds
           );
         }
         reorderIndicatorEl.classList.remove('hidden');
@@ -5003,7 +5531,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           const ex = tBox.x + (tBox.side === 'left' ? tBox.w : 0);
           const ey = mode === 'before' ? tBox.y - 7 : tBox.y + tBox.h + 8;
           const mid = (sx + ex) / 2;
-          nextPreviewSvg = `<path d="M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ey}, ${ex} ${ey}" fill="none" stroke="#2589ff" stroke-width="2" stroke-dasharray="5 4"/>`;
+          nextPreviewSvg = `<path d="M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ey}, ${ex} ${ey}" fill="none" stroke="var(--mm-cinnabar, #c84b31)" stroke-width="2" stroke-dasharray="5 4"/>`;
         }
       }
 
@@ -5035,6 +5563,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
       const nodeEl = nodeDomMap.get(nodeId) || nodesLayer.querySelector<HTMLElement>(`[data-node-id="${nodeId}"]`);
       if (!activeMap || nodeId === activeMap.root.id || !nodeEl) return;
+      refreshViewportMetrics();
       const rect = nodeEl.getBoundingClientRect();
       const box = laidOutBoxes.get(nodeId);
       const unscaledW = box?.w || rect.width / (zoom || 1);
@@ -5093,7 +5622,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       if (state.started && state.targetId && activeMap) {
         const prevRects = captureNodeRects();
         const existingBox = prevRects.get(state.dragId);
-        const vpRect = canvasViewport.getBoundingClientRect();
+        const vpRect = cachedVpRect;
         const ghostStageX = (state.lastClientX - state.offsetX - vpRect.left - panX) / zoom;
         const ghostStageY = (state.lastClientY - state.offsetY - vpRect.top - panY) / zoom;
         if (existingBox) {
@@ -5106,7 +5635,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           pushUndoSnapshot();
           activeMap.root = updated;
           setSelection([state.dragId], state.dragId, false);
-          renderCanvasAndOutline(false, prevRects, { skipExitClones: true });
+          renderCanvasAndOutline(false, prevRects, { animateLinks: true, skipExitClones: true });
           scheduleWorkbenchSave();
           showToast(state.mode === 'inside' ? '已调整节点所属父级' : '已调整同级顺序');
         }
@@ -5115,7 +5644,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       }
     }, { signal });
 
-    // ---------- Canvas Pan, Long-Press Left Marquee Multi-Select & Zoom ----------
+    // ---------- Canvas Pan (rAF + Momentum Inertia), Long-Press Marquee, Minimap & Damped Wheel Zoom ----------
     let canvasGesture: {
       mode: 'pending' | 'pan' | 'marquee';
       startX: number;
@@ -5134,14 +5663,17 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       canvasViewport.classList.remove('is-panning');
       canvasViewport.classList.add('is-marquee');
 
-      const paneRect = canvasPane.getBoundingClientRect();
+      const paneRect = cachedPaneRect;
       const px = canvasGesture.startX - paneRect.left;
       const py = canvasGesture.startY - paneRect.top;
       holdPulseEl.style.left = `${px}px`;
       holdPulseEl.style.top = `${py}px`;
       holdPulseEl.classList.remove('hidden');
-      void holdPulseEl.offsetWidth;
-      window.setTimeout(() => holdPulseEl.classList.add('hidden'), 380);
+      if (holdPulseTimer) window.clearTimeout(holdPulseTimer);
+      holdPulseTimer = window.setTimeout(() => {
+        holdPulseTimer = null;
+        holdPulseEl.classList.add('hidden');
+      }, 380);
 
       marqueeBoxEl.style.left = `${px}px`;
       marqueeBoxEl.style.top = `${py}px`;
@@ -5153,7 +5685,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     canvasViewport.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || (e.target as HTMLElement).closest('.mm-node')) return;
       stopPanAnimation();
+      refreshViewportMetrics();
       const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+      lastPanSampleX = e.clientX;
+      lastPanSampleY = e.clientY;
+      lastPanSampleTime = performance.now();
+      panVelX = 0;
+      panVelY = 0;
       canvasGesture = {
         mode: 'pending',
         startX: e.clientX,
@@ -5183,13 +5721,27 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         }
         canvasGesture.mode = 'pan';
         canvasViewport.classList.add('is-panning');
+        lastPanSampleX = e.clientX;
+        lastPanSampleY = e.clientY;
+        lastPanSampleTime = performance.now();
       }
       if (canvasGesture.mode === 'pan') {
-        panX = canvasGesture.origPanX + dx;
-        panY = canvasGesture.origPanY + dy;
-        applyViewportTransform();
+        const now = performance.now();
+        const dtMs = Math.max(4, now - lastPanSampleTime);
+        const instVx = ((e.clientX - lastPanSampleX) / dtMs) * 1000;
+        const instVy = ((e.clientY - lastPanSampleY) / dtMs) * 1000;
+        panVelX = panVelX * 0.52 + instVx * 0.48;
+        panVelY = panVelY * 0.52 + instVy * 0.48;
+        lastPanSampleX = e.clientX;
+        lastPanSampleY = e.clientY;
+        lastPanSampleTime = now;
+        pendingPointerPan = {
+          x: canvasGesture.origPanX + dx,
+          y: canvasGesture.origPanY + dy,
+        };
+        requestViewportFrame();
       } else if (canvasGesture.mode === 'marquee' && activeMap) {
-        const paneRect = canvasPane.getBoundingClientRect();
+        const paneRect = cachedPaneRect;
         const x0 = Math.min(canvasGesture.startX, e.clientX);
         const y0 = Math.min(canvasGesture.startY, e.clientY);
         const x1 = Math.max(canvasGesture.startX, e.clientX);
@@ -5199,7 +5751,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         marqueeBoxEl.style.width = `${Math.max(1, x1 - x0)}px`;
         marqueeBoxEl.style.height = `${Math.max(1, y1 - y0)}px`;
 
-        const vpRect = canvasViewport.getBoundingClientRect();
+        const vpRect = cachedVpRect;
         const stageX0 = (x0 - vpRect.left - panX) / zoom;
         const stageY0 = (y0 - vpRect.top - panY) / zoom;
         const stageX1 = (x1 - vpRect.left - panX) / zoom;
@@ -5225,50 +5777,138 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       canvasViewport.classList.remove('is-panning', 'is-marquee');
       marqueeBoxEl.classList.add('hidden');
 
-      if (gesture.mode === 'pending' && activeMap && !gesture.additive) {
+      if (gesture.mode === 'pan') {
+        if (pendingPointerPan) {
+          panX = pendingPointerPan.x;
+          panY = pendingPointerPan.y;
+          pendingPointerPan = null;
+          commitGpuViewportFrame();
+        }
+        const idleMs = performance.now() - lastPanSampleTime;
+        const speed = Math.hypot(panVelX, panVelY);
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (!reduceMotion && idleMs < 64 && speed > 95) {
+          const maxSpeed = 2400;
+          if (speed > maxSpeed) {
+            const scale = maxSpeed / speed;
+            panVelX *= scale;
+            panVelY *= scale;
+          }
+          isInertiaActive = true;
+          requestViewportFrame();
+        } else {
+          panVelX = 0;
+          panVelY = 0;
+        }
+      } else if (gesture.mode === 'pending' && activeMap && !gesture.additive) {
         // Quick click on empty canvas clears multi-selection cleanly
         setSelection([activeMap.root.id], activeMap.root.id);
       }
+    }, { signal });
+
+    // Interactive Minimap Navigation (click / scrub to pan canvas)
+    let minimapRectCache: DOMRect | null = null;
+    let minimapDragging = false;
+    function panFromMinimapPointer(clientX: number, clientY: number, smoothJump: boolean) {
+      if (!activeMap || !minimapRectCache || minimapScale <= 0) return;
+      const localX = Math.max(0, Math.min(MINIMAP_W, clientX - minimapRectCache.left));
+      const localY = Math.max(0, Math.min(MINIMAP_H, clientY - minimapRectCache.top));
+      const stageTargetX = (localX - minimapOffX) / minimapScale;
+      const stageTargetY = (localY - minimapOffY) / minimapScale;
+      const vpW = cachedVpRect.width || 800;
+      const vpH = cachedVpRect.height || 520;
+      const nextPanX = vpW / 2 - stageTargetX * zoom;
+      const nextPanY = vpH / 2 - stageTargetY * zoom;
+      if (smoothJump) {
+        animateViewportTo(nextPanX, nextPanY, zoom, true);
+      } else {
+        pendingPointerPan = { x: nextPanX, y: nextPanY };
+        requestViewportFrame();
+      }
+    }
+
+    minimapEl.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || !activeMap) return;
+      e.preventDefault();
+      e.stopPropagation();
+      stopPanAnimation();
+      refreshViewportMetrics();
+      minimapRectCache = minimapEl.getBoundingClientRect();
+      minimapDragging = true;
+      panFromMinimapPointer(e.clientX, e.clientY, true);
+    }, { signal });
+    window.addEventListener('pointermove', (e) => {
+      if (!minimapDragging) return;
+      panFromMinimapPointer(e.clientX, e.clientY, false);
+    }, { signal });
+    window.addEventListener('pointerup', () => {
+      if (!minimapDragging) return;
+      minimapDragging = false;
+      minimapRectCache = null;
     }, { signal });
 
     canvasPane.addEventListener('wheel', (e) => {
       if (wbModal.classList.contains('hidden')) return;
       e.preventDefault();
       e.stopPropagation();
-      stopPanAnimation();
-      const vpRect = canvasViewport.getBoundingClientRect();
+      if (panAnimCleanupTimer) {
+        stopPanAnimation();
+      }
+      isInertiaActive = false;
+      panVelX = 0;
+      panVelY = 0;
+
+      if (!cachedVpRect.width) refreshViewportMetrics();
+      const vpRect = cachedVpRect;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
       if (e.ctrlKey || e.metaKey || Math.abs(e.deltaY) >= 4) {
-        const factor = e.deltaY < 0 ? 1.09 : 0.91;
-        const nextZoom = Math.max(0.32, Math.min(2.4, zoom * factor));
+        const clampedDelta = Math.max(-130, Math.min(130, e.deltaY));
+        const stepFactor = Math.exp(-clampedDelta * 0.00175);
+        const baseTarget = isWheelDamping ? wheelTargetZoom : zoom;
+        const nextZoom = Math.max(0.32, Math.min(2.4, baseTarget * stepFactor));
         const mx = e.clientX - vpRect.left;
         const my = e.clientY - vpRect.top;
-        panX = mx - ((mx - panX) / zoom) * nextZoom;
-        panY = my - ((my - panY) / zoom) * nextZoom;
-        zoom = nextZoom;
-        applyViewportTransform();
+
+        if (reduceMotion) {
+          panX = mx - ((mx - panX) / zoom) * nextZoom;
+          panY = my - ((my - panY) / zoom) * nextZoom;
+          zoom = nextZoom;
+          applyViewportTransform();
+        } else {
+          wheelTargetZoom = nextZoom;
+          wheelAnchorX = mx;
+          wheelAnchorY = my;
+          isWheelDamping = true;
+          requestViewportFrame();
+        }
       } else {
-        panX -= e.deltaX;
-        panY -= e.deltaY;
-        applyViewportTransform();
+        const baseX = pendingPointerPan ? pendingPointerPan.x : panX;
+        const baseY = pendingPointerPan ? pendingPointerPan.y : panY;
+        pendingPointerPan = {
+          x: baseX - e.deltaX,
+          y: baseY - e.deltaY,
+        };
+        requestViewportFrame();
       }
     }, { passive: false, signal });
 
     document.getElementById('mm-zoom-in-btn')?.addEventListener('click', () => {
-      const vp = canvasViewport.getBoundingClientRect();
-      const nextZ = Math.min(2.4, zoom * 1.16);
-      panX = vp.width / 2 - ((vp.width / 2 - panX) / zoom) * nextZ;
-      panY = vp.height / 2 - ((vp.height / 2 - panY) / zoom) * nextZ;
-      zoom = nextZ;
-      applyViewportTransform();
+      refreshViewportMetrics();
+      const vp = cachedVpRect;
+      const nextZ = Math.min(2.4, zoom * 1.18);
+      const nextPanX = vp.width / 2 - ((vp.width / 2 - panX) / zoom) * nextZ;
+      const nextPanY = vp.height / 2 - ((vp.height / 2 - panY) / zoom) * nextZ;
+      animateViewportTo(nextPanX, nextPanY, nextZ, true);
       canvasViewport.focus({ preventScroll: true });
     }, { signal });
     document.getElementById('mm-zoom-out-btn')?.addEventListener('click', () => {
-      const vp = canvasViewport.getBoundingClientRect();
-      const nextZ = Math.max(0.32, zoom / 1.16);
-      panX = vp.width / 2 - ((vp.width / 2 - panX) / zoom) * nextZ;
-      panY = vp.height / 2 - ((vp.height / 2 - panY) / zoom) * nextZ;
-      zoom = nextZ;
-      applyViewportTransform();
+      refreshViewportMetrics();
+      const vp = cachedVpRect;
+      const nextZ = Math.max(0.32, zoom / 1.18);
+      const nextPanX = vp.width / 2 - ((vp.width / 2 - panX) / zoom) * nextZ;
+      const nextPanY = vp.height / 2 - ((vp.height / 2 - panY) / zoom) * nextZ;
+      animateViewportTo(nextPanX, nextPanY, nextZ, true);
       canvasViewport.focus({ preventScroll: true });
     }, { signal });
     document.getElementById('mm-fit-btn')?.addEventListener('click', () => {
@@ -5511,19 +6151,35 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     }, { signal });
 
     // ---------- Split Resizer ----------
-    let splitDrag: { startX: number; origW: number } | null = null;
+    let splitDrag: { startX: number; origW: number; bodyW: number } | null = null;
+    let splitResizeRaf = 0;
+    let splitPendingClientX = 0;
     splitResizer.addEventListener('pointerdown', (e) => {
-      splitDrag = { startX: e.clientX, origW: outlinePane.getBoundingClientRect().width };
+      splitDrag = {
+        startX: e.clientX,
+        origW: outlinePane.getBoundingClientRect().width,
+        bodyW: wbBody.getBoundingClientRect().width,
+      };
+      splitPendingClientX = e.clientX;
       splitResizer.classList.add('is-dragging');
     }, { signal });
     window.addEventListener('pointermove', (e) => {
       if (!splitDrag) return;
-      const bodyW = wbBody.getBoundingClientRect().width;
-      const nextW = Math.max(220, Math.min(bodyW - 280, splitDrag.origW + (splitDrag.startX - e.clientX)));
-      outlinePane.style.width = `${nextW}px`;
+      splitPendingClientX = e.clientX;
+      if (splitResizeRaf) return;
+      splitResizeRaf = requestAnimationFrame(() => {
+        splitResizeRaf = 0;
+        if (!splitDrag) return;
+        const nextW = Math.max(220, Math.min(splitDrag.bodyW - 280, splitDrag.origW + (splitDrag.startX - splitPendingClientX)));
+        outlinePane.style.width = `${nextW}px`;
+      });
     }, { signal });
     window.addEventListener('pointerup', () => {
       if (!splitDrag) return;
+      if (splitResizeRaf) {
+        cancelAnimationFrame(splitResizeRaf);
+        splitResizeRaf = 0;
+      }
       splitDrag = null;
       splitResizer.classList.remove('is-dragging');
     }, { signal });
@@ -5666,7 +6322,9 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         const pBox = laidOutBoxes.get(box.parentId);
         if (!pBox) continue;
         const d = buildLinkPath(pBox, box);
-        parts.push(`<path d="${d}" fill="none" stroke="${box.color}" stroke-opacity="0.78" stroke-width="${box.depth === 1 ? 2.2 : 1.6}" stroke-linecap="round"/>`);
+        const sw = computeInkBranchStrokeWidth(box.depth).toFixed(2);
+        const so = computeInkBranchOpacity(box.depth).toFixed(2);
+        parts.push(`<path d="${d}" fill="none" stroke="${box.color}" stroke-opacity="${so}" stroke-width="${sw}" stroke-linecap="round"/>`);
       }
       for (const box of laidOutBoxes.values()) {
         const isRoot = box.depth === 0;
@@ -5791,6 +6449,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
       openOverlay(wbModal, canvasViewport);
       requestAnimationFrame(() => {
+        refreshViewportMetrics();
         syncAllSegGliders(true);
         renderCanvasAndOutline(true);
         if (isFresh && activeMap?.root.children[0]) {
@@ -5801,11 +6460,16 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
     function closeWorkbench() {
       stopPanAnimation();
+      if (linkMorphRafId !== null) {
+        cancelAnimationFrame(linkMorphRafId);
+        linkMorphRafId = null;
+      }
       if (activeMap) scheduleWorkbenchSave(true);
       notePopover.classList.add('hidden');
       closeAllDropdowns();
       outlinePendingBaseline = null;
       exitLayer.innerHTML = '';
+      minimapSvg.innerHTML = '';
       delete wbModal.dataset.activeMapId;
       activeMap = null;
       closeOverlay(wbModal, () => {
@@ -6025,23 +6689,43 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     };
     releaseEnterIfNeeded();
 
-    (window as any)[CLEANUP_KEY] = () => {
+    const cleanupMindmapPage = () => {
       controller.abort();
       if (cardFilterTimeline) {
         cardFilterTimeline.kill();
         cardFilterTimeline = null;
       }
       stopPanAnimation();
+      if (linkMorphRafId !== null) {
+        cancelAnimationFrame(linkMorphRafId);
+        linkMorphRafId = null;
+      }
+      if (dragState?.rafId) {
+        cancelAnimationFrame(dragState.rafId);
+        dragState = null;
+      }
+      if (canvasGesture?.holdTimer) {
+        window.clearTimeout(canvasGesture.holdTimer);
+        canvasGesture = null;
+      }
+      if (holdPulseTimer) window.clearTimeout(holdPulseTimer);
       modalCloseTimers.forEach((t) => window.clearTimeout(t));
       if (toastTimer) window.clearTimeout(toastTimer);
       if (searchDebounce) window.clearTimeout(searchDebounce);
       if (autosaveTimer) window.clearTimeout(autosaveTimer);
       if (outlineSyncTimer) window.clearTimeout(outlineSyncTimer);
+      if (splitResizeRaf) cancelAnimationFrame(splitResizeRaf);
       document.body.classList.remove('notes-modal-open');
       (window as any).lenis?.start?.();
       delete container.dataset.mmInit;
       (window as any)[CLEANUP_KEY] = undefined;
+      (window as any)[LEGACY_CLEANUP_KEY] = undefined;
     };
+    (window as any)[CLEANUP_KEY] = cleanupMindmapPage;
+    (window as any)[LEGACY_CLEANUP_KEY] = cleanupMindmapPage;
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+    }, { signal });
   }
 
   if (document.readyState === 'loading') {

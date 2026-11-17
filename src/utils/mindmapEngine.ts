@@ -1156,8 +1156,61 @@ export function renderNodeInlineHtml(text: string): string {
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 }
 
+export interface InkBranchBoxGeom {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  side?: 'left' | 'right' | 'root' | 'down';
+}
+
 /**
- * 为 Layer 1 导图卡片生成实时矢量拓扑缩略图 SVG，忠实反映分支数、层级与布局模式。
+ * 水墨枝蔓笔触粗细随树层级自然渐变（起笔主干浑厚 -> 分梢细枝挺拔 -> 末梢游丝劲健）。
+ */
+export function computeInkBranchStrokeWidth(depth: number): number {
+  if (depth <= 1) return 2.75;
+  if (depth === 2) return 2.05;
+  if (depth === 3) return 1.58;
+  return Math.max(1.15, Number((1.58 - (depth - 3) * 0.16).toFixed(2)));
+}
+
+/**
+ * 水墨浓淡层次：近根浓墨，远梢清润。
+ */
+export function computeInkBranchOpacity(depth: number): number {
+  if (depth <= 1) return 0.84;
+  if (depth === 2) return 0.74;
+  if (depth === 3) return 0.65;
+  return 0.56;
+}
+
+/**
+ * 生成带毛笔起收笔张力的非对称三次贝塞尔枝蔓路径。
+ */
+export function buildInkBranchPath(parent: InkBranchBoxGeom, child: InkBranchBoxGeom): string {
+  if (child.side === 'down') {
+    const x1 = parent.x + parent.w / 2;
+    const y1 = parent.y + parent.h;
+    const x2 = child.x + child.w / 2;
+    const y2 = child.y;
+    const dy = Math.max(16, y2 - y1);
+    const c1y = y1 + dy * 0.44;
+    const c2y = y2 - dy * 0.52;
+    return `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${x1.toFixed(1)} ${c1y.toFixed(1)}, ${x2.toFixed(1)} ${c2y.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  }
+  const dir = child.side === 'left' ? -1 : 1;
+  const x1 = dir === 1 ? parent.x + parent.w : parent.x;
+  const y1 = parent.y + parent.h / 2;
+  const x2 = dir === 1 ? child.x : child.x + child.w;
+  const y2 = child.y + child.h / 2;
+  const span = Math.max(20, Math.abs(x2 - x1));
+  const c1 = span * 0.44;
+  const c2 = span * 0.54;
+  return `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${(x1 + dir * c1).toFixed(1)} ${y1.toFixed(1)}, ${(x2 - dir * c2).toFixed(1)} ${y2.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+}
+
+/**
+ * 为 Layer 1 导图卡片生成实时矢量拓扑缩略图 SVG，忠实反映分支数、层级与水墨枝蔓笔触渐变。
  */
 export function buildTopologyPreviewSvg(
   root: MindMapNode,
@@ -1180,19 +1233,19 @@ export function buildTopologyPreviewSvg(
       const by = 54;
       const stroke = b.color && b.color !== 'ink' ? colorHex(b.color) : 'currentColor';
       paths.push(
-        `<path d="M ${rx} ${ry + 7} C ${rx} 36, ${bx} 36, ${bx} ${by - 5}" fill="none" stroke="${stroke}" stroke-opacity="0.58" stroke-width="1.35"/>`
+        `<path d="M ${rx} ${ry + 7} C ${rx} 35, ${bx} 37, ${bx} ${by - 5}" fill="none" stroke="${stroke}" stroke-opacity="0.68" stroke-width="1.65" stroke-linecap="round"/>`
       );
       rects.push(
-        `<rect x="${bx - 13}" y="${by - 5}" width="26" height="10" rx="4" fill="var(--bg-elev)" stroke="${stroke}" stroke-opacity="0.7" stroke-width="1"/>`
+        `<rect x="${bx - 13}" y="${by - 5}" width="26" height="10" rx="4" fill="var(--bg-elev)" stroke="${stroke}" stroke-opacity="0.72" stroke-width="1.05"/>`
       );
       const kids = (b.children || []).slice(0, 2);
       kids.forEach((_k, kIdx) => {
         const kx = bx + (kids.length === 1 ? 0 : kIdx === 0 ? -9 : 9);
         const ky = 84;
         paths.push(
-          `<path d="M ${bx} ${by + 5} L ${kx} ${ky - 4}" fill="none" stroke="${stroke}" stroke-opacity="0.34" stroke-width="1"/>`
+          `<path d="M ${bx} ${by + 5} C ${bx} ${by + 16}, ${kx} ${ky - 14}, ${kx} ${ky - 4}" fill="none" stroke="${stroke}" stroke-opacity="0.4" stroke-width="1.05" stroke-linecap="round"/>`
         );
-        rects.push(`<circle cx="${kx}" cy="${ky}" r="2.6" fill="${stroke}" fill-opacity="0.6"/>`);
+        rects.push(`<circle cx="${kx}" cy="${ky}" r="2.5" fill="${stroke}" fill-opacity="0.64"/>`);
       });
     });
     rects.push(`<rect x="${rx - 22}" y="${ry - 7}" width="44" height="14" rx="5" fill="var(--ink-strong)"/>`);
@@ -1210,21 +1263,22 @@ export function buildTopologyPreviewSvg(
       list.forEach((b, idx) => {
         const by = step * (idx + 1);
         const bx = rx + dir * 74;
-        const cx = rx + dir * 36;
+        const c1x = rx + dir * 34;
+        const c2x = bx - dir * 32;
         const stroke = b.color && b.color !== 'ink' ? colorHex(b.color) : 'currentColor';
         paths.push(
-          `<path d="M ${rx + dir * 20} ${ry} C ${cx} ${ry}, ${cx} ${by}, ${bx - dir * 14} ${by}" fill="none" stroke="${stroke}" stroke-opacity="0.58" stroke-width="1.35"/>`
+          `<path d="M ${rx + dir * 20} ${ry} C ${c1x} ${ry}, ${c2x} ${by}, ${bx - dir * 14} ${by}" fill="none" stroke="${stroke}" stroke-opacity="0.68" stroke-width="1.65" stroke-linecap="round"/>`
         );
         rects.push(
-          `<rect x="${bx - 14}" y="${by - 5}" width="28" height="10" rx="4" fill="var(--bg-elev)" stroke="${stroke}" stroke-opacity="0.7" stroke-width="1"/>`
+          `<rect x="${bx - 14}" y="${by - 5}" width="28" height="10" rx="4" fill="var(--bg-elev)" stroke="${stroke}" stroke-opacity="0.72" stroke-width="1.05"/>`
         );
         (b.children || []).slice(0, 2).forEach((_k, kIdx) => {
           const ky = by + (kIdx === 0 ? -5 : 5);
           const kx = bx + dir * 32;
           paths.push(
-            `<path d="M ${bx + dir * 14} ${by} Q ${bx + dir * 22} ${ky}, ${kx - dir * 4} ${ky}" fill="none" stroke="${stroke}" stroke-opacity="0.34" stroke-width="1"/>`
+            `<path d="M ${bx + dir * 14} ${by} Q ${bx + dir * 22} ${ky}, ${kx - dir * 4} ${ky}" fill="none" stroke="${stroke}" stroke-opacity="0.4" stroke-width="1.05" stroke-linecap="round"/>`
           );
-          rects.push(`<circle cx="${kx}" cy="${ky}" r="2.2" fill="${stroke}" fill-opacity="0.58"/>`);
+          rects.push(`<circle cx="${kx}" cy="${ky}" r="2.2" fill="${stroke}" fill-opacity="0.62"/>`);
         });
       });
     };
@@ -1240,19 +1294,19 @@ export function buildTopologyPreviewSvg(
       const bx = 138;
       const stroke = b.color && b.color !== 'ink' ? colorHex(b.color) : 'currentColor';
       paths.push(
-        `<path d="M ${rx + 22} ${ry} C 82 ${ry}, 92 ${by}, ${bx - 16} ${by}" fill="none" stroke="${stroke}" stroke-opacity="0.6" stroke-width="1.4"/>`
+        `<path d="M ${rx + 22} ${ry} C 82 ${ry}, 94 ${by}, ${bx - 16} ${by}" fill="none" stroke="${stroke}" stroke-opacity="0.68" stroke-width="1.7" stroke-linecap="round"/>`
       );
       rects.push(
-        `<rect x="${bx - 16}" y="${by - 5.5}" width="34" height="11" rx="4.5" fill="var(--bg-elev)" stroke="${stroke}" stroke-opacity="0.7" stroke-width="1"/>`
+        `<rect x="${bx - 16}" y="${by - 5.5}" width="34" height="11" rx="4.5" fill="var(--bg-elev)" stroke="${stroke}" stroke-opacity="0.72" stroke-width="1.05"/>`
       );
       const kids = (b.children || []).slice(0, 2);
       kids.forEach((_k, kIdx) => {
         const ky = by + (kids.length === 1 ? 0 : kIdx === 0 ? -5 : 5);
         const kx = 224;
         paths.push(
-          `<path d="M ${bx + 18} ${by} C 180 ${by}, 192 ${ky}, ${kx - 14} ${ky}" fill="none" stroke="${stroke}" stroke-opacity="0.35" stroke-width="1"/>`
+          `<path d="M ${bx + 18} ${by} C 180 ${by}, 192 ${ky}, ${kx - 14} ${ky}" fill="none" stroke="${stroke}" stroke-opacity="0.42" stroke-width="1.05" stroke-linecap="round"/>`
         );
-        rects.push(`<rect x="${kx - 14}" y="${ky - 3.5}" width="26" height="7" rx="3" fill="var(--ink)" fill-opacity="0.16"/>`);
+        rects.push(`<rect x="${kx - 14}" y="${ky - 3.5}" width="26" height="7" rx="3" fill="var(--ink)" fill-opacity="0.18"/>`);
       });
     });
     rects.push(`<rect x="${rx - 22}" y="${ry - 8}" width="44" height="16" rx="5" fill="var(--ink-strong)"/>`);

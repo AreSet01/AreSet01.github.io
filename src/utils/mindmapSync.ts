@@ -333,6 +333,22 @@ export async function checkMindMapSyncStatus(): Promise<MindMapDetailedSyncStatu
   }
 }
 
+function emitMindMapSyncPhase(
+  mode: 'push' | 'pull' | 'bidirectional',
+  phase: 'start' | 'done' | 'error',
+  extra: Record<string, unknown> = {}
+): void {
+  try {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(
+        new CustomEvent('mindmaps:sync-phase', {
+          detail: { mode, phase, timestamp: Date.now(), ...extra },
+        })
+      );
+    }
+  } catch {}
+}
+
 export async function pushMindMapSync(
   options: { migrate?: boolean; forceAll?: boolean } = {}
 ): Promise<MindMapPushResult> {
@@ -340,8 +356,12 @@ export async function pushMindMapSync(
   if (typeof window === 'undefined') return { ok: false, pushedCount: 0, reason: 'no-window' };
 
   syncing = true;
+  emitMindMapSyncPhase('push', 'start');
   try {
-    if (!(await fetchCurrentUser())) return { ok: false, pushedCount: 0, reason: 'need-login' };
+    if (!(await fetchCurrentUser())) {
+      emitMindMapSyncPhase('push', 'error', { reason: 'need-login' });
+      return { ok: false, pushedCount: 0, reason: 'need-login' };
+    }
 
     const all = loadAllMindMaps();
     const catState = loadMindMapCategoryState();
@@ -390,6 +410,7 @@ export async function pushMindMapSync(
     if (cursor > since) writeNumber(LAST_REV_KEY, cursor);
     writeNumber(LAST_SYNC_KEY, Date.now());
     window.dispatchEvent(new CustomEvent('mindmaps:synced'));
+    emitMindMapSyncPhase('push', 'done', { pushedCount, rev: cursor });
 
     return {
       ok: true,
@@ -399,6 +420,7 @@ export async function pushMindMapSync(
     };
   } catch (err) {
     console.warn('[mindmapSync] pushSync failed:', err);
+    emitMindMapSyncPhase('push', 'error', { reason: 'network' });
     return { ok: false, pushedCount: 0, reason: 'network' };
   } finally {
     syncing = false;
@@ -412,8 +434,12 @@ export async function pullMindMapSync(
   if (typeof window === 'undefined') return { ok: false, pulledCount: 0, reason: 'no-window' };
 
   syncing = true;
+  emitMindMapSyncPhase('pull', 'start');
   try {
-    if (!(await fetchCurrentUser())) return { ok: false, pulledCount: 0, reason: 'need-login' };
+    if (!(await fetchCurrentUser())) {
+      emitMindMapSyncPhase('pull', 'error', { reason: 'need-login' });
+      return { ok: false, pulledCount: 0, reason: 'need-login' };
+    }
 
     const since = options.forceFull ? 0 : readNumber(LAST_REV_KEY);
     let cursor = since;
@@ -440,6 +466,7 @@ export async function pullMindMapSync(
     writeNumber(LAST_REV_KEY, cursor);
     writeNumber(LAST_SYNC_KEY, Date.now());
     window.dispatchEvent(new CustomEvent('mindmaps:synced'));
+    emitMindMapSyncPhase('pull', 'done', { pulledCount: totalPulled, rev: cursor });
 
     return {
       ok: true,
@@ -449,6 +476,7 @@ export async function pullMindMapSync(
     };
   } catch (err) {
     console.warn('[mindmapSync] pullSync failed:', err);
+    emitMindMapSyncPhase('pull', 'error', { reason: 'network' });
     return { ok: false, pulledCount: 0, reason: 'network' };
   } finally {
     syncing = false;
@@ -462,8 +490,10 @@ export async function syncMindMapsNow(
   if (typeof window === 'undefined') return { ok: false, pushedCount: 0, pulledCount: 0, reason: 'no-window' };
 
   syncing = true;
+  emitMindMapSyncPhase('bidirectional', 'start');
   try {
     if (!(await fetchCurrentUser())) {
+      emitMindMapSyncPhase('bidirectional', 'error', { reason: 'need-login' });
       return { ok: false, pushedCount: 0, pulledCount: 0, reason: 'need-login' };
     }
 
@@ -546,6 +576,7 @@ export async function syncMindMapsNow(
     writeNumber(LAST_REV_KEY, cursor);
     writeNumber(LAST_SYNC_KEY, Date.now());
     window.dispatchEvent(new CustomEvent('mindmaps:synced'));
+    emitMindMapSyncPhase('bidirectional', 'done', { pushedCount, pulledCount: totalPulled, rev: cursor });
 
     return {
       ok: true,
@@ -555,6 +586,7 @@ export async function syncMindMapsNow(
     };
   } catch (err) {
     console.warn('[mindmapSync] syncNow failed:', err);
+    emitMindMapSyncPhase('bidirectional', 'error', { reason: 'network' });
     return { ok: false, pushedCount: 0, pulledCount: 0, reason: 'network' };
   } finally {
     syncing = false;

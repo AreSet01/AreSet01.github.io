@@ -503,7 +503,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   </div>
 
   <!-- 6. 浮动 Toast 提示 -->
-  <div id="notes-toast" role="status" aria-live="polite" aria-atomic="true" class="fixed bottom-6 right-6 z-50 transform translate-y-12 opacity-0 transition-all duration-300 pointer-events-none bg-[var(--ink-strong)] text-[var(--bg-base)] px-4 py-2.5 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2">
+  <div id="notes-toast" role="status" aria-live="polite" aria-atomic="true" class="fixed bottom-6 right-6 z-50 transform translate-y-12 opacity-0 transition-[transform,opacity] duration-300 pointer-events-none bg-[var(--ink-strong)] text-[var(--bg-base)] px-4 py-2.5 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
       <polyline points="20 6 9 17 4 12"></polyline>
     </svg>
@@ -512,7 +512,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 </BaseLayout>
 
 <style>
-  /* 统计长条 */
+  /* 统计长条（零 box-shadow 重绘） */
   .notes-stats-strip {
     position: relative;
     display: inline-flex;
@@ -524,7 +524,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     -webkit-user-select: none;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+    transition: border-color 0.3s var(--ease), transform 0.3s var(--ease);
   }
 
   .notes-stat-item {
@@ -589,11 +589,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     top: 4px;
     bottom: 4px;
     left: 0;
-    border-radius: var(--radius-control);
+    width: 100px;
+    transform-origin: 0 50%;
+    border-radius: var(--pill-rx, 9999px) / 9999px;
     background: var(--ink-strong);
     z-index: 1;
     pointer-events: none;
-    transition: transform 380ms var(--ease), width 380ms var(--ease);
+    transition: transform 380ms var(--ease);
   }
   .sub-tab-btn {
     position: relative;
@@ -667,10 +669,21 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     min-width: 0;
   }
 
-  /* 卡片平滑删除离场动画 */
+  /* 卡片墨迹收干退场动画：静息态零常驻 clip-path 遮罩层（完整保留 3D preserve-3d），仅在删除瞬间按需向左上色标向心收干 */
+  @keyframes notesCardInkDry {
+    0% {
+      opacity: 1;
+      clip-path: circle(145% at 12% 16%);
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      clip-path: circle(0% at 12% 16%);
+      transform: translate3d(0, -8px, 0) scale(0.96);
+    }
+  }
   :global(.notes-card.is-deleting) {
-    opacity: 0 !important;
-    transform: translateY(-8px) scale(0.985) !important;
+    animation: notesCardInkDry 340ms cubic-bezier(0.32, 0, 0.2, 1) forwards !important;
     max-height: 0 !important;
     margin-bottom: 0 !important;
     padding-top: 0 !important;
@@ -680,15 +693,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     overflow: hidden !important;
     pointer-events: none !important;
     transition:
-      opacity 220ms var(--ease-card),
-      transform 320ms var(--ease-card),
-      max-height 380ms var(--ease-card),
-      margin 380ms var(--ease-card),
-      padding 380ms var(--ease-card),
-      border-width 380ms var(--ease-card) !important;
+      max-height 380ms 90ms var(--ease-card),
+      margin 380ms 90ms var(--ease-card),
+      padding 380ms 90ms var(--ease-card),
+      border-width 380ms 90ms var(--ease-card) !important;
   }
 
-  /* 卡片是 JS 动态创建的，必须用 :global 才能命中 Astro 的作用域样式 */
+  /* 案头宣纸批注笺：伪元素承载悬浮阴影与左侧书脊朱砂/墨色光韵，零 box-shadow 重绘 */
   :global(.notes-card) {
     break-inside: avoid;
     -webkit-column-break-inside: avoid;
@@ -700,21 +711,78 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     vertical-align: top;
     min-width: 0;
     padding: 1.25rem;
-    background: rgba(248, 246, 242, 0.9);
+    background: rgba(249, 247, 242, 0.92);
     border: 1px solid var(--rule);
     border-radius: 14px;
-    box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 4px 16px -2px rgba(20, 21, 23, 0.04);
     position: relative;
+    isolation: isolate;
     word-break: break-word;
     transition:
-      box-shadow 420ms var(--ease-card),
       border-color 320ms var(--ease-card),
-      background 320ms var(--ease-card);
+      background-color 320ms var(--ease-card);
   }
-  :global(.notes-card):hover {
+  :global([data-theme="dark"] .notes-card) {
+    background: rgba(26, 27, 31, 0.9);
+    box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.32);
+  }
+  :global([data-theme="moss"] .notes-card) {
+    background: color-mix(in srgb, var(--bg-elev) 92%, transparent);
+    box-shadow: 0 6px 18px -4px rgba(0, 32, 26, 0.2);
+  }
+  :global([data-theme="rice"] .notes-card) {
+    background: rgba(242, 233, 216, 0.92);
+    box-shadow: 0 5px 18px -3px rgba(74, 53, 32, 0.07);
+  }
+
+  /* 左侧朱砂/墨色书脊洇染光韵（完全内聚于圆角内，无直角切边） */
+  :global(.notes-card)::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+    background:
+      radial-gradient(
+        ellipse 42% 78% at 0% 48%,
+        color-mix(in srgb, var(--note-accent, #c84b31) 14%, transparent) 0%,
+        transparent 76%
+      );
+    opacity: 0.42;
+    transition: opacity 360ms var(--ease-card);
+  }
+
+  /* 伪元素微抬纸面阴影：仅合成 opacity，零 box-shadow 重绘 */
+  :global(.notes-card)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -2;
+    box-shadow:
+      0 16px 34px -10px rgba(var(--accent-rgb), 0.14),
+      0 6px 16px -4px rgba(20, 21, 23, 0.08);
+    opacity: 0;
+    transition: opacity 360ms var(--ease-card);
+  }
+  :global([data-theme="dark"] .notes-card)::after {
+    box-shadow:
+      0 18px 38px -10px rgba(0, 0, 0, 0.52),
+      0 0 24px -8px color-mix(in srgb, var(--note-accent, #e06d53) 26%, transparent);
+  }
+
+  :global(.notes-card):hover,
+  :global(.notes-card):focus-within {
     transform-style: preserve-3d;
-    box-shadow: 0 12px 28px -6px rgba(var(--accent-rgb), 0.1), 0 4px 14px -4px rgba(var(--accent-rgb), 0.05) !important;
-    border-color: var(--rule-strong);
+    border-color: color-mix(in srgb, var(--note-accent, var(--rule-strong)) 42%, var(--rule-strong));
+  }
+  :global(.notes-card):hover::before,
+  :global(.notes-card):focus-within::before,
+  :global(.notes-card):hover::after,
+  :global(.notes-card):focus-within::after {
+    opacity: 1;
   }
   @media (hover: hover) and (pointer: fine) {
     /* hover 只承载纸面浮光，transform 留给入场与 3D tilt，避免两套系统抢写。 */
@@ -769,37 +837,36 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     padding: 0.28rem 0.85rem;
     border-radius: 9999px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-    transition: all 200ms var(--ease);
+    transition:
+      transform 220ms var(--ease-card),
+      color 200ms var(--ease),
+      border-color 200ms var(--ease),
+      background-color 200ms var(--ease);
     cursor: pointer;
   }
   :global(.card-expand-prompt-btn):hover {
     color: var(--text-strong);
     border-color: var(--ink-strong);
     background: var(--bg-elev);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translate3d(0, -1.5px, 0);
   }
-
-  
 
   /* 笔记颜色：不再用贴边直角色条，颜色交给「徽标前色点 + 引文块书脊」 */
   :global(.note-color-dot) {
+    position: relative;
     width: 6px;
     height: 6px;
     flex: 0 0 auto;
     border-radius: 9999px;
     background: var(--note-accent, var(--ink-strong));
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--note-accent, var(--ink-strong)) 18%, transparent);
-    transition:
-      box-shadow 240ms var(--ease),
-      transform 240ms var(--ease);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--note-accent, var(--ink-strong)) 20%, transparent);
+    transition: transform 260ms var(--ease-bounce);
   }
   :global(.notes-card:hover .note-color-dot) {
-    transform: scale(1.12);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--note-accent, var(--ink-strong)) 24%, transparent);
+    transform: scale(1.24);
   }
 
-  /* 纯色标过滤 */
+  /* 纯色标过滤（GPU transform 缩放，零宽高重排） */
   .color-dot-btn {
     width: 26px;
     height: 26px;
@@ -819,11 +886,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     height: 13px;
     border-radius: 9999px;
     background-color: var(--dot-color);
-    transition: all 260ms var(--ease);
+    transition: transform 260ms var(--ease-bounce), opacity 200ms var(--ease);
   }
   .color-dot-btn:hover { transform: scale(1.18); }
   .color-dot-btn.active { border-color: var(--ink-strong); transform: scale(1.12); }
-  .color-dot-btn.active::after { width: 15px; height: 15px; }
+  .color-dot-btn.active::after { transform: scale(1.16); }
   .color-dot-btn:focus-visible {
     outline: 2px solid var(--ink-strong);
     outline-offset: 2px;
@@ -837,7 +904,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     color: var(--muted-strong);
     background: transparent;
     cursor: pointer;
-    transition: all 240ms var(--ease);
+    transition:
+      background-color 220ms var(--ease),
+      color 220ms var(--ease),
+      border-color 220ms var(--ease),
+      transform 220ms var(--ease);
   }
   .all-color-pill.active,
   .all-color-pill:hover {
@@ -857,10 +928,10 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     box-shadow: 0 20px 48px -8px rgba(0, 0, 0, 0.18), 0 4px 14px rgba(0, 0, 0, 0.06);
     z-index: 50;
     transform-origin: top left;
-    transition: transform 260ms var(--ease-card), opacity 220ms var(--ease-card);
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms var(--ease-card);
   }
-  .article-popover.is-open { transform: scale(1) translateY(0); opacity: 1; }
-  .article-popover.is-closed { transform: scale(0.94) translateY(-8px); opacity: 0; pointer-events: none; }
+  .article-popover.is-open { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+  .article-popover.is-closed { transform: translate3d(0, -8px, 0) scale(0.95); opacity: 0; pointer-events: none; }
 
   :global(.article-item-row) { transition: background-color 180ms var(--ease), color 180ms var(--ease); cursor: pointer; }
   :global(.article-item-row):hover { background-color: var(--accent-soft); }
@@ -870,13 +941,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     outline-offset: -2px;
   }
 
-  /* 模态弹层通用 */
+  /* 模态弹层通用：折笺舒展 (Folded Xuan-Paper Slip Unfurl) */
   .modal-overlay {
-    background: rgba(0, 0, 0, 0.48);
+    background: rgba(12, 13, 15, 0.46);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     opacity: 1;
-    transition: opacity 220ms var(--ease-card);
+    transition: opacity 260ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   .modal-overlay.is-closed {
     opacity: 0;
@@ -886,25 +957,74 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     opacity: 1;
   }
   .modal-card {
-    transition: transform 280ms var(--ease-card), opacity 220ms var(--ease-card);
+    position: relative;
+    transform-origin: 50% 12%;
+    transition:
+      transform 400ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 260ms var(--ease-card);
   }
-  .modal-overlay.is-open .modal-card { transform: scale(1) translateY(0); opacity: 1; }
-  .modal-overlay.is-closed .modal-card { transform: scale(0.978) translateY(10px); opacity: 0; }
+  /* 折笺卷首朱砂/水墨细线徐展 */
+  .modal-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 1.25rem;
+    right: 1.25rem;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, #c84b31 62%, var(--ink-strong)) 50%,
+      transparent 100%
+    );
+    transform: scaleX(0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform 480ms 60ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 320ms 40ms var(--ease-card);
+  }
+  .modal-overlay.is-open .modal-card {
+    transform: perspective(1100px) translate3d(0, 0, 0) scale(1) rotateX(0deg);
+    opacity: 1;
+  }
+  .modal-overlay.is-open .modal-card::before {
+    transform: scaleX(1);
+    opacity: 0.85;
+  }
+  .modal-overlay.is-closed .modal-card {
+    transform: perspective(1100px) translate3d(0, 18px, 0) scale(0.955) rotateX(5.5deg);
+    opacity: 0;
+  }
+  .modal-overlay.is-closed .modal-card::before {
+    transform: scaleX(0.18);
+    opacity: 0;
+  }
 
   @media (prefers-reduced-motion: reduce) {
     :global(.notes-card),
+    :global(.notes-card)::before,
+    :global(.notes-card)::after,
     :global(.notes-card.is-deleting),
     :global(.card-expand-prompt-btn),
     :global(.note-color-dot),
+    .color-dot-btn,
+    .color-dot-btn::after,
+    .all-color-pill,
     .article-popover,
     .modal-overlay,
     .modal-card,
-    .subtabs-glider,
-    .stats-glider {
+    .modal-card::before {
       animation: none !important;
       transition: none !important;
       transform: none !important;
       clip-path: none !important;
+    }
+    .subtabs-glider,
+    .stats-glider {
+      animation: none !important;
+      transition: none !important;
     }
     :global(.notes-card.is-deleting) {
       opacity: 0 !important;
@@ -1105,8 +1225,9 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   import { initNotesSync, syncNow } from '../utils/notesSync';
   import { handleMarkdownKeydown, createMarkdownToolbar } from '../utils/markdownShortcuts';
 
-  const LISTENER_KEY = '__areSetNotesPageInit';
-  const CLEANUP_KEY = '__areSetNotesPageCleanup';
+  const LISTENER_KEY = '__areSetNotesPageInit__';
+  const CLEANUP_KEY = '__areSetNotesPageCleanup__';
+  const LEGACY_CLEANUP_KEY = '__areSetNotesPageCleanup';
 
   interface PostMeta {
     slug: string;
@@ -1121,12 +1242,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
   function initNotesPage() {
     const container = document.getElementById('notes-container');
-    const oldCleanup = (window as any)[CLEANUP_KEY];
+    const oldCleanup = (window as any)[CLEANUP_KEY] || (window as any)[LEGACY_CLEANUP_KEY];
 
     // 不在笔记页：只清掉上一页遗留的监听器
     if (!container) {
       if (typeof oldCleanup === 'function') oldCleanup();
       (window as any)[CLEANUP_KEY] = undefined;
+      (window as any)[LEGACY_CLEANUP_KEY] = undefined;
       return;
     }
 
@@ -1496,10 +1618,12 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         if (!activeBtn) return;
         const clusterRect = cluster.getBoundingClientRect();
         const btnRect = activeBtn.getBoundingClientRect();
+        if (!btnRect.width) return;
         const left = btnRect.left - clusterRect.left;
-        const width = btnRect.width;
-        glider.style.transform = `translateX(${left}px)`;
-        glider.style.width = `${width}px`;
+        const sx = Math.max(0.05, btnRect.width / 100);
+        const halfH = Math.max(8, btnRect.height * 0.5);
+        glider.style.setProperty('--pill-rx', `${(halfH / sx).toFixed(2)}px`);
+        glider.style.transform = `translate3d(${left.toFixed(1)}px, 0, 0) scaleX(${sx.toFixed(4)})`;
       }
       (window as any).__updateNotesSubtabsGlider = updateGlider;
 
@@ -1763,27 +1887,32 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       );
     }
 
+    const deleteTimers = new Set<number>();
+
     function performDeleteCard(id: string) {
       const cardEl = document.getElementById(`card-${id}`);
       const target = notesDatabase.find((n) => n.id === id);
       if (!target) return;
 
       isSelfDeleting = true;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      if (cardEl) {
-        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-          const initialHeight = cardEl.offsetHeight;
-          cardEl.style.maxHeight = `${initialHeight}px`;
-          void cardEl.offsetHeight;
-          cardEl.style.animationDelay = '0ms';
-          cardEl.classList.add('is-deleting');
+      if (cardEl && !reduceMotion) {
+        const rect = cardEl.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          (window as any).__inkSplash?.(rect.left + 22, rect.top + 22, 7);
         }
+        const initialHeight = cardEl.offsetHeight;
+        cardEl.style.maxHeight = `${initialHeight}px`;
+        void cardEl.offsetHeight;
+        cardEl.style.animationDelay = '0ms';
+        cardEl.classList.add('is-deleting');
       }
 
       const deleted = deleteStoredNote(id, target.storageSlug || target.postSlug);
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      setTimeout(() => {
+      const tid = window.setTimeout(() => {
+        deleteTimers.delete(tid);
         if (cardEl) cardEl.remove();
         refreshNotesFromStorage();
         updateStats(false);
@@ -1795,7 +1924,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         }
         showToast(deleted ? '笔记已删除' : '删除失败');
         isSelfDeleting = false;
-      }, reduceMotion ? 0 : 420);
+      }, reduceMotion ? 0 : 440);
+      deleteTimers.add(tid);
     }
 
     // 缓存单条笔记渲染后的主体 HTML，避免筛选或滚动锚点测量时重复解析 Markdown
@@ -1892,7 +2022,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             ${rawContentInner}
           </div>
           <div class="card-expand-prompt">
-            <button type="button" class="zoom-card-btn inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--ink-strong)] bg-[var(--bg-soft)] hover:bg-[var(--bg-elev)] border border-[var(--rule)] px-3 py-1 rounded-full shadow-xs hover:shadow-sm transition cursor-pointer" data-id="${escapeHtml(note.id)}" aria-label="在大窗中阅读完整笔记">
+            <button type="button" class="card-expand-prompt-btn zoom-card-btn" data-id="${escapeHtml(note.id)}" aria-label="在大窗中阅读完整笔记">
               <span>展开阅读全文</span>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
@@ -2844,17 +2974,38 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const previewArea = document.getElementById('editor-preview-area');
       if (!writeBtn || !previewBtn || !contentInput || !previewArea) return;
 
+      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
       if (tab === 'write') {
-        writeBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--bg-base)] bg-[var(--ink-strong)] cursor-pointer';
-        previewBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--muted-strong)] hover:text-[var(--text-strong)] cursor-pointer';
+        const wasPreview = !previewArea.classList.contains('hidden');
+        writeBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--bg-base)] bg-[var(--ink-strong)] cursor-pointer transition-colors duration-200';
+        previewBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--muted-strong)] hover:text-[var(--text-strong)] cursor-pointer transition-colors duration-200';
         contentInput.classList.remove('hidden');
         previewArea.classList.add('hidden');
+        if (wasPreview && !reduceMotion && typeof contentInput.animate === 'function') {
+          contentInput.animate(
+            [
+              { opacity: 0.35, transform: 'translate3d(0, 4px, 0)' },
+              { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+            ],
+            { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+          );
+        }
       } else {
-        previewBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--bg-base)] bg-[var(--ink-strong)] cursor-pointer';
-        writeBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--muted-strong)] hover:text-[var(--text-strong)] cursor-pointer';
+        previewBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--bg-base)] bg-[var(--ink-strong)] cursor-pointer transition-colors duration-200';
+        writeBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--muted-strong)] hover:text-[var(--text-strong)] cursor-pointer transition-colors duration-200';
         previewArea.innerHTML = renderNoteMarkdown(contentInput.value) || '<p class="text-[var(--muted)] italic">暂无内容预览...</p>';
         contentInput.classList.add('hidden');
         previewArea.classList.remove('hidden');
+        if (!reduceMotion && typeof previewArea.animate === 'function') {
+          previewArea.animate(
+            [
+              { opacity: 0.25, transform: 'translate3d(0, 5px, 0)' },
+              { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+            ],
+            { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+          );
+        }
       }
     }
 
@@ -3335,12 +3486,21 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       releaseNotesEnterIfNeeded();
     }
 
-    // 换页清理
-    (window as any)[CLEANUP_KEY] = () => {
+    // 换页清理（幂等释放全部事件、时间线、定时器与滚动锁）
+    const cleanupNotesPage = () => {
       controller.abort();
+      if (filterTimeline) {
+        filterTimeline.kill();
+        filterTimeline = null;
+      }
+      const emptyEl = document.getElementById('empty-state');
+      if (container) gsap.killTweensOf(container);
+      if (emptyEl) gsap.killTweensOf(emptyEl);
       (window as any).__notesSubtabsRO?.disconnect?.();
       (window as any).__notesSubtabsRO = undefined;
       (window as any).__updateNotesSubtabsGlider = undefined;
+      deleteTimers.forEach((tid) => window.clearTimeout(tid));
+      deleteTimers.clear();
       if (readerCloseTimer) window.clearTimeout(readerCloseTimer);
       if (editorCloseTimer) window.clearTimeout(editorCloseTimer);
       if (confirmCloseTimer) window.clearTimeout(confirmCloseTimer);
@@ -3356,7 +3516,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       lenis?.start?.();
       if (container) delete container.dataset.notesInit;
       (window as any)[CLEANUP_KEY] = undefined;
+      (window as any)[LEGACY_CLEANUP_KEY] = undefined;
     };
+    (window as any)[CLEANUP_KEY] = cleanupNotesPage;
+    (window as any)[LEGACY_CLEANUP_KEY] = cleanupNotesPage;
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+    }, { signal });
   }
 
   // 挂载
