@@ -347,15 +347,18 @@ const noteNumber = String(index + 1).padStart(2, '0');
     background: linear-gradient(90deg, var(--vermilion), transparent);
     transform: scaleX(0);
     transform-origin: left center;
-    transition: transform 280ms var(--ease);
+    opacity: 0;
+    transition: transform 280ms var(--ease), opacity 220ms var(--ease);
   }
 
   .paper-tag-chip:hover {
     transform: translateY(-1px);
   }
 
-  .paper-tag-chip:hover::after {
+  .paper-tag-chip:hover::after,
+  .paper-tag-chip:focus-visible::after {
     transform: scaleX(1);
+    opacity: 1;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -368,7 +371,6 @@ const noteNumber = String(index + 1).padStart(2, '0');
     .paper-tag-chip,
     .paper-tag-chip::after {
       transition: none !important;
-      transform: none !important;
     }
     .paper-card-sheen {
       display: none;

@@ -327,10 +327,13 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
     transition-delay: 240ms;
   }
 
-  /* 站点统计胶囊游标：纯 GPU scaleX + translate3d，彻底取代 width 布局过渡 */
+  /* 站点统计胶囊游标：纯 GPU scaleX + translate3d + 反向圆角补偿，禁用边框消除缩放畸变 */
   [data-home-stats-strip] [data-stats-glider] {
     width: 100px !important;
     left: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px) !important;
     transform-origin: left center !important;
     transition:
       transform 380ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -426,7 +429,6 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
     .home-rant-inner li,
     [data-home-stats-strip] [data-stats-glider] {
       transition: none !important;
-      transform: none !important;
     }
   }
 </style>
@@ -585,12 +587,14 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
     let metrics = items.map((item) => ({
       left: item.offsetLeft,
       width: Math.max(1, item.offsetWidth),
+      height: Math.max(1, glider.offsetHeight || item.offsetHeight),
     }));
 
     const refreshMetrics = () => {
       metrics = items.map((item) => ({
         left: item.offsetLeft,
         width: Math.max(1, item.offsetWidth),
+        height: Math.max(1, glider.offsetHeight || item.offsetHeight),
       }));
     };
 
@@ -600,8 +604,12 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
     const moveGlider = (idx: number) => {
       const m = metrics[idx];
       if (!m) return;
+      const sx = Math.max(0.01, m.width / 100);
+      const halfH = Math.min(m.width, m.height) * 0.5;
+      glider.style.setProperty('--pill-rx', `${(halfH / sx).toFixed(2)}px`);
+      glider.style.setProperty('--pill-ry', `${halfH.toFixed(2)}px`);
       glider.style.opacity = '1';
-      glider.style.transform = `translate3d(${m.left.toFixed(1)}px, 0, 0) scaleX(${(m.width / 100).toFixed(4)})`;
+      glider.style.transform = `translate3d(${m.left.toFixed(1)}px, 0, 0) scaleX(${sx.toFixed(4)})`;
     };
 
     const hideGlider = () => {
@@ -811,7 +819,7 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
               // 落在跑马灯上后随墨带缓缓漂移，姿态归稳
               b.vx += (flow.velocity * 0.72 - b.vx) * (1 - Math.exp(-8 * dt));
               b.vr *= Math.exp(-9 * dt);
-              b.rot += (Math.clamp ? 0 : 0) + (-b.rot * 0.04);
+              b.rot += -b.rot * 0.04;
             }
           }
 

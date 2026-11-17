@@ -213,6 +213,12 @@ test('4. CollectionFilters.astro & archive.astro: sliding ink pill runtime behav
     assert.ok(pill && whisper, 'Injects sliding ink pill and hover whisper layers');
     assert.match(pill.style.transform, /translate3d\(0\.0px,\s*2\.0px,\s*0px\)/, 'Initializes pill on active tab');
 
+    // Verify inverse border-radius compensation keeps circular semi-capsule endcaps at sx=0.72, sy=34/36
+    const rx0 = parseFloat(pill.style.getPropertyValue('--pill-rx'));
+    const ry0 = parseFloat(pill.style.getPropertyValue('--pill-ry'));
+    assert.ok(Math.abs(rx0 * 0.72 - 17) < 0.05, 'Rendered horizontal radius after scaleX(0.72) equals 17px (half height)');
+    assert.ok(Math.abs(ry0 * (34 / 36) - 17) < 0.05, 'Rendered vertical radius after scaleY(34/36) equals 17px (half height)');
+
     // Re-trigger astro:page-load 3 times -> must remain idempotent with single pill
     for (let i = 0; i < 3; i += 1) {
       dom.window.document.dispatchEvent(new dom.window.Event('astro:page-load'));
@@ -228,6 +234,56 @@ test('4. CollectionFilters.astro & archive.astro: sliding ink pill runtime behav
   assert.ok(archiveSrc.includes('killActiveTimelineAndCommitSnapshot'), 'Archive filter snapshots mid-flight visibility to prevent rapid-click ghosting');
   assert.ok(archiveSrc.includes('__areSetArchiveGliderCleanup__'), 'Archive stats glider registers cleanup');
   assert.doesNotMatch(archiveSrc, /el\.offsetHeight/, 'Archive row height uses sub-pixel getBoundingClientRect instead of integer offsetHeight');
+});
+
+test('7. Reduced-motion slider & pseudo-element safety + inverse border-radius compensation & clean code audit', () => {
+  const filesWithoutTransformClobber = [
+    'src/pages/index.astro',
+    'src/pages/archive.astro',
+    'src/components/CollectionFilters.astro',
+    'src/components/PostCard.astro',
+    'src/components/TagList.astro',
+    'src/pages/tags/[tag].astro',
+    'src/pages/tags/index.astro',
+    'src/pages/about.astro',
+    'src/pages/stats.astro',
+  ];
+
+  for (const rel of filesWithoutTransformClobber) {
+    const src = readSrc(rel);
+    const rmMatch = src.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([\s\S]*?)\n  \}/);
+    assert.ok(rmMatch, `${rel} must include @media (prefers-reduced-motion: reduce)`);
+    assert.doesNotMatch(
+      rmMatch[1],
+      /transform:\s*none\s*!important/,
+      `${rel} must NOT set transform: none !important in prefers-reduced-motion (preserves JS glider positioning & 45deg diamond seals)`,
+    );
+  }
+
+  // Resting opacity: 0 on hover scaleX(0) pseudo-elements
+  const postCard = readSrc('src/components/PostCard.astro');
+  const tagList = readSrc('src/components/TagList.astro');
+  const archive = readSrc('src/pages/archive.astro');
+  const tagDetail = readSrc('src/pages/tags/[tag].astro');
+  const about = readSrc('src/pages/about.astro');
+  const index = readSrc('src/pages/index.astro');
+  const filters = readSrc('src/components/CollectionFilters.astro');
+
+  assert.match(postCard, /\.paper-tag-chip::after\s*\{[\s\S]*?opacity:\s*0;/);
+  assert.match(tagList, /\.tag-chip-ink::after\s*\{[\s\S]*?opacity:\s*0;/);
+  assert.match(archive, /\.archive-ink-row::after\s*\{[\s\S]*?opacity:\s*0;/);
+  assert.match(tagDetail, /\.tag-sibling-ink::before\s*\{[\s\S]*?opacity:\s*0;/);
+  assert.match(tagDetail, /\.tag-cascade-link::after\s*\{[\s\S]*?opacity:\s*0;/);
+  assert.match(about, /\.about-stack-row::after\s*\{[\s\S]*?opacity:\s*0;/);
+
+  // Inverse border-radius compensation & borderless gliders
+  assert.match(filters, /border-radius:\s*var\(--pill-rx,\s*9999px\)\s*\/\s*var\(--pill-ry,\s*9999px\)/);
+  assert.match(archive, /\[data-archive-stats-strip\]\s*\[data-archive-stats-glider\]\s*\{[\s\S]*?border:\s*none\s*!important;[\s\S]*?--pill-rx/);
+  assert.match(archive, /border-radius:\s*var\(--pill-rx,\s*4px\)\s*\/\s*var\(--pill-ry,\s*4px\)/);
+  assert.match(index, /\[data-home-stats-strip\]\s*\[data-stats-glider\]\s*\{[\s\S]*?border:\s*none\s*!important;[\s\S]*?--pill-rx/);
+
+  // Clean code check: no non-standard Math.clamp expression
+  assert.ok(!index.includes('Math.clamp'), 'index.astro must not contain non-standard Math.clamp');
 });
 
 test('5. timeline.astro & tags/*: handscroll brush spine, ripples, bookmark fold, EWMA drag, and constellation auto-sleep & pulse', () => {

@@ -35,7 +35,8 @@ const { tags, class: className = '' } = Astro.props;
     background: linear-gradient(90deg, var(--vermilion) 0%, var(--accent) 65%, transparent 100%);
     transform: scaleX(0);
     transform-origin: left center;
-    transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+    opacity: 0;
+    transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1), opacity 240ms var(--ease);
     pointer-events: none;
   }
 
@@ -47,13 +48,13 @@ const { tags, class: className = '' } = Astro.props;
   .tag-chip-ink:hover::after,
   .tag-chip-ink:focus-visible::after {
     transform: scaleX(1);
+    opacity: 1;
   }
 
   @media (prefers-reduced-motion: reduce) {
     .tag-chip-ink,
     .tag-chip-ink::after {
       transition: none !important;
-      transform: none !important;
     }
   }
 </style>

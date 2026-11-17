@@ -70,8 +70,11 @@
       };
 
       const applyBoxTransform = (el: HTMLElement, m: TabMetric, stretchX = 1) => {
-        const sx = (m.w / BASE_W) * stretchX;
-        const sy = m.h / BASE_H;
+        const sx = Math.max(0.01, (m.w / BASE_W) * stretchX);
+        const sy = Math.max(0.01, m.h / BASE_H);
+        const halfR = Math.min(m.w, m.h) * 0.5;
+        el.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
+        el.style.setProperty('--pill-ry', `${(halfR / sy).toFixed(2)}px`);
         el.style.transform = `translate3d(${m.x.toFixed(1)}px, ${m.y.toFixed(1)}px, 0px) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
       };
 
@@ -264,7 +267,7 @@
     overflow: visible;
   }
 
-  /* 游走式水墨底衬游标（100x36 基准盒 + 纯 GPU translate3d & scale 驱动，零布局抖动） */
+  /* 游走式水墨底衬游标（100x36 基准盒 + 纯 GPU translate3d & scale + 反向圆角补偿，零布局抖动且端帽正圆） */
   .collection-filter-row :global(.collection-ink-pill),
   .collection-filter-row :global(.collection-ink-whisper) {
     position: absolute;
@@ -272,7 +275,7 @@
     left: 0;
     width: 100px;
     height: 36px;
-    border-radius: var(--radius-control, 9999px);
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px);
     transform-origin: 0 0;
     pointer-events: none;
     will-change: transform, opacity;
