@@ -975,11 +975,17 @@
       }, 120);
     }
 
+    let exitCleanup: (() => void) | null = null;
+
     // Open HUD
     function openHUD() {
       if (exitTimeoutId !== null) {
         window.clearTimeout(exitTimeoutId);
         exitTimeoutId = null;
+      }
+      if (exitCleanup) {
+        exitCleanup();
+        exitCleanup = null;
       }
       isExiting = false;
       isOpen = true;
@@ -1018,47 +1024,67 @@
         shimmer.classList.add('is-active');
       }
 
-      window.setTimeout(() => {
-        input?.focus();
-        input?.select();
-        const hasVal = Boolean(input?.value && input.value.length > 0);
-        updateClearButton(hasVal);
-        if (input?.value.trim()) {
-          executeSearch();
-        }
-      }, 50);
+      // Focus immediately so keyboard input responds with zero latency
+      input?.focus();
+      input?.select();
+      const hasVal = Boolean(input?.value && input.value.length > 0);
+      updateClearButton(hasVal);
+      if (input?.value.trim()) {
+        executeSearch();
+      }
     }
 
-    // Close HUD
+    // Close HUD (synced with 190ms exit animation + animationend + safety fallback)
     function closeHUD() {
       if (!isOpen || isExiting) return;
       isExiting = true;
       searchOriginScrollY = null;
       hideFlashback();
       hud.classList.remove('is-entering');
-      hud.classList.add('is-exiting');
-      if (track) track.classList.add('is-exiting');
-
       if (floatingPill) floatingPill.classList.remove('is-active');
 
       if (exitTimeoutId !== null) window.clearTimeout(exitTimeoutId);
+      if (exitCleanup) {
+        exitCleanup();
+        exitCleanup = null;
+      }
       if (flashbackHideTimer !== null) window.clearTimeout(flashbackHideTimer);
-      searchOriginScrollY = null;
-      hideFlashback();
-      exitTimeoutId = window.setTimeout(() => {
+
+      const finalizeClose = () => {
+        if (exitTimeoutId !== null) {
+          window.clearTimeout(exitTimeoutId);
+          exitTimeoutId = null;
+        }
+        if (exitCleanup) {
+          exitCleanup();
+          exitCleanup = null;
+        }
+        if (!isExiting) return;
         hud.hidden = true;
-        hud.classList.remove('is-exiting');
-        hud.classList.remove('is-entering');
+        hud.classList.remove('is-exiting', 'is-entering');
         if (track) {
           track.classList.remove('is-exiting');
           track.hidden = true;
         }
         isOpen = false;
         isExiting = false;
-        exitTimeoutId = null;
         clearHighlights();
         updateClearButton(false);
-      }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 580);
+      };
+
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        finalizeClose();
+        return;
+      }
+
+      hud.classList.add('is-exiting');
+      if (track) track.classList.add('is-exiting');
+      const onExitEnd = (ev: AnimationEvent) => {
+        if (ev.target === hud) finalizeClose();
+      };
+      hud.addEventListener('animationend', onExitEnd);
+      exitCleanup = () => hud.removeEventListener('animationend', onExitEnd);
+      exitTimeoutId = window.setTimeout(finalizeClose, 230);
     }
 
     // Next / Prev navigation
@@ -1080,14 +1106,24 @@
       }
     }
 
-    // Drag-and-drop HUD
+    // Drag-and-drop HUD (rAF-throttled)
     let isDragging = false;
     let dragStartX = 0;
     let dragStartY = 0;
     let hudStartX = 0;
     let hudStartY = 0;
+    let hudDragRaf = 0;
+    let pendingHudX = 0;
+    let pendingHudY = 0;
 
     if (dragHandle) {
+      const flushHudDrag = () => {
+        hudDragRaf = 0;
+        if (!isDragging) return;
+        hud.style.left = `${pendingHudX}px`;
+        hud.style.top = `${pendingHudY}px`;
+      };
+
       dragHandle.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
         if (window.innerWidth <= 780) return;
@@ -1099,6 +1135,8 @@
         const rect = hud.getBoundingClientRect();
         hudStartX = rect.left;
         hudStartY = rect.top;
+        pendingHudX = hudStartX;
+        pendingHudY = hudStartY;
 
         hud.style.setProperty('--hud-translate-x', '0px');
         hud.style.left = `${hudStartX}px`;
@@ -1115,15 +1153,22 @@
         const maxX = Math.max(12, window.innerWidth - hud.offsetWidth - 12);
         const maxY = Math.max(12, window.innerHeight - hud.offsetHeight - 12);
 
-        const nextX = Math.max(12, Math.min(maxX, hudStartX + deltaX));
-        const nextY = Math.max(12, Math.min(maxY, hudStartY + deltaY));
+        pendingHudX = Math.max(12, Math.min(maxX, hudStartX + deltaX));
+        pendingHudY = Math.max(12, Math.min(maxY, hudStartY + deltaY));
 
-        hud.style.left = `${nextX}px`;
-        hud.style.top = `${nextY}px`;
+        if (!hudDragRaf) {
+          hudDragRaf = window.requestAnimationFrame(flushHudDrag);
+        }
       }, { signal });
 
       const stopDrag = (e: PointerEvent) => {
         if (!isDragging) return;
+        if (hudDragRaf) {
+          window.cancelAnimationFrame(hudDragRaf);
+          hudDragRaf = 0;
+        }
+        hud.style.left = `${pendingHudX}px`;
+        hud.style.top = `${pendingHudY}px`;
         isDragging = false;
         try {
           dragHandle.releasePointerCapture(e.pointerId);
@@ -1344,6 +1389,11 @@
     // Cleanup on Astro swap
     (window as any)[CLEANUP_KEY] = () => {
       controller.abort();
+      if (hudDragRaf) window.cancelAnimationFrame(hudDragRaf);
+      if (exitCleanup) {
+        exitCleanup();
+        exitCleanup = null;
+      }
       if (exitTimeoutId !== null) window.clearTimeout(exitTimeoutId);
       if (flashbackHideTimer !== null) window.clearTimeout(flashbackHideTimer);
       searchOriginScrollY = null;
@@ -1438,11 +1488,11 @@
   }
 
   .article-search-hud.is-entering {
-    animation: articleSearchHudEnter 760ms var(--article-ease-surface) forwards;
+    animation: articleSearchHudEnter 260ms var(--article-ease-surface) forwards;
   }
 
   .article-search-hud.is-exiting {
-    animation: articleSearchHudExit 560ms var(--article-ease-layout) forwards;
+    animation: articleSearchHudExit 190ms var(--article-ease-layout) forwards;
     pointer-events: none;
   }
 
@@ -1457,13 +1507,11 @@
   @keyframes articleSearchHudEnter {
     0% {
       opacity: 0;
-      transform: translate(var(--hud-translate-x, -50%), -18px) scale(0.98);
-      filter: blur(4px);
+      transform: translate(var(--hud-translate-x, -50%), -7px) scale(0.985);
     }
     100% {
       opacity: 1;
       transform: translate(var(--hud-translate-x, -50%), 0) scale(1);
-      filter: blur(0);
     }
   }
 
@@ -1471,12 +1519,10 @@
     0% {
       opacity: 1;
       transform: translate(var(--hud-translate-x, -50%), 0) scale(1);
-      filter: blur(0);
     }
     100% {
       opacity: 0;
-      transform: translate(var(--hud-translate-x, -50%), -14px) scale(0.98);
-      filter: blur(3px);
+      transform: translate(var(--hud-translate-x, -50%), -6px) scale(0.985);
     }
   }
 
@@ -1994,13 +2040,12 @@
     flex-direction: column;
     transform-origin: top center;
     transition:
-      max-height 640ms cubic-bezier(0.16, 1, 0.3, 1),
-      opacity 540ms cubic-bezier(0.16, 1, 0.3, 1),
-      transform 640ms cubic-bezier(0.16, 1, 0.3, 1),
-      margin-top 640ms cubic-bezier(0.16, 1, 0.3, 1),
-      box-shadow 640ms cubic-bezier(0.16, 1, 0.3, 1),
-      border-color 640ms cubic-bezier(0.16, 1, 0.3, 1),
-      visibility 640ms cubic-bezier(0.16, 1, 0.3, 1);
+      max-height 260ms var(--article-ease-surface),
+      opacity 200ms var(--article-ease-surface),
+      transform 240ms var(--article-ease-surface),
+      margin-top 240ms var(--article-ease-surface),
+      border-color 200ms ease,
+      visibility 260ms ease;
   }
 
   [data-theme="dark"] .article-search-dropdown {
@@ -2259,11 +2304,11 @@
   }
 
   mark.article-search-mark.is-current {
-    background: var(--ink-strong, #000000) !important;
+    background: var(--ink-strong, #18181b) !important;
     color: var(--bg-base, #ffffff) !important;
-    border-radius: 4px;
+    border-radius: 3px;
     border-bottom: none;
-    box-shadow: 0 0 0 2.5px var(--search-vermilion), 0 3px 18px rgba(var(--search-vermilion-rgb), 0.65);
+    box-shadow: 0 0 0 1.75px var(--search-vermilion), 0 2px 10px rgba(var(--search-vermilion-rgb), 0.28);
     position: relative;
     z-index: 8;
     font-weight: 600;
@@ -2273,53 +2318,55 @@
     background: #ffffff !important;
     color: #000000 !important;
     border-bottom: none;
-    box-shadow: 0 0 0 2.5px var(--search-vermilion), 0 3px 20px rgba(var(--search-vermilion-rgb), 0.85);
+    box-shadow: 0 0 0 1.75px var(--search-vermilion), 0 2px 12px rgba(var(--search-vermilion-rgb), 0.42);
   }
 
   [data-theme="dark"] mark.article-search-mark.is-current {
     background: #ffffff !important;
     color: #000000 !important;
     border-bottom: none;
-    box-shadow: 0 0 0 2.5px var(--search-vermilion), 0 3px 22px rgba(var(--search-vermilion-rgb), 0.85);
+    box-shadow: 0 0 0 1.75px var(--search-vermilion), 0 2px 12px rgba(var(--search-vermilion-rgb), 0.45);
   }
 
   [data-theme="moss"] mark.article-search-mark.is-current {
     background: #ffffff !important;
     color: #244a2c !important;
     border-bottom: none;
-    box-shadow: 0 0 0 2.5px var(--search-vermilion), 0 3px 20px rgba(var(--search-vermilion-rgb), 0.85);
+    box-shadow: 0 0 0 1.75px var(--search-vermilion), 0 2px 12px rgba(var(--search-vermilion-rgb), 0.42);
   }
 
   [data-theme="rice"] mark.article-search-mark.is-current {
     background: #2B241C !important;
     color: #F7F0E2 !important;
     border-bottom: none;
-    box-shadow: 0 0 0 2.5px var(--search-vermilion), 0 3px 18px rgba(var(--search-vermilion-rgb), 0.65);
+    box-shadow: 0 0 0 1.75px var(--search-vermilion), 0 2px 10px rgba(var(--search-vermilion-rgb), 0.32);
   }
 
-  /* Radar pulse animation around active match with Eastern ink vermilion radiance */
+  /* 醒目而不刺眼的朱砂墨框脉冲（无霓虹炫光散射，纯 GPU 缩放淡出） */
   mark.article-search-mark.is-current.has-pulse::after {
     content: '';
     position: absolute;
     inset: -3px -5px;
-    border-radius: 6px;
-    border: 2px solid var(--search-vermilion);
-    box-shadow: 0 0 16px rgba(var(--search-vermilion-rgb), 0.85);
+    border-radius: 5px;
+    border: 1.5px solid var(--search-vermilion);
+    background: rgba(var(--search-vermilion-rgb), 0.1);
     pointer-events: none;
-    animation: articleSearchRadarPulse 720ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    will-change: transform, opacity;
+    animation: articleSearchRadarPulse 520ms var(--article-ease-surface) forwards;
   }
 
   @keyframes articleSearchRadarPulse {
     0% {
-      opacity: 0.95;
-      transform: scale(0.92);
+      opacity: 0.92;
+      transform: scale(0.94);
     }
-    50% {
-      opacity: 0.6;
+    55% {
+      opacity: 0.52;
+      transform: scale(1.22);
     }
     100% {
       opacity: 0;
-      transform: scale(1.72);
+      transform: scale(1.4);
     }
   }
 

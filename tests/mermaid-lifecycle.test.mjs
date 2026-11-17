@@ -1,8 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { stripTypeScriptTypes } from 'node:module';
+import * as nodeModule from 'node:module';
 import { JSDOM } from 'jsdom';
+
+let fallbackTransformSync = null;
+async function loadStripTypes() {
+  if (typeof nodeModule.stripTypeScriptTypes === 'function') {
+    return nodeModule.stripTypeScriptTypes;
+  }
+  if (!fallbackTransformSync) {
+    const esbuild = await import('esbuild');
+    fallbackTransformSync = esbuild.transformSync;
+  }
+  return (code) => fallbackTransformSync(code, { loader: 'ts', format: 'esm' }).code;
+}
+const stripTypeScriptTypes = await loadStripTypes();
 
 const source = fs.readFileSync('src/components/MermaidRenderer.astro', 'utf8');
 const markup = source.slice(source.indexOf('<div class="mermaid-modal-overlay"'), source.indexOf('<script>'));
@@ -107,7 +120,7 @@ test('diagram work waits through the curtain, title docking and body fade', asyn
     assert.equal(resolved, false, 'curtain handover must not start diagram work');
     assert.equal(h.timers.size, 0, 'no deadline may bypass the title');
     h.release();
-    assert.deepEqual([...h.timers.values()].map(t => t.delay), [1100]);
+    assert.deepEqual([...h.timers.values()].map(t => t.delay), [760]);
     await Promise.resolve();
     assert.equal(resolved, false, 'body fade also gets an uninterrupted interval');
     h.flush();

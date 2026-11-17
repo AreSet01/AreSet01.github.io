@@ -57,6 +57,23 @@
   let modalScale = 1.0;
   let modalTranslateX = 0;
   let modalTranslateY = 0;
+  let modalInertiaRaf = 0;
+  let stageInertiaRaf = 0;
+
+  function cancelModalInertia() {
+    if (modalInertiaRaf) {
+      cancelAnimationFrame(modalInertiaRaf);
+      modalInertiaRaf = 0;
+    }
+  }
+
+  function cancelStageInertia() {
+    if (stageInertiaRaf) {
+      cancelAnimationFrame(stageInertiaRaf);
+      stageInertiaRaf = 0;
+    }
+    document.querySelectorAll('.mermaid-stage.is-inertia').forEach((el) => el.classList.remove('is-inertia'));
+  }
 
   function updateModalTransform() {
     const modalCanvas = document.getElementById('mermaid-modal-canvas');
@@ -69,6 +86,7 @@
   }
 
   function openModal(title: string, svgContent: string) {
+    cancelModalInertia();
     ensureModalBound();
     const modal = document.getElementById('mermaid-modal');
     const modalCanvas = document.getElementById('mermaid-modal-canvas');
@@ -105,6 +123,7 @@
   }
 
   function closeModal() {
+    cancelModalInertia();
     const modal = document.getElementById('mermaid-modal');
     const modalCanvas = document.getElementById('mermaid-modal-canvas');
     if (!modal || !modalCanvas) return;
@@ -152,16 +171,19 @@
     }, { signal });
 
     modalZoomIn?.addEventListener('click', () => {
+      cancelModalInertia();
       modalScale = Math.min(5.0, Math.round((modalScale + 0.25) * 100) / 100);
       updateModalTransform();
     }, { signal });
 
     modalZoomOut?.addEventListener('click', () => {
+      cancelModalInertia();
       modalScale = Math.max(0.4, Math.round((modalScale - 0.25) * 100) / 100);
       updateModalTransform();
     }, { signal });
 
     modalZoomReset?.addEventListener('click', () => {
+      cancelModalInertia();
       modalScale = 1.0;
       modalTranslateX = 0;
       modalTranslateY = 0;
@@ -172,16 +194,39 @@
       let isModalDragging = false;
       let modalDragStartX = 0;
       let modalDragStartY = 0;
+      let modalLastX = 0;
+      let modalLastY = 0;
+      let modalLastT = 0;
+      let modalVx = 0;
+      let modalVy = 0;
+      let modalMoveSamples = 0;
 
       modalContent.addEventListener('pointerdown', (e) => {
+        cancelModalInertia();
         isModalDragging = true;
         modalDragStartX = e.clientX - modalTranslateX;
         modalDragStartY = e.clientY - modalTranslateY;
+        modalLastX = e.clientX;
+        modalLastY = e.clientY;
+        modalLastT = performance.now();
+        modalVx = 0;
+        modalVy = 0;
+        modalMoveSamples = 0;
         modalContent.classList.add('is-dragging');
       }, { signal });
 
       window.addEventListener('pointermove', (e) => {
         if (!isModalDragging || modal.hidden) return;
+        const now = performance.now();
+        const dt = now - modalLastT;
+        if (dt > 0) {
+          modalVx = ((e.clientX - modalLastX) / dt) * 16;
+          modalVy = ((e.clientY - modalLastY) / dt) * 16;
+        }
+        modalLastX = e.clientX;
+        modalLastY = e.clientY;
+        modalLastT = now;
+        modalMoveSamples += 1;
         modalTranslateX = e.clientX - modalDragStartX;
         modalTranslateY = e.clientY - modalDragStartY;
         updateModalTransform();
@@ -191,12 +236,34 @@
         if (isModalDragging) {
           isModalDragging = false;
           modalContent.classList.remove('is-dragging');
+          const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+          const speed = Math.hypot(modalVx, modalVy);
+          if (!reduce && !modal.hidden && modalMoveSamples >= 2 && performance.now() - modalLastT < 60 && speed > 1.2) {
+            const stepModalInertia = () => {
+              modalInertiaRaf = 0;
+              if (modal.hidden || signal.aborted) return;
+              modalVx *= 0.9;
+              modalVy *= 0.9;
+              if (Math.hypot(modalVx, modalVy) < 0.35) {
+                modalTranslateX = Math.round(modalTranslateX);
+                modalTranslateY = Math.round(modalTranslateY);
+                updateModalTransform();
+                return;
+              }
+              modalTranslateX = Math.round((modalTranslateX + modalVx) * 10) / 10;
+              modalTranslateY = Math.round((modalTranslateY + modalVy) * 10) / 10;
+              updateModalTransform();
+              modalInertiaRaf = requestAnimationFrame(stepModalInertia);
+            };
+            modalInertiaRaf = requestAnimationFrame(stepModalInertia);
+          }
         }
       };
       window.addEventListener('pointerup', stopDragging, { signal });
       window.addEventListener('pointercancel', stopDragging, { signal });
 
       modalContent.addEventListener('wheel', (e) => {
+        cancelModalInertia();
         e.preventDefault();
         e.stopPropagation();
         (e as any).stopImmediatePropagation?.();
@@ -223,6 +290,7 @@
   }
 
   function setBlockZoom(block: HTMLElement, zoom: number, resetPan = false) {
+    cancelStageInertia();
     const renderEl = block.querySelector<HTMLElement>('.mermaid-render');
     const stageEl = block.querySelector<HTMLElement>('.mermaid-stage');
     const zoomVal = block.querySelector<HTMLElement>('.mermaid-zoom-val');
@@ -240,7 +308,7 @@
       stageEl?.classList.add('is-zoomed');
     } else {
       stageEl?.classList.remove('is-zoomed');
-      if (stageEl && resetPan) {
+      if (stageEl && (clamped === 1.0 || resetPan)) {
         stageEl.scrollLeft = 0;
         stageEl.scrollTop = 0;
       }
@@ -345,8 +413,12 @@
           await navigator.clipboard.writeText(rawCode);
           const span = copyBtn.querySelector('span') || copyBtn;
           const original = span.textContent;
-          span.textContent = 'Copied!';
-          setTimeout(() => { span.textContent = original; }, 1500);
+          copyBtn.classList.add('is-copied');
+          span.textContent = '钤印已录';
+          setTimeout(() => {
+            copyBtn.classList.remove('is-copied');
+            span.textContent = original;
+          }, 1500);
         } catch {}
         return;
       }
@@ -416,7 +488,7 @@
       }
     });
 
-    // 卡片内任意缩放比例（含默认 100%）直接按住拖拽漫游、双指缩放与双击复位
+    // 卡片内任意缩放比例（含默认 100%）直接按住拖拽漫游、丝滑阻尼惯性、双指缩放与双击复位
     let isStageDragging = false;
     let activeStageEl: HTMLElement | null = null;
     let stageStartX = 0;
@@ -427,6 +499,12 @@
     let stageMaxScrollTop = 0;
     let stageStartPanX = 0;
     let stageStartPanY = 0;
+    let stageLastX = 0;
+    let stageLastY = 0;
+    let stageLastT = 0;
+    let stageVx = 0;
+    let stageVy = 0;
+    let stageMoveSamples = 0;
     const activePointers = new Map<number, { x: number; y: number }>();
     let initialPinchDistance = 0;
     let initialPinchZoom = 1.0;
@@ -441,12 +519,13 @@
       const block = stage.closest<HTMLElement>('.mermaid-block');
       if (!block) return;
 
+      cancelStageInertia();
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       // 双击/双触快速复位 (Double tap to reset zoom & pan)
       const now = Date.now();
-      if (lastTapStage === stage && now - lastTapTime < 300) {
-        setBlockZoom(block, 1.0, true);
+      if (lastTapStage === stage && now - lastTapTime < 320) {
+        setBlockZoom(block, 1.0);
         lastTapTime = 0;
         lastTapStage = null;
         activePointers.clear();
@@ -482,6 +561,12 @@
       } catch {}
       stageStartX = e.clientX;
       stageStartY = e.clientY;
+      stageLastX = e.clientX;
+      stageLastY = e.clientY;
+      stageLastT = performance.now();
+      stageVx = 0;
+      stageVy = 0;
+      stageMoveSamples = 0;
       stageScrollLeft = stage.scrollLeft;
       stageScrollTop = stage.scrollTop;
       stageMaxScrollLeft = Math.max(0, stage.scrollWidth - stage.clientWidth);
@@ -510,6 +595,17 @@
       if (!isStageDragging || !activeStageEl) return;
       const block = activeStageEl.closest<HTMLElement>('.mermaid-block');
       if (!block) return;
+      const now = performance.now();
+      const dt = now - stageLastT;
+      if (dt > 0) {
+        stageVx = ((e.clientX - stageLastX) / dt) * 16;
+        stageVy = ((e.clientY - stageLastY) / dt) * 16;
+      }
+      stageLastX = e.clientX;
+      stageLastY = e.clientY;
+      stageLastT = now;
+      stageMoveSamples += 1;
+
       const dx = e.clientX - stageStartX;
       const dy = e.clientY - stageStartY;
 
@@ -532,6 +628,8 @@
         initialPinchDistance = 0;
       }
       if (activePointers.size === 0) {
+        const releasedStage = activeStageEl;
+        const wasDragging = isStageDragging;
         if (activeStageEl) {
           if (isStageDragging) {
             try {
@@ -542,6 +640,46 @@
           activeStageEl = null;
         }
         isStageDragging = false;
+
+        // 松手阻尼惯性滑行（Damped Pan Inertia）
+        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        const speed = Math.hypot(stageVx, stageVy);
+        if (wasDragging && releasedStage && !reduce && stageMoveSamples >= 2 && performance.now() - stageLastT < 60 && speed > 1.2) {
+          const block = releasedStage.closest<HTMLElement>('.mermaid-block');
+          if (block) {
+            releasedStage.classList.add('is-inertia');
+            let vx = stageVx;
+            let vy = stageVy;
+            const maxSL = Math.max(0, releasedStage.scrollWidth - releasedStage.clientWidth);
+            const maxST = Math.max(0, releasedStage.scrollHeight - releasedStage.clientHeight);
+            const stepStageInertia = () => {
+              stageInertiaRaf = 0;
+              if (!releasedStage.isConnected) return;
+              vx *= 0.9;
+              vy *= 0.9;
+              if (Math.hypot(vx, vy) < 0.35) {
+                releasedStage.classList.remove('is-inertia');
+                applyBlockTransform(block);
+                return;
+              }
+              const prevSL = releasedStage.scrollLeft;
+              const nextSL = Math.max(0, Math.min(maxSL, prevSL - vx));
+              const remX = vx - (prevSL - nextSL);
+              releasedStage.scrollLeft = nextSL;
+              block.dataset.panX = `${(parseFloat(block.dataset.panX || '0') || 0) + remX}`;
+
+              const prevST = releasedStage.scrollTop;
+              const nextST = Math.max(0, Math.min(maxST, prevST - vy));
+              const remY = vy - (prevST - nextST);
+              releasedStage.scrollTop = nextST;
+              block.dataset.panY = `${(parseFloat(block.dataset.panY || '0') || 0) + remY}`;
+
+              applyBlockTransform(block);
+              stageInertiaRaf = requestAnimationFrame(stepStageInertia);
+            };
+            stageInertiaRaf = requestAnimationFrame(stepStageInertia);
+          }
+        }
       }
     };
 
@@ -588,7 +726,7 @@
     return document.documentElement.getAttribute('data-theme') || 'light';
   }
 
-  function animateMermaidSvg(renderEl: HTMLElement) {
+  function animateMermaidSvg(renderEl: HTMLElement, signal?: AbortSignal) {
     const svg = renderEl.querySelector<SVGSVGElement>('svg');
     if (!svg) return;
 
@@ -598,33 +736,36 @@
       return;
     }
 
+    const revealEase = getComputedStyle(document.documentElement).getPropertyValue('--article-ease-reveal').trim() || 'cubic-bezier(0.25, 0.46, 0.45, 1)';
     svg.style.opacity = '0';
-    svg.style.transform = 'translateY(10px) scale(0.98)';
-    svg.style.transition = 'opacity 500ms cubic-bezier(0.16, 1, 0.3, 1), transform 550ms cubic-bezier(0.16, 1, 0.3, 1)';
+    svg.style.transform = 'translate3d(0, 8px, 0) scale(0.99)';
+    svg.style.transition = `opacity 480ms ${revealEase}, transform 540ms ${revealEase}`;
 
     const nodes = Array.from(svg.querySelectorAll<SVGElement>('.node, .actor, .note, g.cluster, .label, .actor-man'));
     nodes.forEach((node, i) => {
+      const delay = 20 + Math.min(i * 14, 150);
       node.style.opacity = '0';
-      node.style.transition = `opacity 350ms cubic-bezier(0.16, 1, 0.3, 1) ${30 + i * 20}ms`;
+      node.style.transition = `opacity 340ms ${revealEase} ${delay}ms`;
     });
 
     const lines = Array.from(svg.querySelectorAll<SVGElement>('.edgePath path, .messageLine0, .messageLine1, line, .flowchart-link'));
     lines.forEach((line, i) => {
+      const delay = 40 + Math.min(i * 16, 170);
       const len = (line as any).getTotalLength ? (line as any).getTotalLength() : 0;
       if (len > 0) {
         line.style.strokeDasharray = `${len}`;
         line.style.strokeDashoffset = `${len}`;
         line.style.opacity = '0';
-        line.style.transition = `stroke-dashoffset 550ms cubic-bezier(0.16, 1, 0.3, 1) ${60 + i * 25}ms, opacity 250ms ease ${60 + i * 25}ms`;
+        line.style.transition = `stroke-dashoffset 480ms ${revealEase} ${delay}ms, opacity 240ms ease ${delay}ms`;
       } else {
         line.style.opacity = '0';
-        line.style.transition = `opacity 350ms ease ${60 + i * 25}ms`;
+        line.style.transition = `opacity 320ms ease ${delay}ms`;
       }
     });
 
     const showAll = () => {
       svg.style.opacity = '1';
-      svg.style.transform = 'translateY(0) scale(1)';
+      svg.style.transform = 'translate3d(0, 0, 0) scale(1)';
       nodes.forEach((node) => { node.style.opacity = '1'; });
       lines.forEach((line) => { line.style.strokeDashoffset = '0'; line.style.opacity = '1'; });
     };
@@ -645,17 +786,25 @@
       });
     };
 
+    let t1 = 0;
+    let t2 = 0;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
+        if (signal?.aborted) return;
         showAll();
-        window.setTimeout(cleanup, 1200);
+        t1 = window.setTimeout(cleanup, 780);
       });
     });
 
-    window.setTimeout(() => {
+    t2 = window.setTimeout(() => {
       showAll();
       cleanup();
-    }, 1400);
+    }, 920);
+
+    signal?.addEventListener('abort', () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    }, { once: true });
   }
 
   // ---------- 核心初始化与渲染管线 ----------
@@ -752,7 +901,7 @@
           }
         }
 
-        animateMermaidSvg(renderEl);
+        animateMermaidSvg(renderEl, signal);
       } catch (error: any) {
         if (sessionId !== activeSessionId) return;
         console.error('[Mermaid Render Error]:', error);
@@ -795,9 +944,11 @@
     initMermaid();
   });
 
-  // 4. 页面即将切换时清理 Modal 状态
+  // 4. 页面即将切换时清理 Modal 与惯性状态
   document.addEventListener('astro:before-swap', () => {
     activeSessionId++;
+    cancelModalInertia();
+    cancelStageInertia();
     renderController?.abort();
     renderController = null;
     closeModal();

@@ -184,8 +184,8 @@
         if (previous && typeof previous.destroy === 'function') previous.destroy();
         (floatWindow as any).__pinResize = makeResizable(floatWindow, resizeHandle, {
           storageKey: 'pin-panel-size',
-          minWidth: 420,
-          minHeight: 380,
+          minWidth: 350,
+          minHeight: 220,
           maxWidth: () => Math.min(window.innerWidth - 24, 1000),
           maxHeight: () => Math.max(380, window.innerHeight - 24),
           fallback: { width: 480, height: 560 },
@@ -224,7 +224,7 @@
           edgeTab.style.display = '';
           if (wasHidden) {
             edgeTab.classList.add('is-visible', 'is-entering');
-            setTimeout(() => edgeTab.classList.remove('is-entering'), 740);
+            setTimeout(() => edgeTab.classList.remove('is-entering'), 440);
           } else {
             edgeTab.classList.add('is-visible');
           }
@@ -605,7 +605,7 @@
       }
     }
 
-    // 幽灵飞行药丸动画（起点精确指向终点，0点坐标回退保护）
+    // 飞墨流光弧线与落点轻漾墨环（统一克制节奏，不杂乱抢戏）
     function spawnFlyGhost(startEl: HTMLElement, targetEl?: HTMLElement | null) {
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       const startRect = startEl.getBoundingClientRect();
@@ -626,60 +626,109 @@
         targetCenterY = window.innerHeight * 0.40;
       }
 
-      const ghost = document.createElement('div');
-      ghost.className = 'pin-fly-ghost';
-      ghost.innerHTML = `
-        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="12" y1="17" x2="12" y2="22"></line>
-          <path d="M5 17h14v-2l-2-2V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v8l-2 2v2z"></path>
-        </svg>
-        <span>PINNED</span>
-      `;
-      ghost.style.left = `${Math.round(startCenterX)}px`;
-      ghost.style.top = `${Math.round(startCenterY)}px`;
-      ghost.style.transform = 'translate(-50%, -50%)';
-      document.body.appendChild(ghost);
-
       const deltaX = targetCenterX - startCenterX;
       const deltaY = targetCenterY - startCenterY;
-      const arcElevationY = Math.min(-45, -Math.abs(deltaX) * 0.08);
+      const distance = Math.hypot(deltaX, deltaY);
+      const flightDuration = Math.round(Math.min(540, Math.max(400, 340 + distance * 0.22)));
+      const arcLift = Math.min(120, Math.max(42, distance * 0.16));
+      const ctrlX = (startCenterX + targetCenterX) / 2;
+      const ctrlY = Math.min(startCenterY, targetCenterY) - arcLift;
 
-      const anim = ghost.animate([
-        {
-          transform: 'translate(-50%, -50%) scale(0.92)',
-          opacity: 0.95,
-        },
-        {
-          transform: `translate(calc(-50% + ${deltaX * 0.46}px), calc(-50% + ${deltaY * 0.46 + arcElevationY}px)) scale(1.12)`,
-          opacity: 1,
-          offset: 0.46,
-        },
-        {
-          transform: `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px)) scale(0.42)`,
-          opacity: 0.2,
-          offset: 1,
-        }
-      ], {
-        duration: 800,
-        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
-        fill: 'forwards'
+      // 1. 二次贝塞尔飞白流光轨迹 SVG
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const arcSvg = document.createElementNS(svgNS, 'svg');
+      arcSvg.setAttribute('class', 'pin-fly-arc-svg');
+      arcSvg.setAttribute('aria-hidden', 'true');
+      const pathD = `M ${startCenterX.toFixed(1)} ${startCenterY.toFixed(1)} Q ${ctrlX.toFixed(1)} ${ctrlY.toFixed(1)} ${targetCenterX.toFixed(1)} ${targetCenterY.toFixed(1)}`;
+
+      const trailPath = document.createElementNS(svgNS, 'path');
+      trailPath.setAttribute('class', 'pin-fly-arc-trail');
+      trailPath.setAttribute('pathLength', '1');
+      trailPath.setAttribute('d', pathD);
+
+      const echoPath = document.createElementNS(svgNS, 'path');
+      echoPath.setAttribute('class', 'pin-fly-arc-echo');
+      echoPath.setAttribute('pathLength', '1');
+      echoPath.setAttribute('d', pathD);
+
+      arcSvg.append(echoPath, trailPath);
+      document.body.appendChild(arcSvg);
+
+      trailPath.animate(
+        [
+          { strokeDasharray: '0.28 1', strokeDashoffset: '0.28', opacity: 0.2 },
+          { strokeDasharray: '0.42 1', strokeDashoffset: '-0.32', opacity: 0.88, offset: 0.52 },
+          { strokeDasharray: '0.16 1', strokeDashoffset: '-1', opacity: 0 },
+        ],
+        { duration: flightDuration, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)', fill: 'forwards' }
+      );
+      echoPath.animate(
+        [
+          { opacity: 0 },
+          { opacity: 0.38, offset: 0.45 },
+          { opacity: 0 },
+        ],
+        { duration: flightDuration, easing: 'ease-out', fill: 'forwards' }
+      );
+
+      // 2. 凝练朱砂墨珠沿同条二次贝塞尔弧线疾掠落位
+      const ghost = document.createElement('div');
+      ghost.className = 'pin-fly-ghost';
+      ghost.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(ghost);
+
+      const sampleSteps = 12;
+      const keyframes: Keyframe[] = [];
+      for (let i = 0; i <= sampleSteps; i++) {
+        const t = i / sampleSteps;
+        const inv = 1 - t;
+        const bx = inv * inv * startCenterX + 2 * inv * t * ctrlX + t * t * targetCenterX;
+        const by = inv * inv * startCenterY + 2 * inv * t * ctrlY + t * t * targetCenterY;
+        const scale = i === 0 ? 0.85 : i === sampleSteps ? 0.48 : 1 + 0.16 * Math.sin(t * Math.PI);
+        const opacity = i === sampleSteps ? 0.18 : 0.96;
+        keyframes.push({
+          transform: `translate3d(${bx.toFixed(1)}px, ${by.toFixed(1)}px, 0) scale(${scale.toFixed(3)})`,
+          opacity,
+          offset: t,
+        });
+      }
+
+      const anim = ghost.animate(keyframes, {
+        duration: flightDuration,
+        easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)',
+        fill: 'forwards',
       });
 
-      anim.onfinish = () => {
+      const cleanupFlight = () => {
         ghost.remove();
+        arcSvg.remove();
+      };
+
+      anim.onfinish = () => {
+        cleanupFlight();
+        // 3. 落点轻漾单枚朱砂墨环（不再叠加角标跳弹，收束克制）
+        const ripple = document.createElement('div');
+        ripple.className = 'pin-ink-ripple';
+        ripple.setAttribute('aria-hidden', 'true');
+        ripple.style.left = `${Math.round(targetCenterX)}px`;
+        ripple.style.top = `${Math.round(targetCenterY)}px`;
+        document.body.appendChild(ripple);
+        const removeRipple = () => ripple.remove();
+        ripple.addEventListener('animationend', removeRipple, { once: true });
+        window.setTimeout(removeRipple, 500);
+
         const edgeTab = document.getElementById('pin-edge-tab');
-        if (edgeTab && edgeTab.classList.contains('is-visible')) {
-          const badge = edgeTab.querySelector<HTMLElement>('.pin-edge-tab-count');
-          badge?.animate([
-            { transform: 'scale(1)' },
-            { transform: 'scale(1.36)' },
-            { transform: 'scale(1)' }
-          ], { duration: 500, easing: 'cubic-bezier(0.34, 1.35, 0.64, 1)' });
+        if (edgeTab && edgeTab.classList.contains('is-visible') && !isWindowOpen) {
+          edgeTab.classList.remove('is-absorbing');
+          void edgeTab.offsetWidth;
+          edgeTab.classList.add('is-absorbing');
+          window.setTimeout(() => edgeTab.classList.remove('is-absorbing'), 440);
         }
       };
+      anim.oncancel = cleanupFlight;
     }
 
-    // FLIP 卡片顺滑插入（原有卡片丝滑下移，彻底消除顿挫突兀感）
+    // FLIP 卡片顺滑插入（原有卡片丝滑下移，彻底移除动态 blur 重绘）
     function prependCardWithFLIP(container: HTMLElement, card: HTMLElement) {
       const existingCards = Array.from(container.querySelectorAll<HTMLElement>('.pinned-card'));
       const oldTops = new Map<HTMLElement, number>();
@@ -689,16 +738,16 @@
 
       container.prepend(card);
 
-      // 1. 新卡片入场动画 (优雅降落，740ms 柔和沉稳)
+      // 1. 新卡片轻盈落墨入场 (~360ms，零动态 blur)
       card.animate([
-        { opacity: 0, transform: 'translate3d(0, -22px, 0) scale(0.97)', filter: 'blur(3px)' },
-        { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)', filter: 'blur(0)' }
+        { opacity: 0, transform: 'translate3d(0, -12px, 0) scale(0.98)' },
+        { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' }
       ], {
-        duration: 740,
-        easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
+        duration: 360,
+        easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)'
       });
 
-      // 2. 原有卡片 FLIP 平滑下移 (如流水让位，740ms 丝滑沉稳)
+      // 2. 原有卡片 FLIP 平滑下移 (~360ms 丝滑让位)
       existingCards.forEach((c) => {
         const oldTop = oldTops.get(c);
         if (oldTop !== undefined) {
@@ -709,8 +758,8 @@
               { transform: `translate3d(0, ${deltaY}px, 0)` },
               { transform: 'translate3d(0, 0, 0)' }
             ], {
-              duration: 740,
-              easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
+              duration: 360,
+              easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
             });
           }
         }
@@ -731,25 +780,17 @@
           paddingBottom: '',
         },
         {
-          opacity: 0.72,
-          transform: 'translate3d(36px, -2px, 0) scale(0.98)',
-          maxHeight: `${Math.round(startHeight * 0.65)}px`,
-          marginBottom: '0.45rem',
-          offset: 0.44,
-        },
-        {
           opacity: 0,
-          transform: 'translate3d(85px, -6px, 0) scale(0.90)',
+          transform: 'translate3d(38px, -3px, 0) scale(0.96)',
           maxHeight: '0px',
           marginBottom: '-0.85rem',
           paddingTop: '0px',
           paddingBottom: '0px',
           borderWidth: '0px',
-          offset: 1,
         }
       ], {
-        duration: 720,
-        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        duration: 340,
+        easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
         fill: 'forwards'
       });
 
@@ -795,11 +836,10 @@
         if (edgeTab && edgeTab.classList.contains('is-visible')) {
           const tabAnim = edgeTab.animate([
             { transform: 'translateY(var(--tab-base-y, 0)) translateX(0)', opacity: 1 },
-            { transform: 'translateY(var(--tab-base-y, 0)) translateX(35%)', opacity: 0.85, offset: 0.45 },
-            { transform: 'translateY(var(--tab-base-y, 0)) translateX(120%)', opacity: 0, offset: 1 }
+            { transform: 'translateY(var(--tab-base-y, 0)) translateX(120%)', opacity: 0 }
           ], {
-            duration: 720,
-            easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+            duration: 380,
+            easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
             fill: 'both'
           });
           tabAnim.onfinish = () => {
@@ -807,7 +847,7 @@
             try { tabAnim.cancel(); } catch {}
           };
         } else {
-          setTimeout(finishAll, 720);
+          setTimeout(finishAll, 380);
         }
         return;
       }
@@ -822,14 +862,13 @@
       }
 
       const rect = floatWindow ? floatWindow.getBoundingClientRect() : null;
-      const targetDistanceX = rect ? Math.max(160, window.innerWidth - rect.left + 36) : 520;
+      const targetDistanceX = rect ? Math.max(120, window.innerWidth - rect.left + 24) : 420;
 
-      // 基础时长 740ms，若用户拖拽至屏幕极左侧则自适应延长至最高 860ms，确保速度始终稳重优雅
-      const baseDuration = 740;
+      const baseDuration = 420;
       const exitDuration = (rect && rect.left < window.innerWidth * 0.45)
-        ? Math.min(860, Math.round(baseDuration + (window.innerWidth * 0.45 - rect.left) * 0.16))
+        ? Math.min(520, Math.round(baseDuration + (window.innerWidth * 0.45 - rect.left) * 0.12))
         : baseDuration;
-      const exitEasing = 'cubic-bezier(0.16, 1, 0.3, 1)';
+      const exitEasing = 'cubic-bezier(0.4, 0, 0.2, 1)';
 
       let completedCount = 0;
       const totalToComplete = (hasWindowToExit ? 1 : 0) + (hasTabToExit ? 1 : 0);
@@ -847,7 +886,7 @@
         }
       };
 
-      // 1. Floating Window Synchronous Flight (高对比度、清晰明确的整体飞走轨迹，保持卡片内容清晰，绝不中途蒸发)
+      // 1. Floating Window Synchronous Flight (纯 GPU 位移与透明度，零动态 blur)
       if (hasWindowToExit && floatWindow) {
         floatWindow.style.pointerEvents = 'none';
         floatWindow.classList.add('is-docking', 'is-flying-away');
@@ -857,25 +896,10 @@
           {
             opacity: 1,
             transform: 'translate3d(0, 0, 0) scale(1)',
-            filter: 'blur(0px)',
-          },
-          {
-            opacity: 0.96,
-            transform: `translate3d(${Math.round(targetDistanceX * 0.36)}px, 0, 0) scale(0.99)`,
-            filter: 'blur(0px)',
-            offset: 0.4,
-          },
-          {
-            opacity: 0.88,
-            transform: `translate3d(${Math.round(targetDistanceX * 0.72)}px, 0, 0) scale(0.97)`,
-            filter: 'blur(0.5px)',
-            offset: 0.72,
           },
           {
             opacity: 0,
-            transform: `translate3d(${Math.round(targetDistanceX)}px, 0, 0) scale(0.94)`,
-            filter: 'blur(2px)',
-            offset: 1,
+            transform: `translate3d(${Math.round(targetDistanceX)}px, 0, 0) scale(0.95)`,
           }
         ], {
           duration: exitDuration,
@@ -1238,53 +1262,38 @@
       const rect = floatWindow.getBoundingClientRect();
       const railOffset = getActiveRailOffset();
       const targetAnchorX = window.innerWidth - railOffset;
-      const targetDistanceX = Math.max(120, targetAnchorX - rect.left + 24);
+      const targetDistanceX = Math.max(96, targetAnchorX - rect.left + 20);
       const dockDuration = (rect.left < window.innerWidth * 0.45)
-        ? Math.min(840, Math.round(740 + (window.innerWidth * 0.45 - rect.left) * 0.14))
-        : 740;
+        ? Math.min(500, Math.round(420 + (window.innerWidth * 0.45 - rect.left) * 0.1))
+        : 420;
 
-      // 1. WAAPI 贴边滑行动画 (740ms 沉稳优雅入边，保持清晰饱满度，贴边时温润淡出)
+      // 1. WAAPI 贴边滑行动画 (~420ms 轻盈入边，零动态 blur)
       const anim = floatWindow.animate([
         {
           opacity: 1,
           transform: 'translate3d(0, 0, 0) scale(1)',
-          filter: 'blur(0px)',
-        },
-        {
-          opacity: 0.95,
-          transform: `translate3d(${Math.round(targetDistanceX * 0.40)}px, 0, 0) scale(0.98)`,
-          filter: 'blur(0px)',
-          offset: 0.45,
-        },
-        {
-          opacity: 0.85,
-          transform: `translate3d(${Math.round(targetDistanceX * 0.75)}px, 0, 0) scale(0.95)`,
-          filter: 'blur(0.5px)',
-          offset: 0.75,
         },
         {
           opacity: 0,
-          transform: `translate3d(${Math.round(targetDistanceX)}px, 0, 0) scale(0.92)`,
-          filter: 'blur(2px)',
-          offset: 1,
+          transform: `translate3d(${Math.round(targetDistanceX)}px, 0, 0) scale(0.95)`,
         }
       ], {
         duration: dockDuration,
-        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
         fill: 'both'
       });
 
-      // 2. 边缘标签在窗口贴合瞬间触发弹性吸收 (在第 460ms 优雅承接)
+      // 2. 边缘标签在窗口贴合瞬间轻柔承接
       setTimeout(() => {
         if (edgeTab && edgeTab.classList.contains('is-visible')) {
           edgeTab.classList.remove('is-absorbing');
-          void edgeTab.offsetWidth; // force reflow
+          void edgeTab.offsetWidth;
           edgeTab.classList.add('is-absorbing');
           setTimeout(() => {
             edgeTab.classList.remove('is-absorbing');
-          }, 680);
+          }, 440);
         }
-      }, Math.round(dockDuration * 0.62));
+      }, Math.round(dockDuration * 0.65));
 
       anim.onfinish = () => {
         floatWindow.classList.remove('is-docking', 'is-flying-away', 'is-clearing');
@@ -1343,15 +1352,16 @@
         backdrop.classList.remove('is-open');
         document.body.classList.remove('pin-sheet-open');
         setTimeout(() => {
+          if (sheet.classList.contains('is-open')) return;
           sheet.hidden = true;
           sheet.style.display = 'none';
           backdrop.hidden = true;
           backdrop.style.display = 'none';
-        }, 720);
+        }, 380);
       }
     }
 
-    // ---------- 移动端 Bottom Sheet 下拉手势 ----------
+    // ---------- 移动端 Bottom Sheet 下拉手势（rAF 节流 + 速度感知） ----------
     function bindSheetDrag() {
       const sheet = document.getElementById('pin-sheet-drawer');
       const sheetHandle = sheet?.querySelector<HTMLElement>('.pin-sheet-handle');
@@ -1361,28 +1371,44 @@
 
       let startY = 0;
       let currentTranslate = 0;
+      let lastY = 0;
+      let lastT = 0;
+      let velocityY = 0;
+      let sheetRaf = 0;
+
+      const applySheetFrame = () => {
+        sheetRaf = 0;
+        sheet.style.transform = currentTranslate > 0 ? `translate3d(0, ${currentTranslate}px, 0)` : '';
+      };
 
       sheetHandle.addEventListener('pointerdown', (e: PointerEvent) => {
         if (!isMobile()) return;
         startY = e.clientY;
+        lastY = e.clientY;
+        lastT = performance.now();
         currentTranslate = 0;
+        velocityY = 0;
         sheet.style.transition = 'none';
         try {
           sheetHandle.setPointerCapture(e.pointerId);
         } catch {}
 
         const onPointerMove = (ev: PointerEvent) => {
+          const now = performance.now();
+          const dt = Math.max(1, now - lastT);
+          velocityY = (ev.clientY - lastY) / dt;
+          lastY = ev.clientY;
+          lastT = now;
           const dy = ev.clientY - startY;
-          if (dy > 0) {
-            currentTranslate = dy;
-            sheet.style.transform = `translateY(${dy}px)`;
-          } else {
-            currentTranslate = 0;
-            sheet.style.transform = '';
-          }
+          currentTranslate = dy > 0 ? dy : 0;
+          if (!sheetRaf) sheetRaf = window.requestAnimationFrame(applySheetFrame);
         };
 
         const onPointerUp = (ev: PointerEvent) => {
+          if (sheetRaf) {
+            window.cancelAnimationFrame(sheetRaf);
+            sheetRaf = 0;
+          }
           try {
             sheetHandle.releasePointerCapture(ev.pointerId);
           } catch {}
@@ -1390,7 +1416,7 @@
           window.removeEventListener('pointerup', onPointerUp);
           window.removeEventListener('pointercancel', onPointerUp);
           sheet.style.transition = '';
-          if (currentTranslate > 70) {
+          if (currentTranslate > 70 || (currentTranslate > 28 && velocityY > 0.55)) {
             closeMobileSheet();
           } else {
             sheet.style.transform = '';
@@ -1403,7 +1429,7 @@
       });
     }
 
-    // ---------- 拖拽移动逻辑 (Zero-Jitter Smooth Drag) ----------
+    // ---------- 拖拽移动逻辑 (rAF 节流 Zero-Jitter Smooth Drag) ----------
     function bindDrag() {
       const floatWindow = document.getElementById('pin-float-window');
       const dragHandle = document.getElementById('pin-window-drag-handle');
@@ -1422,6 +1448,17 @@
       let startY = 0;
       let initialLeft = 0;
       let initialTop = 0;
+      let pendingLeft = 0;
+      let pendingTop = 0;
+      let dragRaf = 0;
+
+      const applyWindowDrag = () => {
+        dragRaf = 0;
+        if (!isDragging) return;
+        floatWindow.style.left = `${Math.round(pendingLeft)}px`;
+        floatWindow.style.top = `${Math.round(pendingTop)}px`;
+        userPos = { left: pendingLeft, top: pendingTop };
+      };
 
       dragHandle.addEventListener('pointerdown', (e: PointerEvent) => {
         if ((e.target as HTMLElement).closest('button, a, input, select, textarea')) return;
@@ -1436,6 +1473,8 @@
         const rect = floatWindow.getBoundingClientRect();
         initialLeft = rect.left;
         initialTop = rect.top;
+        pendingLeft = initialLeft;
+        pendingTop = initialTop;
 
         floatWindow.classList.add('is-dragging');
         try {
@@ -1454,17 +1493,20 @@
           const minY = 8;
           const maxY = Math.max(minY, window.innerHeight - winHeight - 8);
 
-          const nextLeft = Math.max(minX, Math.min(maxX, initialLeft + dx));
-          const nextTop = Math.max(minY, Math.min(maxY, initialTop + dy));
-
-          floatWindow.style.left = `${Math.round(nextLeft)}px`;
-          floatWindow.style.top = `${Math.round(nextTop)}px`;
-
-          userPos = { left: nextLeft, top: nextTop };
+          pendingLeft = Math.max(minX, Math.min(maxX, initialLeft + dx));
+          pendingTop = Math.max(minY, Math.min(maxY, initialTop + dy));
+          if (!dragRaf) dragRaf = window.requestAnimationFrame(applyWindowDrag);
         };
 
         const onPointerUp = (ev: PointerEvent) => {
           if (!isDragging) return;
+          if (dragRaf) {
+            window.cancelAnimationFrame(dragRaf);
+            dragRaf = 0;
+          }
+          floatWindow.style.left = `${Math.round(pendingLeft)}px`;
+          floatWindow.style.top = `${Math.round(pendingTop)}px`;
+          userPos = { left: pendingLeft, top: pendingTop };
           isDragging = false;
           floatWindow.classList.remove('is-dragging');
           try {
@@ -1638,6 +1680,18 @@
       toggleWindow,
       pinExcerpt,
     };
+
+    (window as any).__areSetPinWorkbenchCleanup__ = () => {
+      document.querySelectorAll('.pin-fly-ghost, .pin-fly-arc-svg, .pin-ink-ripple').forEach((n) => n.remove());
+      const floatWindow = document.getElementById('pin-float-window');
+      const prevResize = (floatWindow as any)?.__pinResize;
+      if (prevResize && typeof prevResize.destroy === 'function') prevResize.destroy();
+      document.body.classList.remove('pin-sheet-open');
+    };
+
+    document.addEventListener('astro:before-swap', () => {
+      (window as any).__areSetPinWorkbenchCleanup__?.();
+    });
 
     document.addEventListener('astro:page-load', () => {
       initPinWorkbench();
