@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
-import Footer from '../components/Footer.astro';
 import PostCard from '../components/PostCard.astro';
 import HomeTicker from '../components/HomeTicker.astro';
 import { getCollection } from 'astro:content';
@@ -24,23 +23,26 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
     <section class="home-hero">
       <div class="home-hero-copy">
         <p class="eyebrow" data-enter="top">Vol. 01 / Digital Garden</p>
-        <h1 class="home-hero-title" style="font-size: clamp(2rem, 5vw, 3.4rem);" data-enter="left">
-          <span class="hero-title-phrase inline-block whitespace-nowrap">欢迎光临</span>
-          <span class="hero-title-phrase inline-block whitespace-nowrap">AreSet の Blog</span>
-        </h1>
+        <div class="home-hero-title-wrap">
+          <h1 class="home-hero-title" style="font-size: clamp(2rem, 5vw, 3.4rem);" data-enter="left" title="长按试试？墨字可落案头">
+            <span class="hero-title-phrase inline-block whitespace-nowrap">欢迎光临</span>
+            <span class="hero-title-phrase inline-block whitespace-nowrap">AreSet の Blog</span>
+          </h1>
+          <span class="hero-charge-bar" data-hero-charge aria-hidden="true"></span>
+        </div>
         <p class="home-hero-desc" data-enter="left">
           这里用来随便分享一点小知识，一些行业看法，或是说些愤青（bushi）言论
         </p>
         <div class="home-actions">
-          {latestPost && <a href={`/posts/${latestPost.id}`} class="btn-primary" data-enter="bottom">阅读最新文章</a>}
-          <a href="/archive" class="btn-secondary" data-enter="bottom">浏览全部文章</a>
+          {latestPost && <a href={`/posts/${latestPost.id}`} class="btn-primary home-cta-ink" data-enter="bottom">阅读最新文章</a>}
+          <a href="/archive" class="btn-secondary home-cta-paper" data-enter="bottom">浏览全部文章</a>
         </div>
       </div>
 
       <aside class="home-rail" aria-label="站点概览">
         <nav class="home-stats-strip" data-enter="bloom" data-home-stats-strip aria-label="核心数据导航">
           <span class="stats-glider" data-stats-glider aria-hidden="true"></span>
-          
+
           <a href="/archive" class="stats-item" data-stats-item title="浏览全部文章归档">
             <span class="stats-label">Posts</span>
             <strong class="stats-value" data-count={posts.length}>{posts.length}</strong>
@@ -70,8 +72,9 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
         <a
           href={`/posts/${latestPost.id}`}
           data-post-preview={`/posts/${latestPost.id}`}
-          class="home-feature"
+          class="home-feature home-feature-scroll"
         >
+          <span class="home-feature-corner" aria-hidden="true"></span>
           <p class="eyebrow" data-enter="left">Fresh Ink</p>
           <div class="home-feature-main">
             <time datetime={latestPost.data.pubDate.toISOString()} data-enter="left">
@@ -88,23 +91,26 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
         <p class="eyebrow" data-enter="right">What Lives Here</p>
         <h2 data-enter="right">写作方向</h2>
         <p data-enter="right">喜欢分享生活，喜欢记录一些很酷的技术。</p>
-        <div>
-          <span data-enter="bottom">Astro</span>
-          <span data-enter="bottom">技术</span>
-          <span data-enter="bottom">随笔</span>
-          <span data-enter="bottom">学习笔记</span>
+        <div class="home-topic-pills">
+          <span class="home-topic-pill" data-enter="bottom">Astro</span>
+          <span class="home-topic-pill" data-enter="bottom">技术</span>
+          <span class="home-topic-pill" data-enter="bottom">随笔</span>
+          <span class="home-topic-pill" data-enter="bottom">学习笔记</span>
         </div>
       </div>
     </section>
 
     <!-- Hidden until the floating seal is tapped three times -->
-    <section class="home-rant" data-home-rant hidden>
-      <p class="eyebrow">Off the Record</p>
-      <h2>愤青（bushi）言论</h2>
-      <ul>
-        <li>如果觉得这个社会不好，那就努力去斗争</li>
-        <li>毛泽东思想万岁！社会主义终将会实现！</li>
-      </ul>
+    <section class="home-rant home-rant-scroll" data-home-rant hidden>
+      <div class="home-rant-inner" data-home-rant-inner>
+        <span class="home-rant-seal" aria-hidden="true">私语</span>
+        <p class="eyebrow">Off the Record · 朱印启封</p>
+        <h2>愤青（bushi）言论</h2>
+        <ul>
+          <li>如果觉得这个社会不好，那就努力去斗争</li>
+          <li>毛泽东思想万岁！社会主义终将会实现！</li>
+        </ul>
+      </div>
     </section>
 
     <section class="notes-section" style="padding-bottom: 6rem;">
@@ -136,26 +142,308 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
       )}
       {posts.length > 3 && (
         <div class="flex justify-center mt-10" data-enter="bottom">
-          <a href="/archive" class="btn-secondary" style="font-family: var(--font-body); letter-spacing: 0.08em;">
+          <a href="/archive" class="btn-secondary home-cta-paper" style="font-family: var(--font-body); letter-spacing: 0.08em;">
             浏览全部文章 ({posts.length} 篇) &rarr;
           </a>
         </div>
       )}
     </section>
   </main>
-
 </BaseLayout>
+
+<style>
+  .home-hero-title-wrap {
+    position: relative;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .home-hero-title {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  /* 长按蓄墨进度锋线（纯 transform scaleX + opacity，零重排） */
+  .hero-charge-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -2px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--vermilion) 0%, var(--accent) 68%, transparent 100%);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  :global(.egg-char) {
+    display: inline-block;
+    backface-visibility: hidden;
+    transform-origin: 50% 72%;
+  }
+
+  .home-hero-title.is-charging :global(.egg-char) {
+    color: var(--vermilion);
+    transition: color 360ms var(--ease);
+  }
+
+  /* 替换 global.css 中 .home-feature::after 的 filter: blur(8px)，改用零模糊多阶柔墨径向渐变 + 行书角框 */
+  .home-feature.home-feature-scroll::after {
+    filter: none !important;
+    border-radius: 10px;
+    background:
+      radial-gradient(
+        ellipse 88% 82% at 38% 50%,
+        color-mix(in srgb, var(--bg-soft) 92%, transparent) 0%,
+        color-mix(in srgb, var(--bg-soft) 45%, transparent) 58%,
+        transparent 100%
+      ) !important;
+  }
+
+  .home-feature-corner {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: 8px;
+  }
+
+  .home-feature-corner::before,
+  .home-feature-corner::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    opacity: 0;
+    transition: transform 460ms cubic-bezier(0.16, 1, 0.3, 1), opacity 320ms var(--ease);
+  }
+
+  .home-feature-corner::before {
+    top: 0;
+    left: 0;
+    width: 3.4rem;
+    height: 1.5px;
+    background: linear-gradient(90deg, var(--vermilion), transparent);
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+
+  .home-feature-corner::after {
+    top: 0;
+    left: 0;
+    width: 1.5px;
+    height: 2.8rem;
+    background: linear-gradient(180deg, var(--vermilion), transparent);
+    transform: scaleY(0);
+    transform-origin: center top;
+  }
+
+  .home-feature.home-feature-scroll:hover .home-feature-corner::before,
+  .home-feature.home-feature-scroll:focus-visible .home-feature-corner::before {
+    transform: scaleX(1);
+    opacity: 0.85;
+  }
+
+  .home-feature.home-feature-scroll:hover .home-feature-corner::after,
+  .home-feature.home-feature-scroll:focus-visible .home-feature-corner::after {
+    transform: scaleY(1);
+    opacity: 0.85;
+    transition-delay: 40ms;
+  }
+
+  /* 写作方向墨韵小签悬停微抬 */
+  .home-topic-pill {
+    display: inline-flex;
+    align-items: baseline;
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    transition: color 240ms var(--ease), transform 260ms var(--ease-bounce), background-color 240ms var(--ease);
+  }
+
+  .home-topic-pill:hover {
+    color: var(--text-strong);
+    background: var(--rule-soft);
+    transform: translateY(-2px);
+  }
+
+  /* 三连印章展开的「朱砂密笺」仪式卷轴 */
+  .home-rant-scroll {
+    position: relative;
+  }
+
+  .home-rant-inner {
+    position: relative;
+    padding: 1.5rem 1.8rem;
+    border-left: 2px solid var(--vermilion);
+    border-radius: 0 10px 10px 0;
+    background:
+      radial-gradient(circle at 96% 18%, color-mix(in srgb, var(--vermilion) 8%, transparent) 0%, transparent 48%),
+      color-mix(in srgb, var(--bg-soft) 74%, transparent);
+  }
+
+  .home-rant-seal {
+    position: absolute;
+    right: 1.4rem;
+    top: 1.25rem;
+    width: 2.3rem;
+    height: 2.3rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    border: 1.5px solid var(--vermilion);
+    border-radius: 3px;
+    color: var(--vermilion);
+    font-family: var(--font-hand-title);
+    font-size: 0.76rem;
+    letter-spacing: 0.08em;
+    opacity: 0;
+    transform: scale(1.5) rotate(-14deg);
+    transition: opacity 360ms var(--ease) 220ms, transform 520ms cubic-bezier(0.34, 1.56, 0.64, 1) 220ms;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .home-rant-scroll:global(.is-open) .home-rant-seal {
+    opacity: 0.85;
+    transform: scale(1) rotate(-6deg);
+  }
+
+  .home-rant-inner li {
+    opacity: 0;
+    transform: translate3d(-10px, 0, 0);
+    transition: opacity 420ms var(--ease), transform 480ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .home-rant-scroll:global(.is-open) .home-rant-inner li {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .home-rant-scroll:global(.is-open) .home-rant-inner li:nth-child(1) {
+    transition-delay: 140ms;
+  }
+
+  .home-rant-scroll:global(.is-open) .home-rant-inner li:nth-child(2) {
+    transition-delay: 240ms;
+  }
+
+  /* 站点统计胶囊游标：纯 GPU scaleX + translate3d，彻底取代 width 布局过渡 */
+  [data-home-stats-strip] [data-stats-glider] {
+    width: 100px !important;
+    left: 0 !important;
+    transform-origin: left center !important;
+    transition:
+      transform 380ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 240ms var(--ease) !important;
+    will-change: transform, opacity;
+  }
+
+  /* 三连印章蓄势朱砂涟漪与 Konami CRT 仪式幕 */
+  :global(.seal-resonance-ring) {
+    position: fixed;
+    width: 44px;
+    height: 44px;
+    margin-left: -22px;
+    margin-top: -22px;
+    border-radius: 6px;
+    border: 1.5px solid var(--vermilion);
+    pointer-events: none;
+    z-index: 9980;
+    will-change: transform, opacity;
+  }
+
+  :global(.crt-ritual-veil) {
+    position: fixed;
+    inset: 0;
+    z-index: 9988;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  :global(.crt-ritual-beam) {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 64px;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      color-mix(in srgb, var(--vermilion) 22%, transparent) 48%,
+      color-mix(in srgb, var(--ink-strong) 32%, transparent) 52%,
+      transparent 100%
+    );
+    transform: translate3d(0, -80px, 0);
+    will-change: transform, opacity;
+  }
+
+  :global(.crt-ritual-grid) {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    background-image:
+      repeating-linear-gradient(
+        0deg,
+        transparent 0px,
+        transparent 2px,
+        color-mix(in srgb, var(--ink-strong) 9%, transparent) 2px,
+        color-mix(in srgb, var(--ink-strong) 9%, transparent) 3px
+      );
+    will-change: opacity;
+  }
+
+  :global(.egg-toast.egg-toast-ornate) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.55rem 1.1rem;
+    border: 1.5px solid var(--vermilion);
+    border-radius: 4px;
+    background: var(--bg-elev);
+    color: var(--text-strong);
+    box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.24);
+  }
+
+  :global(.egg-toast-seal) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border: 1px solid var(--vermilion);
+    border-radius: 2px;
+    color: var(--vermilion);
+    font-family: var(--font-hand-title);
+    font-size: 0.72rem;
+    line-height: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home-feature-corner::before,
+    .home-feature-corner::after,
+    .home-topic-pill,
+    .home-rant-seal,
+    .home-rant-inner li,
+    [data-home-stats-strip] [data-stats-glider] {
+      transition: none !important;
+      transform: none !important;
+    }
+  }
+</style>
 
 <script>
   import gsap from 'gsap';
 
-  // ================= Home easter eggs =================
-  // 1. Press and hold the title: its glyphs melt off and drop onto the ticker, then climb back.
-  // 2. Tap the floating seal three times: the off-the-record section seeps in.
-  // 3. ↑↑↓↓←→←→BA: pixel / CRT mode (persists across pages until toggled again).
+  // ================= Home easter eggs & rituals =================
+  // 1. Press and hold the title (600ms ink-charge): glyphs detach with 2D gravity, collide & bounce
+  //    on the moving HomeTicker with squash-stretch + conveyor drift, then levitate back home.
+  // 2. Tap the floating seal three times: escalating vermilion resonance rings + off-the-record scroll unroll.
+  // 3. ↑↑↓↓←→←→BA: movable-type CRT scanline ritual toggling pixel mode across pages.
   const CLEANUP_KEY = '__areSetHomeEggsCleanup__';
   const LISTENER_KEY = '__areSetHomeEggsBound__';
+  const GLIDER_CLEANUP_KEY = '__areSetHomeGliderCleanup__';
   const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+
   // Module-level so a re-init (astro:page-load firing mid-sequence on a hard load) can't reset it
   let sealTaps = 0;
   let sealTapTimer = 0;
@@ -200,21 +488,156 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
     return chars;
   }
 
-  function showToast(text: string) {
-    document.querySelector('.egg-toast')?.remove();
+  function playKonamiRitual(on: boolean, reduceMotion: boolean) {
+    document.querySelectorAll('.egg-toast, .crt-ritual-veil').forEach((n) => n.remove());
+
     const toast = document.createElement('div');
-    toast.className = 'egg-toast';
-    toast.textContent = text;
+    toast.className = 'egg-toast egg-toast-ornate';
+    const sealBadge = document.createElement('span');
+    sealBadge.className = 'egg-toast-seal';
+    sealBadge.textContent = on ? '活' : '墨';
+    const label = document.createElement('span');
+    label.textContent = on ? '活字像素 · 显像开启' : '清浅宣纸 · 水墨归真';
+    toast.append(sealBadge, label);
     document.body.appendChild(toast);
-    gsap.fromTo(toast, { y: -16, opacity: 0, scale: 1.3, rotation: -4 }, {
-      y: 0, opacity: 1, scale: 1, rotation: 0, duration: 0.5, ease: 'back.out(2)',
-      onComplete: () => gsap.to(toast, { opacity: 0, y: -10, duration: 0.4, delay: 1.5, onComplete: () => toast.remove() }),
+
+    if (reduceMotion) {
+      window.setTimeout(() => toast.remove(), 1800);
+      return;
+    }
+
+    const veil = document.createElement('div');
+    veil.className = 'crt-ritual-veil';
+    const grid = document.createElement('div');
+    grid.className = 'crt-ritual-grid';
+    const beam = document.createElement('div');
+    beam.className = 'crt-ritual-beam';
+    veil.append(grid, beam);
+    document.body.appendChild(veil);
+
+    const vh = window.innerHeight;
+    const tl = gsap.timeline({ onComplete: () => veil.remove() });
+    tl.fromTo(grid, { opacity: 0 }, { opacity: 0.9, duration: 0.14, ease: 'power2.out' }, 0);
+    tl.fromTo(beam, { y: -80, opacity: 1 }, { y: vh + 80, opacity: 0.75, duration: 0.52, ease: 'power2.inOut' }, 0);
+    tl.to(grid, { opacity: 0, duration: 0.34, ease: 'power2.out' }, 0.24);
+
+    gsap.fromTo(
+      toast,
+      { y: -18, opacity: 0, scale: 1.18, rotation: -3 },
+      {
+        y: 0,
+        opacity: 1,
+        scale: 1,
+        rotation: 0,
+        duration: 0.46,
+        ease: 'back.out(2)',
+        onComplete: () => {
+          gsap.to(toast, {
+            opacity: 0,
+            y: -10,
+            duration: 0.36,
+            delay: 1.55,
+            ease: 'power2.in',
+            onComplete: () => toast.remove(),
+          });
+        },
+      },
+    );
+  }
+
+  function spawnSealResonance(cx: number, cy: number, stage: number) {
+    const ring = document.createElement('span');
+    ring.className = 'seal-resonance-ring';
+    ring.style.left = `${Math.round(cx)}px`;
+    ring.style.top = `${Math.round(cy)}px`;
+    document.body.appendChild(ring);
+
+    const targetScale = 1.45 + stage * 0.45;
+    gsap.fromTo(
+      ring,
+      { scale: 0.65, rotation: -8 * stage, opacity: 0.85 },
+      {
+        scale: targetScale,
+        rotation: 6 * stage,
+        opacity: 0,
+        duration: 0.48 + stage * 0.08,
+        ease: 'power2.out',
+        onComplete: () => ring.remove(),
+      },
+    );
+  }
+
+  function initHomeStatsGlider() {
+    const prev = (window as any)[GLIDER_CLEANUP_KEY];
+    if (typeof prev === 'function') prev();
+
+    const strip = document.querySelector<HTMLElement>('[data-home-stats-strip]');
+    const glider = document.querySelector<HTMLElement>('[data-stats-glider]');
+    if (!strip || !glider) return;
+
+    const items = Array.from(strip.querySelectorAll<HTMLElement>('[data-stats-item]'));
+    if (items.length === 0) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    // 预缓存各指标项几何偏移，彻底消除悬停 pointerenter 时的同步 getBoundingClientRect
+    let metrics = items.map((item) => ({
+      left: item.offsetLeft,
+      width: Math.max(1, item.offsetWidth),
+    }));
+
+    const refreshMetrics = () => {
+      metrics = items.map((item) => ({
+        left: item.offsetLeft,
+        width: Math.max(1, item.offsetWidth),
+      }));
+    };
+
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(refreshMetrics) : null;
+    ro?.observe(strip);
+
+    const moveGlider = (idx: number) => {
+      const m = metrics[idx];
+      if (!m) return;
+      glider.style.opacity = '1';
+      glider.style.transform = `translate3d(${m.left.toFixed(1)}px, 0, 0) scaleX(${(m.width / 100).toFixed(4)})`;
+    };
+
+    const hideGlider = () => {
+      glider.style.opacity = '0';
+    };
+
+    items.forEach((item, idx) => {
+      item.addEventListener('pointerenter', () => moveGlider(idx), { signal });
+      item.addEventListener('focus', () => moveGlider(idx), { signal });
+      item.addEventListener(
+        'click',
+        () => {
+          const rect = item.getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+        },
+        { signal },
+      );
     });
+
+    strip.addEventListener('pointerleave', hideGlider, { signal });
+    strip.addEventListener('focusout', (e: FocusEvent) => {
+      if (!strip.contains(e.relatedTarget as Node)) hideGlider();
+    }, { signal });
+
+    (window as any)[GLIDER_CLEANUP_KEY] = () => {
+      controller.abort();
+      ro?.disconnect();
+      (window as any)[GLIDER_CLEANUP_KEY] = undefined;
+    };
   }
 
   function initHomeEggs() {
     const previousCleanup = (window as any)[CLEANUP_KEY];
     if (typeof previousCleanup === 'function') previousCleanup();
+
+    initHomeStatsGlider();
 
     const title = document.querySelector<HTMLElement>('.home-hero-title');
     if (!title) return; // not on the home page
@@ -222,54 +645,285 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
     const controller = new AbortController();
     const { signal } = controller;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const chargeBar = document.querySelector<HTMLElement>('[data-hero-charge]');
 
-    // ---------- 1. Melting title ----------
+    // ---------- 1. Long-press 2D Glyph Physics Drop onto HomeTicker ----------
     const chars = splitTitle(title);
     const ticker = document.querySelector<HTMLElement>('[data-ticker]');
     let pressTimer = 0;
+    let physicsRaf = 0;
     let melting = false;
+    let chargeTween: gsap.core.Tween | null = null;
+
+    interface GlyphBody {
+      el: HTMLElement;
+      homeX: number;
+      homeY: number;
+      halfW: number;
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      rot: number;
+      vr: number;
+      sx: number;
+      sy: number;
+      floorY: number;
+      restitution: number;
+      releaseAt: number;
+      bounces: number;
+      released: boolean;
+      settledOnRail: boolean;
+    }
+
+    function cancelChargeVisual() {
+      title!.classList.remove('is-charging');
+      chargeTween?.kill();
+      chargeTween = null;
+      if (chargeBar) {
+        gsap.to(chargeBar, { scaleX: 0, opacity: 0, duration: 0.22, ease: 'power2.out', overwrite: true });
+      }
+    }
 
     function melt() {
-      if (melting || reduceMotion) return;
+      if (melting || reduceMotion || chars.length === 0) return;
       melting = true;
-      title.classList.add('is-melting');
-      const floor = ticker ? ticker.getBoundingClientRect() : null;
-      chars.forEach((ch) => {
-        const rect = ch.getBoundingClientRect();
-        const floorY = floor ? floor.top + floor.height / 2 : window.innerHeight * 0.8;
-        const drop = floorY - (rect.top + rect.height / 2);
-        gsap.to(ch, {
-          y: drop,
-          rotation: gsap.utils.random(-28, 28),
-          duration: 1.1 + Math.random() * 0.5,
-          delay: Math.random() * 0.4,
-          ease: 'bounce.out',
-          overwrite: true,
-          onComplete: () => {
-            const r = ch.getBoundingClientRect();
-            (window as any).__inkSplash?.(r.left + r.width / 2, r.top + r.height / 2, 9);
-            (window as any).__tickerShove?.();
-          },
-        });
+      cancelChargeVisual();
+      title!.classList.add('is-melting');
+
+      // 单次批量只读测量所有字元与跑马灯轨道，物理循环内 0 次 getBoundingClientRect()
+      const floorRect = ticker ? ticker.getBoundingClientRect() : null;
+      const railSurfaceY = floorRect
+        ? floorRect.top + Math.min(18, floorRect.height * 0.42)
+        : window.innerHeight * 0.78;
+      const minBoundX = 24;
+      const maxBoundX = Math.max(120, window.innerWidth - 24);
+
+      const bodies: GlyphBody[] = chars.map((el, i) => {
+        const r = el.getBoundingClientRect();
+        const centerX = r.left + r.width * 0.5;
+        const bottomY = r.bottom;
+        const spread = ((i / Math.max(1, chars.length - 1)) - 0.5) * 90;
+        el.style.willChange = 'transform';
+        return {
+          el,
+          homeX: centerX,
+          homeY: bottomY,
+          halfW: Math.max(6, r.width * 0.45),
+          x: 0,
+          y: 0,
+          vx: spread + (Math.random() - 0.5) * 65,
+          vy: -28 - Math.random() * 42,
+          rot: 0,
+          vr: (Math.random() - 0.5) * 190,
+          sx: 1,
+          sy: 1,
+          floorY: Math.max(40, railSurfaceY - bottomY),
+          restitution: 0.42 + Math.random() * 0.16,
+          releaseAt: i * 0.018 + Math.random() * 0.09,
+          bounces: 0,
+          released: false,
+          settledOnRail: false,
+        };
       });
-      gsap.delayedCall(2.8, () => {
-        gsap.to(chars, {
-          y: 0, rotation: 0, duration: 1.5, ease: 'expo.out', stagger: { each: 0.03, from: 'random' }, overwrite: true,
-          onComplete: () => { gsap.set(chars, { clearProps: 'transform' }); title.classList.remove('is-melting'); melting = false; },
-        });
-      });
+
+      const GRAVITY = 1760;
+      const STEP = 1 / 120;
+      const HOMING_AT = 2.65;
+      const END_AT = 3.85;
+      let startStamp = 0;
+      let lastStamp = 0;
+      let acc = 0;
+      let elapsed = 0;
+      let splashQuota = 6;
+
+      const stepWorld = (dt: number, t: number) => {
+        const flow = (window as any).__tickerGetFlow?.() ?? { dir: -1, velocity: -42 };
+
+        for (let i = 0; i < bodies.length; i += 1) {
+          const b = bodies[i];
+          if (t < b.releaseAt) continue;
+          b.released = true;
+
+          if (t >= HOMING_AT) {
+            // 飞墨归位：柔顺弹簧螺旋回收至标题原位
+            const homeOrderDelay = (i / Math.max(1, bodies.length)) * 0.24;
+            if (t < HOMING_AT + homeOrderDelay) {
+              b.x += flow.velocity * 0.35 * dt;
+              continue;
+            }
+            const k = 96;
+            const damp = 14.5;
+            b.vx += (-k * b.x - damp * b.vx) * dt;
+            b.vy += (-k * b.y - damp * b.vy) * dt;
+            b.x += b.vx * dt;
+            b.y += b.vy * dt;
+            b.rot += (0 - b.rot) * (1 - Math.exp(-12 * dt));
+            b.sx += (1 - b.sx) * 0.22;
+            b.sy += (1 - b.sy) * 0.22;
+            continue;
+          }
+
+          // 重力坠落与跑马灯轨道弹性碰撞
+          b.vy += GRAVITY * dt;
+          b.vx *= Math.exp(-0.9 * dt);
+          b.x += b.vx * dt;
+          b.y += b.vy * dt;
+          b.rot += b.vr * dt;
+
+          // 视口左右边界反弹
+          const worldX = b.homeX + b.x;
+          if (worldX - b.halfW < minBoundX) {
+            b.x = minBoundX + b.halfW - b.homeX;
+            b.vx = Math.abs(b.vx) * 0.65;
+          } else if (worldX + b.halfW > maxBoundX) {
+            b.x = maxBoundX - b.halfW - b.homeX;
+            b.vx = -Math.abs(b.vx) * 0.65;
+          }
+
+          // 撞击跑马灯上沿：形变挤压 + 动量传递 + 随传送带漂流
+          if (b.y >= b.floorY) {
+            b.y = b.floorY;
+            if (b.vy > 95) {
+              const impactSpeed = b.vy;
+              b.vy = -b.vy * b.restitution;
+              b.vx = b.vx * 0.76 + flow.velocity * 0.55 + (Math.random() - 0.5) * 45;
+              b.vr = b.vx * 0.75;
+              const squash = Math.min(0.28, impactSpeed / 2400);
+              b.sx = 1 + squash * 1.15;
+              b.sy = 1 - squash * 0.92;
+
+              if (b.bounces === 0) {
+                const hitX = b.homeX + b.x;
+                const hitY = b.homeY + b.y;
+                if (splashQuota > 0 && i % 3 === 0) {
+                  splashQuota -= 1;
+                  (window as any).__inkSplash?.(hitX, hitY, 7);
+                }
+                if (i % 4 === 0) {
+                  (window as any).__tickerImpact?.(hitX, Math.min(1, impactSpeed / 900));
+                }
+              }
+              b.bounces += 1;
+            } else {
+              b.vy = 0;
+              b.settledOnRail = true;
+              // 落在跑马灯上后随墨带缓缓漂移，姿态归稳
+              b.vx += (flow.velocity * 0.72 - b.vx) * (1 - Math.exp(-8 * dt));
+              b.vr *= Math.exp(-9 * dt);
+              b.rot += (Math.clamp ? 0 : 0) + (-b.rot * 0.04);
+            }
+          }
+
+          b.sx += (1 - b.sx) * (1 - Math.exp(-18 * dt));
+          b.sy += (1 - b.sy) * (1 - Math.exp(-18 * dt));
+        }
+
+        // 跑马灯轨道上的字元横向轻柔排斥碰撞（防堆叠成一团）
+        if (t < HOMING_AT) {
+          for (let i = 0; i < bodies.length; i += 1) {
+            const a = bodies[i];
+            if (!a.released || a.y < a.floorY - 18) continue;
+            for (let j = i + 1; j < bodies.length; j += 1) {
+              const b = bodies[j];
+              if (!b.released || b.y < b.floorY - 18) continue;
+              const ax = a.homeX + a.x;
+              const bx = b.homeX + b.x;
+              const minDist = (a.halfW + b.halfW) * 0.92;
+              const dx = bx - ax;
+              const absDx = Math.abs(dx);
+              if (absDx < minDist) {
+                const push = (minDist - absDx) * 0.5;
+                const sign = dx >= 0 ? 1 : -1;
+                a.x -= sign * push * 0.45;
+                b.x += sign * push * 0.45;
+                const relVx = b.vx - a.vx;
+                if (relVx * sign < 0) {
+                  const impulse = relVx * 0.42;
+                  a.vx += impulse;
+                  b.vx -= impulse;
+                }
+              }
+            }
+          }
+        }
+      };
+
+      const renderBodies = () => {
+        for (let i = 0; i < bodies.length; i += 1) {
+          const b = bodies[i];
+          if (!b.released) continue;
+          b.el.style.transform =
+            `translate3d(${b.x.toFixed(2)}px, ${b.y.toFixed(2)}px, 0px) ` +
+            `rotate(${b.rot.toFixed(2)}deg) scale(${b.sx.toFixed(3)}, ${b.sy.toFixed(3)})`;
+        }
+      };
+
+      const finishMelt = () => {
+        physicsRaf = 0;
+        for (const b of bodies) {
+          b.el.style.transform = '';
+          b.el.style.willChange = '';
+        }
+        title!.classList.remove('is-melting');
+        melting = false;
+      };
+
+      const loop = (now: number) => {
+        if (signal.aborted) {
+          finishMelt();
+          return;
+        }
+        if (!startStamp) {
+          startStamp = now;
+          lastStamp = now;
+        }
+        const frameDt = Math.min(0.064, (now - lastStamp) / 1000);
+        lastStamp = now;
+        acc += frameDt;
+
+        let sub = 0;
+        while (acc >= STEP && sub < 8) {
+          stepWorld(STEP, elapsed);
+          elapsed += STEP;
+          acc -= STEP;
+          sub += 1;
+        }
+        renderBodies();
+
+        if (elapsed < END_AT) {
+          physicsRaf = requestAnimationFrame(loop);
+        } else {
+          finishMelt();
+        }
+      };
+
+      physicsRaf = requestAnimationFrame(loop);
     }
 
     title.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
+      if (event.button !== 0 || melting || reduceMotion) return;
       window.clearTimeout(pressTimer);
-      pressTimer = window.setTimeout(melt, 600);
+      title.classList.add('is-charging');
+      if (chargeBar) {
+        chargeTween?.kill();
+        chargeTween = gsap.fromTo(
+          chargeBar,
+          { scaleX: 0, opacity: 0.9 },
+          { scaleX: 1, opacity: 1, duration: 0.58, ease: 'power1.in', overwrite: true },
+        );
+      }
+      pressTimer = window.setTimeout(melt, 580);
     }, { signal });
+
     ['pointerup', 'pointerleave', 'pointercancel'].forEach((type) => {
-      title.addEventListener(type, () => window.clearTimeout(pressTimer), { signal });
+      title.addEventListener(type, () => {
+        window.clearTimeout(pressTimer);
+        if (!melting) cancelChargeVisual();
+      }, { signal });
     });
 
-    // ---------- 2. Triple-tap seal ----------
+    // ---------- 2. Triple-tap seal: Vermilion Resonance + Secret Scroll Unroll ----------
     const seal = document.querySelector<HTMLElement>('.seal-floating');
     const rant = document.querySelector<HTMLElement>('[data-home-rant]');
     if (seal && rant) {
@@ -277,49 +931,81 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
       seal.addEventListener('click', () => {
         sealTaps += 1;
         window.clearTimeout(sealTapTimer);
-        sealTapTimer = window.setTimeout(() => { sealTaps = 0; }, 650);
-        gsap.fromTo(seal, { scale: 0.86 }, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.4)', overwrite: true });
+        sealTapTimer = window.setTimeout(() => { sealTaps = 0; }, 680);
+
+        const r = seal.getBoundingClientRect();
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+
+        gsap.fromTo(
+          seal,
+          { scale: Math.max(0.78, 0.92 - sealTaps * 0.04), rotation: -4 * sealTaps },
+          { scale: 1, rotation: 0, duration: 0.52, ease: 'elastic.out(1, 0.42)', overwrite: true },
+        );
+        if (!reduceMotion) spawnSealResonance(cx, cy, Math.min(3, sealTaps));
+
         if (sealTaps < 3) return;
         sealTaps = 0;
-        const r = seal.getBoundingClientRect();
-        (window as any).__inkSplash?.(r.left + r.width / 2, r.top + r.height / 2, 24);
+        (window as any).__inkSplash?.(cx, cy, 24);
+
         const opening = rant.hidden;
         gsap.killTweensOf(rant);
+
+        if (reduceMotion) {
+          rant.hidden = !opening;
+          rant.classList.toggle('is-open', opening);
+          (window as any).ScrollTrigger?.refresh();
+          return;
+        }
+
         if (opening) {
-          // Grow the slot first (height/padding from 0) so the sections below slide down instead
-          // of jumping, then let the ink circle reveal the content inside it
           rant.hidden = false;
+          gsap.set(rant, { clearProps: 'height,paddingTop,paddingBottom,overflow' });
           const style = getComputedStyle(rant);
           const padTop = style.paddingTop;
           const padBottom = style.paddingBottom;
-          // Measure the settled box (border-box, padding included) before collapsing it
-          const fullHeight = rant.offsetHeight;
+          const fullHeight = rant.getBoundingClientRect().height;
           gsap.set(rant, { height: 0, paddingTop: 0, paddingBottom: 0, overflow: 'hidden' });
           requestAnimationFrame(() => {
             rant.classList.add('is-open');
             gsap.to(rant, {
-              height: fullHeight, paddingTop: padTop, paddingBottom: padBottom,
-              duration: 1.2, ease: 'expo.out',
-              onUpdate: () => (window as any).ScrollTrigger?.update(),
-              onComplete: () => { gsap.set(rant, { clearProps: 'height,paddingTop,paddingBottom,overflow' }); (window as any).ScrollTrigger?.refresh(); },
+              height: fullHeight,
+              paddingTop: padTop,
+              paddingBottom: padBottom,
+              duration: 0.92,
+              ease: 'expo.out',
+              onComplete: () => {
+                gsap.set(rant, { clearProps: 'height,paddingTop,paddingBottom,overflow' });
+                (window as any).ScrollTrigger?.refresh();
+                try { (window as any).lenis?.resize(); } catch {}
+              },
             });
-            if (window.lenis) window.lenis.scrollTo(rant, { offset: -80, duration: 1.4 });
+            if ((window as any).lenis) (window as any).lenis.scrollTo(rant, { offset: -80, duration: 1.15 });
             else rant.scrollIntoView({ behavior: 'smooth', block: 'start' });
           });
         } else {
+          const currentHeight = rant.getBoundingClientRect().height;
           rant.classList.remove('is-open');
-          gsap.set(rant, { overflow: 'hidden' });
+          gsap.set(rant, { height: currentHeight, overflow: 'hidden' });
           gsap.to(rant, {
-            height: 0, paddingTop: 0, paddingBottom: 0,
-            duration: 0.9, ease: 'expo.inOut', delay: 0.15,
-            onUpdate: () => (window as any).ScrollTrigger?.update(),
-            onComplete: () => { rant.hidden = true; gsap.set(rant, { clearProps: 'height,paddingTop,paddingBottom,overflow' }); (window as any).ScrollTrigger?.refresh(); },
+            height: 0,
+            paddingTop: 0,
+            paddingBottom: 0,
+            duration: 0.68,
+            ease: 'expo.inOut',
+            delay: 0.08,
+            onComplete: () => {
+              rant.hidden = true;
+              gsap.set(rant, { clearProps: 'height,paddingTop,paddingBottom,overflow' });
+              (window as any).ScrollTrigger?.refresh();
+              try { (window as any).lenis?.resize(); } catch {}
+            },
           });
         }
       }, { signal });
     }
 
-    // ---------- 3. Konami → pixel mode ----------
+    // ---------- 3. Konami → Movable-Type CRT Pixel Ritual ----------
     let progress = 0;
     document.addEventListener('keydown', (event) => {
       if ((event.target as Element)?.closest?.('input, textarea, [contenteditable="true"]')) return;
@@ -331,13 +1017,25 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
       document.documentElement.toggleAttribute('data-pixel', on);
       if (on) document.documentElement.setAttribute('data-pixel', 'true');
       try { localStorage.setItem('pixel-mode', on ? 'true' : 'false'); } catch {}
-      showToast(on ? '▶ PIXEL MODE ON' : '■ PIXEL MODE OFF');
+      playKonamiRitual(on, reduceMotion);
       (window as any).__inkSplash?.(window.innerWidth / 2, 80, 18);
     }, { signal });
 
     (window as any)[CLEANUP_KEY] = () => {
       controller.abort();
       window.clearTimeout(pressTimer);
+      if (physicsRaf) {
+        cancelAnimationFrame(physicsRaf);
+        physicsRaf = 0;
+      }
+      chargeTween?.kill();
+      chargeTween = null;
+      chars.forEach((ch) => {
+        ch.style.transform = '';
+        ch.style.willChange = '';
+      });
+      title.classList.remove('is-melting', 'is-charging');
+      document.querySelectorAll('.egg-toast, .crt-ritual-veil, .seal-resonance-ring').forEach((n) => n.remove());
       (window as any)[CLEANUP_KEY] = undefined;
     };
   }
@@ -346,51 +1044,10 @@ const tickerTopTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice
 
   if (!(window as any)[LISTENER_KEY]) {
     document.addEventListener('astro:page-load', initHomeEggs);
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+      (window as any)[GLIDER_CLEANUP_KEY]?.();
+    });
     (window as any)[LISTENER_KEY] = true;
   }
-</script>
-
-<script>
-  (function initStatsGliderController() {
-    function setupGlider() {
-      const strip = document.querySelector('[data-home-stats-strip]') as HTMLElement;
-      const glider = document.querySelector('[data-stats-glider]') as HTMLElement;
-      if (!strip || !glider) return;
-
-      const items = strip.querySelectorAll<HTMLElement>('[data-stats-item]');
-      if (!items || items.length === 0) return;
-
-      function moveGlider(target: HTMLElement) {
-        const stripRect = strip.getBoundingClientRect();
-        const targetRect = target.getBoundingClientRect();
-        const left = targetRect.left - stripRect.left;
-        const width = targetRect.width;
-        glider.style.opacity = '1';
-        glider.style.transform = `translateX(${left}px)`;
-        glider.style.width = `${width}px`;
-      }
-
-      function hideGlider() {
-        glider.style.opacity = '0';
-      }
-
-      items.forEach((item) => {
-        item.addEventListener('pointerenter', () => moveGlider(item));
-        item.addEventListener('focus', () => moveGlider(item));
-        item.addEventListener('click', () => {
-          const rect = item.getBoundingClientRect();
-          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
-        });
-      });
-
-      strip.addEventListener('pointerleave', hideGlider);
-    }
-
-    document.addEventListener('astro:page-load', setupGlider);
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setupGlider);
-    } else {
-      setupGlider();
-    }
-  })();
 </script>

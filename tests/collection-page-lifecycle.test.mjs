@@ -1,8 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { stripTypeScriptTypes } from 'node:module';
+import nodeModule from 'node:module';
+import esbuild from 'esbuild';
 import { JSDOM } from 'jsdom';
+
+const stripTs =
+  typeof nodeModule.stripTypeScriptTypes === 'function'
+    ? (code) => nodeModule.stripTypeScriptTypes(code)
+    : (code) => esbuild.transformSync(code, { loader: 'ts' }).code;
 
 for (const kind of ['life', 'gallery']) {
   test(`${kind}: repeated page-load preserves entrance and filters rebind after navigation`, () => {
@@ -29,7 +35,7 @@ for (const kind of ['life', 'gallery']) {
     window.addCardExit = () => 0;
     window.cardExitDuration = () => 0;
     try {
-      window.eval(stripTypeScriptTypes(script));
+      window.eval(stripTs(script));
       const cleanup = window[cleanupKey];
       assert.equal(typeof cleanup, 'function');
       for (let i = 0; i < 3; i++) window.document.dispatchEvent(new window.Event('astro:page-load'));

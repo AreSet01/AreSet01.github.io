@@ -15,7 +15,7 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
   <Header />
   <main id="main-content" tabindex="-1" class="container-wide flex-1 pt-6 pb-20 lg:pt-8 outline-none">
     <section class="tag-head">
-      <p class="eyebrow" data-enter="top">Tags</p>
+      <p class="eyebrow" data-enter="top">Tags · 水墨星宿</p>
       <h1 class="section-title mt-4" data-enter="left">标签星图</h1>
       <p class="tag-hint" data-enter="left">
         Tags Gather Into A Galaxy
@@ -42,6 +42,7 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
             data-tag={tag.name}
             style={`--weight: ${(tag.count / maxCount).toFixed(3)}`}
           >
+            <span class="tag-node-halo" aria-hidden="true"></span>
             <span class="tag-node-name">{tag.name}</span>
             <span class="tag-node-count">{tag.count}</span>
           </a>
@@ -51,21 +52,198 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
   </main>
 </BaseLayout>
 
+<style>
+  .tag-sky {
+    background:
+      radial-gradient(ellipse 64% 56% at 50% 50%, color-mix(in srgb, var(--bg-soft) 55%, transparent) 0%, transparent 100%);
+  }
+
+  /* 静止收敛后释放非活跃节点的 will-change，节约 GPU 合成层显存 */
+  .tag-sky:global(.is-settled) .tag-node:not(:hover):not(:global(.is-lit)):not(:global(.is-origin)) {
+    will-change: auto;
+  }
+
+  /* 基础水墨星轨弧线 */
+  :global(.tag-link) {
+    fill: none;
+    stroke: var(--ink-strong);
+    stroke-linecap: round;
+    opacity: 0.05;
+    transition: opacity 320ms var(--ease), stroke 320ms var(--ease);
+  }
+
+  :global(.tag-link.is-strong) {
+    opacity: 0.17;
+  }
+
+  .tag-sky:global(.is-focused) :global(.tag-link),
+  .tag-sky:global(.is-focused) :global(.tag-link.is-strong) {
+    opacity: 0.045;
+  }
+
+  .tag-sky:global(.is-focused) :global(.tag-link.is-lit) {
+    stroke: var(--accent);
+    opacity: 0.42;
+  }
+
+  /* 悬停点亮专属「水墨星座连线脉冲」：朱砂墨流自焦点标签向共现伴星游走 */
+  :global(.tag-link-pulse) {
+    fill: none;
+    stroke: var(--vermilion);
+    stroke-linecap: round;
+    stroke-dasharray: 0.16 0.34;
+    stroke-dashoffset: 1;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 260ms var(--ease);
+  }
+
+  :global(.tag-link-pulse.is-lit) {
+    opacity: 0.92;
+    animation: constellationInkFlow 1.65s linear infinite;
+  }
+
+  @keyframes constellationInkFlow {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* 朱砂星芒光晕（零 blur、纯 transform + opacity 四芒印环） */
+  .tag-node {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .tag-node-halo {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 2.3em;
+    height: 2.3em;
+    margin-left: -1.15em;
+    margin-top: -1.15em;
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0;
+    transform: scale(0.55) rotate(0deg);
+    transition:
+      opacity 280ms var(--ease),
+      transform 480ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* 外环水墨微晕 + 内嵌朱砂四芒菱印 */
+  .tag-node-halo::before,
+  .tag-node-halo::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .tag-node-halo::before {
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      color-mix(in srgb, var(--vermilion) 20%, transparent) 0%,
+      color-mix(in srgb, var(--accent) 8%, transparent) 52%,
+      transparent 74%
+    );
+  }
+
+  .tag-node-halo::after {
+    inset: 26%;
+    border: 1px solid color-mix(in srgb, var(--vermilion) 58%, transparent);
+    transform: rotate(45deg);
+  }
+
+  .tag-node:hover .tag-node-halo,
+  .tag-node:focus-visible .tag-node-halo,
+  .tag-node:global(.is-origin) .tag-node-halo {
+    opacity: 1;
+    transform: scale(1.08) rotate(45deg);
+  }
+
+  .tag-node:global(.is-lit):not(:global(.is-origin)) .tag-node-halo {
+    opacity: 0.52;
+    transform: scale(0.82) rotate(22deg);
+  }
+
+  .tag-node:global(.is-origin) {
+    color: var(--vermilion);
+    z-index: 4;
+  }
+
+  .tag-node:global(.is-lit):not(:global(.is-origin)) {
+    color: var(--text-strong);
+    z-index: 3;
+  }
+
+  .tag-node:global(.is-origin) .tag-node-count {
+    color: var(--vermilion);
+    opacity: 0.95;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(.tag-link-pulse.is-lit) {
+      animation: none !important;
+      stroke-dasharray: none;
+    }
+    .tag-node-halo {
+      transition: none !important;
+      transform: none !important;
+    }
+  }
+</style>
+
 <script>
   import gsap from 'gsap';
 
-  // A small force layout: tags repel each other, co-occurrence pulls them together, and the
-  // whole thing is nudged toward the centre. Watching it settle *is* the entrance animation.
+  // Force-directed constellation layout:
+  // - Fixed 60Hz timestep prevents acceleration on 120–240Hz displays
+  // - Dirty-checked sub-pixel DOM/SVG batching eliminates redundant attribute/style writes
+  // - Kinetic-energy convergence & offscreen/hidden-tab sleep immediately halt rAF at rest
   const CLEANUP_KEY = '__areSetTagSkyCleanup__';
   const LISTENER_KEY = '__areSetTagSkyBound__';
 
   interface Node {
     el: HTMLElement;
     name: string;
-    x: number; y: number;
-    vx: number; vy: number;
-    hw: number; hh: number;
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    hw: number;
+    hh: number;
     r: number;
+    paintedX: number;
+    paintedY: number;
+  }
+
+  interface ConstellationLink {
+    a: Node;
+    b: Node;
+    weight: number;
+    curveSign: 1 | -1;
+    basePath: SVGPathElement;
+    pulsePath: SVGPathElement;
+    lastD: string;
+  }
+
+  function buildArcPath(x1: number, y1: number, x2: number, y2: number, sign: 1 | -1): string {
+    const mx = (x1 + x2) * 0.5;
+    const my = (y1 + y2) * 0.5;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    // 柔雅微弧度书法连丝（弧高控制在弦长的 7% 且上限 22px，清逸不杂乱）
+    const bow = Math.min(22, len * 0.07) * sign;
+    const cx = mx - (dy / len) * bow;
+    const cy = my + (dx / len) * bow;
+    return `M${x1.toFixed(1)},${y1.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`;
   }
 
   function initTagSky() {
@@ -88,181 +266,319 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
     let height = sky.clientHeight;
     let frame = 0;
     let alpha = 1;
+    let settled = false;
+    let inViewport = true;
 
-    // Measure while the nodes are still in normal flow, then take them out of it
-    const nodes: Node[] = els.map((el) => {
-      const hw = el.offsetWidth / 2;
-      const hh = el.offsetHeight / 2;
-      return { el, name: el.dataset.tag || '', x: 0, y: 0, vx: 0, vy: 0, hw, hh, r: Math.hypot(hw, hh) };
+    // Measure while nodes are still in normal flow (single batched read pass), then lift out of flow
+    const measuredDims = els.map((el) => ({
+      hw: el.offsetWidth / 2,
+      hh: el.offsetHeight / 2,
+    }));
+
+    const nodes: Node[] = els.map((el, idx) => {
+      const { hw, hh } = measuredDims[idx];
+      return {
+        el,
+        name: el.dataset.tag || '',
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        hw,
+        hh,
+        r: Math.hypot(hw, hh),
+        paintedX: Number.NaN,
+        paintedY: Number.NaN,
+      };
     });
+
     const byName = new Map(nodes.map((node) => [node.name, node]));
     wrap.classList.add('is-laid-out');
 
     const rawPairs: Array<[string, string, number]> = JSON.parse(sky.dataset.pairs || '[]');
-    const links = rawPairs
-      .map(([a, b, weight]) => ({ a: byName.get(a), b: byName.get(b), weight }))
-      .filter((link): link is { a: Node; b: Node; weight: number } => Boolean(link.a && link.b));
+    const maxWeight = Math.max(1, ...rawPairs.map(([, , w]) => w));
 
-    // Adjacency, for the hover highlight
-    const neighbours = new Map<string, Set<string>>();
-    for (const link of links) {
-      if (!neighbours.has(link.a.name)) neighbours.set(link.a.name, new Set());
-      if (!neighbours.has(link.b.name)) neighbours.set(link.b.name, new Set());
-      neighbours.get(link.a.name)!.add(link.b.name);
-      neighbours.get(link.b.name)!.add(link.a.name);
-    }
-
-    const maxWeight = Math.max(1, ...links.map((link) => link.weight));
-    // A re-init (module run + astro:page-load on a hard load) must not stack a second set of lines
     svg.replaceChildren();
-    const lineEls = links.map((link) => {
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('class', link.weight >= 2 ? 'tag-link is-strong' : 'tag-link');
-      line.setAttribute('stroke-width', String(0.6 + (link.weight / maxWeight) * 2.2));
-      line.dataset.a = link.a.name;
-      line.dataset.b = link.b.name;
-      svg.appendChild(line);
-      return line;
+    const baseGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    const pulseGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+    const links: ConstellationLink[] = [];
+    const neighbours = new Map<string, Set<string>>();
+
+    rawPairs.forEach(([aName, bName, weight], idx) => {
+      const a = byName.get(aName);
+      const b = byName.get(bName);
+      if (!a || !b) return;
+
+      if (!neighbours.has(a.name)) neighbours.set(a.name, new Set());
+      if (!neighbours.has(b.name)) neighbours.set(b.name, new Set());
+      neighbours.get(a.name)!.add(b.name);
+      neighbours.get(b.name)!.add(a.name);
+
+      const strokeW = (0.65 + (weight / maxWeight) * 2.1).toFixed(2);
+      const basePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      basePath.setAttribute('class', weight >= 2 ? 'tag-link is-strong' : 'tag-link');
+      basePath.setAttribute('stroke-width', strokeW);
+      basePath.dataset.a = a.name;
+      basePath.dataset.b = b.name;
+      baseGroup.appendChild(basePath);
+
+      const pulsePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pulsePath.setAttribute('class', 'tag-link-pulse');
+      pulsePath.setAttribute('stroke-width', (Number(strokeW) + 0.55).toFixed(2));
+      pulsePath.setAttribute('pathLength', '1');
+      pulsePath.dataset.a = a.name;
+      pulsePath.dataset.b = b.name;
+      pulseGroup.appendChild(pulsePath);
+
+      links.push({
+        a,
+        b,
+        weight,
+        curveSign: idx % 2 === 0 ? 1 : -1,
+        basePath,
+        pulsePath,
+        lastD: '',
+      });
     });
 
+    svg.append(baseGroup, pulseGroup);
+
+    let focusedTag: string | null = null;
+
     function seed() {
-      width = sky!.clientWidth;
-      height = sky!.clientHeight;
+      width = Math.max(240, sky!.clientWidth);
+      height = Math.max(240, sky!.clientHeight);
       svg!.setAttribute('viewBox', `0 0 ${width} ${height}`);
       const cx = width / 2;
       const cy = height / 2;
-      const ring = Math.max(width, height) * 0.62;
+      const ring = Math.max(width, height) * 0.58;
       nodes.forEach((node, index) => {
-        // Start on a ring outside the frame so they visibly fly in and knit together
         const angle = (index / nodes.length) * Math.PI * 2 + 0.6;
         node.x = cx + Math.cos(angle) * ring;
-        node.y = cy + Math.sin(angle) * ring * 0.8;
+        node.y = cy + Math.sin(angle) * ring * 0.78;
         node.vx = 0;
         node.vy = 0;
+        node.paintedX = Number.NaN;
+        node.paintedY = Number.NaN;
+      });
+      links.forEach((l) => {
+        l.lastD = '';
       });
       alpha = 1;
+      settled = false;
     }
 
-    function step() {
+    function step(): number {
       const cx = width / 2;
       const cy = height / 2;
 
-      // Repulsion + hard separation (axis-aware, because these are text boxes not circles)
+      // Repulsion + axis-aware text-box separation
       for (let i = 0; i < nodes.length; i += 1) {
+        const a = nodes[i];
         for (let j = i + 1; j < nodes.length; j += 1) {
-          const a = nodes[i];
           const b = nodes[j];
           let dx = b.x - a.x;
           let dy = b.y - a.y;
           let dist2 = dx * dx + dy * dy;
-          if (dist2 < 1) { dx = (Math.random() - 0.5) * 2; dy = (Math.random() - 0.5) * 2; dist2 = 4; }
+          if (dist2 < 1) {
+            dx = (Math.random() - 0.5) * 2;
+            dy = (Math.random() - 0.5) * 2;
+            dist2 = 4;
+          }
           const dist = Math.sqrt(dist2);
           const charge = 3200 / Math.max(dist2, 400);
-          a.vx -= (dx / dist) * charge;
-          a.vy -= (dy / dist) * charge;
-          b.vx += (dx / dist) * charge;
-          b.vy += (dy / dist) * charge;
+          const fx = (dx / dist) * charge;
+          const fy = (dy / dist) * charge;
+          a.vx -= fx;
+          a.vy -= fy;
+          b.vx += fx;
+          b.vy += fy;
 
           const overlapX = a.hw + b.hw + 18 - Math.abs(dx);
           const overlapY = a.hh + b.hh + 12 - Math.abs(dy);
           if (overlapX > 0 && overlapY > 0) {
             if (overlapX < overlapY) {
-              const push = (overlapX / 2) * Math.sign(dx || 1) * 0.55;
-              a.vx -= push; b.vx += push;
+              const push = (overlapX * 0.5) * (dx >= 0 ? 1 : -1) * 0.55;
+              a.vx -= push;
+              b.vx += push;
             } else {
-              const push = (overlapY / 2) * Math.sign(dy || 1) * 0.55;
-              a.vy -= push; b.vy += push;
+              const push = (overlapY * 0.5) * (dy >= 0 ? 1 : -1) * 0.55;
+              a.vy -= push;
+              b.vy += push;
             }
           }
         }
       }
 
-      // Springs: the more two tags co-occur, the shorter the rest length
-      for (const link of links) {
+      // Co-occurrence springs
+      for (let i = 0; i < links.length; i += 1) {
+        const link = links[i];
         const dx = link.b.x - link.a.x;
         const dy = link.b.y - link.a.y;
         const dist = Math.max(1, Math.hypot(dx, dy));
         const rest = link.a.r + link.b.r + 26 + 140 / link.weight;
         const pull = (dist - rest) * 0.012 * Math.min(1.6, 0.5 + link.weight / maxWeight);
-        link.a.vx += (dx / dist) * pull;
-        link.a.vy += (dy / dist) * pull;
-        link.b.vx -= (dx / dist) * pull;
-        link.b.vy -= (dy / dist) * pull;
+        const px = (dx / dist) * pull;
+        const py = (dy / dist) * pull;
+        link.a.vx += px;
+        link.a.vy += py;
+        link.b.vx -= px;
+        link.b.vy -= py;
       }
 
-      for (const node of nodes) {
+      let maxMove = 0;
+      for (let i = 0; i < nodes.length; i += 1) {
+        const node = nodes[i];
         node.vx += (cx - node.x) * 0.0022;
         node.vy += (cy - node.y) * 0.0032;
         node.vx *= 0.84;
         node.vy *= 0.84;
-        node.x += node.vx * alpha;
-        node.y += node.vy * alpha;
-        // Keep everyone inside the frame
-        node.x = Math.min(width - node.hw - 4, Math.max(node.hw + 4, node.x));
-        node.y = Math.min(height - node.hh - 4, Math.max(node.hh + 4, node.y));
+        const moveX = node.vx * alpha;
+        const moveY = node.vy * alpha;
+        const prevX = node.x;
+        const prevY = node.y;
+        node.x = Math.min(width - node.hw - 4, Math.max(node.hw + 4, node.x + moveX));
+        node.y = Math.min(height - node.hh - 4, Math.max(node.hh + 4, node.y + moveY));
+        const disp = Math.abs(node.x - prevX) + Math.abs(node.y - prevY);
+        if (disp > maxMove) maxMove = disp;
       }
+      return maxMove;
     }
 
     function paint() {
-      for (const node of nodes) {
-        node.el.style.transform = `translate3d(${Math.round(node.x - node.hw)}px, ${Math.round(node.y - node.hh)}px, 0)`;
+      // Dirty-checked sub-pixel batch write on GPU transforms
+      for (let i = 0; i < nodes.length; i += 1) {
+        const node = nodes[i];
+        const tx = node.x - node.hw;
+        const ty = node.y - node.hh;
+        if (
+          Number.isNaN(node.paintedX) ||
+          Math.abs(tx - node.paintedX) > 0.04 ||
+          Math.abs(ty - node.paintedY) > 0.04
+        ) {
+          node.paintedX = tx;
+          node.paintedY = ty;
+          node.el.style.transform = `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0px)`;
+        }
       }
-      lineEls.forEach((line, index) => {
-        const link = links[index];
-        line.setAttribute('x1', String(Math.round(link.a.x)));
-        line.setAttribute('y1', String(Math.round(link.a.y)));
-        line.setAttribute('x2', String(Math.round(link.b.x)));
-        line.setAttribute('y2', String(Math.round(link.b.y)));
-      });
+
+      for (let i = 0; i < links.length; i += 1) {
+        const link = links[i];
+        const d = buildArcPath(link.a.x, link.a.y, link.b.x, link.b.y, link.curveSign);
+        if (d !== link.lastD) {
+          link.lastD = d;
+          link.basePath.setAttribute('d', d);
+          if (focusedTag && (link.a.name === focusedTag || link.b.name === focusedTag)) {
+            const fromA = link.a.name === focusedTag;
+            const pd = fromA
+              ? d
+              : buildArcPath(link.b.x, link.b.y, link.a.x, link.a.y, (-link.curveSign as 1 | -1));
+            link.pulsePath.setAttribute('d', pd);
+          } else {
+            link.pulsePath.setAttribute('d', d);
+          }
+        }
+      }
     }
 
-    // Fixed 60Hz physics steps banked against wall-clock time, so the layout settles in the same
-    // ~4s on a 165Hz display as on a 60Hz one instead of running 2.75× faster
+    // Fixed 60Hz physics step banked against wall-clock time
     const STEP = 1 / 60;
     let lastTime = 0;
     let bank = 0;
+
+    function markSettled() {
+      settled = true;
+      frame = 0;
+      lastTime = 0;
+      sky!.classList.add('is-settled');
+    }
+
     function tick(now: number) {
+      frame = 0;
+      if (settled || signal.aborted || document.hidden || !inViewport) {
+        lastTime = 0;
+        return;
+      }
       if (!lastTime) lastTime = now;
       bank += Math.min(0.1, (now - lastTime) / 1000);
       lastTime = now;
-      while (bank >= STEP) {
-        step();
+
+      let maxDisp = 1;
+      let stepsRun = 0;
+      while (bank >= STEP && stepsRun < 6) {
+        maxDisp = step();
         alpha *= 0.985;
         bank -= STEP;
+        stepsRun += 1;
       }
+
       paint();
-      if (alpha > 0.02 && !signal.aborted) frame = requestAnimationFrame(tick);
-      else { sky!.classList.add('is-settled'); frame = 0; }
+
+      // Kinetic energy auto-sleep: stop rAF immediately once displacement converges
+      if (alpha <= 0.02 || (alpha < 0.36 && maxDisp < 0.04)) {
+        markSettled();
+        return;
+      }
+
+      frame = requestAnimationFrame(tick);
+    }
+
+    function ensureTicking() {
+      if (settled || frame || reduceMotion || document.hidden || !inViewport || signal.aborted) return;
+      lastTime = 0;
+      frame = requestAnimationFrame(tick);
     }
 
     function run() {
       cancelAnimationFrame(frame);
+      frame = 0;
       seed();
       lastTime = 0;
       bank = 0;
       sky!.classList.remove('is-settled');
       if (reduceMotion) {
-        for (let i = 0; i < 420; i += 1) { step(); alpha *= 0.99; }
+        for (let i = 0; i < 420; i += 1) {
+          const d = step();
+          alpha *= 0.99;
+          if (alpha < 0.3 && d < 0.03) break;
+        }
         paint();
-        sky!.classList.add('is-settled');
+        markSettled();
         return;
       }
-      frame = requestAnimationFrame(tick);
+      ensureTicking();
     }
 
-    // ---------- Hover: light up this tag's constellation ----------
+    // ---------- Hover: light up constellation & orient outward ink-stream pulses ----------
     function highlight(name: string | null) {
+      focusedTag = name;
       sky!.classList.toggle('is-focused', Boolean(name));
       const near = name ? neighbours.get(name) ?? new Set<string>() : null;
-      for (const node of nodes) {
-        const lit = !name || node.name === name || near!.has(node.name);
+
+      for (let i = 0; i < nodes.length; i += 1) {
+        const node = nodes[i];
+        const isOrigin = Boolean(name) && node.name === name;
+        const lit = !name || isOrigin || near!.has(node.name);
+        node.el.classList.toggle('is-origin', isOrigin);
         node.el.classList.toggle('is-lit', Boolean(name) && lit);
         node.el.classList.toggle('is-dim', Boolean(name) && !lit);
       }
-      lineEls.forEach((line) => {
-        const lit = Boolean(name) && (line.dataset.a === name || line.dataset.b === name);
-        line.classList.toggle('is-lit', lit);
-      });
+
+      for (let i = 0; i < links.length; i += 1) {
+        const link = links[i];
+        const lit = Boolean(name) && (link.a.name === name || link.b.name === name);
+        link.basePath.classList.toggle('is-lit', lit);
+        link.pulsePath.classList.toggle('is-lit', lit);
+        if (lit && name) {
+          // Orient pulse path from hovered star -> companion star so ink flows outward
+          const fromA = link.a.name === name;
+          const orientedD = fromA
+            ? buildArcPath(link.a.x, link.a.y, link.b.x, link.b.y, link.curveSign)
+            : buildArcPath(link.b.x, link.b.y, link.a.x, link.a.y, (-link.curveSign as 1 | -1));
+          link.pulsePath.setAttribute('d', orientedD);
+        }
+      }
     }
 
     els.forEach((el) => {
@@ -272,19 +588,62 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
       el.addEventListener('blur', () => highlight(null), { signal });
     });
 
+    // Offscreen & background-tab auto-sleep
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          inViewport = entry.isIntersecting;
+          if (!inViewport && frame) {
+            cancelAnimationFrame(frame);
+            frame = 0;
+            lastTime = 0;
+          } else if (inViewport) {
+            ensureTicking();
+          }
+        });
+      },
+      { rootMargin: '100px 0px' },
+    );
+    io.observe(sky);
+
+    document.addEventListener(
+      'visibilitychange',
+      () => {
+        if (document.hidden && frame) {
+          cancelAnimationFrame(frame);
+          frame = 0;
+          lastTime = 0;
+        } else if (!document.hidden) {
+          ensureTicking();
+        }
+      },
+      { signal },
+    );
+
     let resizeTimer = 0;
-    window.addEventListener('resize', () => {
-      window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(run, 180);
-    }, { signal });
+    window.addEventListener(
+      'resize',
+      () => {
+        window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(run, 180);
+      },
+      { signal },
+    );
 
     run();
-    // Zpix loads late; node boxes change size, so re-measure and re-settle once it lands
+
+    // Re-measure once webfont settles so text-box separation stays crisp
     document.fonts?.ready.then(() => {
       if (signal.aborted) return;
-      nodes.forEach((node) => {
-        node.hw = node.el.offsetWidth / 2;
-        node.hh = node.el.offsetHeight / 2;
+      wrap.classList.remove('is-laid-out');
+      const nextDims = nodes.map((node) => ({
+        hw: node.el.offsetWidth / 2,
+        hh: node.el.offsetHeight / 2,
+      }));
+      wrap.classList.add('is-laid-out');
+      nodes.forEach((node, idx) => {
+        node.hw = nextDims[idx].hw;
+        node.hh = nextDims[idx].hh;
         node.r = Math.hypot(node.hw, node.hh);
       });
       run();
@@ -292,7 +651,9 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
 
     (window as any)[CLEANUP_KEY] = () => {
       controller.abort();
+      io.disconnect();
       cancelAnimationFrame(frame);
+      frame = 0;
       window.clearTimeout(resizeTimer);
       gsap.killTweensOf(els);
       (window as any)[CLEANUP_KEY] = undefined;
@@ -303,6 +664,9 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
 
   if (!(window as any)[LISTENER_KEY]) {
     document.addEventListener('astro:page-load', initTagSky);
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+    });
     (window as any)[LISTENER_KEY] = true;
   }
 </script>

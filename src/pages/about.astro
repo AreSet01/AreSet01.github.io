@@ -55,51 +55,74 @@ const timeline = [
 
     <section class="grid gap-16 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] lg:gap-20 lg:pr-16">
       <div class="panel">
-        <div class="flex items-center justify-between">
-          <p class="eyebrow" data-enter="top">About the Author</p>
+        <div class="flex items-center justify-between gap-4">
+          <p class="eyebrow" data-enter="top">About the Author · 自述手札</p>
           <button type="button" class="about-zen-replay-btn" data-about-zen-replay title="重新播放水墨像素入场动效">
             <span class="replay-icon">↺</span> 墨化推演
           </button>
         </div>
-        <h1 class="section-title mt-6 max-w-2xl" data-enter="left">
-          我就是我！
-        </h1>
+
+        <div class="about-nameplate mt-6 max-w-2xl" data-enter="left">
+          <div class="about-courtesy-row">
+            <span class="about-courtesy-seal" aria-hidden="true">字</span>
+            <span class="about-courtesy-text">AreSet · 梦付千秋主人</span>
+          </div>
+          <h1 class="section-title mt-2">
+            我就是我！
+          </h1>
+        </div>
+
         <p class="about-typed mt-5" data-enter="left" aria-live="polite">
           <span class="about-typed-prefix">&gt;</span>
           <span data-about-typed data-lines={JSON.stringify(typedLines)}>{typedLines[0]}</span>
           <span class="about-typed-caret" aria-hidden="true"></span>
         </p>
+
+        <!-- 宣纸手札书卷展开区：左侧起收笔墨边 + 右侧题跋竖签 + 悬停与下方铭牌呼应 -->
         <div
-          class="mt-8 space-y-5 text-[1rem] leading-[1.85] text-[var(--muted-strong)] max-w-2xl"
-          style="font-family: var(--font-serif);"
+          class="about-letter-scroll mt-8 max-w-2xl"
+          data-about-letter
           data-enter="bottom"
         >
-          <p>你好，欢迎来到我的个人空间呀~这里相当于一个闲聊+笔记博客噢~</p>
-          <p>因为太懒所以会有一部分是AI写的，但是如果有知识可以帮到你，那真的是太好啦~</p>
+          <span class="about-letter-spine" aria-hidden="true"></span>
+          <span class="about-letter-colophon" aria-hidden="true">清浅纸境 · 手札</span>
+          <div
+            class="about-letter-body space-y-4 text-[1rem] leading-[1.85] text-[var(--muted-strong)]"
+            style="font-family: var(--font-serif);"
+          >
+            <p data-letter-para="0">你好，欢迎来到我的个人空间呀~这里相当于一个闲聊+笔记博客噢~</p>
+            <p data-letter-para="1">因为太懒所以会有一部分是AI写的，但是如果有知识可以帮到你，那真的是太好啦~</p>
+          </div>
         </div>
 
         <div
           class="about-tilt-stage mt-12 grid gap-4 sm:grid-cols-3 items-stretch pt-8 border-t border-[var(--rule)]"
           style="border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;"
         >
-          <div class="about-tilt h-full" data-tilt data-enter="card">
-            <div class="stat-card h-full flex flex-col justify-center px-4 py-5 sm:px-5 sm:py-6 pointer-events-none">
+          <div class="about-tilt about-paper-badge h-full" data-tilt data-paper-card data-about-badge="game" data-enter="card">
+            <span class="about-badge-elevation" aria-hidden="true"></span>
+            <span class="about-badge-stroke" aria-hidden="true"></span>
+            <div class="stat-card about-stat-surface h-full flex flex-col justify-center px-4 py-5 sm:px-5 sm:py-6 pointer-events-none">
               <p class="stat-label text-xs tracking-wider select-none">写作主题</p>
               <h3 class="about-card-heading font-display text-[0.96rem] sm:text-[1rem] font-semibold text-[var(--text-strong)] tracking-tight mt-2.5 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                 Game
               </h3>
             </div>
           </div>
-          <div class="about-tilt h-full" data-tilt data-enter="card">
-            <div class="stat-card h-full flex flex-col justify-center px-4 py-5 sm:px-5 sm:py-6 pointer-events-none">
+          <div class="about-tilt about-paper-badge h-full" data-tilt data-paper-card data-about-badge="astro" data-enter="card">
+            <span class="about-badge-elevation" aria-hidden="true"></span>
+            <span class="about-badge-stroke" aria-hidden="true"></span>
+            <div class="stat-card about-stat-surface h-full flex flex-col justify-center px-4 py-5 sm:px-5 sm:py-6 pointer-events-none">
               <p class="stat-label text-xs tracking-wider select-none">当前栈</p>
               <h3 class="about-card-heading font-display text-[0.96rem] sm:text-[1rem] font-semibold text-[var(--text-strong)] tracking-tight mt-2.5 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                 Astro
               </h3>
             </div>
           </div>
-          <div class="about-tilt h-full" data-tilt data-enter="card">
-            <div class="stat-card h-full flex flex-col justify-center px-4 py-5 sm:px-5 sm:py-6 pointer-events-none">
+          <div class="about-tilt about-paper-badge h-full" data-tilt data-paper-card data-about-badge="craft" data-enter="card">
+            <span class="about-badge-elevation" aria-hidden="true"></span>
+            <span class="about-badge-stroke" aria-hidden="true"></span>
+            <div class="stat-card about-stat-surface h-full flex flex-col justify-center px-4 py-5 sm:px-5 sm:py-6 pointer-events-none">
               <p class="stat-label text-xs tracking-wider select-none">写作习惯</p>
               <h3 class="about-card-heading font-display text-[0.96rem] sm:text-[1rem] font-semibold text-[var(--text-strong)] tracking-tight mt-2.5 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                 AI+手写（
@@ -116,7 +139,7 @@ const timeline = [
               <line x1="1" y1="0" x2="1" y2="100" pathLength="1" data-about-spine />
             </svg>
             {timeline.map((item) => (
-              <div class="about-timeline-item" data-about-timeline-item>
+              <div class="about-timeline-item about-footprint-node" data-about-timeline-item>
                 <time>{item.date}</time>
                 <h3>{item.title}</h3>
                 <p>{item.body}</p>
@@ -150,26 +173,26 @@ const timeline = [
           <h2 class="font-display mt-5 text-[1.65rem] text-[var(--text-strong)]">
             本站用什么搭的？
           </h2>
-          <dl class="mt-6 border-t border-dashed border-[var(--rule)]">
-            <div class="flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5">
+          <dl class="about-stack-list mt-6 border-t border-dashed border-[var(--rule)]">
+            <div class="about-stack-row flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5" data-stack-match="astro">
               <dt class="font-display text-[1rem] text-[var(--text-strong)]">Astro</dt>
               <dd class="text-[0.86rem] text-[var(--muted)] text-right" style="font-family: var(--font-serif); font-style: italic;">
                 快速、轻量的静态网站
               </dd>
             </div>
-            <div class="flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5">
+            <div class="about-stack-row flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5">
               <dt class="font-display text-[1rem] text-[var(--text-strong)]">Tailwind</dt>
               <dd class="text-[0.86rem] text-[var(--muted)] text-right" style="font-family: var(--font-serif); font-style: italic;">
                 高效整理样式
               </dd>
             </div>
-            <div class="flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5">
+            <div class="about-stack-row flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5">
               <dt class="font-display text-[1rem] text-[var(--text-strong)]">GSAP + Lenis</dt>
               <dd class="text-[0.86rem] text-[var(--muted)] text-right" style="font-family: var(--font-serif); font-style: italic;">
                 滚动与动效
               </dd>
             </div>
-            <div class="flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5">
+            <div class="about-stack-row flex items-baseline justify-between gap-4 border-b border-dashed border-[var(--rule)] py-3.5">
               <dt class="font-display text-[1rem] text-[var(--text-strong)]">Giscus</dt>
               <dd class="text-[0.86rem] text-[var(--muted)] text-right" style="font-family: var(--font-serif); font-style: italic;">
                 GitHub Discussions 评论
@@ -204,8 +227,16 @@ const timeline = [
               <span class="font-mono text-[0.84rem] text-[var(--text-strong)]">1909616051@qq.com</span>
             </div>
           </div>
-          <div class="mt-10 flex justify-end">
-            <span class="about-stamp" data-about-stamp aria-hidden="true">谢谢来访</span>
+          <div class="mt-10 flex items-end justify-end gap-4">
+            <span class="about-stamp-caption" data-about-stamp-caption aria-live="polite">轻点钤印回礼</span>
+            <span
+              class="about-stamp about-interactive-seal"
+              data-about-stamp
+              role="button"
+              tabindex="0"
+              aria-label="个人朱砂印章：谢谢来访，点击可钤印切换印文"
+              title="轻点钤印回礼"
+            >谢谢来访</span>
           </div>
         </section>
       </aside>
@@ -213,19 +244,280 @@ const timeline = [
   </main>
 </BaseLayout>
 
+<style>
+  /* 字号铭牌眉栏 */
+  .about-courtesy-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .about-courtesy-seal {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.28rem;
+    height: 1.28rem;
+    border: 1.5px solid var(--vermilion);
+    border-radius: 3px;
+    color: var(--vermilion);
+    font-family: var(--font-hand-title);
+    font-size: 0.72rem;
+    line-height: 1;
+    transform: rotate(-4deg);
+  }
+
+  .about-courtesy-text {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+
+  /* 宣纸手札书卷展开自述区 */
+  .about-letter-scroll {
+    position: relative;
+    padding: 1.25rem 2.4rem 1.3rem 1.35rem;
+    border-radius: 0 10px 10px 0;
+    background:
+      radial-gradient(
+        300px circle at var(--letter-x, 25%) var(--letter-y, 40%),
+        color-mix(in srgb, var(--vermilion) 5%, transparent) 0%,
+        transparent 75%
+      ),
+      color-mix(in srgb, var(--bg-soft) 58%, transparent);
+    transition: background-color 320ms var(--ease);
+  }
+
+  .about-letter-spine {
+    position: absolute;
+    left: 0;
+    top: 0.25rem;
+    bottom: 0.25rem;
+    width: 2px;
+    background: linear-gradient(180deg, var(--vermilion) 0%, var(--accent) 62%, transparent 100%);
+    transform: scaleY(0);
+    transform-origin: center top;
+    transition: transform 860ms cubic-bezier(0.16, 1, 0.3, 1) 120ms;
+  }
+
+  .about-letter-scroll:global(.is-unfurled) .about-letter-spine {
+    transform: scaleY(1);
+  }
+
+  .about-letter-colophon {
+    position: absolute;
+    right: 0.65rem;
+    top: 1.1rem;
+    writing-mode: vertical-rl;
+    font-family: var(--font-hand-title);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    color: var(--muted);
+    opacity: 0.52;
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 280ms var(--ease), color 280ms var(--ease);
+  }
+
+  .about-letter-scroll:hover .about-letter-colophon {
+    opacity: 0.88;
+    color: var(--vermilion);
+  }
+
+  /* 3D 宣纸铭牌卡：预渲染浮影层 + 顶缘起笔墨线 + 跨块呼应高亮 */
+  .about-paper-badge {
+    position: relative;
+    isolation: isolate;
+    border-radius: 12px;
+  }
+
+  .about-stat-surface {
+    box-shadow: none !important;
+    transition: border-color 320ms var(--ease-card), background-color 320ms var(--ease-card) !important;
+  }
+
+  .about-badge-elevation {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+    box-shadow:
+      0 14px 30px -10px rgba(var(--accent-rgb), 0.15),
+      0 4px 12px -3px rgba(0, 0, 0, 0.06);
+    opacity: 0;
+    transition: opacity 360ms var(--ease-card);
+  }
+
+  .about-paper-badge:hover .about-badge-elevation,
+  .about-paper-badge:global(.is-echoed) .about-badge-elevation {
+    opacity: 1;
+  }
+
+  .about-badge-stroke {
+    position: absolute;
+    top: 0;
+    left: 0.75rem;
+    right: 1.5rem;
+    height: 1.5px;
+    background: linear-gradient(90deg, var(--vermilion), transparent);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 2;
+    transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1), opacity 280ms var(--ease);
+  }
+
+  .about-paper-badge:hover .about-badge-stroke,
+  .about-paper-badge:global(.is-echoed) .about-badge-stroke {
+    transform: scaleX(1);
+    opacity: 0.88;
+  }
+
+  .about-paper-badge:global(.is-echoed) .about-card-heading {
+    color: var(--vermilion);
+  }
+
+  /* 技术栈列表行与左侧铭牌互相应答 */
+  .about-stack-row {
+    position: relative;
+    transition: padding-left 260ms var(--ease), color 240ms var(--ease);
+  }
+
+  .about-stack-row::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1px;
+    background: linear-gradient(90deg, var(--vermilion), transparent);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+  }
+
+  .about-stack-row:hover,
+  .about-stack-row:global(.is-echoed) {
+    padding-left: 0.35rem;
+  }
+
+  .about-stack-row:hover::after,
+  .about-stack-row:global(.is-echoed)::after {
+    transform: scaleX(1);
+  }
+
+  /* 足迹节点朱砂微澜 */
+  .about-footprint-node {
+    transition: transform 280ms var(--ease);
+  }
+
+  .about-footprint-node:hover {
+    transform: translateX(3px);
+  }
+
+  /* 个人朱砂印章：支持悬停微倾与点击「钤印回礼」墨环冲击波 */
+  .about-stamp-caption {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    opacity: 0.72;
+    padding-bottom: 0.3rem;
+    transition: color 240ms var(--ease), opacity 240ms var(--ease);
+  }
+
+  .about-interactive-seal {
+    position: relative;
+    cursor: pointer;
+    transition:
+      transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1),
+      background-color 260ms var(--ease);
+  }
+
+  .about-interactive-seal::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 6px;
+    border: 1.5px solid var(--vermilion);
+    opacity: 0;
+    transform: scale(0.85);
+    pointer-events: none;
+  }
+
+  .about-interactive-seal:global(.is-stamped)::after {
+    animation: aboutSealWave 680ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .about-interactive-seal:global(.is-pressing)::after {
+    animation: aboutSealWave 560ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .about-interactive-seal:hover {
+    background: color-mix(in srgb, var(--vermilion) 7%, transparent);
+  }
+
+  @keyframes aboutSealWave {
+    0% {
+      opacity: 0.82;
+      transform: scale(0.92);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.42);
+    }
+  }
+
+  .about-zen-replay-btn .replay-icon {
+    display: inline-block;
+    transition: transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .about-zen-replay-btn:hover .replay-icon {
+    transform: rotate(-180deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .about-letter-spine,
+    .about-badge-elevation,
+    .about-badge-stroke,
+    .about-stack-row,
+    .about-stack-row::after,
+    .about-footprint-node,
+    .about-interactive-seal,
+    .about-zen-replay-btn .replay-icon {
+      transition: none !important;
+      transform: none !important;
+      animation: none !important;
+    }
+    .about-letter-spine {
+      transform: scaleY(1) !important;
+    }
+  }
+</style>
+
 <script>
   import gsap from 'gsap';
   import { ScrollTrigger } from 'gsap/ScrollTrigger';
+  import { bindGlobalPaperCardLifecycle } from '../utils/cardMotion';
 
   gsap.registerPlugin(ScrollTrigger);
 
   const CLEANUP_KEY = '__areSetAboutCleanup__';
   const LISTENER_KEY = '__areSetAboutPageLoadBound__';
   const TRIGGER_PREFIX = 'about:';
+  const SEAL_INSCRIPTIONS = ['谢谢来访', '一见如故', '清风明月', '梦付千秋'] as const;
 
   function initAbout() {
     const previousCleanup = (window as any)[CLEANUP_KEY];
     if (typeof previousCleanup === 'function') previousCleanup();
+
+    bindGlobalPaperCardLifecycle();
 
     const typed = document.querySelector<HTMLElement>('[data-about-typed]');
     if (!typed) return; // not on the about page
@@ -233,11 +525,53 @@ const timeline = [
     const controller = new AbortController();
     const { signal } = controller;
     const timers: number[] = [];
+    const tweens: gsap.core.Tween[] = [];
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let marqueeRaf = 0;
 
     ScrollTrigger.getAll().forEach((trigger) => {
       if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
     });
+
+    // ---------- Self-intro letter scroll unfurl & cross-card echo ----------
+    const letter = document.querySelector<HTMLElement>('[data-about-letter]');
+    const astroBadge = document.querySelector<HTMLElement>('[data-about-badge="astro"]');
+    const craftBadge = document.querySelector<HTMLElement>('[data-about-badge="craft"]');
+    const astroStackRow = document.querySelector<HTMLElement>('[data-stack-match="astro"]');
+
+    if (letter) {
+      if (reduceMotion) {
+        letter.classList.add('is-unfurled');
+      } else {
+        timers.push(window.setTimeout(() => letter.classList.add('is-unfurled'), 160));
+        let letterRect: DOMRect | null = null;
+        letter.addEventListener('pointerenter', () => {
+          letterRect = letter.getBoundingClientRect();
+        }, { signal });
+        letter.addEventListener('pointermove', (e: PointerEvent) => {
+          if (!letterRect) return;
+          const x = ((e.clientX - letterRect.left) / Math.max(1, letterRect.width)) * 100;
+          const y = ((e.clientY - letterRect.top) / Math.max(1, letterRect.height)) * 100;
+          letter.style.setProperty('--letter-x', `${x.toFixed(1)}%`);
+          letter.style.setProperty('--letter-y', `${y.toFixed(1)}%`);
+        }, { signal });
+      }
+
+      // Hovering paragraph 2 ("AI写的") gently echoes the "AI+手写" badge
+      const secondPara = letter.querySelector<HTMLElement>('[data-letter-para="1"]');
+      if (secondPara && craftBadge) {
+        secondPara.addEventListener('pointerenter', () => craftBadge.classList.add('is-echoed'), { signal });
+        secondPara.addEventListener('pointerleave', () => craftBadge.classList.remove('is-echoed'), { signal });
+      }
+    }
+
+    // Cross-echo between Astro 3D badge and Aside Astro tech row
+    if (astroBadge && astroStackRow) {
+      astroBadge.addEventListener('pointerenter', () => astroStackRow.classList.add('is-echoed'), { signal });
+      astroBadge.addEventListener('pointerleave', () => astroStackRow.classList.remove('is-echoed'), { signal });
+      astroStackRow.addEventListener('pointerenter', () => astroBadge.classList.add('is-echoed'), { signal });
+      astroStackRow.addEventListener('pointerleave', () => astroBadge.classList.remove('is-echoed'), { signal });
+    }
 
     // ---------- Typewriter ----------
     const lines: string[] = JSON.parse(typed.dataset.lines || '[]');
@@ -285,72 +619,130 @@ const timeline = [
         trigger: card,
         start: 'top 90%',
         once: true,
-        onEnter: () => gsap.to(counter, {
-          value: target,
-          duration: 1.4,
-          ease: 'expo.out',
-          delay: index * 0.08,
-          onUpdate: () => { valueEl.textContent = String(Math.round(counter.value)); },
-        }),
+        onEnter: () => {
+          tweens.push(gsap.to(counter, {
+            value: target,
+            duration: 1.4,
+            ease: 'expo.out',
+            delay: index * 0.08,
+            onUpdate: () => { valueEl.textContent = String(Math.round(counter.value)); },
+          }));
+        },
       });
     });
 
-    // 3D tilt cards are handled globally by BaseLayout.astro via unified [data-tilt] engine
-
-    // ---------- Timeline: spine draws with scroll, nodes light up ----------
+    // ---------- Timeline: spine draws via native scrub (zero per-scroll gsap.to allocation) ----------
     const spine = document.querySelector<SVGLineElement>('[data-about-spine]');
     const timelineRoot = document.querySelector<HTMLElement>('[data-about-timeline]');
     if (spine && timelineRoot && !reduceMotion) {
-      const spineState = { p: 0 };
-      const paint = () => { spine.style.strokeDashoffset = String(1 - spineState.p); };
-      paint();
+      spine.style.strokeDashoffset = '1';
       ScrollTrigger.create({
         id: `${TRIGGER_PREFIX}spine`,
         trigger: timelineRoot,
         start: 'top 80%',
         end: 'bottom 55%',
+        scrub: 0.42,
         onUpdate: (self) => {
-          gsap.to(spineState, { p: self.progress, duration: 0.5, ease: 'power2.out', overwrite: true, onUpdate: paint });
+          spine.style.strokeDashoffset = (1 - self.progress).toFixed(4);
         },
       });
       document.querySelectorAll<HTMLElement>('[data-about-timeline-item]').forEach((item, index) => {
         ScrollTrigger.create({
           id: `${TRIGGER_PREFIX}node-${index}`,
           trigger: item,
-          start: 'top 72%',
+          start: 'top 74%',
           onEnter: () => item.classList.add('is-lit'),
           onLeaveBack: () => item.classList.remove('is-lit'),
         });
       });
     }
 
-    // ---------- Vertical marquee tied to scroll position ----------
+    // ---------- Vertical margin marquee: continuous damper BEFORE modulo wrap (fixes wrap-whip!) ----------
     const marqueeTrack = document.querySelector<HTMLElement>('[data-about-marquee-track]');
     if (marqueeTrack && !reduceMotion) {
       let half = 0;
-      const measure = () => { half = marqueeTrack.scrollHeight / 2; };
-      measure();
-      const setY = gsap.quickTo(marqueeTrack, 'y', { duration: 0.6, ease: 'power2.out' });
-      const onScroll = () => {
-        if (!half) return;
-        setY(-gsap.utils.wrap(0, half, window.scrollY * 0.35));
+      let targetDist = window.scrollY * 0.35;
+      let currentDist = targetDist;
+
+      const measure = () => {
+        half = marqueeTrack.scrollHeight / 2;
       };
+      measure();
+
+      const renderMarquee = () => {
+        marqueeRaf = 0;
+        if (!half || signal.aborted) return;
+        currentDist += (targetDist - currentDist) * 0.14;
+        const wrapped = gsap.utils.wrap(0, half, currentDist);
+        marqueeTrack.style.transform = `translate3d(0px, ${(-wrapped).toFixed(2)}px, 0px)`;
+        if (Math.abs(targetDist - currentDist) > 0.15) {
+          marqueeRaf = requestAnimationFrame(renderMarquee);
+        }
+      };
+
+      const onScroll = () => {
+        targetDist = window.scrollY * 0.35;
+        if (!marqueeRaf && half) {
+          marqueeRaf = requestAnimationFrame(renderMarquee);
+        }
+      };
+
       window.addEventListener('scroll', onScroll, { passive: true, signal });
-      window.addEventListener('resize', measure, { signal });
-      onScroll();
+      window.addEventListener('resize', measure, { passive: true, signal });
+      renderMarquee();
     }
 
-    // ---------- Stamp lands once the aside has entered ----------
+    // ---------- Interactive Vermilion Seal ("钤印回礼") ----------
     const stamp = document.querySelector<HTMLElement>('[data-about-stamp]');
+    const stampCaption = document.querySelector<HTMLElement>('[data-about-stamp-caption]');
     if (stamp) {
-      if (reduceMotion) stamp.classList.add('is-stamped');
-      else ScrollTrigger.create({
-        id: `${TRIGGER_PREFIX}stamp`,
-        trigger: stamp,
-        start: 'top 92%',
-        once: true,
-        onEnter: () => timers.push(window.setTimeout(() => stamp.classList.add('is-stamped'), 420)),
-      });
+      let sealIndex = 0;
+      let pressCount = 0;
+
+      if (reduceMotion) {
+        stamp.classList.add('is-stamped');
+      } else {
+        ScrollTrigger.create({
+          id: `${TRIGGER_PREFIX}stamp`,
+          trigger: stamp,
+          start: 'top 92%',
+          once: true,
+          onEnter: () => {
+            timers.push(window.setTimeout(() => stamp.classList.add('is-stamped'), 360));
+          },
+        });
+      }
+
+      const pressSeal = () => {
+        sealIndex = (sealIndex + 1) % SEAL_INSCRIPTIONS.length;
+        pressCount += 1;
+        const nextText = SEAL_INSCRIPTIONS[sealIndex];
+        stamp.textContent = nextText;
+        if (stampCaption) {
+          stampCaption.textContent = `已钤印 ×${pressCount} · ${nextText}`;
+        }
+
+        const r = stamp.getBoundingClientRect();
+        (window as any).__inkSplash?.(r.left + r.width / 2, r.top + r.height / 2, 12);
+
+        if (reduceMotion) return;
+        stamp.classList.remove('is-pressing');
+        void stamp.offsetWidth;
+        stamp.classList.add('is-pressing');
+        gsap.fromTo(
+          stamp,
+          { scale: 1.28, rotation: -12 + (pressCount % 2 === 0 ? 4 : -2) },
+          { scale: 1, rotation: -6, duration: 0.48, ease: 'elastic.out(1.1, 0.45)', overwrite: true },
+        );
+      };
+
+      stamp.addEventListener('click', pressSeal, { signal });
+      stamp.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          pressSeal();
+        }
+      }, { signal });
     }
 
     // ---------- Replay button for Zen intro ----------
@@ -367,7 +759,12 @@ const timeline = [
 
     (window as any)[CLEANUP_KEY] = () => {
       controller.abort();
+      if (marqueeRaf) {
+        cancelAnimationFrame(marqueeRaf);
+        marqueeRaf = 0;
+      }
       timers.forEach((id) => window.clearTimeout(id));
+      tweens.forEach((tw) => tw.kill());
       ScrollTrigger.getAll().forEach((trigger) => {
         if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
       });
@@ -379,6 +776,9 @@ const timeline = [
 
   if (!(window as any)[LISTENER_KEY]) {
     document.addEventListener('astro:page-load', initAbout);
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+    });
     (window as any)[LISTENER_KEY] = true;
   }
 </script>

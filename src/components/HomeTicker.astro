@@ -35,6 +35,7 @@ const items: TickerItem[] = [
 ---
 
 <div class="home-ticker" data-ticker data-enter="right">
+  <span class="home-ticker-ripple" data-ticker-ripple aria-hidden="true"></span>
   <div class="home-ticker-viewport">
     <div class="home-ticker-track" data-ticker-track>
       <div class="home-ticker-group" data-ticker-group>
@@ -62,6 +63,54 @@ const items: TickerItem[] = [
   </div>
 </div>
 
+<style>
+  .home-ticker {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* 落字击中跑马灯时的水墨横澜（纯 transform + opacity 合成层） */
+  .home-ticker-ripple {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 180px;
+    margin-left: -90px;
+    pointer-events: none;
+    z-index: 2;
+    opacity: 0;
+    background: radial-gradient(
+      ellipse at center,
+      color-mix(in srgb, var(--vermilion) 24%, transparent) 0%,
+      color-mix(in srgb, var(--accent) 10%, transparent) 48%,
+      transparent 76%
+    );
+    transform: translate3d(0, 0, 0) scaleX(0.35);
+    will-change: transform, opacity;
+  }
+
+  .home-ticker-track {
+    backface-visibility: hidden;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .home-ticker-sep {
+    transition: transform 380ms var(--ease-bounce), opacity 280ms var(--ease);
+  }
+
+  .home-ticker:hover .home-ticker-sep {
+    transform: rotate(135deg) scale(1.18);
+    opacity: 0.95;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home-ticker-ripple {
+      display: none;
+    }
+  }
+</style>
+
 <script>
   import gsap from 'gsap';
   import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -71,7 +120,7 @@ const items: TickerItem[] = [
   const CLEANUP_KEY = '__areSetTickerCleanup__';
   const LISTENER_KEY = '__areSetTickerPageLoadBound__';
   const BASE_SPEED = 42; // px / s at rest
-  const HOVER_FACTOR = 0.22;
+  const HOVER_FACTOR = 0.16;
   const MAX_BOOST = 7;
   const MAX_SKEW = 14;
 
@@ -82,14 +131,18 @@ const items: TickerItem[] = [
     const root = document.querySelector<HTMLElement>('[data-ticker]');
     const track = root?.querySelector<HTMLElement>('[data-ticker-track]');
     const group = root?.querySelector<HTMLElement>('[data-ticker-group]');
+    const rippleEl = root?.querySelector<HTMLElement>('[data-ticker-ripple]');
     if (!root || !track || !group) return;
 
     const controller = new AbortController();
     const { signal } = controller;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    // Runtime state — lerped every frame so direction flips and speed bursts feel weighty
+    // Runtime state — lerped every frame so direction flips, hover deceleration, and impacts feel weighty
     const state = {
       x: 0,
+      dipY: 0,
+      dipVel: 0,
       skew: 0,
       dir: -1,        // -1: flows left (scrolling down), 1: flows right (scrolling up)
       dirTarget: -1,
@@ -100,12 +153,14 @@ const items: TickerItem[] = [
     };
 
     let groupWidth = 0;
+    let rootLeft = 0;
     let idleTimer = 0;
     let resizeTimer = 0;
     let ticking = false;
+    let inViewport = false;
+    let isModalOpen = false;
     let smoothedVelocity = 0;
     let setSkew: ReturnType<typeof gsap.quickTo> | null = null;
-    let prevSkew = 0;
     const clones: HTMLElement[] = [];
 
     // Clone the group until it covers the viewport twice, so the wrap seam is never visible
@@ -114,31 +169,47 @@ const items: TickerItem[] = [
       clones.length = 0;
 
       const previousWidth = groupWidth;
+      const rootRect = root!.getBoundingClientRect();
+      rootLeft = rootRect.left;
       groupWidth = group!.getBoundingClientRect().width;
       if (!groupWidth) return;
 
       const needed = Math.ceil((root!.clientWidth * 2) / groupWidth) + 1;
+      const frag = document.createDocumentFragment();
       for (let i = 0; i < needed; i += 1) {
         const clone = group!.cloneNode(true) as HTMLElement;
         clone.removeAttribute('data-ticker-group');
         clone.setAttribute('aria-hidden', 'true');
         clone.querySelectorAll('a').forEach((link) => link.setAttribute('tabindex', '-1'));
-        track!.appendChild(clone);
+        frag.appendChild(clone);
         clones.push(clone);
       }
+      track!.appendChild(frag);
 
       // Keep the strip where it was (re-wrapped to the new loop length) instead of snapping to 0
-      // when a resize — including the sidebar fold — triggers a rebuild
       state.x = previousWidth ? gsap.utils.wrap(-groupWidth, 0, state.x) : 0;
     }
 
     function tick(_time: number, deltaTime: number) {
-      if (!groupWidth) return;
+      if (!groupWidth || reduceMotion) return;
       const dt = Math.min(deltaTime, 64) / 1000;
 
-      state.dir += (state.dirTarget - state.dir) * Math.min(1, dt * 6);
-      state.boost += (state.boostTarget - state.boost) * Math.min(1, dt * 5);
-      state.hover += (state.hoverTarget - state.hover) * Math.min(1, dt * 6);
+      // Frame-rate independent exponential damping for silky deceleration on hover
+      const smooth6 = 1 - Math.exp(-6.4 * dt);
+      const smoothHover = 1 - Math.exp(-7.2 * dt);
+      state.dir += (state.dirTarget - state.dir) * smooth6;
+      state.boost += (state.boostTarget - state.boost) * (1 - Math.exp(-5.2 * dt));
+      state.hover += (state.hoverTarget - state.hover) * smoothHover;
+
+      // Vertical taut-ribbon rebound when struck by falling glyphs
+      if (Math.abs(state.dipY) > 0.01 || Math.abs(state.dipVel) > 0.05) {
+        const accel = -260 * state.dipY - 19 * state.dipVel;
+        state.dipVel += accel * dt;
+        state.dipY += state.dipVel * dt;
+      } else {
+        state.dipY = 0;
+        state.dipVel = 0;
+      }
 
       // Deadband early exit: avoid continuous sub-pixel jitter
       if (Math.abs(state.boost - 1) < 0.005 && state.boostTarget === 1) {
@@ -151,17 +222,18 @@ const items: TickerItem[] = [
       const velocity = BASE_SPEED * state.boost * state.hover * state.dir;
       state.x = gsap.utils.wrap(-groupWidth, 0, state.x + velocity * dt);
 
+      // Pure GPU translate3d write — bypasses per-frame GSAP CSS matrix parser overhead
+      const xStr = state.x.toFixed(2);
+      const yStr = state.dipY === 0 ? '0px' : `${state.dipY.toFixed(2)}px`;
       if (state.skew === 0) {
-        if (prevSkew !== 0) gsap.set(track, { x: state.x, skewX: 0 });
-        else gsap.set(track, { x: state.x });
+        track!.style.transform = `translate3d(${xStr}px, ${yStr}, 0px)`;
       } else {
-        gsap.set(track, { x: state.x, skewX: state.skew });
+        track!.style.transform = `translate3d(${xStr}px, ${yStr}, 0px) skewX(${state.skew.toFixed(2)}deg)`;
       }
-      prevSkew = state.skew;
     }
 
     function startTicking() {
-      if (ticking) return;
+      if (ticking || reduceMotion || document.hidden || isModalOpen || !inViewport) return;
       ticking = true;
       gsap.ticker.add(tick);
     }
@@ -217,6 +289,7 @@ const items: TickerItem[] = [
     // Only spend frames and scroll listeners while the strip is actually on screen
     const visibility = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
+        inViewport = entry.isIntersecting;
         if (entry.isIntersecting) {
           startTicking();
           scrollWatcher.enable();
@@ -228,33 +301,71 @@ const items: TickerItem[] = [
     }, { rootMargin: '80px 0px' });
     visibility.observe(root);
 
-    root.addEventListener('mouseenter', () => { state.hoverTarget = HOVER_FACTOR; }, { signal });
-    root.addEventListener('mouseleave', () => { state.hoverTarget = 1; }, { signal });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopTicking();
+      else startTicking();
+    }, { signal });
+
+    window.addEventListener('app:modal-enter', () => {
+      isModalOpen = true;
+      stopTicking();
+    }, { signal });
+
+    window.addEventListener('app:modal-leave', () => {
+      isModalOpen = false;
+      startTicking();
+    }, { signal });
+
+    root.addEventListener('pointerenter', () => { state.hoverTarget = HOVER_FACTOR; }, { signal });
+    root.addEventListener('pointerleave', () => { state.hoverTarget = 1; }, { signal });
+    root.addEventListener('focusin', () => { state.hoverTarget = HOVER_FACTOR; }, { signal });
+    root.addEventListener('focusout', () => { state.hoverTarget = 1; }, { signal });
 
     // Clicking empty strip gives it a shove; clicking a title just follows the link
-    function shove() {
+    function shove(strength = 1) {
+      if (reduceMotion) return;
       if (setSkew?.tween) {
         setSkew.tween.kill();
         setSkew = null;
       }
       gsap.killTweensOf(state, 'skew');
-      state.boost = MAX_BOOST * 0.8;
+      state.boost = Math.max(state.boost, 1 + (MAX_BOOST * 0.72 - 1) * strength);
       state.boostTarget = 1;
+      state.dipVel += 52 * strength;
       smoothedVelocity = 0;
       gsap.to(state, {
-        skew: state.dir * 10,
+        skew: state.dir * 9.5 * strength,
         duration: 0.14,
         ease: 'power2.out',
         overwrite: true,
       });
       scheduleSettle(200);
     }
+
+    function impactAt(clientX: number, strength = 1) {
+      shove(Math.min(1.15, Math.max(0.35, strength)));
+      if (!rippleEl || reduceMotion) return;
+      const localX = clientX - rootLeft;
+      gsap.killTweensOf(rippleEl);
+      gsap.fromTo(
+        rippleEl,
+        { x: localX, scaleX: 0.25, opacity: 0.85 },
+        { x: localX, scaleX: 1.45, opacity: 0, duration: 0.52, ease: 'power2.out', overwrite: true },
+      );
+    }
+
     root.addEventListener('click', (event) => {
       if ((event.target as Element).closest('a')) return;
-      shove();
+      impactAt((event as MouseEvent).clientX, 1);
     }, { signal });
-    // Let the home page's easter eggs knock the strip too
+
+    // Let the home page's easter eggs knock and query the strip seamlessly
     (window as any).__tickerShove = shove;
+    (window as any).__tickerImpact = impactAt;
+    (window as any).__tickerGetFlow = () => ({
+      dir: state.dir,
+      velocity: BASE_SPEED * state.boost * state.hover * state.dir,
+    });
 
     window.addEventListener('resize', () => {
       window.clearTimeout(resizeTimer);
@@ -269,6 +380,8 @@ const items: TickerItem[] = [
       controller.abort();
       stopTicking();
       (window as any).__tickerShove = undefined;
+      (window as any).__tickerImpact = undefined;
+      (window as any).__tickerGetFlow = undefined;
       scrollWatcher.kill();
       visibility.disconnect();
       if (setSkew?.tween) {
@@ -276,6 +389,7 @@ const items: TickerItem[] = [
         setSkew = null;
       }
       gsap.killTweensOf(state);
+      if (rippleEl) gsap.killTweensOf(rippleEl);
       window.clearTimeout(idleTimer);
       window.clearTimeout(resizeTimer);
       (window as any)[CLEANUP_KEY] = undefined;
@@ -286,6 +400,10 @@ const items: TickerItem[] = [
 
   if (!(window as any)[LISTENER_KEY]) {
     document.addEventListener('astro:page-load', initTicker);
+    document.addEventListener('astro:before-swap', () => {
+      const cleanup = (window as any)[CLEANUP_KEY];
+      if (typeof cleanup === 'function') cleanup();
+    });
     (window as any)[LISTENER_KEY] = true;
   }
 </script>

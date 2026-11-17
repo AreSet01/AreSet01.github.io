@@ -20,6 +20,7 @@ const entries = posts.map((post, index) => {
     dateLabel: formatDate(post.data.pubDate),
     year: date.getFullYear(),
     month: date.getMonth() + 1,
+    orderLabel: String(index + 1).padStart(2, '0'),
     newMonth: !prev || prev.getMonth() !== date.getMonth() || prev.getFullYear() !== date.getFullYear(),
   };
 });
@@ -30,7 +31,7 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
   <Header />
   <main id="main-content" tabindex="-1" class="container-wide flex-1 timeline-main pt-6 pb-20 lg:pt-8 outline-none">
     <section class="timeline-head">
-      <p class="eyebrow" data-enter="top">Timeline</p>
+      <p class="eyebrow" data-enter="top">Timeline · 岁月手卷</p>
       <h1 class="section-title mt-4" data-enter="left">Timeline</h1>
       <p class="timeline-hint" data-enter="left">
         这里是时间线！好叭就是做来看的压根用不上~
@@ -39,10 +40,22 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
 
     <!-- The stage itself is what ScrollTrigger pins, so it must never carry an entrance transform;
          the fly-in lives on its children instead — and those can't replay either, because their
-         positions inside the pin spacer would be measured wrong. The year wrapper keeps a faint
-         CSS opacity, so the entrance goes on the inner span (an entrance that tweens the wrapper
-         to opacity 1 would snap back to 0.07 when it hands control back to the stylesheet). -->
+         positions inside the pin spacer would be measured wrong. -->
     <section class="timeline-stage" data-timeline>
+      <!-- Distant misty ink mountains layer (GPU parallax as the handscroll unrolls) -->
+      <div class="timeline-mountains-wrap" aria-hidden="true">
+        <svg class="timeline-mountains" data-timeline-mountains viewBox="0 0 1600 320" preserveAspectRatio="none">
+          <path
+            class="timeline-mountain-far"
+            d="M0,260 Q140,170 290,215 T590,180 T910,210 T1240,165 T1600,225 L1600,320 L0,320 Z"
+          />
+          <path
+            class="timeline-mountain-near"
+            d="M0,285 Q190,225 360,255 T740,215 T1120,250 T1440,210 L1600,265 L1600,320 L0,320 Z"
+          />
+        </svg>
+      </div>
+
       <div class="timeline-year" aria-hidden="true">
         <span data-timeline-year data-enter="left" data-no-replay>{firstYear}</span>
       </div>
@@ -51,6 +64,7 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
         <div class="timeline-track" data-timeline-track>
           <div class="timeline-baseline" aria-hidden="true">
             <span class="timeline-baseline-fill" data-timeline-baseline-fill></span>
+            <span class="timeline-brush-nib" data-timeline-nib></span>
           </div>
           {entries.map((entry, index) => (
             <article
@@ -61,10 +75,24 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
               {entry.newMonth && (
                 <span class="timeline-month">{entry.year}.{String(entry.month).padStart(2, '0')}</span>
               )}
-              <span class="timeline-dot" aria-hidden="true"></span>
+              <span class="timeline-dot" aria-hidden="true">
+                <i class="timeline-dot-ripple" aria-hidden="true"></i>
+              </span>
               <span class="timeline-stem" aria-hidden="true"></span>
-              <a class="timeline-card" data-tilt href={`/posts/${entry.id}`} data-post-preview={`/posts/${entry.id}`}>
-                <time>{entry.dateLabel}</time>
+              <a
+                class="timeline-card"
+                data-timeline-bookmark
+                data-tilt
+                data-paper-card
+                href={`/posts/${entry.id}`}
+                data-post-preview={`/posts/${entry.id}`}
+              >
+                <span class="timeline-card-elevation" aria-hidden="true"></span>
+                <span class="timeline-card-crease" aria-hidden="true"></span>
+                <div class="timeline-card-meta">
+                  <time>{entry.dateLabel}</time>
+                  <span class="timeline-card-index" aria-hidden="true">卷 {entry.orderLabel}</span>
+                </div>
                 <h2>
                   {entry.title}
                   {entry.locked && <span class="lock-mark ml-2 align-middle">Locked</span>}
@@ -90,9 +118,252 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
   </main>
 </BaseLayout>
 
+<style>
+  /* 远岫水墨山水衬底：极淡浓淡双层山影随手卷推进轻移，零滤镜零重绘 */
+  .timeline-mountains-wrap {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+    mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%);
+  }
+
+  .timeline-mountains {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 135%;
+    height: 54%;
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .timeline-mountain-far {
+    fill: var(--ink-strong);
+    opacity: 0.028;
+  }
+
+  .timeline-mountain-near {
+    fill: var(--accent);
+    opacity: 0.038;
+  }
+
+  :global([data-theme="dark"]) .timeline-mountain-far {
+    opacity: 0.036;
+  }
+
+  :global([data-theme="moss"]) .timeline-mountain-near {
+    opacity: 0.055;
+  }
+
+  @media (min-width: 1024px) {
+    /* 手卷左右宣纸卷轴渐隐边缘，避免卡片生硬裁切 */
+    .timeline-viewport {
+      mask-image: linear-gradient(to right, transparent 0%, #000 4.5%, #000 95.5%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 4.5%, #000 95.5%, transparent 100%);
+    }
+
+    /* 桌面端激活主轴水墨笔锋浓淡推进 */
+    .timeline-baseline {
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--rule) 5%, var(--rule) 95%, transparent);
+    }
+
+    .timeline-baseline-fill {
+      display: block !important;
+      position: absolute;
+      inset: 0;
+      transform-origin: left center;
+      transform: scaleX(0) scaleY(1);
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        var(--ink-light) 12%,
+        var(--ink-strong) 76%,
+        var(--vermilion) 100%
+      );
+      will-change: transform;
+    }
+
+    .timeline-brush-nib {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 10px;
+      height: 10px;
+      margin-left: -5px;
+      margin-top: -5px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--vermilion) 0%, transparent 72%);
+      opacity: 0;
+      transform: translate3d(0, 0, 0) scale(1);
+      pointer-events: none;
+      will-change: transform, opacity;
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .timeline-mountains-wrap,
+    .timeline-brush-nib {
+      display: none;
+    }
+  }
+
+  /* 文章墨点：靠近时朱砂充盈并向外荡开双层水墨涟漪 */
+  .timeline-dot-ripple {
+    position: absolute;
+    inset: -2px;
+    border: 1.5px solid var(--vermilion);
+    opacity: 0;
+    transform: scale(0.5);
+    pointer-events: none;
+  }
+
+  .timeline-dot::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border: 1px solid var(--accent);
+    opacity: 0;
+    transform: scale(0.5);
+    pointer-events: none;
+  }
+
+  .timeline-entry:global(.is-near) .timeline-dot-ripple {
+    animation: timelineInkRipple 1.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .timeline-entry:global(.is-near) .timeline-dot::after {
+    animation: timelineInkRipple 1.35s cubic-bezier(0.16, 1, 0.3, 1) 0.16s forwards;
+  }
+
+  @keyframes timelineInkRipple {
+    0% {
+      opacity: 0.78;
+      transform: scale(0.6);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(2.85);
+    }
+  }
+
+  /* 书签折页舒展卡片：移除直接 box-shadow 过渡，改用预渲染投影层 + 折痕高光扫掠 */
+  .timeline-card[data-timeline-bookmark] {
+    isolation: isolate;
+    overflow: hidden;
+    box-shadow: 0 4px 16px -3px rgba(0, 0, 0, 0.05) !important;
+    transition:
+      opacity 440ms var(--ease-card),
+      transform 720ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 320ms var(--ease-card),
+      background-color 320ms var(--ease-card) !important;
+  }
+
+  :global([data-theme="rice"]) .timeline-card[data-timeline-bookmark] {
+    background: rgba(247, 240, 226, 0.94);
+    border-color: var(--rule);
+    border-left-color: var(--vermilion);
+    box-shadow: 0 4px 18px -3px rgba(92, 70, 44, 0.1) !important;
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-entry.is-above .timeline-card[data-timeline-bookmark] {
+      transform: perspective(920px) translate3d(0, 18px, 0) rotateX(15deg) rotateZ(-1.15deg) scale(0.955);
+    }
+
+    .timeline-entry.is-below .timeline-card[data-timeline-bookmark] {
+      transform: perspective(920px) translate3d(0, -18px, 0) rotateX(-15deg) rotateZ(1.15deg) scale(0.955);
+    }
+
+    .timeline-entry:global(.is-near) .timeline-card[data-timeline-bookmark] {
+      opacity: 1;
+      transform: perspective(920px) translate3d(0, 0, 0) rotateX(0deg) rotateZ(0deg) scale(1);
+    }
+  }
+
+  .timeline-card-elevation {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+    box-shadow:
+      0 16px 34px -10px rgba(var(--accent-rgb), 0.15),
+      0 6px 16px -4px rgba(0, 0, 0, 0.08);
+    opacity: 0;
+    transition: opacity 380ms var(--ease-card);
+  }
+
+  .timeline-card[data-timeline-bookmark]:hover .timeline-card-elevation,
+  .timeline-card[data-timeline-bookmark]:focus-visible .timeline-card-elevation {
+    opacity: 1;
+  }
+
+  /* 折笺展开时掠过纸面的温润微光折痕 */
+  .timeline-card-crease {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: linear-gradient(
+      112deg,
+      transparent 20%,
+      color-mix(in srgb, var(--vermilion) 7%, transparent) 48%,
+      transparent 76%
+    );
+    transform: translate3d(-110%, 0, 0);
+    transition: transform 860ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .timeline-entry:global(.is-near) .timeline-card-crease {
+    transform: translate3d(110%, 0, 0);
+  }
+
+  .timeline-card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+  }
+
+  .timeline-card-index {
+    font-family: var(--font-hand-title);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    color: var(--vermilion);
+    opacity: 0.72;
+  }
+
+  /* 卷尾朱砂大印微交互 */
+  .timeline-end-seal {
+    transition: transform 460ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 320ms var(--ease);
+  }
+
+  .timeline-end:global(.is-near) .timeline-end-seal {
+    transform: rotate(-3deg) scale(1.06);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .timeline-dot-ripple,
+    .timeline-dot::after,
+    .timeline-card-crease {
+      animation: none !important;
+      display: none !important;
+    }
+    .timeline-card[data-timeline-bookmark] {
+      transition: none !important;
+      transform: none !important;
+    }
+  }
+</style>
+
 <script>
   import gsap from 'gsap';
   import { ScrollTrigger } from 'gsap/ScrollTrigger';
+  import { bindGlobalPaperCardLifecycle } from '../utils/cardMotion';
 
   gsap.registerPlugin(ScrollTrigger);
 
@@ -103,6 +374,8 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
   function initTimeline() {
     const previousCleanup = (window as any)[CLEANUP_KEY];
     if (typeof previousCleanup === 'function') previousCleanup();
+
+    bindGlobalPaperCardLifecycle();
 
     const stage = document.querySelector<HTMLElement>('[data-timeline]');
     const viewport = stage?.querySelector<HTMLElement>('[data-timeline-viewport]');
@@ -115,6 +388,9 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
     const entries = Array.from(track.querySelectorAll<HTMLElement>('[data-timeline-entry]'));
     const yearEl = stage.querySelector<HTMLElement>('[data-timeline-year]');
     const progressEl = stage.querySelector<HTMLElement>('[data-timeline-progress]');
+    const baselineFill = stage.querySelector<HTMLElement>('[data-timeline-baseline-fill]');
+    const brushNib = stage.querySelector<HTMLElement>('[data-timeline-nib]');
+    const mountains = stage.querySelector<SVGElement>('[data-timeline-mountains]');
 
     ScrollTrigger.getAll().forEach((trigger) => {
       if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
@@ -129,7 +405,6 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
         return;
       }
 
-      const baselineFill = stage.querySelector<HTMLElement>('[data-timeline-baseline-fill]');
       let currentMobileYear = yearEl?.textContent?.trim() || '';
 
       const updateMobileYear = (year?: string) => {
@@ -220,7 +495,15 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
       return;
     }
 
-    const distance = () => Math.max(0, track.scrollWidth - viewport.clientWidth);
+    let cachedTrackScrollWidth = track.scrollWidth;
+    let cachedViewportWidth = viewport.clientWidth;
+    const distance = () => {
+      cachedTrackScrollWidth = track.scrollWidth;
+      cachedViewportWidth = viewport.clientWidth;
+      return Math.max(0, cachedTrackScrollWidth - cachedViewportWidth);
+    };
+
+    let smoothedBrushPressure = 1;
 
     // Vertical scroll → horizontal unroll, pinned while it plays
     const unroll = gsap.to(track, {
@@ -236,25 +519,58 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
         scrub: 0.55,
         invalidateOnRefresh: true,
         onUpdate: (self) => {
-          if (progressEl) progressEl.style.transform = `scaleX(${self.progress.toFixed(4)})`;
+          const p = self.progress;
+          if (progressEl) progressEl.style.transform = `scaleX(${p.toFixed(4)})`;
+
+          // 运笔疾徐控制主轴墨线粗细浓淡（快滚飞白纤劲，缓停饱墨丰润）
+          const velMag = Math.min(2600, Math.abs(self.getVelocity()));
+          const targetPressure = 1.38 - (velMag / 2600) * 0.52;
+          smoothedBrushPressure += (targetPressure - smoothedBrushPressure) * 0.22;
+
+          if (baselineFill) {
+            const fillRatio = Math.min(1, Math.max(0.03, p * 0.94 + 0.06));
+            baselineFill.style.transform = `scaleX(${fillRatio.toFixed(4)}) scaleY(${smoothedBrushPressure.toFixed(3)})`;
+          }
+          if (brushNib) {
+            const nibX = Math.min(cachedTrackScrollWidth, (p * 0.94 + 0.06) * cachedTrackScrollWidth);
+            brushNib.style.opacity = p > 0.004 && p < 0.996 ? '0.92' : '0';
+            brushNib.style.transform = `translate3d(${nibX.toFixed(1)}px, 0, 0) scale(${smoothedBrushPressure.toFixed(2)})`;
+          }
+          if (mountains) {
+            const parallaxX = -p * cachedViewportWidth * 0.24;
+            mountains.style.transform = `translate3d(${parallaxX.toFixed(1)}px, 0, 0)`;
+          }
+
           updateYear();
         },
       },
     });
 
-    // Each entry blooms as it crosses the middle of the viewport, and folds back when it leaves
+    // Each entry blooms as it crosses the reading window, and folds back when it leaves
     entries.forEach((entry, index) => {
       ScrollTrigger.create({
         id: `${TRIGGER_PREFIX}entry-${index}`,
         trigger: entry,
         containerAnimation: unroll,
-        start: 'left 82%',
-        end: 'right 12%',
+        start: 'left 84%',
+        end: 'right 10%',
         toggleClass: { targets: entry, className: 'is-near' },
       });
     });
 
-    // Big year in the corner follows whichever entry sits nearest the viewport centre.
+    const endSeal = track.querySelector<HTMLElement>('.timeline-end');
+    if (endSeal) {
+      ScrollTrigger.create({
+        id: `${TRIGGER_PREFIX}end-seal`,
+        trigger: endSeal,
+        containerAnimation: unroll,
+        start: 'left 88%',
+        end: 'right 5%',
+        toggleClass: { targets: endSeal, className: 'is-near' },
+      });
+    }
+
+    // Big year watermark follows whichever entry sits nearest the viewport centre.
     // Positions are cached relative to track to eliminate getBoundingClientRect layout reads during scrub.
     let currentYear = yearEl?.textContent?.trim() || '';
     let entryPositions = entries.map((entry) => ({
@@ -263,17 +579,19 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
     }));
 
     function cachePositions() {
+      cachedTrackScrollWidth = track!.scrollWidth;
+      cachedViewportWidth = viewport!.clientWidth;
       entryPositions = entries.map((entry) => ({
         pos: entry.offsetLeft + entry.clientWidth / 2,
         year: entry.dataset.year || '',
       }));
     }
-    window.addEventListener('resize', cachePositions, { passive: true });
+    window.addEventListener('resize', cachePositions, { passive: true, signal });
 
     function updateYear() {
       if (!yearEl || !entryPositions.length) return;
       const currentX = (gsap.getProperty(track, 'x') as number) || 0;
-      const targetPos = -currentX + viewport.clientWidth / 2;
+      const targetPos = -currentX + cachedViewportWidth / 2;
 
       let bestYear = entryPositions[0].year;
       let bestDist = Infinity;
@@ -293,62 +611,111 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
       });
     }
 
-    // Drag to unroll — pointer delta maps 1:1 onto the pinned scroll range, with a flick on release
+    // Drag to unroll — EWMA smoothed velocity + inertia fallback when Lenis is absent
     let dragging = false;
     let lastX = 0;
     let lastT = 0;
     let velocity = 0;
+    let inertiaTween: gsap.core.Tween | null = null;
+    const fallbackScrollState = { y: 0 };
+
     viewport.addEventListener('pointerdown', (event) => {
       if (event.button !== 0) return;
       if ((event.target as Element).closest('a')) return;
+      inertiaTween?.kill();
+      inertiaTween = null;
       dragging = true;
       lastX = event.clientX;
       lastT = performance.now();
       velocity = 0;
       stage.classList.add('is-dragging');
-      viewport.setPointerCapture(event.pointerId);
+      try { viewport.setPointerCapture(event.pointerId); } catch {}
     }, { signal });
+
     viewport.addEventListener('pointermove', (event) => {
       if (!dragging) return;
       const dx = event.clientX - lastX;
       const now = performance.now();
-      velocity = dx / Math.max(1, now - lastT);
+      const dtMs = Math.max(4, now - lastT);
+      const instVel = dx / dtMs;
+      velocity = velocity * 0.35 + instVel * 0.65;
       lastX = event.clientX;
       lastT = now;
-      const target = window.scrollY - dx;
-      if (window.lenis) window.lenis.scrollTo(target, { immediate: true });
+      const target = Math.max(0, window.scrollY - dx);
+      if ((window as any).lenis) (window as any).lenis.scrollTo(target, { immediate: true });
       else window.scrollTo(0, target);
     }, { signal });
+
     const endDrag = () => {
       if (!dragging) return;
       dragging = false;
       stage.classList.remove('is-dragging');
-      const flick = -velocity * 260;
-      if (Math.abs(flick) > 20 && window.lenis) window.lenis.scrollTo(window.scrollY + flick, { duration: 1.1 });
+      // 若松手前已静置超过 85ms 则抑制余速，避免停顿后误甩
+      if (performance.now() - lastT > 85) return;
+      const flick = gsap.utils.clamp(-1400, 1400, -velocity * 260);
+      if (Math.abs(flick) <= 20) return;
+      const destY = Math.max(0, window.scrollY + flick);
+      if ((window as any).lenis) {
+        (window as any).lenis.scrollTo(destY, { duration: 1.1 });
+      } else {
+        fallbackScrollState.y = window.scrollY;
+        inertiaTween = gsap.to(fallbackScrollState, {
+          y: destY,
+          duration: 0.95,
+          ease: 'expo.out',
+          onUpdate: () => window.scrollTo(0, fallbackScrollState.y),
+        });
+      }
     };
     viewport.addEventListener('pointerup', endDrag, { signal });
     viewport.addEventListener('pointercancel', endDrag, { signal });
 
-    // Fonts / images can change the track width after first layout. A refresh mid-scroll
-    // re-measures the pin and reads as a hitch, so only refresh when the width really changed,
-    // debounced, and never while a drag is in flight.
+    // Support natural horizontal two-finger trackpad swipe while stage is pinned
+    viewport.addEventListener(
+      'wheel',
+      (event: WheelEvent) => {
+        const st = unroll.scrollTrigger;
+        if (!st || !st.isActive) return;
+        if (Math.abs(event.deltaX) <= Math.abs(event.deltaY) * 1.15) return;
+        event.preventDefault();
+        const nextY = Math.max(0, window.scrollY + event.deltaX);
+        if ((window as any).lenis) (window as any).lenis.scrollTo(nextY, { immediate: true });
+        else window.scrollTo(0, nextY);
+      },
+      { passive: false, signal },
+    );
+
+    // Fonts / images can change the track width after first layout.
     let lastTrackWidth = track.scrollWidth;
     let refreshTimer = 0;
     const ro = new ResizeObserver(() => {
       if (Math.abs(track.scrollWidth - lastTrackWidth) < 2) return;
       lastTrackWidth = track.scrollWidth;
       window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => { if (!dragging) ScrollTrigger.refresh(); }, 160);
+      refreshTimer = window.setTimeout(() => {
+        if (!dragging) {
+          cachePositions();
+          ScrollTrigger.refresh();
+        }
+      }, 160);
     });
     ro.observe(track);
-    signal.addEventListener('abort', () => { ro.disconnect(); window.clearTimeout(refreshTimer); });
+    signal.addEventListener('abort', () => {
+      ro.disconnect();
+      window.clearTimeout(refreshTimer);
+    });
 
     (window as any)[CLEANUP_KEY] = () => {
       controller.abort();
+      inertiaTween?.kill();
+      inertiaTween = null;
       ScrollTrigger.getAll().forEach((trigger) => {
         if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
       });
       gsap.set(track, { clearProps: 'transform' });
+      if (mountains) mountains.style.transform = '';
+      if (baselineFill) baselineFill.style.transform = '';
+      if (brushNib) brushNib.style.opacity = '0';
       (window as any)[CLEANUP_KEY] = undefined;
     };
   }
@@ -357,6 +724,9 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
 
   if (!(window as any)[LISTENER_KEY]) {
     document.addEventListener('astro:page-load', initTimeline);
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+    });
     (window as any)[LISTENER_KEY] = true;
   }
 </script>

@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
-import Footer from '../components/Footer.astro';
 import { getCollection } from 'astro:content';
 import { formatDate, sortPostsByDate } from '../utils/date';
 import { categoryStats } from '../utils/posts';
@@ -70,7 +69,9 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
     {categories.length > 1 && (
       <div class="archive-filter-bar" data-archive-filters data-enter="bottom">
         <span class="archive-filter-label">分类</span>
-        <div class="archive-filter-chips">
+        <div class="archive-filter-chips" data-archive-chips>
+          <span class="archive-ink-whisper" data-archive-ink-whisper aria-hidden="true"></span>
+          <span class="archive-ink-pill" data-archive-ink-pill aria-hidden="true"></span>
           <button type="button" class="archive-filter is-active" data-filter="all">
             <span>全部</span><i>{posts.length}</i>
           </button>
@@ -84,16 +85,16 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
     )}
 
     <div class="mt-16 space-y-16" data-archive-list>
-      {years.map((year, yearIndex) => (
+      {years.map((year) => (
         <section
-          class="grid gap-8 lg:grid-cols-[140px_minmax(0,1fr)] lg:gap-14"
+          class="archive-year-section grid gap-8 lg:grid-cols-[140px_minmax(0,1fr)] lg:gap-14"
           data-archive-year
         >
-          <div class="panel lg:sticky lg:top-24 lg:self-start" data-enter="left">
+          <div class="archive-year-rail panel lg:sticky lg:top-24 lg:self-start" data-enter="left">
             <p class="font-mono text-[0.7rem] tracking-[0.16em] uppercase text-[var(--muted)]">
               Year
             </p>
-            <p class="font-display mt-3 text-[3rem] leading-none text-[var(--text-strong)]">
+            <p class="archive-year-num font-display mt-3 text-[3rem] leading-none text-[var(--text-strong)]">
               {year}
             </p>
             <p class="mt-3 font-mono text-[0.72rem] tracking-[0.08em] text-[var(--muted)]" data-year-count>
@@ -103,13 +104,13 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
           <div class="panel">
             <ul class="space-y-0">
               {postsByYear[Number(year)].map((post: typeof posts[number]) => (
-                <li data-enter="ink" data-category={post.data.category}>
-                  <a href={`/posts/${post.id}`} class="timeline-link group">
-                    <time class="mt-0.5 w-24 shrink-0 font-mono text-[0.72rem] tracking-[0.06em] text-[var(--muted)]">
+                <li class="archive-entry-row" data-enter="ink" data-category={post.data.category}>
+                  <a href={`/posts/${post.id}`} class="timeline-link archive-ink-row group">
+                    <time class="archive-row-date mt-0.5 w-24 shrink-0 font-mono text-[0.72rem] tracking-[0.06em] text-[var(--muted)]">
                       {formatDate(post.data.pubDate)}
                     </time>
                     <div class="min-w-0 flex-1">
-                      <h3 class="font-display text-[1.15rem] leading-snug text-[var(--text-strong)] transition duration-300 group-hover:text-[var(--accent)]">
+                      <h3 class="font-display text-[1.15rem] leading-snug text-[var(--text-strong)] transition-colors duration-300 group-hover:text-[var(--accent)]">
                         {post.data.title}
                         {post.data.locked && <span class="lock-mark ml-3 align-middle">Locked</span>}
                       </h3>
@@ -122,6 +123,7 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
                         </p>
                       )}
                     </div>
+                    <span class="archive-row-arrow" aria-hidden="true">→</span>
                   </a>
                 </li>
               ))}
@@ -131,8 +133,153 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
       ))}
     </div>
   </main>
-
 </BaseLayout>
+
+<style>
+  /* 归档统计胶囊游标：纯 GPU translate3d + scaleX 驱动，消除 width 重排 */
+  [data-archive-stats-strip] [data-archive-stats-glider] {
+    width: 100px !important;
+    left: 0 !important;
+    transform-origin: left center !important;
+    transition:
+      transform 380ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 240ms var(--ease) !important;
+    will-change: transform, opacity;
+  }
+
+  /* 归档分类游走式「水墨底衬游标（Sliding Ink Pill）」 */
+  .archive-filter-chips {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .archive-ink-pill,
+  .archive-ink-whisper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100px;
+    height: 36px;
+    border-radius: 4px;
+    transform-origin: 0 0;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+
+  .archive-ink-pill {
+    z-index: 0;
+    opacity: 0;
+    background:
+      radial-gradient(circle at 20% 50%, color-mix(in srgb, var(--vermilion) 24%, var(--ink-strong)) 0%, var(--ink-strong) 80%);
+    transition:
+      transform 430ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 220ms var(--ease);
+  }
+
+  .archive-ink-pill.is-instant {
+    transition: none !important;
+  }
+
+  .archive-ink-whisper {
+    z-index: 0;
+    opacity: 0;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    transition:
+      transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 180ms var(--ease);
+  }
+
+  /* 游标就位后隐藏单按钮静态 ::before 填充，改由全局水墨游标丝滑游走灌注 */
+  .archive-filter-chips[data-pill-ready="true"] .archive-filter {
+    z-index: 1;
+  }
+
+  .archive-filter-chips[data-pill-ready="true"] .archive-filter::before {
+    transform: scaleX(0) !important;
+    opacity: 0 !important;
+  }
+
+  /* 归档目录行：悬停朱砂落点与行书引线反馈 */
+  .archive-ink-row {
+    position: relative;
+  }
+
+  .archive-ink-row::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 2.5rem;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--vermilion) 0%, var(--accent) 45%, transparent 100%);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0.72;
+    pointer-events: none;
+    transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .archive-ink-row:hover::after,
+  .archive-ink-row:focus-visible::after {
+    transform: scaleX(1);
+  }
+
+  .archive-row-date {
+    position: relative;
+    padding-left: 0.85rem;
+    transition: color 260ms var(--ease);
+  }
+
+  .archive-row-date::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.52em;
+    width: 0.36rem;
+    height: 0.36rem;
+    background: var(--rule-strong);
+    transform: rotate(45deg) scale(0.82);
+    transition: background-color 260ms var(--ease), transform 340ms var(--ease-bounce);
+  }
+
+  .archive-ink-row:hover .archive-row-date {
+    color: var(--text-strong);
+  }
+
+  .archive-ink-row:hover .archive-row-date::before,
+  .archive-ink-row:focus-visible .archive-row-date::before {
+    background: var(--vermilion);
+    transform: rotate(45deg) scale(1.25);
+  }
+
+  .archive-row-arrow {
+    align-self: center;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--accent);
+    opacity: 0;
+    transform: translate3d(-6px, 0, 0);
+    transition: opacity 260ms var(--ease), transform 320ms var(--ease-bounce);
+  }
+
+  .archive-ink-row:hover .archive-row-arrow,
+  .archive-ink-row:focus-visible .archive-row-arrow {
+    opacity: 0.88;
+    transform: translate3d(2px, 0, 0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-archive-stats-strip] [data-archive-stats-glider],
+    .archive-ink-pill,
+    .archive-ink-whisper,
+    .archive-ink-row::after,
+    .archive-row-date::before,
+    .archive-row-arrow {
+      transition: none !important;
+      transform: none !important;
+    }
+  }
+</style>
 
 <script>
   import gsap from 'gsap';
@@ -140,74 +287,132 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
   import CustomEase from 'gsap/CustomEase';
 
   gsap.registerPlugin(ScrollTrigger, CustomEase);
-  // The same curve BaseLayout's entrance rides — fast in, long settle. Re-declared here because
-  // this script can be evaluated before the layout's, and CustomEase names are global.
+  // The same curve BaseLayout's entrance rides — fast in, long settle.
   CustomEase.create('enter', 'M0,0 C0.06,0.62 0.16,0.9 0.42,0.975 0.62,1.005 0.8,1 1,1');
 
-  // Category filter. Departing rows dry up in place — the ink contracts back into the date it
-  // spread from — while their height collapses, so the survivors close over them continuously
-  // and nothing has to be FLIPped. Arrivals expand back open with the same ink spread
-  // [data-enter="ink"] uses. A whole year that empties out collapses as one block instead of
-  // having its rows animate inside a box that then vanishes.
   const CLEANUP_KEY = '__areSetArchiveFilterCleanup__';
   const LISTENER_KEY = '__areSetArchiveFilterBound__';
+  const GLIDER_CLEANUP_KEY = '__areSetArchiveGliderCleanup__';
 
-  const EXIT_CLIP = 0.44;       // ink contracting to nothing
-  const EXIT_COLLAPSE = 0.52;   // the gap closing behind it
-  const EXIT_STAGGER = 0.028;
-  const ARRIVE_AT = 0.3;        // arrivals overlap the tail of the departures
-  const ARRIVE_EXPAND = 0.56;
-  const ARRIVE_CLIP = 0.95;
-  const ARRIVE_STAGGER = 0.055;
-  const SECTION_MOVE = 0.66;
+  const EXIT_CLIP = 0.42;       // ink contracting back into the date origin
+  const EXIT_COLLAPSE = 0.5;    // row height closing smoothly behind it
+  const EXIT_STAGGER = 0.026;
+  const ARRIVE_AT = 0.26;       // arrivals overlap the tail of departures
+  const ARRIVE_EXPAND = 0.54;
+  const ARRIVE_CLIP = 0.88;
+  const ARRIVE_STAGGER = 0.048;
+  const SECTION_MOVE = 0.62;
+  const ROW_PROPS = 'height,overflow,clipPath,opacity,transform,willChange';
+  const SECTION_PROPS = 'height,marginTop,marginBottom,overflow,opacity,willChange';
 
-  /** Where the row's ink spreads from: the date on its leading edge. Mirrors BaseLayout. */
-  function inkOrigin(el: HTMLElement) {
-    const seed = el.querySelector('time') || el;
+  /** Batch-friendly geometry measurement using sub-pixel getBoundingClientRect() to guarantee 0.00px cumulative height drift. */
+  function measureRowGeometry(el: HTMLElement) {
     const rowRect = el.getBoundingClientRect();
-    const seedRect = seed.getBoundingClientRect();
+    const seed = el.querySelector('time') || el;
+    const seedRect = seed === el ? rowRect : seed.getBoundingClientRect();
     const x = seedRect.left - rowRect.left + Math.min(seedRect.width, 40) / 2;
     const y = seedRect.top - rowRect.top + seedRect.height / 2;
-    return `${Math.round(x)}px ${Math.round(y)}px`;
+    return {
+      height: rowRect.height,
+      origin: `${Math.round(x)}px ${Math.round(y)}px`,
+      radius: Math.ceil(Math.hypot(rowRect.width, rowRect.height)),
+    };
   }
 
-  function inkRadius(el: HTMLElement) {
-    return Math.ceil(Math.hypot(el.offsetWidth, el.offsetHeight));
-  }
-
-  /** Sub-pixel height. offsetHeight rounds, and rounding 9 rows up visibly grows the list. */
-  function exactHeight(el: HTMLElement) {
-    return el.getBoundingClientRect().height;
-  }
-
-  /** A year block's footprint. Tailwind's space-y puts the gap on margin-bottom, so take both. */
   function sectionBox(section: HTMLElement) {
+    const rect = section.getBoundingClientRect();
     const style = getComputedStyle(section);
     return {
       section,
-      height: exactHeight(section),
+      height: rect.height,
       marginTop: Number.parseFloat(style.marginTop) || 0,
       marginBottom: Number.parseFloat(style.marginBottom) || 0,
     };
   }
-  const SECTION_PROPS = 'height,marginTop,marginBottom,overflow,opacity';
 
-  /** Hand the row back to the stylesheet, and tell BaseLayout's scroll replay to leave it be. */
   function settle(el: HTMLElement) {
     gsap.killTweensOf(el);
-    el.classList.remove('is-entering');
+    el.classList.remove('is-entering', 'is-filtered-out');
     el.classList.add('is-entered');
     el.dataset.enterState = 'in';
-    gsap.set(el, { clearProps: 'height,overflow,clipPath,opacity,transform' });
+    delete el.dataset.filterMotion;
+    gsap.set(el, { clearProps: ROW_PROPS });
   }
 
   function entryLabel(count: number) {
     return `${count} ${count > 1 ? 'entries' : 'entry'}`;
   }
 
+  function initArchiveStatsGlider() {
+    const prev = (window as any)[GLIDER_CLEANUP_KEY];
+    if (typeof prev === 'function') prev();
+
+    const strip = document.querySelector<HTMLElement>('[data-archive-stats-strip]');
+    const glider = document.querySelector<HTMLElement>('[data-archive-stats-glider]');
+    if (!strip || !glider) return;
+
+    const items = Array.from(strip.querySelectorAll<HTMLElement>('[data-stats-item]'));
+    if (items.length === 0) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    let metrics = items.map((item) => ({
+      left: item.offsetLeft,
+      width: Math.max(1, item.offsetWidth),
+    }));
+
+    const refreshMetrics = () => {
+      metrics = items.map((item) => ({
+        left: item.offsetLeft,
+        width: Math.max(1, item.offsetWidth),
+      }));
+    };
+
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(refreshMetrics) : null;
+    ro?.observe(strip);
+
+    const moveGlider = (idx: number) => {
+      const m = metrics[idx];
+      if (!m) return;
+      glider.style.opacity = '1';
+      glider.style.transform = `translate3d(${m.left.toFixed(1)}px, 0, 0) scaleX(${(m.width / 100).toFixed(4)})`;
+    };
+
+    const hideGlider = () => {
+      glider.style.opacity = '0';
+    };
+
+    items.forEach((item, idx) => {
+      item.addEventListener('pointerenter', () => moveGlider(idx), { signal });
+      item.addEventListener('focus', () => moveGlider(idx), { signal });
+      item.addEventListener(
+        'click',
+        () => {
+          const rect = item.getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+        },
+        { signal },
+      );
+    });
+
+    strip.addEventListener('pointerleave', hideGlider, { signal });
+    strip.addEventListener('focusout', (e: FocusEvent) => {
+      if (!strip.contains(e.relatedTarget as Node)) hideGlider();
+    }, { signal });
+
+    (window as any)[GLIDER_CLEANUP_KEY] = () => {
+      controller.abort();
+      ro?.disconnect();
+      (window as any)[GLIDER_CLEANUP_KEY] = undefined;
+    };
+  }
+
   function initArchiveFilter() {
     const previousCleanup = (window as any)[CLEANUP_KEY];
     if (typeof previousCleanup === 'function') previousCleanup();
+
+    initArchiveStatsGlider();
 
     const bar = document.querySelector<HTMLElement>('[data-archive-filters]');
     const list = document.querySelector<HTMLElement>('[data-archive-list]');
@@ -216,14 +421,91 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
     const controller = new AbortController();
     const { signal } = controller;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const chipsWrap = bar.querySelector<HTMLElement>('[data-archive-chips]');
+    const inkPill = bar.querySelector<HTMLElement>('[data-archive-ink-pill]');
+    const inkWhisper = bar.querySelector<HTMLElement>('[data-archive-ink-whisper]');
     const buttons = Array.from(bar.querySelectorAll<HTMLElement>('[data-filter]'));
     const items = Array.from(list.querySelectorAll<HTMLElement>('[data-category]'));
     const sections = Array.from(list.querySelectorAll<HTMLElement>('[data-archive-year]'));
     const sectionRows = new Map(
       sections.map((section) => [section, Array.from(section.querySelectorAll<HTMLElement>('[data-category]'))]),
     );
+    const activeCounters: object[] = [];
     let active = 'all';
     let timeline: gsap.core.Timeline | null = null;
+
+    // ---------- Sliding Ink Pill metrics (cached on init & ResizeObserver) ----------
+    let chipMetrics = buttons.map((btn) => ({
+      x: btn.offsetLeft,
+      y: btn.offsetTop,
+      w: Math.max(1, btn.offsetWidth),
+      h: Math.max(1, btn.offsetHeight),
+    }));
+
+    const measureChips = () => {
+      chipMetrics = buttons.map((btn) => ({
+        x: btn.offsetLeft,
+        y: btn.offsetTop,
+        w: Math.max(1, btn.offsetWidth),
+        h: Math.max(1, btn.offsetHeight),
+      }));
+    };
+
+    const setBoxTransform = (el: HTMLElement, m: { x: number; y: number; w: number; h: number }) => {
+      el.style.transform = `translate3d(${m.x.toFixed(1)}px, ${m.y.toFixed(1)}px, 0px) scale(${(m.w / 100).toFixed(4)}, ${(m.h / 36).toFixed(4)})`;
+    };
+
+    const syncInkPill = (filterName: string, animate: boolean) => {
+      if (!inkPill || !chipsWrap) return;
+      const idx = buttons.findIndex((b) => b.dataset.filter === filterName);
+      const m = chipMetrics[idx];
+      if (!m) return;
+      chipsWrap.dataset.pillReady = 'true';
+      if (!animate || reduceMotion) {
+        inkPill.classList.add('is-instant');
+        setBoxTransform(inkPill, m);
+        inkPill.style.opacity = '1';
+        requestAnimationFrame(() => inkPill.classList.remove('is-instant'));
+      } else {
+        inkPill.style.opacity = '1';
+        setBoxTransform(inkPill, m);
+      }
+      if (inkWhisper) inkWhisper.style.opacity = '0';
+    };
+
+    measureChips();
+    syncInkPill(active, false);
+
+    const chipRo = typeof ResizeObserver !== 'undefined' && chipsWrap
+      ? new ResizeObserver(() => {
+          measureChips();
+          syncInkPill(active, false);
+        })
+      : null;
+    if (chipsWrap && chipRo) chipRo.observe(chipsWrap);
+
+    document.fonts?.ready.then(() => {
+      if (signal.aborted) return;
+      measureChips();
+      syncInkPill(active, false);
+    });
+
+    buttons.forEach((btn, idx) => {
+      btn.addEventListener('pointerenter', () => {
+        if (!inkWhisper || btn.classList.contains('is-active')) {
+          if (inkWhisper) inkWhisper.style.opacity = '0';
+          return;
+        }
+        const m = chipMetrics[idx];
+        if (!m) return;
+        setBoxTransform(inkWhisper, m);
+        inkWhisper.style.opacity = '1';
+      }, { signal });
+    });
+
+    chipsWrap?.addEventListener('pointerleave', () => {
+      if (inkWhisper) inkWhisper.style.opacity = '0';
+    }, { signal });
 
     function writeUrl(next: string) {
       const url = new URL(window.location.href);
@@ -238,34 +520,67 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
       const from = Number.parseInt(el.textContent ?? '', 10);
       if (!Number.isFinite(from) || from === to) { el.textContent = entryLabel(to); return; }
       const counter = { value: from };
+      activeCounters.push(counter);
       tl.to(counter, {
         value: to,
-        duration: 0.55,
+        duration: 0.52,
         ease: 'power2.out',
         onUpdate: () => { el.textContent = entryLabel(Math.max(0, Math.round(counter.value))); },
         onComplete: () => { el.textContent = entryLabel(to); },
       }, at);
     }
 
+    function killActiveTimelineAndCommitSnapshot() {
+      if (!timeline) return null;
+
+      // 阶段 1：在清除任何内联样式前，一次性只读捕获半途被打断时的真实可见态，杜绝连点残影或瞬移闪烁
+      const midRowVisible = new Map<HTMLElement, boolean>();
+      items.forEach((el) => {
+        if (el.classList.contains('is-filtered-out')) {
+          midRowVisible.set(el, false);
+          return;
+        }
+        const rect = el.getBoundingClientRect();
+        const op = Number.parseFloat(getComputedStyle(el).opacity);
+        // 若正处于收干退场且高度已收缩过半或透明度极低，视为已退场；否则视为仍在场
+        const stillShown = rect.height > 6 && (Number.isNaN(op) || op > 0.14);
+        midRowVisible.set(el, stillShown);
+      });
+
+      timeline.kill();
+      timeline = null;
+      activeCounters.forEach((c) => gsap.killTweensOf(c));
+      activeCounters.length = 0;
+
+      // 阶段 2：统一批量还原干净样式与确定性类名，0 累积高度误差
+      items.forEach((el) => {
+        const shown = Boolean(midRowVisible.get(el));
+        gsap.killTweensOf(el);
+        delete el.dataset.filterMotion;
+        el.classList.toggle('is-filtered-out', !shown);
+        gsap.set(el, { clearProps: ROW_PROPS });
+        if (shown) settle(el);
+      });
+
+      sections.forEach((section) => {
+        gsap.killTweensOf(section);
+        const rows = sectionRows.get(section) ?? [];
+        const hasVisible = rows.some((r) => !r.classList.contains('is-filtered-out'));
+        section.classList.toggle('is-empty', !hasVisible);
+        gsap.set(section, { clearProps: SECTION_PROPS });
+      });
+
+      return midRowVisible;
+    }
+
     function apply(next: string, animate = true) {
       if (!items.length) return;
       active = next;
       buttons.forEach((button) => button.classList.toggle('is-active', button.dataset.filter === next));
+      syncInkPill(next, animate);
       writeUrl(next);
 
-      // A click mid-transition: stop the previous choreography and put the list back into a
-      // plain state before planning. Rows half-way through leaving are still on show, rows
-      // half-way through arriving already are — the plan below reads the classes, and the
-      // inline heights, clips and margins the dead timeline left behind must not survive it.
-      if (timeline) {
-        timeline.kill();
-        timeline = null;
-        items.forEach((el) => {
-          gsap.set(el, { clearProps: 'height,overflow,clipPath,opacity,transform' });
-          if (!el.classList.contains('is-filtered-out')) settle(el);
-        });
-        sections.forEach((section) => gsap.set(section, { clearProps: SECTION_PROPS }));
-      }
+      killActiveTimelineAndCommitSnapshot();
 
       const keep = (el: HTMLElement) => next === 'all' || el.dataset.category === next;
 
@@ -274,10 +589,12 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
           const hide = !keep(el);
           const wasHidden = el.classList.contains('is-filtered-out');
           el.classList.toggle('is-filtered-out', hide);
-          if (hide) gsap.set(el, { clearProps: 'height,overflow,clipPath,opacity,transform' });
-          // Only a row the filter just revealed needs rescuing from the scroll-reveal's hidden
-          // state; rows that were already on show belong to BaseLayout's choreography
-          else if (wasHidden) settle(el);
+          if (hide) {
+            delete el.dataset.filterMotion;
+            gsap.set(el, { clearProps: ROW_PROPS });
+          } else if (wasHidden) {
+            settle(el);
+          }
         });
         sections.forEach((section) => {
           const visible = (sectionRows.get(section) ?? []).filter(keep).length;
@@ -290,7 +607,7 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
         return;
       }
 
-      // ---------- Read the world as it stands, before anything moves ----------
+      // ---------- 阶段 A：集中只读测量退场项与即将清空的年份块（无任何穿插写入） ----------
       const hiddenNow = new Map(items.map((el) => [el, el.classList.contains('is-filtered-out')]));
       const leaving = items.filter((el) => !hiddenNow.get(el) && !keep(el));
       const arriving = items.filter((el) => hiddenNow.get(el) && keep(el));
@@ -300,7 +617,7 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
         return {
           section,
           visibleNext: rows.filter(keep).length,
-          wasEmpty: rows.every((el) => hiddenNow.get(el)),
+          wasEmpty: section.classList.contains('is-empty') || rows.every((el) => hiddenNow.get(el)),
           willBeEmpty: !rows.some(keep),
         };
       });
@@ -308,66 +625,89 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
       const opening = plan.filter((p) => p.wasEmpty && !p.willBeEmpty);
       const closingSections = new Set(closing.map((p) => p.section));
       const openingSections = new Set(opening.map((p) => p.section));
-      const inClosingSection = (el: HTMLElement) => !!el.closest('[data-archive-year]') && closingSections.has(el.closest('[data-archive-year]')!);
-      const inOpeningSection = (el: HTMLElement) => !!el.closest('[data-archive-year]') && openingSections.has(el.closest('[data-archive-year]')!);
+      const inClosingSection = (el: HTMLElement) => {
+        const sec = el.closest<HTMLElement>('[data-archive-year]');
+        return Boolean(sec && closingSections.has(sec));
+      };
+      const inOpeningSection = (el: HTMLElement) => {
+        const sec = el.closest<HTMLElement>('[data-archive-year]');
+        return Boolean(sec && openingSections.has(sec));
+      };
 
-      const exits = leaving.map((el) => ({
-        el,
-        height: exactHeight(el),
-        origin: inkOrigin(el),
-        radius: inkRadius(el),
-        collapse: !inClosingSection(el),
-        onScreen:
-          el.dataset.enterState === 'in' ||
-          el.classList.contains('is-entered') ||
-          el.classList.contains('is-entering') ||
-          !document.documentElement.classList.contains('js-enter'),
-      }));
+      const exits = leaving.map((el) => {
+        const geo = measureRowGeometry(el);
+        return {
+          el,
+          ...geo,
+          collapse: !inClosingSection(el),
+          onScreen:
+            el.dataset.enterState === 'in' ||
+            el.classList.contains('is-entered') ||
+            el.classList.contains('is-entering') ||
+            !document.documentElement.classList.contains('js-enter'),
+        };
+      });
       const closingMetrics = closing.map((p) => sectionBox(p.section));
 
-      // ---------- Open the arrivals just long enough to measure them, then fold them shut ----------
-      // All of this happens inside one task, so the browser never paints the expanded state.
+      // ---------- 阶段 B：在同一微任务内批量展开进场项 → 集中只读量高 → 批量折回起点 ----------
       opening.forEach((p) => p.section.classList.remove('is-empty'));
       arriving.forEach((el) => {
         el.classList.remove('is-filtered-out');
-        gsap.set(el, { clearProps: 'height,overflow,clipPath,opacity,transform' });
+        gsap.set(el, { clearProps: ROW_PROPS });
       });
-      const entrances = arriving.map((el) => ({
-        el,
-        height: exactHeight(el),
-        origin: inkOrigin(el),
-        radius: inkRadius(el),
-        expand: !inOpeningSection(el),
-      }));
+
+      const entrances = arriving.map((el) => {
+        const geo = measureRowGeometry(el);
+        return {
+          el,
+          ...geo,
+          expand: !inOpeningSection(el),
+        };
+      });
       const openingMetrics = opening.map((p) => sectionBox(p.section));
 
       entrances.forEach(({ el, origin, expand }) => {
         el.dataset.enterState = 'in';
+        el.dataset.filterMotion = 'arriving';
         el.classList.remove('is-entering');
         el.classList.add('is-entered');
         gsap.set(el, {
           opacity: 0,
           x: -8,
+          willChange: 'clip-path, opacity, transform, height',
           clipPath: `circle(0px at ${origin})`,
           ...(expand ? { height: 0, overflow: 'hidden' } : {}),
         });
       });
       openingMetrics.forEach(({ section }) => {
-        gsap.set(section, { height: 0, marginTop: 0, marginBottom: 0, overflow: 'hidden', opacity: 0 });
+        gsap.set(section, {
+          height: 0,
+          marginTop: 0,
+          marginBottom: 0,
+          overflow: 'hidden',
+          opacity: 0,
+          willChange: 'height, opacity',
+        });
       });
 
-      // Rows that merely shift position are left alone: their neighbours' heights are animated,
-      // so the reflow carries them along for free. Survivors still parked off-screen keep
-      // BaseLayout's hidden state and play their own entrance when the refresh below reaches them.
-
-      // ---------- Choreograph ----------
+      // ---------- 阶段 C：构建墨迹收干与晕染渗开时间线 ----------
       const tl = gsap.timeline({
         onComplete: () => {
           items.forEach((el) => {
-            if (el.classList.contains('is-filtered-out')) gsap.set(el, { clearProps: 'height,overflow,clipPath,opacity,transform' });
+            delete el.dataset.filterMotion;
+            if (el.classList.contains('is-filtered-out')) {
+              gsap.set(el, { clearProps: ROW_PROPS });
+            } else if (!keep(el)) {
+              el.classList.add('is-filtered-out');
+              gsap.set(el, { clearProps: ROW_PROPS });
+            }
           });
-          sections.forEach((section) => gsap.set(section, { clearProps: SECTION_PROPS }));
-          // Layout is final at last — re-measure the scroll triggers and the smooth-scroll bounds
+          sections.forEach((section) => {
+            const visible = (sectionRows.get(section) ?? []).filter(keep).length;
+            section.classList.toggle('is-empty', visible === 0);
+            gsap.set(section, { clearProps: SECTION_PROPS });
+          });
+          activeCounters.length = 0;
           ScrollTrigger.refresh();
           try { (window as any).lenis?.resize(); } catch {}
           timeline = null;
@@ -375,11 +715,9 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
       });
       timeline = tl;
 
-      // Departures: seed an explicit starting circle(radius at origin) before shrinking to 0px
-      // (settled rows have clip-path: none, which otherwise snaps straight to 0px on frame 1),
-      // paired with a gentle leftward drift + opacity fade, then collapse the row height.
       let visibleExitIndex = 0;
       exits.forEach(({ el, height, origin, radius, collapse, onScreen }) => {
+        el.dataset.filterMotion = 'leaving';
         const at = onScreen ? visibleExitIndex++ * EXIT_STAGGER : 0;
         if (onScreen) {
           gsap.killTweensOf(el);
@@ -389,6 +727,7 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
               clipPath: `circle(${radius}px at ${origin})`,
               opacity: 1,
               x: 0,
+              willChange: 'clip-path, opacity, transform, height',
             },
             {
               clipPath: `circle(0px at ${origin})`,
@@ -406,14 +745,17 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
           height: 0,
           duration: EXIT_COLLAPSE,
           ease: 'enter',
-          onComplete: () => { el.classList.add('is-filtered-out'); },
-        }, at + (onScreen ? 0.12 : 0));
+          onComplete: () => {
+            el.classList.add('is-filtered-out');
+            delete el.dataset.filterMotion;
+            gsap.set(el, { clearProps: ROW_PROPS });
+          },
+        }, at + (onScreen ? 0.1 : 0));
       });
 
-      // Whole years that empty out collapse as one block
       closingMetrics.forEach(({ section, height, marginTop, marginBottom }, index) => {
         const at = index * 0.05;
-        tl.set(section, { height, marginTop, marginBottom, overflow: 'hidden' }, at);
+        tl.set(section, { height, marginTop, marginBottom, overflow: 'hidden', willChange: 'height, opacity' }, at);
         tl.to(section, {
           height: 0,
           marginTop: 0,
@@ -422,17 +764,18 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
           duration: SECTION_MOVE,
           ease: 'enter',
           onComplete: () => { section.classList.add('is-empty'); },
-        }, at + 0.16);
+        }, at + 0.14);
       });
 
-      // Rows inside a collapsing year only need the ink to leave; the block takes the space
       exits.filter((exit) => !exit.collapse).forEach(({ el }) => {
-        tl.call(() => { el.classList.add('is-filtered-out'); }, undefined, EXIT_CLIP + 0.3);
+        tl.call(() => {
+          el.classList.add('is-filtered-out');
+          delete el.dataset.filterMotion;
+        }, undefined, EXIT_CLIP + 0.26);
       });
 
-      // Years coming back open first, so their rows have a box to seep into
       openingMetrics.forEach(({ section, height, marginTop, marginBottom }, index) => {
-        const at = ARRIVE_AT + index * 0.06;
+        const at = ARRIVE_AT + index * 0.055;
         tl.to(section, {
           height,
           marginTop,
@@ -443,7 +786,6 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
         }, at);
       });
 
-      // Arrivals: the box opens, the ink spreads out of the date
       entrances.forEach(({ el, height, origin, radius, expand }, index) => {
         const at = ARRIVE_AT + index * ARRIVE_STAGGER;
         if (expand) {
@@ -461,7 +803,6 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
 
       plan.forEach((p) => countUp(p.section, p.visibleNext, p.willBeEmpty ? 0 : ARRIVE_AT, tl));
 
-      // Nothing to animate (every row already where it belongs) — still settle the bookkeeping
       if (!exits.length && !entrances.length && !closingMetrics.length && !openingMetrics.length) {
         tl.to({}, { duration: 0.01 });
       }
@@ -471,6 +812,8 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
       button.addEventListener('click', () => {
         const next = button.dataset.filter || 'all';
         if (next === active) return;
+        const rect = button.getBoundingClientRect();
+        (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 7);
         apply(next);
       }, { signal });
     });
@@ -481,8 +824,11 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
 
     (window as any)[CLEANUP_KEY] = () => {
       controller.abort();
+      chipRo?.disconnect();
       timeline?.kill();
       timeline = null;
+      activeCounters.forEach((c) => gsap.killTweensOf(c));
+      activeCounters.length = 0;
       (window as any)[CLEANUP_KEY] = undefined;
     };
   }
@@ -491,51 +837,10 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
 
   if (!(window as any)[LISTENER_KEY]) {
     document.addEventListener('astro:page-load', initArchiveFilter);
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+      (window as any)[GLIDER_CLEANUP_KEY]?.();
+    });
     (window as any)[LISTENER_KEY] = true;
   }
-</script>
-
-<script>
-  (function initArchiveStatsGliderController() {
-    function setupGlider() {
-      const strip = document.querySelector('[data-archive-stats-strip]') as HTMLElement;
-      const glider = document.querySelector('[data-archive-stats-glider]') as HTMLElement;
-      if (!strip || !glider) return;
-
-      const items = strip.querySelectorAll<HTMLElement>('[data-stats-item]');
-      if (!items || items.length === 0) return;
-
-      function moveGlider(target: HTMLElement) {
-        const stripRect = strip.getBoundingClientRect();
-        const targetRect = target.getBoundingClientRect();
-        const left = targetRect.left - stripRect.left;
-        const width = targetRect.width;
-        glider.style.opacity = '1';
-        glider.style.transform = `translateX(${left}px)`;
-        glider.style.width = `${width}px`;
-      }
-
-      function hideGlider() {
-        glider.style.opacity = '0';
-      }
-
-      items.forEach((item) => {
-        item.addEventListener('pointerenter', () => moveGlider(item));
-        item.addEventListener('focus', () => moveGlider(item));
-        item.addEventListener('click', () => {
-          const rect = item.getBoundingClientRect();
-          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
-        });
-      });
-
-      strip.addEventListener('pointerleave', hideGlider);
-    }
-
-    document.addEventListener('astro:page-load', setupGlider);
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setupGlider);
-    } else {
-      setupGlider();
-    }
-  })();
 </script>

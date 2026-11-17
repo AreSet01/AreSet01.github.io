@@ -92,6 +92,7 @@ const points = cumulative.map((row) => ({
   py: VIEW_H - (row.total / Math.max(1, running)) * (VIEW_H - 18) - 6,
 }));
 const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.px.toFixed(1)},${point.py.toFixed(1)}`).join(' ');
+const feibaiPath = points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.px.toFixed(1)},${(point.py + 3.5).toFixed(1)}`).join(' ');
 const areaPath = points.length
   ? `${linePath} L${VIEW_W},${VIEW_H} L0,${VIEW_H} Z`
   : '';
@@ -111,7 +112,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
   <Header />
   <main id="main-content" tabindex="-1" class="container-wide flex-1 pt-6 pb-20 lg:pt-8 outline-none">
     <section class="stats-head">
-      <p class="eyebrow" data-enter="top">Stats / 写作统计</p>
+      <p class="eyebrow" data-enter="top">Stats / 笔墨计数</p>
       <h1 class="section-title mt-4" data-enter="left">写了多少</h1>
       <p class="stats-hint" data-enter="left">
         反正大部分都AI写的（
@@ -171,11 +172,11 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
         <h2>发文节奏</h2>
         <p>{months[0]?.year}年{months[0]?.month}月开始发文~</p>
       </div>
-      <div class="chart-columns" data-chart-columns>
-        {months.map((month) => (
+      <div class="chart-columns chart-brush-columns" data-chart-columns>
+        {months.map((month, idx) => (
           <div
             class:list={['chart-column', { 'is-empty': month.count === 0, 'is-peak': month.count === maxMonth && month.count > 0 }]}
-            style={`--value: ${(month.count / maxMonth).toFixed(3)}; --i: ${months.indexOf(month)}`}
+            style={`--value: ${(month.count / maxMonth).toFixed(3)}; --i: ${idx}`}
             data-tip={`${month.year} 年 ${month.month} 月 · ${month.count} 篇`}
             tabindex="0"
           >
@@ -200,7 +201,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
         <h2>每篇的体量</h2>
         <p>按正文字数排序（不含代码）</p>
       </div>
-      <ul class="chart-bars" data-chart-bars>
+      <ul class="chart-bars chart-brush-bars" data-chart-bars>
         {byVolume.map((row, index) => (
           <li
             class:list={['chart-bar-row', { 'is-peak': index === 0 }]}
@@ -221,16 +222,24 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
         <h2>累计字数</h2>
         <p>从第一篇到最新一篇，字数是怎么堆起来的</p>
       </div>
-      <div class="chart-line" data-chart-line>
+      <div class="chart-line chart-brush-line" data-chart-line>
         <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} preserveAspectRatio="none" aria-hidden="true">
-          <path class="chart-line-area" d={areaPath} />
+          <defs>
+            <linearGradient id="stats-mountain-wash" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--ink-strong)" stop-opacity="0.22" />
+              <stop offset="68%" stop-color="var(--ink)" stop-opacity="0.06" />
+              <stop offset="100%" stop-color="var(--ink)" stop-opacity="0" />
+            </linearGradient>
+          </defs>
+          <path class="chart-line-area chart-mountain-area" d={areaPath} />
+          <path class="chart-line-feibai" d={feibaiPath} pathLength="1" vector-effect="non-scaling-stroke" />
           <path class="chart-line-stroke" d={linePath} pathLength="1" vector-effect="non-scaling-stroke" />
         </svg>
         <div class="chart-line-overlay">
           {points.map((point, index) => (
             <span
               class:list={['chart-line-hit', { 'is-last': index === points.length - 1 }]}
-              style={`--x: ${(point.px / VIEW_W * 100).toFixed(2)}%; --y: ${(point.py / VIEW_H * 100).toFixed(2)}%`}
+              style={`--x: ${(point.px / VIEW_W * 100).toFixed(2)}%; --y: ${(point.py / VIEW_H * 100).toFixed(2)}%; --p: ${(point.px / VIEW_W).toFixed(3)}`}
               data-tip={`${point.dateLabel} · 累计 ${nf.format(point.total)} 字`}
               tabindex="0"
             >
@@ -252,7 +261,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
         <h2>标签分布</h2>
         <p>前 {topTags.length} 个标签，其余 {tailTags.length} 个合并在最后一行~<a href="/tags">去星图看全部 →</a></p>
       </div>
-      <ul class="chart-bars" data-chart-bars>
+      <ul class="chart-bars chart-brush-bars" data-chart-bars>
         {topTags.map((tag, index) => (
           <li
             class:list={['chart-bar-row', { 'is-peak': index === 0 }]}
@@ -287,7 +296,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
         </div>
         <a href="/life" class="stats-sub-link">探索生活拾光 &rarr;</a>
       </div>
-      <ul class="chart-bars" data-chart-bars>
+      <ul class="chart-bars chart-brush-bars" data-chart-bars>
         {lifeByCategory.map((cat, index) => (
           <li
             class:list={['chart-bar-row', { 'is-peak': index === 0 }]}
@@ -317,7 +326,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
         </div>
         <a href="/gallery" class="stats-sub-link">移步拾影画廊 &rarr;</a>
       </div>
-      <ul class="chart-bars" data-chart-bars>
+      <ul class="chart-bars chart-brush-bars" data-chart-bars>
         {photoCategories.map((cat, index) => (
           <li
             class:list={['chart-bar-row', { 'is-peak': index === 0 }]}
@@ -341,92 +350,98 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     <!-- Table view: every number above, reachable without hovering -------- -->
     <details class="stats-table" data-enter="card">
       <summary>数据表</summary>
-      <div class="stats-table-scroll">
-        <table>
-          <caption>每篇文章的字数与代码量</caption>
-          <thead>
-            <tr><th scope="col">文章</th><th scope="col">日期</th><th scope="col">分类</th><th scope="col">字数</th><th scope="col">代码行</th><th scope="col">阅读</th></tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
+      <div class="stats-table-clip" data-stats-table-clip>
+        <div class="stats-table-scroll">
+          <table>
+            <caption>每篇文章的字数与代码量</caption>
+            <thead>
+              <tr><th scope="col">文章</th><th scope="col">日期</th><th scope="col">分类</th><th scope="col">字数</th><th scope="col">代码行</th><th scope="col">阅读</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr>
+                  <td><a href={`/posts/${row.id}`}>{row.title}</a></td>
+                  <td>{row.dateLabel}</td>
+                  <td>{row.category}</td>
+                  <td class="is-num">{nf.format(row.chars)}</td>
+                  <td class="is-num">{nf.format(row.codeLines)}</td>
+                  <td class="is-num">{row.minutes} min</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
               <tr>
-                <td><a href={`/posts/${row.id}`}>{row.title}</a></td>
-                <td>{row.dateLabel}</td>
-                <td>{row.category}</td>
-                <td class="is-num">{nf.format(row.chars)}</td>
-                <td class="is-num">{nf.format(row.codeLines)}</td>
-                <td class="is-num">{row.minutes} min</td>
+                <td colspan="3">合计</td>
+                <td class="is-num">{nf.format(totalChars)}</td>
+                <td class="is-num">{nf.format(totalCode)}</td>
+                <td class="is-num">{totalMinutes} min</td>
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="3">合计</td>
-              <td class="is-num">{nf.format(totalChars)}</td>
-              <td class="is-num">{nf.format(totalCode)}</td>
-              <td class="is-num">{totalMinutes} min</td>
-            </tr>
-          </tfoot>
-        </table>
+            </tfoot>
+          </table>
 
-        <table>
-          <caption>拾光生活记录</caption>
-          <thead><tr><th scope="col">标题</th><th scope="col">分类</th><th scope="col">城市</th><th scope="col">星级</th><th scope="col">日期</th></tr></thead>
-          <tbody>
-            {LIFE_ITEMS.map((item) => (
-              <tr>
-                <td><a href="/life">{item.title}</a></td>
-                <td>{item.categoryLabel}</td>
-                <td>{item.city}</td>
-                <td class="is-num">{'★'.repeat(item.rating)}</td>
-                <td>{item.dateAdded ?? '近期'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          <table>
+            <caption>拾光生活记录</caption>
+            <thead><tr><th scope="col">标题</th><th scope="col">分类</th><th scope="col">城市</th><th scope="col">星级</th><th scope="col">日期</th></tr></thead>
+            <tbody>
+              {LIFE_ITEMS.map((item) => (
+                <tr>
+                  <td><a href="/life">{item.title}</a></td>
+                  <td>{item.categoryLabel}</td>
+                  <td>{item.city}</td>
+                  <td class="is-num">{'★'.repeat(item.rating)}</td>
+                  <td>{item.dateAdded ?? '近期'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-        <table>
-          <caption>拾影摄影记录</caption>
-          <thead><tr><th scope="col">照片名称</th><th scope="col">影集</th><th scope="col">地点</th><th scope="col">器材规格</th><th scope="col">拍摄日期</th></tr></thead>
-          <tbody>
-            {GALLERY_PHOTOS.map((photo) => (
-              <tr>
-                <td><a href="/gallery">{photo.title}</a></td>
-                <td>{photo.categoryLabel}</td>
-                <td>{photo.location}</td>
-                <td>{photo.exif.camera} · {photo.exif.lens}</td>
-                <td>{photo.date}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          <table>
+            <caption>拾影摄影记录</caption>
+            <thead><tr><th scope="col">照片名称</th><th scope="col">影集</th><th scope="col">地点</th><th scope="col">器材规格</th><th scope="col">拍摄日期</th></tr></thead>
+            <tbody>
+              {GALLERY_PHOTOS.map((photo) => (
+                <tr>
+                  <td><a href="/gallery">{photo.title}</a></td>
+                  <td>{photo.categoryLabel}</td>
+                  <td>{photo.location}</td>
+                  <td>{photo.exif.camera} · {photo.exif.lens}</td>
+                  <td>{photo.date}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-        <table>
-          <caption>每月发文数</caption>
-          <thead><tr><th scope="col">月份</th><th scope="col">篇数</th></tr></thead>
-          <tbody>
-            {months.map((month) => (
-              <tr><td>{month.year}-{String(month.month).padStart(2, '0')}</td><td class="is-num">{month.count}</td></tr>
-            ))}
-          </tbody>
-        </table>
+          <table>
+            <caption>每月发文数</caption>
+            <thead><tr><th scope="col">月份</th><th scope="col">篇数</th></tr></thead>
+            <tbody>
+              {months.map((month) => (
+                <tr><td>{month.year}-{String(month.month).padStart(2, '0')}</td><td class="is-num">{month.count}</td></tr>
+              ))}
+            </tbody>
+          </table>
 
-        <table>
-          <caption>标签与分类</caption>
-          <thead><tr><th scope="col">名称</th><th scope="col">类型</th><th scope="col">篇数</th></tr></thead>
-          <tbody>
-            {categories.map((category) => (
-              <tr><td>{category.name}</td><td>分类</td><td class="is-num">{category.count}</td></tr>
-            ))}
-            {tags.map((tag) => (
-              <tr><td>{tag.name}</td><td>标签</td><td class="is-num">{tag.count}</td></tr>
-            ))}
-          </tbody>
-        </table>
+          <table>
+            <caption>标签与分类</caption>
+            <thead><tr><th scope="col">名称</th><th scope="col">类型</th><th scope="col">篇数</th></tr></thead>
+            <tbody>
+              {categories.map((category) => (
+                <tr><td>{category.name}</td><td>分类</td><td class="is-num">{category.count}</td></tr>
+              ))}
+              {tags.map((tag) => (
+                <tr><td>{tag.name}</td><td>标签</td><td class="is-num">{tag.count}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </details>
 
-    <div class="stats-tip" data-stats-tip hidden></div>
+    <!-- 宣纸批注小笺浮窗：常驻流外并通过纯 GPU translate3d 平滑跟随，杜绝 hidden 切换重排 -->
+    <div class="stats-tip stats-paper-note" data-stats-tip aria-hidden="true">
+      <span class="stats-tip-seal" aria-hidden="true">笺</span>
+      <span class="stats-tip-body" data-stats-tip-body></span>
+    </div>
   </main>
 </BaseLayout>
 
@@ -436,10 +451,8 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
   import CustomEase from 'gsap/CustomEase';
 
   gsap.registerPlugin(ScrollTrigger, CustomEase);
-  // The same curve BaseLayout's entrance rides; re-declared because this script can run first
   CustomEase.create('enter', 'M0,0 C0.06,0.62 0.16,0.9 0.42,0.975 0.62,1.005 0.8,1 1,1');
 
-  // Charts grow when scrolled into view; one shared tooltip serves every mark.
   const CLEANUP_KEY = '__areSetStatsCleanup__';
   const LISTENER_KEY = '__areSetStatsBound__';
 
@@ -448,21 +461,19 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     if (typeof previousCleanup === 'function') previousCleanup();
 
     const tip = document.querySelector<HTMLElement>('[data-stats-tip]');
-    if (!tip) return; // not the stats page
+    const tipBody = tip?.querySelector<HTMLElement>('[data-stats-tip-body]');
+    if (!tip || !tipBody) return; // not the stats page
 
     const controller = new AbortController();
     const { signal } = controller;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let tableTween: gsap.core.Tween | null = null;
+    const countTweens: gsap.core.Tween[] = [];
 
-    // ---------- Data table: a <details> that opens the way the rest of the site moves ----------
-    // Native <details> snaps, and it grows the page behind the scroll triggers' back — the
-    // "scrolled out → hide" trigger on this very element was measured while it was closed, so
-    // reading down the open table used to blank it out. Open/close is eased here and the
-    // triggers are re-measured once the height has settled.
+    // ---------- Data table: zero-reflow clip shell open/close ----------
     const table = document.querySelector<HTMLDetailsElement>('details.stats-table');
-    const tableBody = table?.querySelector<HTMLElement>('.stats-table-scroll');
-    if (table && tableBody) {
+    const tableClip = table?.querySelector<HTMLElement>('[data-stats-table-clip]');
+    if (table && tableClip) {
       const summary = table.querySelector<HTMLElement>('summary')!;
       table.querySelectorAll<HTMLElement>('tbody tr, tfoot tr').forEach((row, index) => {
         row.style.setProperty('--i', String(index));
@@ -480,31 +491,29 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
           event.preventDefault();
           tableTween?.kill();
           if (!table.open) {
-            // Open the box shut, measure what it wants, then let it grow while the rows seep in
             table.open = true;
-            gsap.set(tableBody, { clearProps: 'height,overflow' });
-            const full = tableBody.getBoundingClientRect().height;
-            gsap.set(tableBody, { height: 0, overflow: 'hidden' });
-            requestAnimationFrame(() => table.classList.add('is-shown'));
-
-            // Auto-scroll to center: position summary comfortably in the upper-middle / center of the viewport
+            gsap.set(tableClip, { clearProps: 'height,overflow,willChange' });
+            const full = tableClip.getBoundingClientRect().height;
             const startScrollY = window.scrollY;
             const summaryDocTop = summary.getBoundingClientRect().top + startScrollY;
             const targetCenterScrollY = Math.max(
               0,
-              Math.round(summaryDocTop - (window.innerHeight - summary.offsetHeight) * 0.36)
+              Math.round(summaryDocTop - (window.innerHeight - summary.offsetHeight) * 0.36),
             );
             const scrollDelta = targetCenterScrollY - startScrollY;
             const shouldScroll = scrollDelta > 10;
 
-            tableTween = gsap.to(tableBody, {
+            tableClip.classList.add('is-animating-clip');
+            gsap.set(tableClip, { height: 0, overflow: 'hidden', willChange: 'height' });
+            requestAnimationFrame(() => table.classList.add('is-shown'));
+
+            tableTween = gsap.to(tableClip, {
               height: full,
-              duration: 0.85,
-              ease: 'power2.inOut',
+              duration: 0.72,
+              ease: 'enter',
               onUpdate: function () {
-                const p = this.progress();
                 if (shouldScroll) {
-                  const currentY = startScrollY + scrollDelta * p;
+                  const currentY = startScrollY + scrollDelta * this.progress();
                   if ((window as any).lenis) {
                     (window as any).lenis.scrollTo(currentY, { immediate: true });
                   } else {
@@ -513,18 +522,15 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
                 }
               },
               onComplete: () => {
-                gsap.set(tableBody, { clearProps: 'height,overflow' });
+                tableClip.classList.remove('is-animating-clip');
+                gsap.set(tableClip, { clearProps: 'height,overflow,willChange' });
                 tableTween = null;
-                ScrollTrigger.update();
-                try { (window as any).lenis?.resize(); } catch {}
                 settle();
               },
             });
           } else {
             table.classList.remove('is-shown');
-            const currentHeight = tableBody.getBoundingClientRect().height;
-            gsap.set(tableBody, { height: currentHeight, overflow: 'hidden' });
-
+            const currentHeight = tableClip.getBoundingClientRect().height;
             const startScrollY = window.scrollY;
             const currentDocHeight = document.documentElement.scrollHeight;
             const targetDocHeight = currentDocHeight - currentHeight;
@@ -532,10 +538,14 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
             const needsScrollAdjust = startScrollY > maxTargetScroll;
             const scrollDistance = needsScrollAdjust ? startScrollY - maxTargetScroll : 0;
 
-            tableTween = gsap.to(tableBody, {
+            tableClip.classList.add('is-animating-clip');
+            gsap.set(tableClip, { height: currentHeight, overflow: 'hidden', willChange: 'height' });
+
+            // 收拢期间不再逐帧调用 lenis.resize()，彻底消除每帧全文档重排卡顿
+            tableTween = gsap.to(tableClip, {
               height: 0,
-              duration: 0.55,
-              ease: 'power2.inOut',
+              duration: 0.52,
+              ease: 'power3.inOut',
               onUpdate: function () {
                 if (needsScrollAdjust) {
                   const targetY = startScrollY - scrollDistance * this.progress();
@@ -545,12 +555,11 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
                     window.scrollTo({ top: targetY, behavior: 'instant' });
                   }
                 }
-                ScrollTrigger.update();
-                try { (window as any).lenis?.resize(); } catch {}
               },
               onComplete: () => {
                 table.open = false;
-                gsap.set(tableBody, { clearProps: 'height,overflow' });
+                tableClip.classList.remove('is-animating-clip');
+                gsap.set(tableClip, { clearProps: 'height,overflow,willChange' });
                 tableTween = null;
                 settle();
               },
@@ -560,100 +569,142 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
       }
     }
 
-    // ---------- Count-up ----------
+    // ---------- Count-up (once per view so numbers never flash back to 0) ----------
+    const numberFormatter = new Intl.NumberFormat('en-US');
     document.querySelectorAll<HTMLElement>('[data-stat-value]').forEach((el) => {
       const target = Number(el.dataset.statValue || 0);
-      if (!Number.isFinite(target)) return;
-      if (reduceMotion) return;
+      if (!Number.isFinite(target) || reduceMotion) return;
       const counter = { value: 0 };
-      const format = (value: number) => new Intl.NumberFormat('en-US').format(Math.round(value));
-      let tween: gsap.core.Tween | null = null;
-      const io = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            tween?.kill();
-            counter.value = 0;
-            tween = gsap.to(counter, {
+      const io = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            io.disconnect();
+            const tw = gsap.to(counter, {
               value: target,
-              duration: 1.5,
+              duration: 1.35,
               ease: 'expo.out',
-              onUpdate: () => { el.textContent = format(counter.value); },
-              onComplete: () => { el.textContent = format(target); },
+              onUpdate: () => { el.textContent = numberFormatter.format(Math.round(counter.value)); },
+              onComplete: () => { el.textContent = numberFormatter.format(target); },
             });
-          } else {
-            tween?.kill();
-            counter.value = 0;
-            el.textContent = format(0);
-          }
-        });
-      }, { threshold: 0.2 });
+            countTweens.push(tw);
+          });
+        },
+        { threshold: 0.2 },
+      );
       io.observe(el);
-      signal.addEventListener('abort', () => {
-        io.disconnect();
-        tween?.kill();
-      });
+      signal.addEventListener('abort', () => io.disconnect());
     });
 
-    // ---------- Grow the marks on entry ----------
+    // ---------- Brush-stroke chart entrance ----------
     const charts = Array.from(document.querySelectorAll<HTMLElement>('[data-chart-columns], [data-chart-bars], [data-chart-line]'));
     if (reduceMotion) {
       charts.forEach((chart) => chart.classList.add('is-drawn'));
     } else {
-      const io = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          entry.target.classList.toggle('is-drawn', entry.isIntersecting);
-        });
-      }, { threshold: 0.15 });
+      const io = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-drawn');
+              io.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.14 },
+      );
       charts.forEach((chart) => io.observe(chart));
       signal.addEventListener('abort', () => io.disconnect());
     }
 
-    // ---------- Shared tooltip ----------
+    // ---------- Shared Xuan-Paper Tooltip Note (GPU quickTo glide, zero hidden-toggle reflow) ----------
     let hideTimer = 0;
+    let tipVisible = false;
+    let cachedTipW = 180;
+    let cachedTipH = 38;
+
+    const tipPos = { x: 0, y: 0 };
+    const paintTipPos = () => {
+      tip!.style.transform = `translate3d(${tipPos.x.toFixed(1)}px, ${tipPos.y.toFixed(1)}px, 0px)`;
+    };
+    const glideX = reduceMotion ? null : gsap.quickTo(tipPos, 'x', { duration: 0.24, ease: 'power3.out', onUpdate: paintTipPos });
+    const glideY = reduceMotion ? null : gsap.quickTo(tipPos, 'y', { duration: 0.24, ease: 'power3.out', onUpdate: paintTipPos });
+
     function show(target: HTMLElement) {
       const text = target.dataset.tip;
       if (!text) return;
       window.clearTimeout(hideTimer);
-      tip!.textContent = text;
-      tip!.hidden = false;
+
+      if (tipBody!.textContent !== text) {
+        tipBody!.textContent = text;
+        cachedTipW = tip!.offsetWidth || 180;
+        cachedTipH = tip!.offsetHeight || 38;
+      }
+
       const rect = target.getBoundingClientRect();
-      const tipRect = tip!.getBoundingClientRect();
       const x = Math.min(
-        window.innerWidth - tipRect.width - 12,
-        Math.max(12, rect.left + rect.width / 2 - tipRect.width / 2)
+        window.innerWidth - cachedTipW - 12,
+        Math.max(12, rect.left + rect.width / 2 - cachedTipW / 2),
       );
-      const above = rect.top > tipRect.height + 20;
-      const y = above ? rect.top - tipRect.height - 10 : rect.bottom + 10;
-      tip!.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
+      const above = rect.top > cachedTipH + 22;
+      const y = above ? rect.top - cachedTipH - 10 : rect.bottom + 10;
+
+      if (!tipVisible || !glideX || !glideY) {
+        gsap.killTweensOf(tipPos);
+        tipPos.x = x;
+        tipPos.y = y;
+        paintTipPos();
+      } else {
+        glideX(x);
+        glideY(y);
+      }
+
+      tipVisible = true;
       tip!.classList.add('is-visible');
     }
-    function hide() {
-      tip!.classList.remove('is-visible');
-      hideTimer = window.setTimeout(() => { tip!.hidden = true; }, 200);
+
+    function scheduleHide() {
+      window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(() => {
+        tipVisible = false;
+        tip!.classList.remove('is-visible');
+      }, 90);
     }
 
     document.addEventListener('pointerover', (event) => {
       const target = (event.target as Element)?.closest?.<HTMLElement>('[data-tip]');
       if (target) show(target);
     }, { signal });
+
     document.addEventListener('pointerout', (event) => {
       const target = (event.target as Element)?.closest?.('[data-tip]');
-      if (target) hide();
+      if (!target) return;
+      const next = (event as PointerEvent).relatedTarget as Element | null;
+      if (next?.closest?.('[data-tip]')) return;
+      scheduleHide();
     }, { signal });
+
     document.addEventListener('focusin', (event) => {
       const target = (event.target as Element)?.closest?.<HTMLElement>('[data-tip]');
       if (target) show(target);
     }, { signal });
+
     document.addEventListener('focusout', (event) => {
       const target = (event.target as Element)?.closest?.('[data-tip]');
-      if (target) hide();
+      if (target) scheduleHide();
     }, { signal });
+
+    window.addEventListener('scroll', () => {
+      if (tipVisible) scheduleHide();
+    }, { passive: true, signal });
 
     (window as any)[CLEANUP_KEY] = () => {
       controller.abort();
       window.clearTimeout(hideTimer);
       tableTween?.kill();
       tableTween = null;
+      countTweens.forEach((tw) => tw.kill());
+      countTweens.length = 0;
+      gsap.killTweensOf(tipPos);
       (window as any)[CLEANUP_KEY] = undefined;
     };
   }
@@ -662,11 +713,162 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
 
   if (!(window as any)[LISTENER_KEY]) {
     document.addEventListener('astro:page-load', initStats);
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+    });
     (window as any)[LISTENER_KEY] = true;
   }
 </script>
 
 <style>
+  /* 1. 柱状图「竖笔悬针」渐进晕染 */
+  .chart-brush-columns .chart-column-fill {
+    position: relative;
+    background: linear-gradient(
+      180deg,
+      var(--ink-strong) 0%,
+      var(--ink) 64%,
+      color-mix(in srgb, var(--ink) 55%, transparent) 100%
+    );
+    border-radius: 5px 5px 1px 1px;
+    transition:
+      transform 860ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 240ms var(--ease);
+    transition-delay: calc(var(--i, 0) * 48ms);
+  }
+
+  .chart-brush-columns .chart-column.is-peak .chart-column-fill {
+    background: linear-gradient(
+      180deg,
+      var(--vermilion) 0%,
+      color-mix(in srgb, var(--vermilion) 72%, var(--ink-strong)) 100%
+    );
+  }
+
+  .chart-brush-columns .chart-column:hover .chart-column-fill,
+  .chart-brush-columns .chart-column:focus-visible .chart-column-fill {
+    background: var(--vermilion);
+  }
+
+  /* 2. 横向条形图「横锋掠笔」写出动效 */
+  .chart-brush-bars .chart-bar-row {
+    border-radius: 6px;
+    padding-inline: 0.35rem;
+    margin-inline: -0.35rem;
+    transition: background-color 220ms var(--ease);
+  }
+
+  .chart-brush-bars .chart-bar-row:hover {
+    background: color-mix(in srgb, var(--bg-soft) 72%, transparent);
+  }
+
+  .chart-brush-bars .chart-bar-fill {
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--ink) 74%, transparent) 0%,
+      var(--ink-strong) 92%,
+      var(--accent) 100%
+    );
+    border-radius: 2px 999px 999px 2px;
+    transition: transform 920ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: calc(var(--i, 0) * 46ms);
+  }
+
+  .chart-brush-bars .chart-bar-row.is-peak .chart-bar-fill {
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--vermilion) 72%, var(--ink)) 0%,
+      var(--vermilion) 100%
+    );
+  }
+
+  .chart-brush-bars .chart-bar-row:hover .chart-bar-fill {
+    background: var(--vermilion);
+  }
+
+  /* 3. 累计折线图：山水水墨层染 + 飞白副笔 + 随笔锋逐粒点亮墨点 */
+  .chart-brush-line .chart-mountain-area {
+    fill: url(#stats-mountain-wash) !important;
+  }
+
+  .chart-brush-line:global(.is-drawn) .chart-mountain-area {
+    opacity: 1 !important;
+  }
+
+  .chart-line-feibai {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1;
+    stroke-linecap: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    opacity: 0.32;
+    transition: stroke-dashoffset 1820ms cubic-bezier(0.16, 1, 0.3, 1) 90ms;
+  }
+
+  .chart-brush-line:global(.is-drawn) .chart-line-feibai {
+    stroke-dashoffset: 0;
+  }
+
+  .chart-brush-line .chart-line-dot {
+    transition:
+      opacity 380ms var(--ease),
+      scale 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition-delay: calc(160ms + var(--p, 0) * 1200ms) !important;
+  }
+
+  .chart-brush-line .chart-line-hit:hover .chart-line-dot,
+  .chart-brush-line .chart-line-hit:focus-visible .chart-line-dot {
+    transition-delay: 0ms !important;
+    background: var(--vermilion);
+    scale: 1.5;
+  }
+
+  /* 4. 宣纸小笺提示浮窗 */
+  .stats-tip.stats-paper-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.8rem;
+    border-radius: 5px;
+    background: var(--bg-elev);
+    color: var(--text-strong);
+    border: 1px solid var(--rule-strong);
+    border-top: 2px solid var(--vermilion);
+    box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.22);
+    visibility: hidden;
+    opacity: 0;
+    will-change: transform, opacity;
+    transition:
+      opacity 180ms var(--ease),
+      visibility 180ms var(--ease);
+  }
+
+  .stats-tip.stats-paper-note:global(.is-visible) {
+    visibility: visible;
+    opacity: 1;
+  }
+
+  .stats-tip-seal {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    border: 1px solid var(--vermilion);
+    border-radius: 2px;
+    color: var(--vermilion);
+    font-family: var(--font-hand-title);
+    font-size: 0.66rem;
+    line-height: 1;
+  }
+
+  /* 5. 数据表开合隔离容器：动画中启用 contain 阻断内部表格重排扩散 */
+  .stats-table-clip.is-animating-clip {
+    contain: layout style paint;
+  }
+
   .stats-sub-link {
     font-family: var(--font-body);
     font-size: 0.82rem;
@@ -674,25 +876,29 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     text-decoration: none;
     border-bottom: 1px dashed var(--rule-strong);
     padding-bottom: 2px;
-    transition: all 200ms ease;
+    transition: color 200ms ease, border-color 200ms ease;
     white-space: nowrap;
     align-self: flex-start;
   }
+
   .stats-sub-link:hover {
     color: var(--text-strong);
     border-bottom-style: solid;
     border-bottom-color: var(--text-strong);
   }
+
   .stats-meta-row {
     margin-top: 1.15rem;
     font-size: 0.8rem;
   }
+
   .stats-meta-label {
     color: var(--muted);
     font-family: var(--font-serif);
     font-style: italic;
     font-size: 0.78rem;
   }
+
   .stats-tag-pill {
     display: inline-block;
     padding: 0.2rem 0.6rem;
@@ -702,10 +908,26 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     color: var(--text-strong);
     font-size: 0.74rem;
     font-family: var(--font-body);
-    transition: all 180ms ease;
+    transition: background-color 180ms ease, border-color 180ms ease, transform 220ms var(--ease-bounce);
   }
+
   .stats-tag-pill:hover {
     background: var(--bg-elev);
-    border-color: var(--rule-strong);
+    border-color: var(--vermilion);
+    transform: translateY(-1px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chart-brush-columns .chart-column-fill,
+    .chart-brush-bars .chart-bar-fill,
+    .chart-line-feibai,
+    .chart-brush-line .chart-line-dot,
+    .stats-tag-pill {
+      transition: none !important;
+      transform: none !important;
+    }
+    .chart-line-feibai {
+      stroke-dashoffset: 0;
+    }
   }
 </style>
