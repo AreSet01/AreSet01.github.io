@@ -84,7 +84,7 @@
     cursor: pointer;
     padding: 0.35rem 0.6rem;
     border-radius: 4px;
-    transition: color 0.15s ease, background 0.15s ease;
+    transition: color 0.15s ease, background-color 0.15s ease;
   }
 
   .about-intro-skip:hover {
@@ -96,6 +96,8 @@
 <script>
   import gsap from 'gsap';
 
+  const CLEANUP_KEY = '__areSetAboutIntroCleanup__';
+  const LISTENER_KEY = '__areSetAboutIntroBound__';
   const TARGET_WORD = 'WELCOME!';
 
   // Compact, poetic rhythm (total ~5.5s): 凝 → 落 → 散 → 聚 → 成 → 归
@@ -104,8 +106,8 @@
     detach: 0.5,         // Drop detaches & falls
     impact: 0.85,        // Drop hits canvas & bursts outward radially
     vortex: 1.15,        // Radial burst curls into uniform swirling ring
-    converge: 2.1,       // Particles peel off orbit and home inward to assemble "welcome!"
-    convergeEnd: 3.1,    // "welcome!" is fully locked and legible
+    converge: 2.1,       // Particles peel off orbit and home inward to assemble "WELCOME!"
+    convergeEnd: 3.1,    // "WELCOME!" is fully locked and legible
     lift: 4.0,           // Paper begins translucent lift; page elements awaken
     release: 4.25,       // Release page enter; particles disperse toward page elements
     end: 5.5,            // Complete teardown
@@ -168,6 +170,9 @@
     if (!intro) return;
     if (intro.dataset.started === 'true') return;
     intro.dataset.started = 'true';
+
+    const previousCleanup = (window as any)[CLEANUP_KEY];
+    if (typeof previousCleanup === 'function') previousCleanup();
 
     // Once per session unless forced via ?about-intro=1 or #about-intro or ?zen=1
     const forced =
@@ -239,23 +244,22 @@
     canvas.height = Math.round(H * dpr);
 
     const ink = cssVar('--ink-strong', '#111111');
+    const vermilion = cssVar('--vermilion', ink);
     const theme = document.documentElement.getAttribute('data-theme');
-    const grainAlpha = theme === null || theme === 'light' ? 0.05 : 0.075;
+    const grainAlpha = theme === null || theme === 'light' || theme === 'rice' ? 0.05 : 0.075;
     const cx = W / 2;
     const cy = Math.round(H * 0.44);
     const dropX = cx;
     const dropY = Math.round(H * 0.12);
 
-    // Responsive font and cell sizing for "WELCOME!" with wide letter spacing and open counters
     const fontSize = Math.round(Math.max(50, Math.min(W * 0.11, H * 0.16, 92)));
     const font = `700 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
     const charSpacing = Math.round(fontSize * 0.22);
     const vortexR = Math.min(W, H) * 0.26;
 
     // Rasterize "WELCOME!" with crisp 4px cell grid
-    let cell = 4;
+    const cell = 4;
     let glyphPoints: number[] = [];
-    let bx0 = 0, by0 = 0, bx1 = 0, by1 = 0;
 
     try {
       const off = document.createElement('canvas');
@@ -294,22 +298,13 @@
           c.fillText(TARGET_WORD[i], charPositions[i], cy);
         }
       });
-
-      bx0 = box.x;
-      by0 = box.y;
-      bx1 = box.x + box.w;
-      by1 = box.y + box.h;
     } catch {
-      // Fallback if measurement fails
       glyphPoints = [];
     }
 
     const G = glyphPoints.length / 2;
-    // Total particle count: enough to cover all glyph cells plus ambient mist
     const N = Math.max(coarse ? 900 : 1600, G + 200);
 
-    // Particle state
-    // Mode: 0: idle, 1: burst/fly, 2: seek glyph, 3: lock glyph, 4: home to page, 5: dead
     const M_IDLE = 0,
       M_FLY = 1,
       M_SEEK = 2,
@@ -336,7 +331,6 @@
     let impactOccurred = false;
     let shockRadius = 0;
 
-    // Assign glyph targets to the first G particles, sorted in smooth horizontal flow
     if (G > 0) {
       const indices = Array.from({ length: G }, (_, i) => i);
       indices.sort((a, b) => glyphPoints[a * 2] - glyphPoints[b * 2]);
@@ -346,23 +340,19 @@
         tx[k] = glyphPoints[idx * 2];
         ty[k] = glyphPoints[idx * 2 + 1];
         isGlyph[k] = 1;
-        // Stagger assembly across 2.1s -> 2.9s with slight organic jitter
         const progressFrac = k / G;
         tA[k] = T.converge + progressFrac * 0.75 + (rnd() - 0.5) * 0.12;
       }
     }
 
-    // Set preferred orbital radius for each particle in the vortex
     for (let i = 0; i < N; i++) {
       pref[i] = vortexR * (0.75 + rnd() * 0.45);
     }
 
-    // Spawn all particles on impact with UNIFORM polar angle distribution (zero clumping)
     function spawnRadialBurst() {
       for (let i = 0; i < N; i++) {
-        // Uniformly spaced angle with subtle organic jitter to prevent grid lines
         const baseAngle = (i / N) * Math.PI * 2;
-        const jitter = (rnd() - 0.5) * (Math.PI * 2 / N) * 0.8;
+        const jitter = (rnd() - 0.5) * ((Math.PI * 2) / N) * 0.8;
         const a = baseAngle + jitter;
 
         const speed = 160 + rnd() * 260;
@@ -378,7 +368,6 @@
       alive = N;
     }
 
-    // Paper grain tiles
     const grainTiles = [0, 1, 2].map(() => {
       const tile = document.createElement('canvas');
       tile.width = tile.height = 128;
@@ -419,7 +408,6 @@
       c.fill();
     }
 
-    // Compute home positions on the About page
     function computeAboutHomes() {
       const plan: Array<{ el: HTMLElement; at: number }> =
         (window as any).__peekPageEnter?.() ?? [];
@@ -458,7 +446,6 @@
             tH[i] = fast ? now + 0.05 + rnd() * 0.2 : h.at + rnd() * 0.2;
             mode[i] = M_HOME;
           } else {
-            // Dissipate ambient particles cleanly
             mode[i] = M_DEAD;
             alive--;
           }
@@ -466,7 +453,6 @@
       }
     }
 
-    // Particle Physics
     function stepPhysics(dt: number, t: number) {
       const vortexMix = smooth(T.vortex, T.vortex + 0.5, t);
       const drag = Math.exp(-2.4 * dt);
@@ -475,7 +461,6 @@
         const m = mode[i];
         if (m === M_IDLE || m === M_DEAD) continue;
 
-        // 1. Homeward flight to About page elements
         if (m === M_HOME) {
           if (t < tH[i]) continue;
           const dx = hx[i] - px[i];
@@ -496,9 +481,7 @@
           continue;
         }
 
-        // 2. Locked in "welcome!" glyph position
         if (m === M_LOCK) {
-          // If curtain lifts and enters release phase, break out of lock to fly home
           if (t >= T.release) {
             mode[i] = M_FLY;
             vx[i] = (rnd() - 0.5) * 80;
@@ -507,7 +490,6 @@
           continue;
         }
 
-        // 3. Seeking glyph cell
         if (m === M_SEEK) {
           const dx = tx[i] - px[i];
           const dy = ty[i] - py[i];
@@ -521,7 +503,6 @@
           px[i] += vx[i] * dt;
           py[i] += vy[i] * dt;
 
-          // Lock in place when close and calm
           if ((dx * dx + dy * dy < 2 && sp < 80) || t > tA[i] + 0.6) {
             px[i] = tx[i];
             py[i] = ty[i];
@@ -532,13 +513,11 @@
           continue;
         }
 
-        // 4. M_FLY: check if glyph particle should begin seeking
         if (isGlyph[i] && t >= tA[i]) {
           mode[i] = M_SEEK;
           continue;
         }
 
-        // 5. M_FLY in swirling uniform vortex
         if (vortexMix > 0) {
           const dx = px[i] - cx;
           const dy = py[i] - cy;
@@ -561,12 +540,10 @@
       }
     }
 
-    // Render Canvas Frame
     function draw(t: number) {
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx!.clearRect(0, 0, W, H);
 
-      // Paper grain background
       if (!lifted) {
         if (t - grainAt > 0.08) {
           grainAt = t;
@@ -583,41 +560,42 @@
         ctx!.globalAlpha = 1;
       }
 
-      // Initial falling drop
       drawInitialDrop(ctx!, t);
 
-      // Shockwave ring on impact
-      if (shockRadius > 0) {
+      // Dual concentric ink + vermilion shockwave rings on impact
+      if (shockRadius > 0 && shockRadius < vortexR * 1.65) {
+        const ringAlpha = Math.max(0, 1 - shockRadius / (vortexR * 1.6));
         ctx!.save();
         ctx!.strokeStyle = ink;
         ctx!.lineWidth = 1.2;
-        ctx!.globalAlpha = Math.max(0, 1 - shockRadius / (vortexR * 1.6));
+        ctx!.globalAlpha = ringAlpha;
         ctx!.beginPath();
         ctx!.arc(cx, cy, shockRadius, 0, Math.PI * 2);
         ctx!.stroke();
+
+        if (shockRadius > 18) {
+          ctx!.strokeStyle = vermilion;
+          ctx!.lineWidth = 0.85;
+          ctx!.globalAlpha = ringAlpha * 0.55;
+          ctx!.beginPath();
+          ctx!.arc(cx, cy, shockRadius * 0.72, 0, Math.PI * 2);
+          ctx!.stroke();
+        }
         ctx!.restore();
       }
 
-      // Draw all active particles
+      // Single batched path draw call for all 1,600+ active particles (eliminates 1,600 fillRect state calls/frame)
       ctx!.fillStyle = ink;
       const dotSize = coarse ? 3 : 2.5;
-
-      // Render flying & locked particles with clean pixel precision
+      ctx!.beginPath();
       for (let i = 0; i < N; i++) {
         const m = mode[i];
         if (m === M_IDLE || m === M_DEAD) continue;
-
-        if (m === M_LOCK) {
-          // Locked in "welcome!"
-          ctx!.fillRect(px[i], py[i], dotSize, dotSize);
-        } else {
-          // Flying / seeking / homing
-          ctx!.fillRect(px[i], py[i], dotSize, dotSize);
-        }
+        ctx!.rect(px[i], py[i], dotSize, dotSize);
       }
+      ctx!.fill();
     }
 
-    // Clock and animation loop
     let started = 0,
       last = 0,
       acc = 0,
@@ -627,27 +605,32 @@
 
     function loop(stamp: number) {
       if (finished) return;
+      if (document.hidden) {
+        last = 0;
+        frameId = 0;
+        return;
+      }
       if (!started) {
         started = stamp;
         last = stamp;
       }
+      if (!last) last = stamp;
+
       holdScroll();
       const t = (stamp - started) / 1000;
       const dtFrame = Math.min(0.1, (stamp - last) / 1000);
       last = stamp;
 
-      // Handle drop impact
       if (!impactOccurred && t >= T.impact) {
         impactOccurred = true;
         spawnRadialBurst();
         shockRadius = 3;
         (window as any).__inkSplash?.(cx, cy, 22);
       }
-      if (shockRadius > 0 && shockRadius < vortexR * 1.6) {
+      if (shockRadius > 0 && shockRadius < vortexR * 1.65) {
         shockRadius += dtFrame * 340;
       }
 
-      // Physics stepping
       acc += dtFrame;
       let n = 0;
       while (acc >= STEP && n < 10) {
@@ -681,7 +664,21 @@
       frameId = requestAnimationFrame(loop);
     }
 
-    // DOM Timeline for footer & lift
+    document.addEventListener(
+      'visibilitychange',
+      () => {
+        if (finished) return;
+        if (document.hidden && frameId) {
+          cancelAnimationFrame(frameId);
+          frameId = 0;
+          last = 0;
+        } else if (!document.hidden && !frameId) {
+          frameId = requestAnimationFrame(loop);
+        }
+      },
+      { signal },
+    );
+
     gsap.set(foot, { opacity: 0, y: 10 });
 
     const meter = { value: 0 };
@@ -701,7 +698,6 @@
     );
     tl.to(foot, { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' }, 0.3);
 
-    // Lift and release
     tl.call(
       () => {
         lifted = true;
@@ -730,7 +726,7 @@
         return;
       }
       skipping = true;
-      const t = (performance.now() - started) / 1000;
+      const t = started ? (performance.now() - started) / 1000 : 0;
       skipAt = t;
       tl.kill();
       lifted = true;
@@ -752,6 +748,7 @@
       finished = true;
       window.clearTimeout(skipFallbackTimer);
       cancelAnimationFrame(frameId);
+      frameId = 0;
       controller.abort();
       tl.kill();
       gsap.killTweensOf([intro, foot]);
@@ -769,11 +766,14 @@
         }
       } catch {}
       intro.remove();
+      (window as any)[CLEANUP_KEY] = undefined;
       try {
         (window as any).lenis?.start();
         (window as any).lenis?.resize();
       } catch {}
     }
+
+    (window as any)[CLEANUP_KEY] = finish;
 
     skipBtn.addEventListener('click', skip, { signal });
     intro.addEventListener('click', skip, { signal });
@@ -805,13 +805,18 @@
 
   runAboutIntro();
 
-  document.addEventListener('astro:page-load', () => {
-    runAboutIntro();
-  });
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', () => {
+      runAboutIntro();
+    });
 
-  document.addEventListener('astro:before-swap', () => {
-    try {
-      (window as any).lenis?.start();
-    } catch {}
-  });
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+      try {
+        (window as any).lenis?.start();
+      } catch {}
+    });
+
+    (window as any)[LISTENER_KEY] = true;
+  }
 </script>

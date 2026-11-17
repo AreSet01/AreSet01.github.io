@@ -1,11 +1,204 @@
-<div class="collection-filters">
+<div class="collection-filters" data-collection-filters>
   <div class="collection-filter-row">
     <div class="collection-search" data-enter="bottom" data-no-replay>
       <slot name="search" />
+      <span class="collection-search-inkline" aria-hidden="true"></span>
     </div>
     <slot name="categories" />
   </div>
 </div>
+
+<script>
+  const CLEANUP_KEY = '__areSetCollectionFiltersCleanup__';
+  const LISTENER_KEY = '__areSetCollectionFiltersBound__';
+  const BASE_W = 100;
+  const BASE_H = 36;
+
+  function initCollectionFilters() {
+    const prev = (window as any)[CLEANUP_KEY];
+    if (typeof prev === 'function') prev();
+
+    const roots = Array.from(document.querySelectorAll<HTMLElement>('[data-collection-filters]'));
+    if (roots.length === 0) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const observers: Array<{ disconnect(): void }> = [];
+
+    roots.forEach((root) => {
+      const tabsWrap = root.querySelector<HTMLElement>('.collection-category-tabs');
+      if (!tabsWrap) return;
+
+      const tabs = Array.from(tabsWrap.querySelectorAll<HTMLElement>('[data-category-tab]'));
+      if (tabs.length === 0) return;
+
+      // 幂等创建游走式「水墨底衬游标」与悬停浅墨预览层
+      tabsWrap.querySelectorAll('[data-collection-ink-pill], [data-collection-ink-whisper]').forEach((el) => el.remove());
+
+      const whisper = document.createElement('span');
+      whisper.className = 'collection-ink-whisper';
+      whisper.dataset.collectionInkWhisper = 'true';
+      whisper.setAttribute('aria-hidden', 'true');
+
+      const pill = document.createElement('span');
+      pill.className = 'collection-ink-pill';
+      pill.dataset.collectionInkPill = 'true';
+      pill.setAttribute('aria-hidden', 'true');
+
+      tabsWrap.prepend(whisper, pill);
+      tabsWrap.dataset.inkPillReady = 'true';
+
+      interface TabMetric {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+      }
+
+      let metrics: TabMetric[] = [];
+      let activeIndex = Math.max(0, tabs.findIndex((t) => t.classList.contains('is-active')));
+      let pulseTimer = 0;
+
+      const measureAll = () => {
+        metrics = tabs.map((tab) => ({
+          x: tab.offsetLeft,
+          y: tab.offsetTop,
+          w: Math.max(1, tab.offsetWidth),
+          h: Math.max(1, tab.offsetHeight),
+        }));
+      };
+
+      const applyBoxTransform = (el: HTMLElement, m: TabMetric, stretchX = 1) => {
+        const sx = Math.max(0.01, (m.w / BASE_W) * stretchX);
+        const sy = Math.max(0.01, m.h / BASE_H);
+        const halfR = Math.min(m.w, m.h) * 0.5;
+        el.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
+        el.style.setProperty('--pill-ry', `${(halfR / sy).toFixed(2)}px`);
+        el.style.transform = `translate3d(${m.x.toFixed(1)}px, ${m.y.toFixed(1)}px, 0px) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
+      };
+
+      const syncActivePill = (animate: boolean) => {
+        const nextIdx = tabs.findIndex((t) => t.classList.contains('is-active'));
+        if (nextIdx < 0) {
+          pill.style.opacity = '0';
+          return;
+        }
+        const prevIdx = activeIndex;
+        activeIndex = nextIdx;
+        const m = metrics[nextIdx];
+        if (!m) return;
+
+        if (!animate || reduceMotion) {
+          pill.classList.add('is-instant');
+          applyBoxTransform(pill, m, 1);
+          pill.style.opacity = '1';
+          requestAnimationFrame(() => pill.classList.remove('is-instant'));
+          return;
+        }
+
+        pill.style.opacity = '1';
+        // 水墨灌注拉伸质感：横向跨距越大，运笔飞白微张越明显，落定后自然收拢
+        const dist = prevIdx >= 0 && metrics[prevIdx] ? Math.abs(m.x - metrics[prevIdx].x) : 0;
+        if (dist > 24) {
+          pill.classList.add('is-gliding');
+          window.clearTimeout(pulseTimer);
+          pulseTimer = window.setTimeout(() => {
+            pill.classList.remove('is-gliding');
+          }, 360);
+        }
+        applyBoxTransform(pill, m, 1);
+      };
+
+      measureAll();
+      syncActivePill(false);
+
+      tabs.forEach((tab, idx) => {
+        tab.addEventListener(
+          'pointerenter',
+          () => {
+            const m = metrics[idx];
+            if (!m || tab.classList.contains('is-active')) {
+              whisper.style.opacity = '0';
+              return;
+            }
+            applyBoxTransform(whisper, m, 1);
+            whisper.style.opacity = '1';
+          },
+          { signal },
+        );
+        tab.addEventListener(
+          'focus',
+          () => {
+            const m = metrics[idx];
+            if (!m || tab.classList.contains('is-active')) return;
+            applyBoxTransform(whisper, m, 1);
+            whisper.style.opacity = '1';
+          },
+          { signal },
+        );
+      });
+
+      tabsWrap.addEventListener(
+        'pointerleave',
+        () => {
+          whisper.style.opacity = '0';
+        },
+        { signal },
+      );
+      tabsWrap.addEventListener(
+        'focusout',
+        (e: FocusEvent) => {
+          if (!tabsWrap.contains(e.relatedTarget as Node)) {
+            whisper.style.opacity = '0';
+          }
+        },
+        { signal },
+      );
+
+      // 监听外部页面脚本切换 .is-active，自动驱动水墨游标滑移并隐藏残余浅晕
+      const mo = new MutationObserver(() => {
+        whisper.style.opacity = '0';
+        syncActivePill(true);
+      });
+      mo.observe(tabsWrap, { attributes: true, attributeFilter: ['class'], subtree: true });
+      observers.push(mo);
+
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => {
+          measureAll();
+          syncActivePill(false);
+        });
+        ro.observe(tabsWrap);
+        observers.push(ro);
+      }
+
+      document.fonts?.ready.then(() => {
+        if (signal.aborted) return;
+        measureAll();
+        syncActivePill(false);
+      });
+
+      signal.addEventListener('abort', () => window.clearTimeout(pulseTimer));
+    });
+
+    (window as any)[CLEANUP_KEY] = () => {
+      controller.abort();
+      observers.forEach((o) => o.disconnect());
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+  }
+
+  initCollectionFilters();
+
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', initCollectionFilters);
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+    });
+    (window as any)[LISTENER_KEY] = true;
+  }
+</script>
 
 <style>
   .collection-filters {
@@ -21,9 +214,32 @@
   }
 
   .collection-search {
+    position: relative;
     width: 100%;
     max-width: 26rem;
     min-width: 0;
+  }
+
+  /* 搜索框聚焦时的起收笔水墨锋线 */
+  .collection-search-inkline {
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    bottom: 1px;
+    height: 1.5px;
+    background: linear-gradient(90deg, transparent 0%, var(--vermilion) 28%, var(--accent) 72%, transparent 100%);
+    transform: scaleX(0);
+    transform-origin: center;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform 420ms cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 280ms var(--ease);
+  }
+
+  .collection-search:focus-within .collection-search-inkline {
+    transform: scaleX(1);
+    opacity: 0.85;
   }
 
   .collection-search :global(.collection-search-field) {
@@ -39,6 +255,8 @@
   }
 
   .collection-filter-row :global(.collection-category-tabs) {
+    position: relative;
+    isolation: isolate;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -49,10 +267,83 @@
     overflow: visible;
   }
 
+  /* 游走式水墨底衬游标（100x36 基准盒 + 纯 GPU translate3d & scale + 反向圆角补偿，零布局抖动且端帽正圆） */
+  .collection-filter-row :global(.collection-ink-pill),
+  .collection-filter-row :global(.collection-ink-whisper) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100px;
+    height: 36px;
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px);
+    transform-origin: 0 0;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+
+  .collection-filter-row :global(.collection-ink-pill) {
+    z-index: 0;
+    opacity: 0;
+    background:
+      radial-gradient(circle at 22% 50%, color-mix(in srgb, var(--vermilion) 22%, var(--ink-strong)) 0%, var(--ink-strong) 78%);
+    transition:
+      transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 240ms var(--ease);
+  }
+
+  .collection-filter-row :global(.collection-ink-pill.is-instant) {
+    transition: none !important;
+  }
+
+  .collection-filter-row :global(.collection-ink-pill.is-gliding) {
+    opacity: 0.92;
+  }
+
+  /* 绿粉主题适配：与 gallery/life 激活态 --moss-badge-text 文字保持 AA/AAA 高反差 */
+  :global([data-theme="moss"]) .collection-filter-row :global(.collection-ink-pill) {
+    background: var(--accent);
+  }
+
+  .collection-filter-row :global(.collection-ink-whisper) {
+    z-index: 0;
+    opacity: 0;
+    background: color-mix(in srgb, var(--accent) 11%, transparent);
+    transition:
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 200ms var(--ease);
+  }
+
+  :global([data-theme="moss"]) .collection-filter-row :global(.collection-ink-whisper) {
+    background: rgba(255, 241, 244, 0.14);
+  }
+
+  /* 游标就位后接管原本各按钮独立的背景跳变，按钮自身抬升到 z-index: 1 保证文案清晰 */
+  .collection-filter-row :global(.collection-category-tabs[data-ink-pill-ready="true"] [data-category-tab]) {
+    z-index: 1;
+  }
+
+  .collection-filter-row :global(.collection-category-tabs[data-ink-pill-ready="true"] [data-category-tab].is-active) {
+    background: transparent !important;
+    border-color: transparent !important;
+  }
+
+  .collection-filter-row :global(.collection-category-tabs[data-ink-pill-ready="true"] [data-category-tab]::before) {
+    opacity: 0 !important;
+    transform: none !important;
+  }
+
   /* Keep both pages stacked until the longer Gallery category list fits beside search. */
   @container (min-width: 68rem) {
     .collection-filter-row {
       grid-template-columns: minmax(16rem, 0.8fr) minmax(0, 2fr);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .collection-search-inkline,
+    .collection-filter-row :global(.collection-ink-pill),
+    .collection-filter-row :global(.collection-ink-whisper) {
+      transition: none !important;
     }
   }
 </style>

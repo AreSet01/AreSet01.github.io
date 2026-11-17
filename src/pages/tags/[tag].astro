@@ -17,6 +17,7 @@ const { tagName, count } = Astro.props;
 const allPosts = await getCollection('posts', ({ data }) => !data.draft);
 const posts = byNewest(allPosts.filter((post) => (post.data.tags ?? []).includes(tagName)));
 const siblings = relatedTagsOf(allPosts, tagName, 8);
+const maxSiblingWeight = Math.max(1, ...siblings.map((s) => s.weight));
 ---
 
 <BaseLayout title={`${tagName} - 标签 - 梦付千秋`} description={`标签「${tagName}」下的 ${count} 篇文章`}>
@@ -24,11 +25,14 @@ const siblings = relatedTagsOf(allPosts, tagName, 8);
   <main id="main-content" tabindex="-1" class="container-wide flex-1 pt-6 pb-20 lg:pt-8 outline-none">
     <section class="tag-page-head">
       <p class="eyebrow" data-enter="top">
-        <a href="/tags" class="tag-back">← 标签星图</a>
+        <a href="/tags" class="tag-back tag-back-ink">← 标签星图</a>
       </p>
-      <h1 class="section-title mt-4" data-enter="left">
-        <span class="tag-page-hash">#</span>{tagName}
-      </h1>
+      <div class="tag-title-row mt-4 flex flex-wrap items-baseline gap-4" data-enter="left">
+        <h1 class="section-title">
+          <span class="tag-page-hash tag-seal-hash">#</span>{tagName}
+        </h1>
+        <span class="tag-count-seal" aria-label={`共 ${count} 篇`}>收录 {count} 篇</span>
+      </div>
       <p class="tag-hint" data-enter="left">
         共 {count} 篇。
         {siblings.length > 0 && <span>常与这些标签同时出现：</span>}
@@ -36,7 +40,11 @@ const siblings = relatedTagsOf(allPosts, tagName, 8);
       {siblings.length > 0 && (
         <div class="tag-siblings" data-enter="bottom">
           {siblings.map((sibling) => (
-            <a href={`/tags/${tagSlug(sibling.name)}`} class="tag-sibling">
+            <a
+              href={`/tags/${tagSlug(sibling.name)}`}
+              class="tag-sibling tag-sibling-ink"
+              style={`--sib-ratio: ${(sibling.weight / maxSiblingWeight).toFixed(3)}`}
+            >
               <span>{sibling.name}</span>
               <i>×{sibling.weight}</i>
             </a>
@@ -45,15 +53,15 @@ const siblings = relatedTagsOf(allPosts, tagName, 8);
       )}
     </section>
 
-    <ul class="tag-post-list">
-      {posts.map((post) => (
-        <li data-enter="ink">
-          <a href={`/posts/${post.id}`} class="timeline-link group" data-post-preview={`/posts/${post.id}`}>
-            <time class="mt-0.5 w-24 shrink-0 font-mono text-[0.72rem] tracking-[0.06em] text-[var(--muted)]">
+    <ul class="tag-post-list tag-cascade-list">
+      {posts.map((post, idx) => (
+        <li class="tag-cascade-item" data-enter="ink" style={`--row-i: ${idx}`}>
+          <a href={`/posts/${post.id}`} class="timeline-link tag-cascade-link group" data-post-preview={`/posts/${post.id}`}>
+            <time class="tag-cascade-date mt-0.5 w-24 shrink-0 font-mono text-[0.72rem] tracking-[0.06em] text-[var(--muted)]">
               {formatDate(post.data.pubDate)}
             </time>
             <div class="min-w-0 flex-1">
-              <h2 class="font-display text-[1.15rem] leading-snug text-[var(--text-strong)] transition duration-300 group-hover:text-[var(--accent)]">
+              <h2 class="font-display text-[1.15rem] leading-snug text-[var(--text-strong)] transition-colors duration-300 group-hover:text-[var(--accent)]">
                 {post.data.title}
                 {post.data.locked && <span class="lock-mark ml-3 align-middle">Locked</span>}
               </h2>
@@ -66,9 +74,196 @@ const siblings = relatedTagsOf(allPosts, tagName, 8);
                 </p>
               )}
             </div>
+            <span class="tag-cascade-arrow" aria-hidden="true">→</span>
           </a>
         </li>
       ))}
     </ul>
   </main>
 </BaseLayout>
+
+<style>
+  .tag-back-ink {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    position: relative;
+    transition: color 240ms var(--ease), transform 260ms var(--ease-bounce);
+  }
+
+  .tag-back-ink:hover {
+    transform: translateX(-3px);
+  }
+
+  .tag-seal-hash {
+    display: inline-block;
+    transition: transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .section-title:hover .tag-seal-hash {
+    transform: rotate(-8deg) scale(1.1);
+  }
+
+  .tag-count-seal {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18rem 0.6rem;
+    border: 1px solid var(--vermilion);
+    border-radius: 3px;
+    color: var(--vermilion);
+    font-family: var(--font-hand-title);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    transform: rotate(-2deg);
+    opacity: 0.85;
+  }
+
+  /* 共现兄弟标签：悬停时从左至右水墨浸润灌满 */
+  .tag-sibling-ink {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    transition:
+      color 260ms var(--ease),
+      border-color 260ms var(--ease),
+      transform 280ms var(--ease-bounce);
+  }
+
+  .tag-sibling-ink::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    transition: transform 360ms cubic-bezier(0.16, 1, 0.3, 1), opacity 240ms var(--ease);
+  }
+
+  .tag-sibling-ink::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: calc(var(--sib-ratio, 0.5) * 100%);
+    height: 1.5px;
+    background: var(--vermilion);
+    opacity: 0.45;
+    transition: opacity 260ms var(--ease);
+  }
+
+  .tag-sibling-ink:hover,
+  .tag-sibling-ink:focus-visible {
+    transform: translateY(-2px);
+    border-color: var(--vermilion);
+  }
+
+  .tag-sibling-ink:hover::before,
+  .tag-sibling-ink:focus-visible::before {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+
+  .tag-sibling-ink:hover::after,
+  .tag-sibling-ink:focus-visible::after {
+    opacity: 0.95;
+  }
+
+  /* 标签文章列表：左缘贯通丝墨脊线 + 悬停行书引线与朱砂菱印 */
+  .tag-cascade-list {
+    position: relative;
+    padding-left: 1.25rem;
+  }
+
+  .tag-cascade-list::before {
+    content: '';
+    position: absolute;
+    left: 0.2rem;
+    top: 0.9rem;
+    bottom: 0.9rem;
+    width: 1px;
+    background: linear-gradient(180deg, var(--vermilion) 0%, var(--rule-strong) 35%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .tag-cascade-item {
+    position: relative;
+  }
+
+  .tag-cascade-link {
+    position: relative;
+  }
+
+  .tag-cascade-link::before {
+    content: '';
+    position: absolute;
+    left: -1.24rem;
+    top: 1.55rem;
+    width: 0.42rem;
+    height: 0.42rem;
+    background: var(--bg-base);
+    border: 1.5px solid var(--rule-strong);
+    transform: rotate(45deg) scale(0.9);
+    transition:
+      background-color 260ms var(--ease),
+      border-color 260ms var(--ease),
+      transform 360ms var(--ease-bounce);
+  }
+
+  .tag-cascade-link::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 2.2rem;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--vermilion) 0%, var(--accent) 45%, transparent 100%);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1), opacity 260ms var(--ease);
+  }
+
+  .tag-cascade-link:hover::before,
+  .tag-cascade-link:focus-visible::before {
+    background: var(--vermilion);
+    border-color: var(--vermilion);
+    transform: rotate(45deg) scale(1.3);
+  }
+
+  .tag-cascade-link:hover::after,
+  .tag-cascade-link:focus-visible::after {
+    transform: scaleX(1);
+    opacity: 0.75;
+  }
+
+  .tag-cascade-arrow {
+    align-self: center;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--accent);
+    opacity: 0;
+    transform: translate3d(-6px, 0, 0);
+    transition: opacity 260ms var(--ease), transform 320ms var(--ease-bounce);
+  }
+
+  .tag-cascade-link:hover .tag-cascade-arrow,
+  .tag-cascade-link:focus-visible .tag-cascade-arrow {
+    opacity: 0.9;
+    transform: translate3d(2px, 0, 0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tag-back-ink,
+    .tag-seal-hash,
+    .tag-sibling-ink,
+    .tag-sibling-ink::before,
+    .tag-cascade-link::before,
+    .tag-cascade-link::after,
+    .tag-cascade-arrow {
+      transition: none !important;
+    }
+  }
+</style>
