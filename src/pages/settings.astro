@@ -88,19 +88,20 @@ const MOSS_SHADES = [
 
     <main id="main-content" tabindex="-1" class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col relative space-y-8 outline-none">
       <!-- 视图 1：密码解锁卡片 -->
-      <section id="lockSection" class="flex-1 w-full min-h-[calc(100vh-9.5rem)] flex items-center justify-center my-auto py-8 transition-all duration-300">
-        <div class="w-full max-w-md bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-8 shadow-xl shadow-neutral-900/5">
-          <div class="w-12 h-12 mx-auto rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-700 dark:text-neutral-300 mb-5 border border-neutral-200/50 dark:border-neutral-700/50">
+      <section id="lockSection" class="flex-1 w-full min-h-[calc(100vh-9.5rem)] flex items-center justify-center my-auto py-8 transition-[transform,opacity] duration-300">
+        <div class="settings-lock-card w-full max-w-md bg-white/85 dark:bg-neutral-900/85 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-8 shadow-xl shadow-neutral-900/5 relative overflow-hidden">
+          <span class="settings-cinnabar-hairline" aria-hidden="true"></span>
+          <div class="w-12 h-12 mx-auto rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-[#c84b31] dark:text-[#e06d53] mb-5 border border-neutral-200/60 dark:border-neutral-700/60">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
             </svg>
           </div>
 
           <h2 class="text-center text-lg font-semibold text-neutral-900 dark:text-neutral-100 tracking-tight">
-            服务器控制台保护
+            服务器控制台 · 朱砂信印锁
           </h2>
           <p class="text-center text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 mb-6">
-            此页面受服务端管理密码保护，请输入密码以解锁配置
+            此页面受服务端管理密钥保护，请钤印验证以展开书斋配置卷轴
           </p>
 
           <form id="loginForm" class="space-y-4">
@@ -116,7 +117,7 @@ const MOSS_SHADES = [
                   required
                   autocomplete="current-password"
                   placeholder="••••••••••••"
-                  class="w-full px-3.5 py-2.5 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 transition-all font-mono"
+                  class="w-full px-3.5 py-2.5 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:border-[#c84b31] dark:focus:border-[#e06d53] transition-colors font-mono"
                 />
                 <button
                   type="button"
@@ -134,9 +135,9 @@ const MOSS_SHADES = [
             <button
               type="submit"
               id="loginSubmitBtn"
-              class="w-full py-2.5 px-4 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-neutral-100 dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-[0.99]"
+              class="w-full py-2.5 px-4 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-neutral-100 dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-[background-color,transform] duration-200 flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-[0.99]"
             >
-              <span id="loginBtnText">验证密码并解锁</span>
+              <span id="loginBtnText">钤印验证并启卷</span>
               <svg id="loginSpinner" class="hidden animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -153,7 +154,7 @@ const MOSS_SHADES = [
       </section>
 
       <!-- 视图 2：控制台工作台 -->
-      <section id="workbenchSection" class="hidden w-full space-y-8 pb-24 transition-all duration-300">
+      <section id="workbenchSection" class="hidden w-full space-y-8 pb-24 transition-[transform,opacity] duration-300">
         <!-- 统计面板条 -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div class="p-4 rounded-xl bg-white/70 dark:bg-neutral-900/70 border border-neutral-200/70 dark:border-neutral-800/70">
@@ -185,6 +186,217 @@ const MOSS_SHADES = [
           </div>
         </div>
 
+        <!-- 模块 -1：纸境书斋 · 四境主题涟漪、墨玉滑块与兰亭字韵调校 -->
+        <section id="paperStudioSection" class="settings-studio-card w-full bg-white/85 dark:bg-neutral-900/85 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-7 shadow-sm relative overflow-hidden">
+          <span class="settings-cinnabar-hairline" aria-hidden="true"></span>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-neutral-100 dark:border-neutral-800/70">
+            <div class="flex items-start sm:items-center gap-3">
+              <div class="p-2.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 text-[#c84b31] dark:text-[#e06d53] border border-amber-200/70 dark:border-amber-800/40 shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                </svg>
+              </div>
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h2 class="text-base font-semibold text-neutral-900 dark:text-neutral-100 tracking-tight">
+                    纸境书斋 · 墨玉开关与字韵调校
+                  </h2>
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100/80 dark:bg-amber-900/50 text-[#a53821] dark:text-amber-200 font-mono">
+                    Ink-Jade Studio
+                  </span>
+                </div>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                  点选纸境主题即荡开对应色泽的水墨涟漪；拨动墨玉阻尼滑块与字号标尺，实时预览书卷字韵
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 1) 四境纸色预览卡（点击荡开主题色水墨涟漪） -->
+          <div class="mb-6">
+            <div class="text-xs font-mono text-neutral-500 dark:text-neutral-400 mb-2.5 flex items-center justify-between">
+              <span>THEME PALETTE · 四境纸色水墨涟漪预演</span>
+              <span id="activeThemeLabel" class="font-semibold text-neutral-800 dark:text-neutral-200">宣纸素白</span>
+            </div>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" id="themePreviewGrid">
+              <button
+                type="button"
+                class="theme-preview-card"
+                data-theme-preview-card="light"
+                data-ripple-color="#c84b31"
+                data-theme-label="宣纸素白 (Light)"
+                style="--card-paper:#faf8f4; --card-ink:#141517; --card-accent:#c84b31;"
+              >
+                <span class="theme-preview-swatch">
+                  <span class="swatch-line is-title"></span>
+                  <span class="swatch-line"></span>
+                  <span class="swatch-seal">印</span>
+                </span>
+                <span class="theme-preview-meta">
+                  <strong>宣纸素白</strong>
+                  <small>素笺乌丝 · 朱砂点染</small>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                class="theme-preview-card"
+                data-theme-preview-card="dark"
+                data-ripple-color="#e06d53"
+                data-theme-label="松烟玄夜 (Dark)"
+                style="--card-paper:#15161a; --card-ink:#f2efe9; --card-accent:#e06d53;"
+              >
+                <span class="theme-preview-swatch">
+                  <span class="swatch-line is-title"></span>
+                  <span class="swatch-line"></span>
+                  <span class="swatch-seal">夜</span>
+                </span>
+                <span class="theme-preview-meta">
+                  <strong>松烟玄夜</strong>
+                  <small>玄砚沉墨 · 灯火温润</small>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                class="theme-preview-card"
+                data-theme-preview-card="moss"
+                data-ripple-color="#FFC2D1"
+                data-theme-label="竹青粉墨 (Moss)"
+                style="--card-paper:#00796B; --card-ink:#FFF1F4; --card-accent:#FFC2D1;"
+              >
+                <span class="theme-preview-swatch">
+                  <span class="swatch-line is-title"></span>
+                  <span class="swatch-line"></span>
+                  <span class="swatch-seal">青</span>
+                </span>
+                <span class="theme-preview-meta">
+                  <strong>竹青粉墨</strong>
+                  <small>翡翠青玉 · 桃粉映墨</small>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                class="theme-preview-card"
+                data-theme-preview-card="rice"
+                data-ripple-color="#9e5a24"
+                data-theme-label="古籍米黄 (Rice)"
+                style="--card-paper:#ebe0cb; --card-ink:#2c2218; --card-accent:#9e5a24;"
+              >
+                <span class="theme-preview-swatch">
+                  <span class="swatch-line is-title"></span>
+                  <span class="swatch-line"></span>
+                  <span class="swatch-seal">卷</span>
+                </span>
+                <span class="theme-preview-meta">
+                  <strong>古籍米黄</strong>
+                  <small>旧藏善本 · 温润护目</small>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 2) 墨玉弹性阻尼开关 + 3) 书体与字号平滑试墨台 -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-5 border-t border-neutral-100 dark:border-neutral-800/70">
+            <!-- 左侧：墨玉滑块组 -->
+            <div class="space-y-3.5">
+              <div class="text-xs font-mono text-neutral-500 dark:text-neutral-400 mb-1">
+                INK-JADE SWITCHES · 墨玉弹性阻尼开关
+              </div>
+
+              <div class="ink-jade-row">
+                <div class="min-w-0 pr-3">
+                  <div class="text-xs font-semibold text-neutral-900 dark:text-neutral-100">水墨游丝笔迹拖尾</div>
+                  <div class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">控制全站指针移动时的宣纸水墨飞白拖尾</div>
+                </div>
+                <button
+                  type="button"
+                  id="switchCursorTrail"
+                  role="switch"
+                  aria-checked="true"
+                  aria-label="切换水墨游丝笔迹拖尾"
+                  class="ink-jade-switch is-on"
+                >
+                  <span class="ink-jade-thumb" aria-hidden="true"></span>
+                </button>
+              </div>
+
+              <div class="ink-jade-row">
+                <div class="min-w-0 pr-3">
+                  <div class="text-xs font-semibold text-neutral-900 dark:text-neutral-100">点染主题水墨涟漪</div>
+                  <div class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">点击纸色卡片与青玉色阶时荡开同色水墨水纹</div>
+                </div>
+                <button
+                  type="button"
+                  id="switchInkRipple"
+                  role="switch"
+                  aria-checked="true"
+                  aria-label="切换点染主题水墨涟漪"
+                  class="ink-jade-switch is-on"
+                >
+                  <span class="ink-jade-thumb" aria-hidden="true"></span>
+                </button>
+              </div>
+
+              <div class="ink-jade-row">
+                <div class="min-w-0 pr-3">
+                  <div class="text-xs font-semibold text-neutral-900 dark:text-neutral-100">选取远端模型后自动测活</div>
+                  <div class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">在远端模型库点选模型时即刻发起低延迟连通探测</div>
+                </div>
+                <button
+                  type="button"
+                  id="switchAutoPingModel"
+                  role="switch"
+                  aria-checked="false"
+                  aria-label="切换选取远端模型后自动测活"
+                  class="ink-jade-switch"
+                >
+                  <span class="ink-jade-thumb" aria-hidden="true"></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 右侧：字体与字号实时试墨笺 -->
+            <div class="space-y-3.5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-mono text-neutral-500 dark:text-neutral-400">TYPOGRAPHY · 书体与字号实时试墨</span>
+                <div class="settings-font-seg" id="settingsFontSeg" role="group" aria-label="全站主书体切换">
+                  <span class="settings-font-glider" id="settingsFontGlider" aria-hidden="true"></span>
+                  <button type="button" class="settings-font-btn is-active" data-font-choice="pixel">像素碑刻</button>
+                  <button type="button" class="settings-font-btn" data-font-choice="calligraphy">行云手书</button>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <span class="text-xs font-mono text-neutral-500 shrink-0">字号比例</span>
+                <input
+                  type="range"
+                  id="fontScaleRange"
+                  min="92"
+                  max="116"
+                  step="2"
+                  value="100"
+                  aria-label="调整阅读字号比例"
+                  class="ink-jade-range flex-1"
+                />
+                <span id="fontScaleBadge" class="text-xs font-mono font-bold text-neutral-800 dark:text-neutral-200 w-12 text-right">100%</span>
+              </div>
+
+              <div id="fontLiveSpecimen" class="settings-specimen-box">
+                <span class="specimen-shimmer" id="specimenShimmer" aria-hidden="true"></span>
+                <div class="specimen-head">
+                  <span class="specimen-seal">试墨</span>
+                  <span id="specimenMetaText" class="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">像素碑刻 · 100%</span>
+                </div>
+                <p id="specimenBodyText" class="specimen-body">
+                  纸上得来终觉浅，绝知此事要躬行。落笔生枝蔓，朱砂定信音。
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- 模块 0：绿粉主题色阶定制 (控制台已验证解锁后可用，全站即时生效) -->
         <section id="mossShadesSection" class="w-full bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-7 shadow-sm transition-colors">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-neutral-100 dark:border-neutral-800/70">
@@ -211,7 +423,7 @@ const MOSS_SHADES = [
             <button
               type="button"
               id="resetShadeBtn"
-              class="self-start sm:self-auto text-xs text-neutral-600 dark:text-neutral-400 hover:text-teal-600 dark:hover:text-teal-300 font-mono border border-neutral-300/80 dark:border-neutral-700 rounded-lg px-3 py-1.5 hover:bg-neutral-100/70 dark:hover:bg-neutral-800/70 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shrink-0"
+              class="self-start sm:self-auto text-xs text-neutral-600 dark:text-neutral-400 hover:text-teal-600 dark:hover:text-teal-300 font-mono border border-neutral-300/80 dark:border-neutral-700 rounded-lg px-3 py-1.5 hover:bg-neutral-100/70 dark:hover:bg-neutral-800/70 transition-[background-color,color,border-color,transform] duration-200 cursor-pointer flex items-center gap-1.5 active:scale-95 shrink-0"
               title="恢复推荐色阶 #00796B"
             >
               <span>↺ 恢复推荐色</span>
@@ -224,7 +436,7 @@ const MOSS_SHADES = [
             {MOSS_SHADES.map((shade) => (
               <button
                 type="button"
-                class={`shade-option-card relative rounded-xl p-3 text-left border transition-all duration-200 cursor-pointer flex flex-col justify-between group outline-none focus:outline-none ${
+                class={`shade-option-card relative overflow-hidden rounded-xl p-3 text-left border transition-[border-color,background-color,transform] duration-200 cursor-pointer flex flex-col justify-between group outline-none focus:outline-none ${
                   shade.id === '00796B' ? 'border-[#FFC2D1] shadow-sm' : 'border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/40 hover:border-neutral-400 dark:hover:border-neutral-600'
                 }`}
                 data-moss-shade-card={shade.id}
@@ -400,7 +612,7 @@ const MOSS_SHADES = [
               </div>
 
               <!-- 模型选择抽屉/下拉卡片 -->
-              <div id="modelsDrawer" class="hidden mt-3 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950/70 border border-neutral-200 dark:border-neutral-800 transition-all">
+              <div id="modelsDrawer" class="hidden mt-3 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950/70 border border-neutral-200 dark:border-neutral-800 transition-[opacity,transform]">
                 <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
                     <span class="text-xs font-medium text-neutral-800 dark:text-neutral-200">远端模型库</span>
@@ -451,7 +663,7 @@ const MOSS_SHADES = [
                     min="0"
                     max="1.5"
                     step="0.05"
-                    class="w-full accent-neutral-900 dark:accent-neutral-100"
+                    class="ink-jade-range w-full accent-neutral-900 dark:accent-neutral-100"
                   />
                   <input
                     type="number"
@@ -665,7 +877,7 @@ const MOSS_SHADES = [
               <button
                 type="button"
                 id="generateInviteBtn"
-                class="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold tracking-wide font-mono transition-all cursor-pointer active:scale-95"
+                class="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold tracking-wide font-mono transition-[background-color,transform] duration-200 cursor-pointer active:scale-95"
               >
                 生成邀请码
               </button>
@@ -692,7 +904,7 @@ const MOSS_SHADES = [
             <button
               type="submit"
               id="saveConfigBtn"
-              class="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold tracking-wider font-mono transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+              class="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold tracking-wider font-mono transition-[background-color,transform] duration-200 flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
             >
               <span id="saveBtnText">保存并应用配置</span>
               <svg id="saveSpinner" class="hidden animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
@@ -711,11 +923,18 @@ const MOSS_SHADES = [
     </footer>
 
     <!-- Toast 提示容器 -->
-    <div id="toast" class="fixed top-6 right-6 z-50 transform translate-y-[-20px] opacity-0 pointer-events-none transition-all duration-300 max-w-sm px-4 py-3 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2 border"></div>
+    <div id="toast" class="fixed top-6 right-6 z-50 transform translate-y-[-20px] opacity-0 pointer-events-none transition-[transform,opacity] duration-300 max-w-sm px-4 py-3 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2 border"></div>
   </div>
 
   <script is:inline data-astro-rerun>
     (function () {
+      const CLEANUP_KEY = '__areSetSettingsCleanup__';
+      if (typeof window[CLEANUP_KEY] === 'function') {
+        window[CLEANUP_KEY]();
+      }
+      const settingsAbort = new AbortController();
+      const { signal } = settingsAbort;
+
       const STORAGE_KEY = 'blog_settings_token';
       let currentToken = sessionStorage.getItem(STORAGE_KEY) || '';
       let fetchedModelsList = [];
@@ -727,26 +946,68 @@ const MOSS_SHADES = [
       const serviceStatusBadge = document.getElementById('serviceStatusBadge');
       const toast = document.getElementById('toast');
 
-      // Toast 提示
+      // Toast 提示（仅合成 transform 与 opacity）
       function showToast(message, type = 'success') {
         if (!toast) return;
         toast.textContent = message;
-        toast.className = `fixed top-6 right-6 z-50 transition-all duration-300 max-w-sm px-4 py-3 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2 border ${
+        toast.className = `fixed top-6 right-6 z-50 transition-[transform,opacity] duration-300 max-w-sm px-4 py-3 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2 border ${
           type === 'success'
             ? 'bg-emerald-950 text-emerald-200 border-emerald-800'
             : 'bg-rose-950 text-rose-200 border-rose-800'
         }`;
-        toast.style.transform = 'translateY(0)';
+        toast.style.transform = 'translate3d(0, 0, 0)';
         toast.style.opacity = '1';
         toast.style.pointerEvents = 'auto';
 
         clearTimeout(toast.__timer);
         toast.__timer = setTimeout(() => {
-          toast.style.transform = 'translateY(-20px)';
+          toast.style.transform = 'translate3d(0, -20px, 0)';
           toast.style.opacity = '0';
           toast.style.pointerEvents = 'none';
         }, 3200);
       }
+
+      // GPU 水墨涟漪生成器（点击主题/色阶预览卡片时荡开对应主题色涟漪，零重排）
+      function spawnSettingsInkRipple(hostEl, evt, rippleHex) {
+        if (!hostEl || typeof hostEl.getBoundingClientRect !== 'function') return;
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        try {
+          if (localStorage.getItem('settings-ink-ripple') === '0') return;
+        } catch (e) {}
+
+        const rect = hostEl.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const cx = evt && typeof evt.clientX === 'number' && evt.clientX > 0
+          ? evt.clientX - rect.left
+          : rect.width / 2;
+        const cy = evt && typeof evt.clientY === 'number' && evt.clientY > 0
+          ? evt.clientY - rect.top
+          : rect.height / 2;
+        const maxRadius = Math.hypot(Math.max(cx, rect.width - cx), Math.max(cy, rect.height - cy)) * 2.15;
+
+        const ripple = document.createElement('span');
+        ripple.className = 'settings-ink-ripple';
+        ripple.style.width = `${maxRadius.toFixed(1)}px`;
+        ripple.style.height = `${maxRadius.toFixed(1)}px`;
+        ripple.style.left = `${cx.toFixed(1)}px`;
+        ripple.style.top = `${cy.toFixed(1)}px`;
+        ripple.style.setProperty('--ripple-color', rippleHex || '#c84b31');
+        hostEl.appendChild(ripple);
+
+        if (typeof ripple.animate === 'function') {
+          const anim = ripple.animate(
+            [
+              { transform: 'translate3d(-50%, -50%, 0) scale(0.08)', opacity: 0.48 },
+              { transform: 'translate3d(-50%, -50%, 0) scale(1)', opacity: 0 },
+            ],
+            { duration: 580, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
+          );
+          anim.onfinish = () => ripple.remove();
+        } else {
+          setTimeout(() => ripple.remove(), 600);
+        }
+      }
+      window.__spawnSettingsInkRipple = spawnSettingsInkRipple;
 
       // 绿粉主题色阶选择器交互与热切换
       function initMossShadeSelector() {
@@ -802,9 +1063,12 @@ const MOSS_SHADES = [
         updateShadeUi(getActiveShade());
 
         shadeCards.forEach((card) => {
-          card.addEventListener('click', () => {
+          card.addEventListener('click', (e) => {
             const shade = card.getAttribute('data-moss-shade-card');
             const name = card.getAttribute('data-shade-name') || shade;
+            if (typeof window.__spawnSettingsInkRipple === 'function' && typeof card.getBoundingClientRect === 'function') {
+              window.__spawnSettingsInkRipple(card, e, card.getAttribute('data-shade-hex') || `#${shade}`);
+            }
             if (shade) applyShade(shade, name);
           });
         });
@@ -820,14 +1084,228 @@ const MOSS_SHADES = [
 
       initMossShadeSelector();
 
-      // 切换视图
-      function setAuthedState(authed) {
+      // 纸境书斋：四境主题水墨涟漪、墨玉阻尼滑块与字韵平滑反馈
+      let autoPingOnSelect = false;
+      function initPaperStudioControls() {
+        const themeCards = Array.from(document.querySelectorAll('[data-theme-preview-card]'));
+        const activeThemeLabel = document.getElementById('activeThemeLabel');
+        const switchTrail = document.getElementById('switchCursorTrail');
+        const switchRipple = document.getElementById('switchInkRipple');
+        const switchAutoPing = document.getElementById('switchAutoPingModel');
+        const fontSeg = document.getElementById('settingsFontSeg');
+        const fontGlider = document.getElementById('settingsFontGlider');
+        const fontBtns = Array.from(document.querySelectorAll('[data-font-choice]'));
+        const fontScaleRange = document.getElementById('fontScaleRange');
+        const fontScaleBadge = document.getElementById('fontScaleBadge');
+        const specimenBox = document.getElementById('fontLiveSpecimen');
+        const specimenBody = document.getElementById('specimenBodyText');
+        const specimenMeta = document.getElementById('specimenMetaText');
+        const specimenShimmer = document.getElementById('specimenShimmer');
+
+        const THEME_NAMES = {
+          light: '宣纸素白 (Light)',
+          dark: '松烟玄夜 (Dark)',
+          moss: '竹青粉墨 (Moss)',
+          rice: '古籍米黄 (Rice)',
+        };
+
+        function syncThemeCards() {
+          const curTheme = document.documentElement.getAttribute('data-theme') || 'light';
+          if (activeThemeLabel) activeThemeLabel.textContent = THEME_NAMES[curTheme] || curTheme;
+          themeCards.forEach((card) => {
+            const match = card.getAttribute('data-theme-preview-card') === curTheme;
+            card.classList.toggle('is-active', match);
+            card.setAttribute('aria-pressed', String(match));
+          });
+        }
+
+        themeCards.forEach((card) => {
+          card.addEventListener('click', (e) => {
+            const nextTheme = card.getAttribute('data-theme-preview-card') || 'light';
+            const rippleHex = card.getAttribute('data-ripple-color') || '#c84b31';
+            spawnSettingsInkRipple(card, e, rippleHex);
+            try { localStorage.setItem('theme', nextTheme); } catch {}
+            document.documentElement.setAttribute('data-theme', nextTheme);
+            document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+            if (nextTheme === 'moss') {
+              const shade = (localStorage.getItem('moss-shade') || '00796B').replace(/^#/, '');
+              document.documentElement.setAttribute('data-moss-shade', shade);
+            }
+            window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme: nextTheme } }));
+            syncThemeCards();
+            showToast(`已展开「${THEME_NAMES[nextTheme] || nextTheme}」纸境主题`);
+          }, { signal });
+        });
+
+        window.addEventListener('theme-change', syncThemeCards, { signal });
+        syncThemeCards();
+
+        // 墨玉弹性阻尼滑块绑定
+        function bindInkJadeSwitch(btn, initialOn, onChange) {
+          if (!btn) return;
+          const setVisual = (on) => {
+            btn.classList.toggle('is-on', on);
+            btn.setAttribute('aria-checked', String(on));
+          };
+          setVisual(initialOn);
+          btn.addEventListener('click', () => {
+            const next = !btn.classList.contains('is-on');
+            setVisual(next);
+            onChange(next);
+          }, { signal });
+        }
+
+        let trailOn = true;
+        let rippleOn = true;
+        try {
+          trailOn = localStorage.getItem('cursor-trail') !== 'off' && localStorage.getItem('cursor-trail') !== 'false';
+          rippleOn = localStorage.getItem('settings-ink-ripple') !== '0';
+          autoPingOnSelect = localStorage.getItem('settings-auto-ping') === '1';
+        } catch {}
+
+        bindInkJadeSwitch(switchTrail, trailOn, (on) => {
+          try { localStorage.setItem('cursor-trail', on ? 'on' : 'off'); } catch {}
+          document.documentElement.dataset.cursorTrail = on ? 'on' : 'off';
+          if (!on && typeof window.__clearCursorTrail === 'function') window.__clearCursorTrail();
+          window.dispatchEvent(new CustomEvent('cursor-trail-change', { detail: { enabled: on } }));
+          showToast(on ? '已开启水墨游丝笔迹拖尾' : '已收敛水墨笔迹拖尾');
+        });
+
+        bindInkJadeSwitch(switchRipple, rippleOn, (on) => {
+          try { localStorage.setItem('settings-ink-ripple', on ? '1' : '0'); } catch {}
+          showToast(on ? '已开启主题卡片水墨涟漪' : '已静默水墨涟漪反馈');
+        });
+
+        bindInkJadeSwitch(switchAutoPing, autoPingOnSelect, (on) => {
+          autoPingOnSelect = on;
+          try { localStorage.setItem('settings-auto-ping', on ? '1' : '0'); } catch {}
+          showToast(on ? '已开启选取模型后即刻测活' : '已关闭自动模型测活');
+        });
+
+        // 书体分段游标 + 阅读字号平滑预览
+        let currentFont = 'pixel';
+        let currentScale = 100;
+        try {
+          const savedFont = localStorage.getItem('font-style') || document.documentElement.getAttribute('data-font');
+          if (savedFont === 'calligraphy' || savedFont === 'pixel') currentFont = savedFont;
+          const savedScale = Number(localStorage.getItem('blog-reading-scale'));
+          if (savedScale >= 92 && savedScale <= 116) currentScale = savedScale;
+        } catch {}
+
+        function syncFontGlider(immediate = false) {
+          if (!fontSeg || !fontGlider) return;
+          const activeBtn = fontSeg.querySelector('.settings-font-btn.is-active');
+          if (!activeBtn || !activeBtn.offsetWidth) return;
+          const sx = Math.max(0.05, activeBtn.offsetWidth / 100);
+          fontGlider.style.setProperty('--pill-rx', `${(6 / sx).toFixed(2)}px`);
+          const nextTransform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
+          if (immediate) {
+            fontGlider.style.transition = 'none';
+            fontGlider.style.transform = nextTransform;
+            requestAnimationFrame(() => {
+              if (fontGlider) fontGlider.style.transition = '';
+            });
+          } else {
+            fontGlider.style.transform = nextTransform;
+          }
+        }
+
+        function triggerSpecimenShimmer() {
+          if (!specimenShimmer || typeof specimenShimmer.animate !== 'function') return;
+          if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+          specimenShimmer.animate(
+            [
+              { opacity: 0, transform: 'translate3d(-55%, 0, 0)' },
+              { opacity: 0.75, offset: 0.45 },
+              { opacity: 0, transform: 'translate3d(55%, 0, 0)' },
+            ],
+            { duration: 520, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+          );
+        }
+
+        function applyTypographyState(animateFeedback = false) {
+          fontBtns.forEach((b) => {
+            b.classList.toggle('is-active', b.getAttribute('data-font-choice') === currentFont);
+          });
+          syncFontGlider(!animateFeedback);
+          if (fontScaleRange) fontScaleRange.value = String(currentScale);
+          if (fontScaleBadge) fontScaleBadge.textContent = `${currentScale}%`;
+          if (specimenBox) {
+            specimenBox.setAttribute('data-specimen-font', currentFont);
+            specimenBox.style.setProperty('--specimen-scale', (currentScale / 100).toFixed(3));
+          }
+          if (specimenMeta) {
+            specimenMeta.textContent = `${currentFont === 'calligraphy' ? '行云手书' : '像素碑刻'} · ${currentScale}%`;
+          }
+          if (animateFeedback) {
+            triggerSpecimenShimmer();
+            if (specimenBody && typeof specimenBody.animate === 'function' && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+              specimenBody.animate(
+                [
+                  { opacity: 0.65, transform: 'translate3d(0, 3px, 0)' },
+                  { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+                ],
+                { duration: 240, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+              );
+            }
+          }
+        }
+
+        fontBtns.forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const chosen = btn.getAttribute('data-font-choice') || 'pixel';
+            if (chosen === currentFont) return;
+            currentFont = chosen;
+            try { localStorage.setItem('font-style', currentFont); } catch {}
+            document.documentElement.setAttribute('data-font', currentFont);
+            window.dispatchEvent(new CustomEvent('font-change', { detail: { font: currentFont } }));
+            applyTypographyState(true);
+            showToast(`已切换书体为「${currentFont === 'calligraphy' ? '行云手书' : '像素碑刻'}」`);
+          }, { signal });
+        });
+
+        fontScaleRange?.addEventListener('input', (e) => {
+          currentScale = Number(e.target.value) || 100;
+          try { localStorage.setItem('blog-reading-scale', String(currentScale)); } catch {}
+          document.documentElement.style.setProperty('--reading-font-scale', (currentScale / 100).toFixed(3));
+          applyTypographyState(false);
+        }, { signal });
+        fontScaleRange?.addEventListener('change', () => {
+          triggerSpecimenShimmer();
+        }, { signal });
+
+        requestAnimationFrame(() => applyTypographyState(false));
+      }
+
+      initPaperStudioControls();
+
+      // 切换视图（含朱砂破封启卷平滑入场）
+      function setAuthedState(authed, animateUnfurl = false) {
         if (authed) {
           lockSection.classList.add('hidden');
           workbenchSection.classList.remove('hidden');
           logoutBtn.classList.remove('hidden');
           serviceStatusBadge.classList.remove('hidden');
           serviceStatusBadge.classList.add('flex');
+          requestAnimationFrame(() => {
+            const seg = document.getElementById('settingsFontSeg');
+            const glider = document.getElementById('settingsFontGlider');
+            const active = seg?.querySelector('.settings-font-btn.is-active');
+            if (glider && active && active.offsetWidth) {
+              const sx = Math.max(0.05, active.offsetWidth / 100);
+              glider.style.setProperty('--pill-rx', `${(6 / sx).toFixed(2)}px`);
+              glider.style.transform = `translate3d(${active.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
+            }
+          });
+          if (animateUnfurl && workbenchSection && typeof workbenchSection.animate === 'function' && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+            workbenchSection.animate(
+              [
+                { opacity: 0, transform: 'translate3d(0, 16px, 0) scale(0.99)' },
+                { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
+              ],
+              { duration: 420, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+            );
+          }
         } else {
           lockSection.classList.remove('hidden');
           workbenchSection.classList.add('hidden');
@@ -904,8 +1382,8 @@ const MOSS_SHADES = [
 
           currentToken = data.token;
           sessionStorage.setItem(STORAGE_KEY, currentToken);
-          setAuthedState(true);
-          showToast('解锁成功，正在加载服务器配置...');
+          setAuthedState(true, true);
+          showToast('钤印核验通过，正在展开书斋配置...');
           await loadConfig();
           await loadInvites();
           await loadAccounts();
@@ -1048,6 +1526,9 @@ const MOSS_SHADES = [
             const m = btn.getAttribute('data-select-model');
             document.getElementById('aiModel').value = m;
             showToast(`已选取模型: ${m}`);
+            if (autoPingOnSelect && m) {
+              testSpecificModel(m, null);
+            }
           });
         });
 
@@ -1415,11 +1896,20 @@ const MOSS_SHADES = [
 
       // 初始化：若已有 token，尝试自动加载
       if (currentToken) {
-        setAuthedState(true);
+        setAuthedState(true, false);
         loadConfig()
           .then(() => Promise.all([loadInvites(), loadAccounts()]))
           .catch(() => setAuthedState(false));
       }
+
+      window[CLEANUP_KEY] = () => {
+        settingsAbort.abort();
+        if (toast && toast.__timer) clearTimeout(toast.__timer);
+        window[CLEANUP_KEY] = undefined;
+      };
+      document.addEventListener('astro:before-swap', () => {
+        if (typeof window[CLEANUP_KEY] === 'function') window[CLEANUP_KEY]();
+      }, { signal });
     })();
   </script>
 
@@ -1449,6 +1939,304 @@ const MOSS_SHADES = [
     html:has(.settings-viewport) .sidebar-expand-btn,
     html:has(.settings-viewport) .seal-floating {
       display: none !important;
+    }
+
+    /* 卷首朱砂细线 */
+    .settings-cinnabar-hairline {
+      position: absolute;
+      top: 0;
+      left: 8%;
+      right: 8%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(200, 75, 49, 0.72), transparent);
+      pointer-events: none;
+    }
+
+    /* 主题与色阶预览卡：点击荡开主题色水墨涟漪（GPU transform + opacity） */
+    .settings-ink-ripple {
+      position: absolute;
+      border-radius: 9999px;
+      pointer-events: none;
+      z-index: 4;
+      background: radial-gradient(
+        circle,
+        color-mix(in srgb, var(--ripple-color, #c84b31) 46%, transparent) 0%,
+        color-mix(in srgb, var(--ripple-color, #c84b31) 20%, transparent) 55%,
+        transparent 74%
+      );
+      transform: translate3d(-50%, -50%, 0) scale(0.08);
+    }
+
+    .theme-preview-card {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      padding: 0.72rem;
+      border-radius: 0.85rem;
+      border: 1px solid rgba(120, 120, 128, 0.24);
+      background: rgba(250, 248, 244, 0.55);
+      text-align: left;
+      cursor: pointer;
+      transition:
+        transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 240ms ease,
+        background-color 240ms ease;
+    }
+    [data-theme="dark"] .theme-preview-card {
+      background: rgba(24, 25, 30, 0.72);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+    .theme-preview-card:hover {
+      transform: translate3d(0, -2px, 0);
+      border-color: var(--card-accent, #c84b31);
+    }
+    .theme-preview-card.is-active {
+      border-color: var(--card-accent, #c84b31);
+      background: color-mix(in srgb, var(--card-accent, #c84b31) 9%, transparent);
+    }
+
+    .theme-preview-swatch {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.32rem;
+      height: 3.1rem;
+      padding: 0.55rem 0.65rem;
+      border-radius: 0.55rem;
+      background: var(--card-paper);
+      border: 1px solid rgba(120, 120, 128, 0.22);
+    }
+    .theme-preview-swatch .swatch-line {
+      display: block;
+      height: 4px;
+      width: 62%;
+      border-radius: 999px;
+      background: var(--card-ink);
+      opacity: 0.38;
+    }
+    .theme-preview-swatch .swatch-line.is-title {
+      width: 42%;
+      height: 5px;
+      opacity: 0.82;
+    }
+    .theme-preview-swatch .swatch-seal {
+      position: absolute;
+      right: 0.55rem;
+      bottom: 0.45rem;
+      padding: 0.06rem 0.28rem;
+      font-size: 0.62rem;
+      font-weight: 700;
+      border-radius: 3px;
+      color: var(--card-accent);
+      border: 1px solid var(--card-accent);
+      transform: rotate(-4deg);
+    }
+
+    .theme-preview-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+    .theme-preview-meta strong {
+      font-size: 0.78rem;
+      color: var(--text-strong, #171717);
+    }
+    [data-theme="dark"] .theme-preview-meta strong {
+      color: #f5f5f5;
+    }
+    .theme-preview-meta small {
+      font-size: 0.68rem;
+      color: #737373;
+    }
+
+    /* 墨玉弹性阻尼开关 (Ink-Jade Elastic Switch) */
+    .ink-jade-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 0.85rem;
+      border-radius: 0.75rem;
+      border: 1px solid rgba(120, 120, 128, 0.18);
+      background: rgba(250, 249, 246, 0.6);
+      transition: border-color 220ms ease, background-color 220ms ease;
+    }
+    [data-theme="dark"] .ink-jade-row {
+      background: rgba(20, 21, 25, 0.6);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+    .ink-jade-row:hover {
+      border-color: rgba(200, 75, 49, 0.36);
+    }
+
+    .ink-jade-switch {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      width: 46px;
+      height: 26px;
+      padding: 3px;
+      border-radius: 9999px;
+      border: 1px solid rgba(115, 115, 122, 0.34);
+      background: rgba(120, 120, 128, 0.18);
+      cursor: pointer;
+      flex-shrink: 0;
+      outline: none;
+      transition:
+        background-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 300ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .ink-jade-switch.is-on {
+      background: linear-gradient(135deg, #0d6e61 0%, #174c45 100%);
+      border-color: rgba(16, 185, 129, 0.55);
+    }
+    [data-theme="rice"] .ink-jade-switch.is-on {
+      background: linear-gradient(135deg, #9e472f 0%, #6e2d1b 100%);
+      border-color: rgba(200, 75, 49, 0.55);
+    }
+
+    .ink-jade-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 9999px;
+      background: radial-gradient(circle at 32% 28%, #ffffff 0%, #e7ecea 65%, #cbd5d1 100%);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.24);
+      transform: translate3d(0, 0, 0) scale(1);
+      transition: transform 380ms cubic-bezier(0.34, 1.52, 0.64, 1);
+    }
+    .ink-jade-switch.is-on .ink-jade-thumb {
+      transform: translate3d(20px, 0, 0) scale(1);
+      background: radial-gradient(circle at 32% 28%, #ffffff 0%, #d5f5ec 68%, #9be0cd 100%);
+    }
+    .ink-jade-switch:active .ink-jade-thumb {
+      transform: translate3d(0, 0, 0) scaleX(1.14) scaleY(0.9);
+    }
+    .ink-jade-switch.is-on:active .ink-jade-thumb {
+      transform: translate3d(18px, 0, 0) scaleX(1.14) scaleY(0.9);
+    }
+
+    /* 墨玉滑尺 (Range Slider) */
+    .ink-jade-range {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(13, 110, 97, 0.28), rgba(200, 75, 49, 0.36));
+      outline: none;
+      cursor: pointer;
+    }
+    .ink-jade-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 35% 30%, #ffffff 0%, #d7ebe5 68%, #0f766e 100%);
+      border: 1.5px solid #0f766e;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+      transition: transform 220ms cubic-bezier(0.34, 1.52, 0.64, 1);
+    }
+    .ink-jade-range::-webkit-slider-thumb:hover {
+      transform: scale(1.18);
+    }
+
+    /* 书体切换滑块与兰亭试墨笺 */
+    .settings-font-seg {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      padding: 2px;
+      border-radius: 8px;
+      background: rgba(120, 120, 128, 0.14);
+      border: 1px solid rgba(120, 120, 128, 0.2);
+    }
+    .settings-font-glider {
+      position: absolute;
+      top: 2px;
+      bottom: 2px;
+      left: 0;
+      width: 100px;
+      transform-origin: 0 50%;
+      border-radius: var(--pill-rx, 6px) / 6px;
+      background: #1c1d21;
+      z-index: 0;
+      pointer-events: none;
+      transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    [data-theme="dark"] .settings-font-glider {
+      background: #f2efe9;
+    }
+    .settings-font-btn {
+      position: relative;
+      z-index: 1;
+      padding: 0.22rem 0.65rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #666;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 200ms ease;
+    }
+    .settings-font-btn.is-active {
+      color: #faf8f4;
+    }
+    [data-theme="dark"] .settings-font-btn.is-active {
+      color: #15161a;
+    }
+
+    .settings-specimen-box {
+      --specimen-scale: 1;
+      position: relative;
+      overflow: hidden;
+      padding: 0.9rem 1rem;
+      border-radius: 0.85rem;
+      border: 1px solid rgba(120, 120, 128, 0.22);
+      background: linear-gradient(135deg, rgba(250, 248, 242, 0.92), rgba(243, 238, 228, 0.85));
+    }
+    [data-theme="dark"] .settings-specimen-box {
+      background: linear-gradient(135deg, rgba(24, 25, 30, 0.9), rgba(18, 19, 23, 0.88));
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+    .specimen-shimmer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      background: linear-gradient(110deg, transparent 25%, rgba(200, 75, 49, 0.12) 50%, transparent 75%);
+    }
+    .specimen-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.45rem;
+    }
+    .specimen-seal {
+      display: inline-block;
+      padding: 0.06rem 0.36rem;
+      font-size: 0.64rem;
+      font-weight: 700;
+      color: #c84b31;
+      border: 1px solid rgba(200, 75, 49, 0.72);
+      border-radius: 3px;
+      transform: rotate(-3deg);
+    }
+    .specimen-body {
+      margin: 0;
+      line-height: 1.72;
+      color: #1e1f24;
+      font-size: calc(0.88rem * var(--specimen-scale, 1));
+      transition: font-size 220ms cubic-bezier(0.22, 1, 0.36, 1), color 220ms ease;
+    }
+    [data-theme="dark"] .specimen-body {
+      color: #ebe8e1;
+    }
+    .settings-specimen-box[data-specimen-font="calligraphy"] .specimen-body {
+      font-family: var(--font-hand, var(--font-serif, serif));
+      letter-spacing: 0.04em;
     }
 
     /* 邀请码 / 账号列表入场动效 */
@@ -1481,8 +2269,14 @@ const MOSS_SHADES = [
 
     @media (prefers-reduced-motion: reduce) {
       #inviteList > div,
-      #accountList > div {
-        animation: none;
+      #accountList > div,
+      .theme-preview-card,
+      .ink-jade-switch,
+      .ink-jade-thumb,
+      .settings-font-glider,
+      .specimen-body {
+        animation: none !important;
+        transition: none !important;
       }
     }
   </style>

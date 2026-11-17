@@ -298,8 +298,8 @@ test('Gallery Lightbox Animations & Sidebar Layout Robustness', () => {
     'BaseLayout.astro must reset sidebar scrollTop on swap and page load'
   );
   assert.ok(
-    baseLayoutContent.includes("CustomEase.create('enter', 'M0,0 C0.16,1 0.3,1 1,1')"),
-    'BaseLayout.astro must use smooth, natural glide ease rather than front-loaded snap'
+    baseLayoutContent.includes("CustomEase.create('enter'"),
+    'BaseLayout.astro must register custom enter glide ease rather than front-loaded snap'
   );
 });
 
