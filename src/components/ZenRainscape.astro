@@ -1,6 +1,6 @@
 ---
-// ZenRainscape.astro — 全站「烟雨濛濛」音画微气象背景系统
-// 平时保持纯净宣纸底色（0% 开销），开启「墨池听雨」伴读白噪音时，漫入斜风细雨与空灵微澜
+// ZenRainscape.astro — 全站「檐下听雨 · 雨落宣纸微澜」音画微气象背景系统
+// 平时保持纯净宣纸底色（0% 开销），开启「墨池听雨」伴读音景时，漫入远近三层斜风细雨、屋檐垂珠与宣纸水晕微澜
 ---
 
 <canvas
@@ -21,12 +21,19 @@
     pointer-events: none;
     z-index: 1; /* 位于纸张底纹之上，正文与交互容器之下 */
     opacity: 0;
-    transition: opacity 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: opacity 1.2s cubic-bezier(0.22, 1, 0.36, 1);
     will-change: opacity;
   }
 
   .zen-rain-canvas.is-active {
     opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .zen-rain-canvas {
+      display: none !important;
+      transition: none !important;
+    }
   }
 </style>
 
@@ -34,6 +41,9 @@
 import { getZenAudioEngine } from '../utils/zenAudioEngine';
 
 (function setupZenRainscape() {
+  const CLEANUP_KEY = '__areSetZenRainscapeCleanup__';
+  (window as any)[CLEANUP_KEY]?.();
+
   let canvas: HTMLCanvasElement | null = null;
   let ctx: CanvasRenderingContext2D | null = null;
   let animId: number | null = null;
@@ -43,15 +53,26 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
   let targetOpacity = 0;
   let width = 0;
   let height = 0;
-  let listenerAttached = false;
+  let lastFrameTime = 0;
+  let unsubscribeEngine: (() => void) | null = null;
+
+  const controller = new AbortController();
+  const { signal } = controller;
 
   interface RainDrop {
     x: number;
     y: number;
     len: number;
     speed: number;
-    opacity: number;
-    width: number;
+    layer: 0 | 1 | 2; // 0: 远山细雨, 1: 中景青丝, 2: 檐前浓丝
+  }
+
+  interface EaveDrip {
+    x: number;
+    y: number;
+    vy: number;
+    targetY: number;
+    radius: number;
   }
 
   type RippleTier = 'micro' | 'main' | 'deep';
@@ -65,37 +86,81 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
     speed: number;
     color: string;
     tier: RippleTier;
+    isEaveOrigin?: boolean;
   }
 
   const drops: RainDrop[] = [];
+  const eaveDrips: EaveDrip[] = [];
   const lakeRipples: LakeRipple[] = [];
   let nextRippleTime = 0;
+  let nextEaveDripTime = 0;
 
   const maxDrops = 140;
   const maxRipplesDesktop = 55;
   const maxRipplesMobile = 32;
-  const maxRipples = maxRipplesDesktop; // 默认桌面端上限 55，移动端自适应 32
-  const windAngle = Math.PI / 11; // ~16 度倾斜细雨
-  const cosAngle = Math.cos(windAngle);
-  const sinAngle = Math.sin(windAngle);
+  const baseWindAngle = Math.PI / 11; // ~16 度清风斜雨
+
+  interface RainPalette {
+    rain: string;
+    ripple: string;
+    sealAccent: string;
+  }
+
+  function computePalette(): RainPalette {
+    const theme = document.documentElement.getAttribute('data-theme') || 'light';
+    if (theme === 'dark') {
+      return {
+        rain: '234, 232, 227',
+        ripple: '234, 232, 227',
+        sealAccent: '217, 92, 72',
+      };
+    } else if (theme === 'moss') {
+      return {
+        rain: '255, 236, 242',
+        ripple: '255, 214, 226',
+        sealAccent: '255, 194, 209',
+      };
+    } else if (theme === 'rice') {
+      return {
+        rain: '43, 36, 28',
+        ripple: '52, 43, 33',
+        sealAccent: '168, 59, 40',
+      };
+    }
+    return {
+      rain: '26, 24, 20',
+      ripple: '30, 28, 24',
+      sealAccent: '184, 59, 40',
+    };
+  }
+
+  let cachedPalette: RainPalette = computePalette();
+
+  function refreshPalette() {
+    cachedPalette = computePalette();
+  }
 
   function getMaxRipples() {
-    return window.innerWidth < 768 ? maxRipplesMobile : maxRipplesDesktop;
+    return width < 768 ? maxRipplesMobile : maxRipplesDesktop;
   }
 
   function getNextRippleInterval() {
-    return window.innerWidth < 768
+    return width < 768
       ? 140 + Math.random() * 100 // 移动端 140ms ~ 240ms
       : 80 + Math.random() * 80;   // 桌面端 80ms ~ 160ms，连绵不绝
   }
 
   function resize() {
     if (!canvas) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
     width = window.innerWidth;
     height = window.innerHeight;
-    canvas.width = Math.floor(width * dpr);
-    canvas.height = Math.floor(height * dpr);
+    const targetW = Math.floor(width * dpr);
+    const targetH = Math.floor(height * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
     if (ctx) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
@@ -103,48 +168,27 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
 
   function initDrops() {
     drops.length = 0;
-    const count = window.innerWidth < 768 ? Math.floor(maxDrops * 0.6) : maxDrops;
+    eaveDrips.length = 0;
+    const count = width < 768 ? Math.floor(maxDrops * 0.6) : maxDrops;
     for (let i = 0; i < count; i++) {
+      const roll = Math.random();
+      const layer: 0 | 1 | 2 = roll < 0.46 ? 0 : roll < 0.84 ? 1 : 2;
       drops.push({
-        x: Math.random() * (width + 300) - 150,
+        x: Math.random() * (width + 320) - 160,
         y: Math.random() * height,
-        len: 16 + Math.random() * 24,
-        speed: 6.5 + Math.random() * 4.5,
-        opacity: 0.12 + Math.random() * 0.22,
-        width: 0.8 + Math.random() * 0.7,
+        len: layer === 0 ? 12 + Math.random() * 14 : layer === 1 ? 20 + Math.random() * 18 : 28 + Math.random() * 20,
+        speed: layer === 0 ? 5.2 + Math.random() * 2.4 : layer === 1 ? 7.4 + Math.random() * 3.0 : 9.6 + Math.random() * 3.2,
+        layer,
       });
     }
 
     lakeRipples.length = 0;
-    nextRippleTime = performance.now() + 100;
+    const now = performance.now();
+    nextRippleTime = now + 90;
+    nextEaveDripTime = now + 680;
   }
 
-  function getPalette() {
-    const theme = document.documentElement.getAttribute('data-theme') || 'light';
-    if (theme === 'dark') {
-      return {
-        rain: '255, 255, 255',
-        ripple: '255, 255, 255',
-      };
-    } else if (theme === 'moss') {
-      return {
-        rain: '240, 248, 242',
-        ripple: '240, 248, 242',
-      };
-    } else if (theme === 'rice') {
-      return {
-        rain: '40, 34, 28',
-        ripple: '40, 34, 28',
-      };
-    }
-    // Default paper/light: pure deep ink
-    return {
-      rain: '26, 24, 20',
-      ripple: '30, 28, 24',
-    };
-  }
-
-  function spawnLakeRipple(palette: any) {
+  function spawnLakeRipple(palette: RainPalette, fixedX?: number, fixedY?: number, fromEave = false) {
     if (lakeRipples.length >= getMaxRipples()) return;
 
     const rand = Math.random();
@@ -153,71 +197,114 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
     let speed: number;
     let opacity: number;
 
-    if (rand < 0.45) {
-      // 1. 微落点圈 (半径 2~14px)：细密雨滴初触水面的灵动小水点
+    if (fromEave) {
+      tier = Math.random() < 0.68 ? 'main' : 'deep';
+      maxR = tier === 'main' ? 26 + Math.random() * 22 : 52 + Math.random() * 22;
+      speed = tier === 'main' ? 0.32 + Math.random() * 0.14 : 0.22 + Math.random() * 0.1;
+      opacity = 0.28 + Math.random() * 0.12;
+    } else if (rand < 0.45) {
+      // 1. 微落点圈 (半径 2~14px)：细雨初触宣纸的灵动微晕
       tier = 'micro';
-      maxR = 2.5 + Math.random() * 11.5; // 2~14px
-      speed = 0.22 + Math.random() * 0.16; // 自然轻灵慢速扩展，持续约 0.6~1.0 秒
-      opacity = 0.26 + Math.random() * 0.16;
+      maxR = 2.5 + Math.random() * 11.5;
+      speed = 0.22 + Math.random() * 0.16;
+      opacity = 0.26 + Math.random() * 0.15;
     } else if (rand < 0.88) {
-      // 2. 主椭圆双环 (半径 20~45px)：遵循视角透视的半透明经典同心水晕
+      // 2. 主椭圆双环 (半径 20~45px)：遵循透视比例的宣纸水墨同心微澜
       tier = 'main';
-      maxR = 20 + Math.random() * 25; // 20~45px
-      speed = 0.30 + Math.random() * 0.18; // 柔和水晕荡漾，持续约 1.5~2.2 秒
-      opacity = 0.22 + Math.random() * 0.16;
+      maxR = 20 + Math.random() * 25;
+      speed = 0.30 + Math.random() * 0.18;
+      opacity = 0.22 + Math.random() * 0.15;
     } else {
-      // 3. 深漫水澜 (半径 50~75px)：偶发缓慢散开的大水波纹，全屏交叠而不突兀
+      // 3. 深漫水澜 (半径 50~75px)：悠远扩散的清浅水韵
       tier = 'deep';
-      maxR = 50 + Math.random() * 25; // 50~75px
-      speed = 0.20 + Math.random() * 0.12; // 悠缓深澜回荡，持续约 3.5~5.0 秒
+      maxR = 50 + Math.random() * 25;
+      speed = 0.20 + Math.random() * 0.12;
       opacity = 0.15 + Math.random() * 0.09;
     }
 
     lakeRipples.push({
-      x: 30 + Math.random() * Math.max(100, width - 60),
-      y: 40 + Math.random() * Math.max(100, height - 80),
+      x: fixedX ?? (30 + Math.random() * Math.max(100, width - 60)),
+      y: fixedY ?? (40 + Math.random() * Math.max(100, height - 80)),
       r: 1,
       maxR,
       opacity,
       speed,
       color: palette.ripple,
       tier,
+      isEaveOrigin: fromEave,
     });
   }
 
-  function loop() {
-    if (!ctx || !canvas || isModalActive) return;
+  function spawnEaveDrip() {
+    if (eaveDrips.length >= (width < 768 ? 3 : 6)) return;
+    eaveDrips.push({
+      x: 48 + Math.random() * Math.max(120, width - 96),
+      y: -6,
+      vy: 3.4 + Math.random() * 1.8,
+      targetY: height * (0.18 + Math.random() * 0.64),
+      radius: 1.4 + Math.random() * 0.8,
+    });
+  }
 
-    // Smooth alpha transition
-    currentOpacity += (targetOpacity - currentOpacity) * 0.05;
+  function loop(stamp?: number) {
+    if (!ctx || !canvas || isModalActive) return;
+    if (document.hidden) {
+      animId = null;
+      lastFrameTime = 0;
+      return;
+    }
+
+    const now = typeof stamp === 'number' && stamp > 0 ? stamp : performance.now();
+    // 固定 60fps 基准归一化步长，钳制突发长帧，保证 60/120/165Hz 物理速率恒定
+    const dtScale = lastFrameTime > 0 ? Math.min(2.2, Math.max(0.25, (now - lastFrameTime) / 16.6667)) : 1;
+    lastFrameTime = now;
+
+    // 帧率无关指数阻尼渐隐渐显
+    const alphaLerp = 1 - Math.pow(0.95, dtScale);
+    currentOpacity += (targetOpacity - currentOpacity) * alphaLerp;
+
     if (currentOpacity < 0.005 && targetOpacity === 0) {
       currentOpacity = 0;
+      lastFrameTime = 0;
       ctx.clearRect(0, 0, width, height);
       isRunning = false;
       animId = null;
-      lakeRipples.length = 0; // 淡出彻底归零，清除残留波纹
+      lakeRipples.length = 0;
+      eaveDrips.length = 0;
       return;
     }
 
     ctx.clearRect(0, 0, width, height);
 
-    const palette = getPalette();
-    const now = performance.now();
+    const palette = cachedPalette;
 
-    // 1. 高频生动水波节奏调度器 (桌面端 80~160ms，移动端 140~240ms，连绵不绝)
+    // 1. 连绵宣纸水澜调度器
     if (now >= nextRippleTime && currentOpacity > 0.04) {
       spawnLakeRipple(palette);
-      // 自然降水散射：偶发伴生次水花或水滴连缀，提升生动微澜感
       if (lakeRipples.length < getMaxRipples() && Math.random() < 0.40) {
         spawnLakeRipple(palette);
       }
       nextRippleTime = now + getNextRippleInterval();
     }
 
-    // 2. 多层次分级水波渲染 (微落点圈 2~14px + 主椭圆双环 20~45px + 深漫水澜 50~75px)
+    // 1.2 檐前垂珠调度器（模拟瓦当檐滴垂落宣纸生起水晕）
+    if (now >= nextEaveDripTime && currentOpacity > 0.12) {
+      spawnEaveDrip();
+      nextEaveDripTime = now + (width < 768 ? 1100 + Math.random() * 900 : 680 + Math.random() * 720);
+    }
+
+    // 2. 批量构建多层级微澜 Path2D（零 save/restore，仅 4 档透明度批绘制，消除每帧数十次 Draw Call）
+    const ripHigh = new Path2D();
+    const ripMid = new Path2D();
+    const ripSoft = new Path2D();
+    const ripFaint = new Path2D();
+    const ripCores = new Path2D();
+    const ripEaveRings = new Path2D();
+    let cHigh = 0, cMid = 0, cSoft = 0, cFaint = 0, cCores = 0, cEave = 0;
+
     for (let i = lakeRipples.length - 1; i >= 0; i--) {
       const rip = lakeRipples[i];
-      rip.r += rip.speed;
+      rip.r += rip.speed * dtScale;
       const progress = rip.r / rip.maxR;
       const currentAlpha = rip.opacity * (1 - progress) * currentOpacity;
 
@@ -227,97 +314,165 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
         continue;
       }
 
-      // 极低透明度跳过绘制以优化性能，但保留波纹生命周期
       if (currentAlpha <= 0.003) {
         continue;
       }
 
-      ctx.save();
-      if (rip.tier === 'micro') {
-        // 微落点圈：细密初触水面的灵动小水点 (半径 2~14px)
-        ctx.beginPath();
-        ctx.ellipse(rip.x, rip.y, rip.r, rip.r * 0.45, 0, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${rip.color}, ${currentAlpha})`;
-        ctx.lineWidth = 0.75;
-        ctx.stroke();
+      const targetBucket =
+        currentAlpha >= 0.20 ? (cHigh++, ripHigh) :
+        currentAlpha >= 0.11 ? (cMid++, ripMid) :
+        currentAlpha >= 0.05 ? (cSoft++, ripSoft) :
+        (cFaint++, ripFaint);
 
-        // 触水瞬间极小晕心
-        if (rip.r < 4) {
-          const coreAlpha = (1 - rip.r / 4) * 0.35 * currentOpacity;
-          ctx.beginPath();
-          ctx.arc(rip.x, rip.y, 1.2, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${rip.color}, ${coreAlpha})`;
-          ctx.fill();
+      const aspect = rip.tier === 'micro' ? 0.45 : rip.tier === 'main' ? 0.42 : 0.40;
+      const rx = rip.r;
+      const ry = rx * aspect;
+      targetBucket.moveTo(rip.x + rx, rip.y);
+      targetBucket.ellipse(rip.x, rip.y, rx, ry, 0, 0, Math.PI * 2);
+
+      if (rip.tier === 'micro') {
+        if (rip.r < 4.2) {
+          ripCores.moveTo(rip.x + 1.25, rip.y);
+          ripCores.arc(rip.x, rip.y, 1.25, 0, Math.PI * 2);
+          cCores++;
         }
       } else if (rip.tier === 'main') {
-        // 主椭圆双环：视角透视同心水晕 (半径 20~45px，透视比例 0.42)
-        ctx.beginPath();
-        ctx.ellipse(rip.x, rip.y, rip.r, rip.r * 0.42, 0, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${rip.color}, ${currentAlpha})`;
-        ctx.lineWidth = 0.85;
-        ctx.stroke();
-
-        // 内层微澜回音环
-        if (rip.r > 8) {
-          const innerR = rip.r * 0.62;
-          const innerAlpha = currentAlpha * 0.55;
-          ctx.beginPath();
-          ctx.ellipse(rip.x, rip.y, innerR, innerR * 0.42, 0, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(${rip.color}, ${innerAlpha})`;
-          ctx.lineWidth = 0.6;
-          ctx.stroke();
+        if (rip.r > 7.5) {
+          const innerRx = rx * 0.62;
+          const innerRy = innerRx * 0.42;
+          ripSoft.moveTo(rip.x + innerRx, rip.y);
+          ripSoft.ellipse(rip.x, rip.y, innerRx, innerRy, 0, 0, Math.PI * 2);
+          cSoft++;
         }
-
-        // 初触微弱晕点
         if (rip.r < 6) {
-          const pingAlpha = (1 - rip.r / 6) * 0.28 * currentOpacity;
-          ctx.beginPath();
-          ctx.arc(rip.x, rip.y, 1.6, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${rip.color}, ${pingAlpha})`;
-          ctx.fill();
+          ripCores.moveTo(rip.x + 1.5, rip.y);
+          ripCores.arc(rip.x, rip.y, 1.5, 0, Math.PI * 2);
+          cCores++;
+        }
+        if (rip.isEaveOrigin && rip.r < 18) {
+          const eRx = rx * 0.36;
+          const eRy = eRx * 0.42;
+          ripEaveRings.moveTo(rip.x + eRx, rip.y);
+          ripEaveRings.ellipse(rip.x, rip.y, eRx, eRy, 0, 0, Math.PI * 2);
+          cEave++;
         }
       } else {
-        // 深漫水澜：偶发缓慢散开的大水波纹 (半径 50~75px，透视比例 0.40)
-        ctx.beginPath();
-        ctx.ellipse(rip.x, rip.y, rip.r, rip.r * 0.40, 0, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${rip.color}, ${currentAlpha})`;
-        ctx.lineWidth = 0.75;
-        ctx.stroke();
-
-        // 内层深韵衬环
-        if (rip.r > 15) {
-          const innerR = rip.r * 0.70;
-          const innerAlpha = currentAlpha * 0.45;
-          ctx.beginPath();
-          ctx.ellipse(rip.x, rip.y, innerR, innerR * 0.40, 0, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(${rip.color}, ${innerAlpha})`;
-          ctx.lineWidth = 0.55;
-          ctx.stroke();
+        if (rip.r > 14) {
+          const innerRx = rx * 0.70;
+          const innerRy = innerRx * 0.40;
+          ripFaint.moveTo(rip.x + innerRx, rip.y);
+          ripFaint.ellipse(rip.x, rip.y, innerRx, innerRy, 0, 0, Math.PI * 2);
+          cFaint++;
         }
       }
-      ctx.restore();
     }
 
-    // 3. 渲染斜风细雨丝 (自然贯穿全屏与循环重置，绝不底部积水)
+    if (cFaint > 0) {
+      ctx.lineWidth = 0.6;
+      ctx.strokeStyle = `rgba(${palette.ripple}, ${(0.045 * currentOpacity).toFixed(3)})`;
+      ctx.stroke(ripFaint);
+    }
+    if (cSoft > 0) {
+      ctx.lineWidth = 0.7;
+      ctx.strokeStyle = `rgba(${palette.ripple}, ${(0.095 * currentOpacity).toFixed(3)})`;
+      ctx.stroke(ripSoft);
+    }
+    if (cMid > 0) {
+      ctx.lineWidth = 0.8;
+      ctx.strokeStyle = `rgba(${palette.ripple}, ${(0.165 * currentOpacity).toFixed(3)})`;
+      ctx.stroke(ripMid);
+    }
+    if (cHigh > 0) {
+      ctx.lineWidth = 0.9;
+      ctx.strokeStyle = `rgba(${palette.ripple}, ${(0.255 * currentOpacity).toFixed(3)})`;
+      ctx.stroke(ripHigh);
+    }
+    if (cEave > 0) {
+      ctx.lineWidth = 0.75;
+      ctx.strokeStyle = `rgba(${palette.sealAccent}, ${(0.18 * currentOpacity).toFixed(3)})`;
+      ctx.stroke(ripEaveRings);
+    }
+    if (cCores > 0) {
+      ctx.fillStyle = `rgba(${palette.ripple}, ${(0.24 * currentOpacity).toFixed(3)})`;
+      ctx.fill(ripCores);
+    }
+
+    // 3. 檐前垂珠运动与触纸成澜（单次 Path2D 批绘制）
+    if (eaveDrips.length > 0) {
+      const dripBeads = new Path2D();
+      const dripTails = new Path2D();
+      for (let i = eaveDrips.length - 1; i >= 0; i--) {
+        const bead = eaveDrips[i];
+        bead.vy = Math.min(11.5, bead.vy + 0.16 * dtScale);
+        bead.y += bead.vy * dtScale;
+
+        if (bead.y >= bead.targetY) {
+          spawnLakeRipple(palette, bead.x, bead.targetY, true);
+          eaveDrips.splice(i, 1);
+          continue;
+        }
+
+        const tailLen = Math.min(16, bead.vy * 1.6);
+        dripTails.moveTo(bead.x, bead.y - tailLen);
+        dripTails.lineTo(bead.x, bead.y);
+        dripBeads.moveTo(bead.x + bead.radius, bead.y);
+        dripBeads.ellipse(bead.x, bead.y, bead.radius * 0.78, bead.radius * 1.35, 0, 0, Math.PI * 2);
+      }
+      ctx.lineWidth = 0.75;
+      ctx.strokeStyle = `rgba(${palette.rain}, ${(0.20 * currentOpacity).toFixed(3)})`;
+      ctx.stroke(dripTails);
+      ctx.fillStyle = `rgba(${palette.rain}, ${(0.28 * currentOpacity).toFixed(3)})`;
+      ctx.fill(dripBeads);
+    }
+
+    // 4. 远近三层斜风细雨丝批量路径绘制（仅 3 次 stroke 调用替代原 140 次逐根调用）
+    const windSway = Math.sin(now * 0.00042) * 0.036;
+    const angle = baseWindAngle + windSway;
+    const sinAngle = Math.sin(angle);
+    const cosAngle = Math.cos(angle);
+
+    const rainFar = new Path2D();
+    const rainMid = new Path2D();
+    const rainNear = new Path2D();
+
     for (let i = 0; i < drops.length; i++) {
       const d = drops[i];
-      d.x += sinAngle * d.speed;
-      d.y += cosAngle * d.speed;
+      const stepDist = d.speed * dtScale;
+      d.x += sinAngle * stepDist;
+      d.y += cosAngle * stepDist;
 
-      const alpha = d.opacity * currentOpacity;
-      ctx.beginPath();
-      ctx.strokeStyle = `rgba(${palette.rain}, ${alpha})`;
-      ctx.lineWidth = d.width;
-      ctx.moveTo(d.x, d.y);
-      ctx.lineTo(d.x + sinAngle * d.len, d.y + cosAngle * d.len);
-      ctx.stroke();
+      const endX = d.x + sinAngle * d.len;
+      const endY = d.y + cosAngle * d.len;
+      if (d.layer === 0) {
+        rainFar.moveTo(d.x, d.y);
+        rainFar.lineTo(endX, endY);
+      } else if (d.layer === 1) {
+        rainMid.moveTo(d.x, d.y);
+        rainMid.lineTo(endX, endY);
+      } else {
+        rainNear.moveTo(d.x, d.y);
+        rainNear.lineTo(endX, endY);
+      }
 
-      // 超出屏幕下边缘即循环回顶部，无任何地面碎溅或积水残留
+      // 超出屏幕下边缘即循环回顶部，保持纸面清透无积留
       if (d.y > height + d.len) {
-        d.y = -d.len - Math.random() * 40;
-        d.x = Math.random() * (width + 300) - 150;
+        d.y = -d.len - Math.random() * 44;
+        d.x = Math.random() * (width + 320) - 160;
       }
     }
+
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 0.65;
+    ctx.strokeStyle = `rgba(${palette.rain}, ${(0.11 * currentOpacity).toFixed(3)})`;
+    ctx.stroke(rainFar);
+
+    ctx.lineWidth = 0.9;
+    ctx.strokeStyle = `rgba(${palette.rain}, ${(0.18 * currentOpacity).toFixed(3)})`;
+    ctx.stroke(rainMid);
+
+    ctx.lineWidth = 1.15;
+    ctx.strokeStyle = `rgba(${palette.rain}, ${(0.25 * currentOpacity).toFixed(3)})`;
+    ctx.stroke(rainNear);
 
     animId = requestAnimationFrame(loop);
   }
@@ -330,16 +485,22 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reducedMotion) return;
 
+    refreshPalette();
     targetOpacity = 1;
     if (canvas) canvas.classList.add('is-active');
 
     if (!isRunning) {
       isRunning = true;
+      lastFrameTime = 0;
       if (drops.length === 0) initDrops();
       if (animId) cancelAnimationFrame(animId);
-      if (!isModalActive) {
+      animId = null;
+      if (!isModalActive && !document.hidden) {
         animId = requestAnimationFrame(loop);
       }
+    } else if (!animId && !isModalActive && !document.hidden) {
+      lastFrameTime = 0;
+      animId = requestAnimationFrame(loop);
     }
   }
 
@@ -356,6 +517,7 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
       ctx = canvas.getContext('2d');
     }
     resize();
+    refreshPalette();
   }
 
   function syncWithAudio() {
@@ -370,17 +532,16 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
   }
 
   function attachEngineListener() {
-    if (listenerAttached) return;
+    if (unsubscribeEngine) return;
     try {
       const engine = getZenAudioEngine();
-      engine.onStateChange((state) => {
+      unsubscribeEngine = engine.onStateChange((state) => {
         if (state.isPlaying) {
           start();
         } else {
           stop();
         }
       });
-      listenerAttached = true;
     } catch (e) {
       console.warn('[ZenRainscape] Failed to attach audio listener', e);
     }
@@ -388,45 +549,61 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
 
   function init() {
     ensureCanvas();
-    window.addEventListener('resize', resize, { passive: true });
+    window.addEventListener('resize', resize, { passive: true, signal });
+    window.addEventListener('theme-change', refreshPalette, { signal });
     window.addEventListener('app:modal-enter', () => {
       isModalActive = true;
+      lastFrameTime = 0;
       if (animId) {
         cancelAnimationFrame(animId);
         animId = null;
       }
-    });
+    }, { signal });
     window.addEventListener('app:modal-leave', () => {
       isModalActive = false;
+      lastFrameTime = 0;
       if (isRunning && !animId && !document.hidden) {
         animId = requestAnimationFrame(loop);
       }
-    });
+    }, { signal });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
+        lastFrameTime = 0;
         if (animId) {
           cancelAnimationFrame(animId);
           animId = null;
         }
       } else {
+        lastFrameTime = 0;
         if (isRunning && !animId && !isModalActive) {
           animId = requestAnimationFrame(loop);
         }
       }
-    });
+    }, { signal });
     attachEngineListener();
     syncWithAudio();
   }
 
-  // Astro View Transitions 生命周期持久化监听
   document.addEventListener('astro:page-load', () => {
     isModalActive = false;
     ensureCanvas();
     syncWithAudio();
-  });
+  }, { signal });
+
+  (window as any)[CLEANUP_KEY] = () => {
+    controller.abort();
+    if (animId) {
+      cancelAnimationFrame(animId);
+      animId = null;
+    }
+    unsubscribeEngine?.();
+    unsubscribeEngine = null;
+    isRunning = false;
+    lastFrameTime = 0;
+  };
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', init, { once: true, signal });
   } else {
     init();
   }

@@ -13,12 +13,23 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
   data-lenis-prevent
 >
   <div class="zen-capsule-inner">
-    <!-- 头部栏：印章、标题与极简关闭按钮 (移除冗余播放状态角标，留白呼吸感) -->
-    <div class="zen-capsule-header">
+    <!-- 头部栏：朱砂「雨」印、标题、水墨声波律动谱与关闭按钮 -->
+    <div class="zen-capsule-header" data-zen-stagger>
       <div class="zen-capsule-brand">
-        <span class="zen-seal" aria-hidden="true">雨</span>
+        <span class="zen-seal" data-zen-seal aria-hidden="true">雨</span>
         <div class="zen-title-group">
-          <h2 class="zen-title">墨池听雨</h2>
+          <div class="zen-title-row">
+            <h2 class="zen-title">墨池听雨</h2>
+            <span class="zen-ink-wave" data-zen-wave aria-hidden="true">
+              <i class="zen-wave-bar"></i>
+              <i class="zen-wave-bar"></i>
+              <i class="zen-wave-bar"></i>
+              <i class="zen-wave-bar"></i>
+              <i class="zen-wave-bar"></i>
+              <i class="zen-wave-bar"></i>
+              <i class="zen-wave-bar"></i>
+            </span>
+          </div>
           <span class="zen-subtitle">Zen Soundscape</span>
         </div>
       </div>
@@ -50,8 +61,8 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
       </div>
     </div>
 
-    <!-- 四大文人意境音景选择器 (极简雅致药丸卡片：图标 + 4字名称) -->
-    <div class="zen-soundscapes-grid" role="radiogroup" aria-label="文人意境音景选择">
+    <!-- 四大文人意境音景选择器 -->
+    <div class="zen-soundscapes-grid" data-zen-stagger role="radiogroup" aria-label="文人意境音景选择">
       {SOUNDSCAPES.map((scene) => (
         <button
           type="button"
@@ -61,6 +72,7 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
           aria-checked="false"
           aria-label={`${scene.name}：${scene.desc}`}
         >
+          <span class="zen-scene-ink-wash" aria-hidden="true"></span>
           <span class="zen-scene-icon" aria-hidden="true">
             {scene.id === 'rain' && (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -100,14 +112,14 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
       ))}
     </div>
 
-    <!-- 当前音景唯美诗句与意境描述 (独占一行，分散留白) -->
-    <div class="zen-active-quote-box" data-zen-quote-box>
+    <!-- 当前音景唯美诗句与意境描述 -->
+    <div class="zen-active-quote-box" data-zen-quote-box data-zen-stagger>
       <p class="zen-active-poem" data-zen-active-poem>「一榻茶烟听雨声」</p>
       <p class="zen-active-desc" data-zen-active-desc>屋檐雨声淅沥，雨滴顺瓦当垂落，深远静心</p>
     </div>
 
     <!-- 播放与主音量控制 -->
-    <div class="zen-controls-section">
+    <div class="zen-controls-section" data-zen-stagger>
       <div class="zen-play-bar">
         <button
           type="button"
@@ -152,7 +164,7 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
         </div>
       </div>
 
-      <!-- 专注时钟 (15/25/45/60 分钟定时自动淡出，防断字不换行) -->
+      <!-- 专注时钟 (15/25/45/60 分钟定时自动淡出) -->
       <div class="zen-timer-section">
         <div class="zen-timer-header">
           <span class="zen-timer-title">
@@ -184,6 +196,12 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
 
   (function setupZenSoundscapeUI() {
     let unsubscribe: (() => void) | null = null;
+    let posRafId = 0;
+    let waveRafId = 0;
+    const waveBands = new Float32Array(7);
+    const smoothedBands = new Float32Array(7).fill(0.16);
+
+    const isReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     function formatTime(seconds: number): string {
       const m = Math.floor(seconds / 60);
@@ -191,7 +209,8 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
       return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
 
-    function positionCapsule() {
+    function measureAndClampCapsule() {
+      posRafId = 0;
       const capsule = document.getElementById('zen-sound-capsule');
       if (!capsule || !capsule.classList.contains('is-open')) return;
       const toggleBtn = document.querySelector('[data-zen-sound-toggle]');
@@ -212,6 +231,76 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
       }
     }
 
+    // 滚动/缩放事件自动走 rAF 合帧，杜绝 scroll 内同步触发布局回流；直接调用则立即测量
+    function positionCapsule(evt?: Event) {
+      if (evt) {
+        if (!posRafId) {
+          posRafId = requestAnimationFrame(measureAndClampCapsule);
+        }
+        return;
+      }
+      measureAndClampCapsule();
+    }
+
+    function stopWaveVisualizer(resetBars = false) {
+      if (waveRafId) {
+        cancelAnimationFrame(waveRafId);
+        waveRafId = 0;
+      }
+      if (resetBars) {
+        const capsule = document.getElementById('zen-sound-capsule');
+        const bars = capsule?.querySelectorAll<HTMLElement>('.zen-wave-bar');
+        bars?.forEach((bar) => {
+          bar.style.transform = 'scaleY(0.22)';
+          bar.style.opacity = '0.32';
+        });
+      }
+    }
+
+    function tickWaveVisualizer(now: number) {
+      const capsule = document.getElementById('zen-sound-capsule');
+      const engine = getZenAudioEngine();
+      const state = engine.getState();
+      if (
+        !capsule ||
+        !capsule.classList.contains('is-open') ||
+        !state.isPlaying ||
+        document.hidden ||
+        isReducedMotion()
+      ) {
+        waveRafId = 0;
+        return;
+      }
+
+      engine.sampleWaveBands(waveBands, now);
+      const bars = capsule.querySelectorAll<HTMLElement>('.zen-wave-bar');
+      const len = Math.min(bars.length, waveBands.length);
+      for (let i = 0; i < len; i++) {
+        smoothedBands[i] += (waveBands[i] - smoothedBands[i]) * 0.24;
+        const v = smoothedBands[i];
+        bars[i].style.transform = `scaleY(${v.toFixed(3)})`;
+        bars[i].style.opacity = (0.38 + v * 0.62).toFixed(3);
+      }
+
+      waveRafId = requestAnimationFrame(tickWaveVisualizer);
+    }
+
+    function syncWaveVisualizerState() {
+      const capsule = document.getElementById('zen-sound-capsule');
+      const isOpen = Boolean(capsule && capsule.classList.contains('is-open'));
+      const isPlaying = getZenAudioEngine().getState().isPlaying;
+      const waveWrap = capsule?.querySelector('[data-zen-wave]');
+      waveWrap?.classList.toggle('is-active', isPlaying);
+
+      if (isOpen && isPlaying && !document.hidden && !isReducedMotion()) {
+        if (!waveRafId) {
+          waveRafId = requestAnimationFrame(tickWaveVisualizer);
+        }
+      } else {
+        stopWaveVisualizer(!isPlaying);
+      }
+    }
+
     function updateTimerGlider() {
       const capsule = document.getElementById('zen-sound-capsule');
       if (!capsule || !capsule.classList.contains('is-open')) return;
@@ -225,7 +314,7 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
       if (width > 0) {
         pillsContainer.classList.add('has-glider');
         glider.style.width = `${width}px`;
-        glider.style.transform = `translateX(${left}px)`;
+        glider.style.transform = `translate3d(${left}px, 0, 0)`;
         glider.style.opacity = '1';
       }
     }
@@ -293,17 +382,19 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
         }
       });
 
-      // 4.1 Update dedicated poetic quote box
+      // 4.1 Update dedicated poetic quote box with soft ink transition
       const quotePoem = capsule.querySelector('[data-zen-active-poem]');
       const quoteDesc = capsule.querySelector('[data-zen-active-desc]');
       if (quotePoem && activeScene) {
         const targetPoem = `「${activeScene.poem}」`;
         if (quotePoem.textContent !== targetPoem) {
-          gsap.fromTo(
-            [quotePoem, quoteDesc],
-            { opacity: 0.25, y: 3 },
-            { opacity: 1, y: 0, duration: 0.32, ease: 'power2.out', clearProps: 'transform' }
-          );
+          if (!isReducedMotion()) {
+            gsap.fromTo(
+              [quotePoem, quoteDesc],
+              { opacity: 0.18, y: 4 },
+              { opacity: 1, y: 0, duration: 0.36, ease: 'power2.out', clearProps: 'transform' }
+            );
+          }
           quotePoem.textContent = targetPoem;
           if (quoteDesc) quoteDesc.textContent = activeScene.desc;
         }
@@ -362,6 +453,8 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
           rainToggleBtn.setAttribute('title', '烟雨画境随伴读展开（点击关闭）');
         }
       }
+
+      syncWaveVisualizerState();
     }
 
     function openCapsule() {
@@ -372,29 +465,72 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
 
       positionCapsule();
 
-      // GSAP fluid elastic entrance
+      const staggerRows = capsule.querySelectorAll('[data-zen-stagger]');
+      const sealEl = capsule.querySelector('[data-zen-seal]');
       gsap.killTweensOf(capsule);
-      gsap.fromTo(
-        capsule,
-        {
-          opacity: 0,
-          scale: 0.93,
-          y: -10,
-        },
-        {
-          opacity: 1,
-          scale: 1,
-          y: 0,
-          duration: 0.36,
-          ease: 'back.out(1.4)',
-        }
-      );
+      gsap.killTweensOf(staggerRows);
+      if (sealEl) gsap.killTweensOf(sealEl);
 
-      // Signature ink splash at header toggle position
-      const toggleBtn = document.querySelector('[data-zen-sound-toggle]');
-      if (toggleBtn) {
-        const rect = toggleBtn.getBoundingClientRect();
-        (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 14);
+      if (isReducedMotion()) {
+        gsap.set(capsule, { opacity: 1, scale: 1, y: 0, clearProps: 'clipPath' });
+        gsap.set(staggerRows, { clearProps: 'transform,opacity' });
+        if (sealEl) gsap.set(sealEl, { clearProps: 'transform,opacity' });
+      } else {
+        // 宣纸小笺舒展：自左上角起笔垂落展开 + 内部四段墨韵错峰浮现 + 朱砂「雨」印落定
+        gsap.fromTo(
+          capsule,
+          {
+            opacity: 0,
+            scale: 0.96,
+            y: -8,
+            clipPath: 'inset(0% 0% 24% 0% round 14px)',
+          },
+          {
+            opacity: 1,
+            scale: 1,
+            y: 0,
+            clipPath: 'inset(0% 0% 0% 0% round 14px)',
+            duration: 0.38,
+            ease: 'power3.out',
+            clearProps: 'clipPath',
+          }
+        );
+
+        gsap.fromTo(
+          staggerRows,
+          { opacity: 0, y: 6 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.34,
+            stagger: 0.042,
+            delay: 0.04,
+            ease: 'power2.out',
+            clearProps: 'transform,opacity',
+          }
+        );
+
+        if (sealEl) {
+          gsap.fromTo(
+            sealEl,
+            { scale: 1.38, rotation: -12, opacity: 0.3 },
+            {
+              scale: 1,
+              rotation: 0,
+              opacity: 1,
+              duration: 0.42,
+              delay: 0.06,
+              ease: 'back.out(1.7)',
+              clearProps: 'transform,opacity',
+            }
+          );
+        }
+
+        const toggleBtn = document.querySelector('[data-zen-sound-toggle]');
+        if (toggleBtn) {
+          const rect = toggleBtn.getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 10);
+        }
       }
 
       syncUI();
@@ -407,11 +543,25 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
       const capsule = document.getElementById('zen-sound-capsule');
       if (!capsule || capsule.hasAttribute('hidden')) return;
 
+      stopWaveVisualizer(false);
       gsap.killTweensOf(capsule);
+
+      if (isReducedMotion()) {
+        capsule.classList.remove('is-open');
+        capsule.setAttribute('hidden', '');
+        gsap.set(capsule, { clearProps: 'opacity,transform,visibility' });
+        syncUI();
+        if (restoreFocus) {
+          const toggle = document.getElementById('zen-sound-toggle') || document.querySelector<HTMLElement>('[data-zen-sound-toggle]');
+          toggle?.focus();
+        }
+        return;
+      }
+
       gsap.to(capsule, {
         opacity: 0,
-        scale: 0.95,
-        y: -8,
+        scale: 0.965,
+        y: -6,
         duration: 0.22,
         ease: 'power2.in',
         onComplete: () => {
@@ -480,28 +630,32 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
       const playBtn = capsule.querySelector('[data-zen-play-btn]');
       playBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
-        gsap.fromTo(
-          playBtn,
-          { scale: 0.94 },
-          { scale: 1, duration: 0.26, ease: 'back.out(2)', clearProps: 'transform' }
-        );
-        const rect = (playBtn as HTMLElement).getBoundingClientRect();
-        (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+        if (!isReducedMotion()) {
+          gsap.fromTo(
+            playBtn,
+            { scale: 0.95 },
+            { scale: 1, duration: 0.24, ease: 'back.out(1.8)', clearProps: 'transform' }
+          );
+          const rect = (playBtn as HTMLElement).getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 7);
+        }
         getZenAudioEngine().toggle();
       });
 
-      // Soundscape cards selection with ripple wave & micro-interaction
+      // Soundscape cards selection with ink-wash micro-interaction
       const sceneCards = capsule.querySelectorAll('[data-scene-id]');
       sceneCards.forEach((card) => {
         card.addEventListener('click', (e) => {
           e.stopPropagation();
-          gsap.fromTo(
-            card,
-            { scale: 0.95 },
-            { scale: 1, duration: 0.24, ease: 'back.out(2)', clearProps: 'transform' }
-          );
-          const rect = (card as HTMLElement).getBoundingClientRect();
-          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 7);
+          if (!isReducedMotion()) {
+            gsap.fromTo(
+              card,
+              { scale: 0.96 },
+              { scale: 1, duration: 0.22, ease: 'back.out(1.8)', clearProps: 'transform' }
+            );
+            const rect = (card as HTMLElement).getBoundingClientRect();
+            (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 6);
+          }
 
           const sceneId = card.getAttribute('data-scene-id') as any;
           if (sceneId) {
@@ -538,13 +692,13 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
       timerPills.forEach((pill) => {
         pill.addEventListener('click', (e) => {
           e.stopPropagation();
-          gsap.fromTo(
-            pill,
-            { scale: 0.93 },
-            { scale: 1, duration: 0.22, ease: 'back.out(2)', clearProps: 'transform' }
-          );
-          const rect = (pill as HTMLElement).getBoundingClientRect();
-          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 6);
+          if (!isReducedMotion()) {
+            gsap.fromTo(
+              pill,
+              { scale: 0.94 },
+              { scale: 1, duration: 0.2, ease: 'back.out(1.8)', clearProps: 'transform' }
+            );
+          }
           const min = parseInt(pill.getAttribute('data-timer-min') || '0', 10);
           getZenAudioEngine().setTimer(min);
           updateTimerGlider();
@@ -626,17 +780,29 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
         toggleCapsule();
       });
 
-      // Reposition on window resize and scroll to ensure continuous clamping
-      window.addEventListener('resize', () => {
-        positionCapsule();
-        updateTimerGlider();
-      });
+      // Reposition on window resize and scroll (coalesced via rAF inside positionCapsule)
+      window.addEventListener('resize', (e) => {
+        positionCapsule(e);
+        requestAnimationFrame(updateTimerGlider);
+      }, { passive: true });
       window.addEventListener('scroll', positionCapsule, { passive: true });
-      document.querySelector('.glass-nav')?.addEventListener('scroll', positionCapsule, { passive: true });
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          stopWaveVisualizer(false);
+        } else {
+          syncWaveVisualizerState();
+        }
+      });
 
       // Close capsule smoothly on Astro page transitions before swap
       document.addEventListener('astro:before-swap', () => {
-        closeCapsule();
+        if (posRafId) {
+          cancelAnimationFrame(posRafId);
+          posRafId = 0;
+        }
+        stopWaveVisualizer(false);
+        closeCapsule(false);
       });
 
       (window as any).__zenGlobalEventsBound = true;
@@ -650,9 +816,14 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
         });
       }
 
+      const navEl = document.querySelector('.glass-nav') as HTMLElement | null;
+      if (navEl && navEl.dataset.zenScrollBound !== 'true') {
+        navEl.dataset.zenScrollBound = 'true';
+        navEl.addEventListener('scroll', positionCapsule, { passive: true });
+      }
+
       const capsule = document.getElementById('zen-sound-capsule');
       if (capsule) {
-        // Ensure capsule is placed in <body> so it escapes containing blocks like backdrop-filter or perspective
         if (capsule.parentElement !== document.body) {
           document.body.appendChild(capsule);
         }
@@ -670,7 +841,124 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
   })();
 </script>
 
-<style>
+<style is:global>
+  .zen-title-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.48rem;
+  }
+
+  /* 朱砂钤印风韵微调（适配浅/深/青苔三套主题） */
+  .zen-sound-capsule .zen-seal {
+    background: #b83b28;
+    color: #fcfaf7;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: none;
+    position: relative;
+  }
+
+  [data-theme="dark"] .zen-sound-capsule .zen-seal {
+    background: #c94735;
+    color: #faf8f5;
+  }
+
+  [data-theme="moss"] .zen-sound-capsule .zen-seal {
+    background: #ffc2d1;
+    color: #004d40;
+    border-color: rgba(0, 77, 64, 0.2);
+  }
+
+  /* 水墨声波律动谱：7 根竖毫，纯 GPU scaleY + opacity 合成器驱动 */
+  .zen-ink-wave {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 12px;
+    padding: 1px 0;
+    opacity: 0.35;
+    transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .zen-ink-wave.is-active {
+    opacity: 1;
+  }
+
+  .zen-wave-bar {
+    display: block;
+    width: 1.8px;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--ink-strong, #1a1814);
+    transform: scaleY(0.22);
+    transform-origin: bottom center;
+    opacity: 0.32;
+    will-change: transform, opacity;
+  }
+
+  .zen-wave-bar:nth-child(4) {
+    background: #b83b28;
+  }
+
+  [data-theme="dark"] .zen-wave-bar:nth-child(4) {
+    background: #e06350;
+  }
+
+  [data-theme="moss"] .zen-wave-bar:nth-child(4) {
+    background: #ffc2d1;
+  }
+
+  /* 音景卡片：消除 box-shadow 过渡，改为纯合成器墨韵漫染层 */
+  .zen-sound-capsule .zen-scene-card {
+    overflow: hidden;
+    transition:
+      background-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+  }
+
+  .zen-scene-ink-wash {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      color-mix(in srgb, var(--accent) 10%, transparent) 0%,
+      transparent 78%
+    );
+    opacity: 0;
+    transform: scaleX(0.4);
+    transform-origin: left center;
+    transition:
+      transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .zen-sound-capsule .zen-scene-card:hover .zen-scene-ink-wash,
+  .zen-sound-capsule .zen-scene-card.is-active .zen-scene-ink-wash {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+
+  .zen-sound-capsule .zen-main-play-btn {
+    transition:
+      background-color 200ms ease,
+      border-color 200ms ease,
+      color 200ms ease,
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+  }
+
+  .zen-sound-capsule .zen-main-play-btn:hover {
+    filter: none !important;
+  }
+
+  .zen-sound-capsule .zen-timer-glider {
+    transition:
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      width 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 180ms ease !important;
+    will-change: transform, width;
+  }
+
   .zen-rain-toggle-pill {
     display: inline-flex;
     align-items: center;
@@ -683,7 +971,11 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
     background: rgba(0, 0, 0, 0.04);
     border: 1px solid var(--rule);
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    transition:
+      color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
     white-space: nowrap;
   }
   .zen-rain-toggle-pill:hover {
@@ -714,5 +1006,14 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
     background: rgba(255, 241, 244, 0.18);
     border-color: rgba(255, 241, 244, 0.4);
     color: var(--text-strong);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .zen-ink-wave,
+    .zen-scene-ink-wash,
+    .zen-rain-toggle-pill,
+    .zen-sound-capsule .zen-timer-glider {
+      transition: none !important;
+    }
   }
 </style>

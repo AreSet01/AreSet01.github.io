@@ -1,21 +1,24 @@
 ---
-// Site-entry curtain: 「墨化为像素」. Stray pixels gather into a drop of ink; it falls and bursts
-// into thousands of pixel squares; a vortex sweeps them up, then lets them go glyph by glyph to
-// form 「梦付千秋」; a scanline turns the pixel mass into real type; and at the end the type
-// breaks back into pixels that fly to their homes on the page — the sidebar's brand mark and
-// every element about to enter — so the curtain becomes the page rather than lifting off it.
-// Ten seconds, skippable at any moment (click, Esc / Enter / Space, or the button).
-//
-// Whether it plays at all is decided before first paint by the inline script in BaseLayout
-// (html.site-intro-active + window.__siteIntroPending); this component renders the markup and
-// drives it. Everything that moves is on one canvas; the DOM holds only the seal, the tagline
-// and the footer, and those animate with transform / opacity alone.
+// Site-entry curtain: 「墨化为像素 · 朱砂落印」.
+// Stray pixels gather into a drop of ink; it falls and bursts with 8-lobe splash-ink force into
+// thousands of pixel squares; a calligraphic vortex sweeps them up, releasing glyph by glyph to
+// form 「梦付千秋」; a carved cinnabar seal slams down beside the title as a scanline turns the
+// pixel mass into crisp type; and at the end the type dissolves back into pixels that fly home to
+// the sidebar brand mark and every first-screen element.
 const tagline = '日常记录 · 技术分享';
 ---
 
 <div class="site-intro" data-site-intro aria-hidden="true">
   <canvas class="site-intro-canvas" data-intro-canvas></canvas>
   <div class="site-intro-stage" data-intro-stage>
+    <div class="site-intro-ring" data-intro-ring aria-hidden="true"></div>
+    <div class="site-intro-seal" data-intro-seal aria-hidden="true">
+      <svg viewBox="0 0 64 64" role="presentation">
+        <rect class="seal-plate" x="2" y="2" width="60" height="60" rx="5" />
+        <path class="seal-frame" d="M7 7h50v50H7z" stroke-dasharray="44 3 38 2 52 3" />
+        <text class="seal-glyph" x="32" y="47">印</text>
+      </svg>
+    </div>
     <p class="site-intro-tagline" data-intro-tagline data-text={tagline}>
       <span data-intro-typed></span><i class="site-intro-caret" aria-hidden="true"></i>
     </p>
@@ -27,8 +30,46 @@ const tagline = '日常记录 · 技术分享';
   </div>
 </div>
 
+<style>
+  .site-intro-seal .seal-plate {
+    fill: #b83b28 !important;
+  }
+
+  :global([data-theme="dark"]) .site-intro-seal .seal-plate {
+    fill: #cf4a36 !important;
+  }
+
+  :global([data-theme="moss"]) .site-intro-seal .seal-plate {
+    fill: #ffc2d1 !important;
+  }
+
+  :global([data-theme="moss"]) .site-intro-seal .seal-frame {
+    stroke: #004d40 !important;
+  }
+
+  :global([data-theme="moss"]) .site-intro-seal .seal-glyph {
+    fill: #004d40 !important;
+  }
+
+  .site-intro-ring {
+    border-color: rgba(184, 59, 40, 0.42);
+  }
+
+  :global([data-theme="dark"]) .site-intro-ring {
+    border-color: rgba(217, 83, 63, 0.46);
+  }
+
+  :global([data-theme="moss"]) .site-intro-ring {
+    border-color: rgba(255, 194, 209, 0.5);
+  }
+</style>
+
 <script>
   import gsap from 'gsap';
+  import CustomEase from 'gsap/CustomEase';
+
+  gsap.registerPlugin(CustomEase);
+  CustomEase.create('intro-seal-press', 'M0,0 C0.14,0.92 0.26,1.04 0.52,0.985 0.76,0.995 1,1 1,1');
 
   const TITLE = '梦付千秋';
 
@@ -40,6 +81,7 @@ const tagline = '日常记录 · 技术分享';
     vortex: 3.2,      // the spray is swept into a spiral
     form: 4.6,        // first pixels leave the vortex for their glyph cells
     formEnd: 5.75,    // 秋 completes
+    seal: 5.88,       // carved cinnabar seal slams down beside 秋
     scan1: 6.4,       // pixels → type
     scan1End: 6.95,
     tagline: 7.0,
@@ -55,6 +97,12 @@ const tagline = '日常记录 · 技术分享';
   const STEP = 1 / 120; // fixed physics step: 165Hz and 60Hz run the same
   const SKIP_KEYS = new Set(['Escape', 'Enter', ' ', 'Spacebar']);
   const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End']);
+
+  // Precomputed 256-entry sine LUT to eliminate per-particle Math.sin calls in physics loop
+  const SIN_LUT = new Float32Array(256);
+  for (let i = 0; i < 256; i += 1) {
+    SIN_LUT[i] = Math.sin((i / 256) * Math.PI * 2);
+  }
 
   // Particle kinds / modes / destinations (Uint8)
   const K_GLYPH = 0; // owns a cell of the title
@@ -79,7 +127,7 @@ const tagline = '日常记录 · 技术分享';
     return value || fallback;
   }
 
-  /** rgba() from a #rgb / #rrggbb token, for the few places that need a translucent ink */
+  /** rgba() from a #rgb / #rrggbb token, for pre-baked offscreen strips */
   function withAlpha(hex: string, alpha: number) {
     const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex);
     if (!m) return `rgba(0, 0, 0, ${alpha})`;
@@ -134,6 +182,8 @@ const tagline = '日常记录 · 技术分享';
 
     const canvas = intro.querySelector<HTMLCanvasElement>('[data-intro-canvas]')!;
     const stage = intro.querySelector<HTMLElement>('[data-intro-stage]')!;
+    const sealEl = intro.querySelector<HTMLElement>('[data-intro-seal]');
+    const ringEl = intro.querySelector<HTMLElement>('[data-intro-ring]');
     const taglineEl = intro.querySelector<HTMLElement>('[data-intro-tagline]')!;
     const typed = intro.querySelector<HTMLElement>('[data-intro-typed]')!;
     const foot = intro.querySelector<HTMLElement>('[data-intro-foot]')!;
@@ -164,10 +214,6 @@ const tagline = '日常记录 · 技术分享';
       return;
     }
 
-    // Lenis is stopped rather than locking <html>: hiding the scrollbar would shift the page
-    // sideways underneath the curtain and shift it back the moment the curtain lifts. Module
-    // scripts run in document order, so Lenis may not exist yet — the frame loop keeps it
-    // stopped for as long as the curtain is up.
     const holdScroll = () => {
       try {
         const lenis = (window as any).lenis;
@@ -180,8 +226,6 @@ const tagline = '日常记录 · 技术分享';
     const coarse = window.matchMedia('(pointer: coarse)').matches;
     const finePointer = window.matchMedia('(pointer: fine)').matches;
     const dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2);
-    // The curtain is fixed inset:0, so its box is the viewport minus the scrollbar; innerWidth
-    // would include the scrollbar and squeeze the canvas ~1% relative to the DOM stage above it
     const W = intro.clientWidth || window.innerWidth;
     const H = intro.clientHeight || window.innerHeight;
     canvas.width = Math.round(W * dpr);
@@ -189,7 +233,8 @@ const tagline = '日常记录 · 技术分享';
 
     const ink = cssVar('--ink-strong', '#000');
     const theme = document.documentElement.getAttribute('data-theme');
-    const grainAlpha = theme === null || theme === 'light' ? 0.06 : 0.085;
+    const sealColor = theme === 'moss' ? '#ffc2d1' : theme === 'dark' ? '#d9533f' : '#b83b28';
+    const grainAlpha = theme === null || theme === 'light' ? 0.058 : 0.082;
     const cx = W / 2;
     const cy = Math.round(H * 0.46);
     const dropX = cx;
@@ -201,21 +246,38 @@ const tagline = '日常记录 · 技术分享';
     const vortexR = Math.min(W, H) * 0.24;
     const minWH = Math.min(W, H);
 
-    // Paper grain: three tiles of sparse ink specks, re-offset a few times a second
+    // Paper grain: three tiles of sparse ink specks, shifted via DOMMatrix without full-bleed margin overdraw
     const grainTiles = [0, 1, 2].map(() => {
       const tile = document.createElement('canvas');
       tile.width = tile.height = 128;
       const c = tile.getContext('2d')!;
       c.fillStyle = ink;
-      for (let i = 0; i < 640; i += 1) {
+      for (let i = 0; i < 600; i += 1) {
         c.globalAlpha = 0.25 + rnd() * 0.6;
         c.fillRect(Math.floor(rnd() * 128), Math.floor(rnd() * 128), 1, 1);
       }
       return ctx.createPattern(tile, 'repeat')!;
     });
+    const grainMatrix = typeof DOMMatrix !== 'undefined' ? new DOMMatrix() : null;
     let grainTile = 0, grainX = 0, grainY = 0, grainAt = -1;
 
-    // ---------- Particles (allocated once the title has been rasterised) ----------
+    // Pre-bake scanline ink-wash strip once to eliminate per-frame createLinearGradient allocations
+    const scanStrip = document.createElement('canvas');
+    scanStrip.width = 4;
+    scanStrip.height = 24;
+    const sctx = scanStrip.getContext('2d');
+    if (sctx) {
+      const band = sctx.createLinearGradient(0, 0, 0, 23);
+      band.addColorStop(0, withAlpha(ink, 0));
+      band.addColorStop(1, withAlpha(ink, 0.22));
+      sctx.fillStyle = band;
+      sctx.fillRect(0, 0, 4, 23);
+      sctx.fillStyle = ink;
+      sctx.globalAlpha = 0.85;
+      sctx.fillRect(0, 23, 4, 1);
+    }
+
+    // ---------- Particles ----------
     let ready = false;
     let spawned = false;
     let N = 0, G = 0, cell = 3;
@@ -225,8 +287,10 @@ const tagline = '日常记录 · 技术分享';
     let kind: Uint8Array, mode: Uint8Array, homeKind: Uint8Array;
     let leader: Int32Array;
     let alive = 0;
-    let bx0 = 0, by0 = 0, bx1 = 0, by1 = 0; // ink bounds of the title, screen px
+    let bx0 = 0, by0 = 0, bx1 = 0, by1 = 0;
     let charX: number[] = [];
+    let sealLandX = cx + 140;
+    let sealLandY = cy;
 
     function drawTitle(c: CanvasRenderingContext2D, dx = 0, dy = 0) {
       c.font = font;
@@ -254,7 +318,6 @@ const tagline = '日常记录 · 技术分享';
         let x = cx - total / 2;
         charX = advances.map((w) => { const here = x; x += w + gap; return here; });
 
-        // Coarser cells until the title fits the particle budget
         cell = Math.max(3, Math.min(5, Math.round(fontSize / 64)));
         let cells: number[] = [];
         for (;;) {
@@ -282,15 +345,13 @@ const tagline = '日常记录 · 技术分享';
           if (tx[i] + cell > bx1) bx1 = tx[i] + cell;
           if (ty[i] + cell > by1) by1 = ty[i] + cell;
         }
-        const stains = Math.min(N - G, Math.round(N * 0.03));
+        const stains = Math.min(N - G, Math.round(N * 0.035));
         for (let i = G; i < N; i += 1) kind[i] = i < G + stains ? K_STAIN : K_FREE;
-        for (let i = 0; i < N; i += 1) pref[i] = vortexR * (0.6 + rnd() * 0.9);
+        for (let i = 0; i < N; i += 1) pref[i] = vortexR * (0.55 + rnd() * 0.95);
 
-        // Glyph cells fill left to right (with a slight top-first lean), so 梦 → 付 → 千 → 秋
         const order = Array.from({ length: G }, (_, i) => i).sort((a, b) => (tx[a] + ty[a] * 0.12) - (tx[b] + ty[b] * 0.12));
         order.forEach((i, rank) => { tA[i] = T.form + (rank / G) * (T.formEnd - T.form) + (rnd() - 0.5) * 0.1; });
 
-        // Every 16th pixel is a chunk that carries the next three hidden inside it and splits mid-flight
         for (let i = 0; i < G; i += 1) {
           const m = i % 16;
           if (m === 0) splitAt[i] = T.impact + 0.15 + rnd() * 0.4;
@@ -309,15 +370,27 @@ const tagline = '日常记录 · 技术分享';
 
     function placeStage() {
       taglineEl.style.top = `${Math.round(by1 + fontSize * 0.24)}px`;
+      if (sealEl) {
+        const sealSize = Math.max(32, Math.min(52, Math.round(fontSize * 0.34)));
+        sealEl.style.width = `${sealSize}px`;
+        sealLandX = Math.min(W - sealSize - 16, Math.round(bx1 + Math.max(12, fontSize * 0.12)));
+        sealLandY = Math.round(by1 - sealSize * 0.92);
+        sealEl.style.left = `${sealLandX}px`;
+        sealEl.style.top = `${sealLandY}px`;
+        if (ringEl) {
+          ringEl.style.left = `${Math.round(sealLandX + sealSize / 2)}px`;
+          ringEl.style.top = `${Math.round(sealLandY + sealSize / 2)}px`;
+        }
+      }
     }
 
-    // ---------- 凝 / 落: the drop, before there are any particles ----------
+    // ---------- 凝 / 落: gathering ink drop with subtle ink-mist halo ----------
     const SEEDS = 64;
     const seedSX = new Float32Array(SEEDS), seedSY = new Float32Array(SEEDS);
     const seedTX = new Float32Array(SEEDS), seedTY = new Float32Array(SEEDS), seedDelay = new Float32Array(SEEDS);
     for (let i = 0; i < SEEDS; i += 1) {
       const a = rnd() * Math.PI * 2;
-      const r = 120 + rnd() * 160;
+      const r = 120 + rnd() * 165;
       seedSX[i] = dropX + Math.cos(a) * r;
       seedSY[i] = dropY + Math.sin(a) * r * 0.7;
       const b = rnd() * Math.PI * 2;
@@ -336,33 +409,48 @@ const tagline = '日常记录 · 技术分享';
     function drawDrop(c: CanvasRenderingContext2D, t: number) {
       c.fillStyle = ink;
       if (t < T.detach) {
+        const seedPath = new Path2D();
         for (let i = 0; i < SEEDS; i += 1) {
           const q = easeOutExpo(clamp01((t - seedDelay[i]) / 0.55));
-          if (q > 0.985) continue; // absorbed
-          c.fillRect(seedSX[i] + (seedTX[i] - seedSX[i]) * q, seedSY[i] + (seedTY[i] - seedSY[i]) * q, 3, 3);
+          if (q > 0.985) continue;
+          seedPath.rect(seedSX[i] + (seedTX[i] - seedSX[i]) * q, seedSY[i] + (seedTY[i] - seedSY[i]) * q, 3, 3);
         }
+        c.fill(seedPath);
       }
-      if (t < 0.3) return;
-      const rb = 2 + 7 * smooth(0.3, 1.0, t);
+      if (t < 0.28) return;
+      const rb = 2 + 7.4 * smooth(0.28, 1.0, t);
       const stretch = smooth(T.dropForm, T.detach, t);
       const { x, y } = dropPos(t);
+
+      // Breathing ink-wash aura around the gathering nib
+      if (t < T.detach + 0.15) {
+        c.strokeStyle = ink;
+        c.globalAlpha = 0.18 * (1 - stretch * 0.5);
+        c.lineWidth = 1;
+        c.beginPath();
+        c.arc(dropX, dropY, rb * (1.8 + 0.35 * Math.sin(t * 7)), 0, Math.PI * 2);
+        c.stroke();
+        c.globalAlpha = 1;
+      }
+
       let rx = rb * (1 - 0.3 * stretch);
-      let ry = rb * (1 + 1.2 * stretch);
+      let ry = rb * (1 + 1.25 * stretch);
       if (t >= T.detach) {
         const q = clamp01((t - T.detach) / (T.impact - T.detach));
-        rx = rb * 0.75;
-        ry = rb * (1.4 + 2.2 * q);
-        // Tail, stretching with speed
-        c.globalAlpha = 0.35;
+        rx = rb * 0.74;
+        ry = rb * (1.4 + 2.35 * q);
+        // Primary wet-ink tail + dry-brush feibai filament
+        c.globalAlpha = 0.38;
         c.beginPath();
-        c.moveTo(x - rb * 0.5, y - ry * 0.6);
-        c.lineTo(x, y - ry - 90 * q);
-        c.lineTo(x + rb * 0.5, y - ry * 0.6);
+        c.moveTo(x - rb * 0.52, y - ry * 0.58);
+        c.lineTo(x, y - ry - 104 * q);
+        c.lineTo(x + rb * 0.52, y - ry * 0.58);
         c.closePath();
         c.fill();
+        c.globalAlpha = 0.22;
+        c.fillRect(x + rb * 0.65, y - ry - 64 * q, 1.2, 48 * q);
         c.globalAlpha = 1;
       } else if (stretch > 0) {
-        // Neck, thinning as the drop lets go
         const neckW = rb * 0.5 * (1 - stretch) + 0.6;
         c.fillRect(x - neckW / 2, dropY - rb * 1.6, neckW, y - dropY + rb * 1.6);
       }
@@ -371,15 +459,17 @@ const tagline = '日常记录 · 技术分享';
       c.fill();
     }
 
+    // 8-lobe calligraphic splash-ink burst (泼墨八锋炸散) for authentic Oriental tension
     function spawnAll(x0: number, y0: number, spread: number) {
       for (let i = 0; i < N; i += 1) {
         const a = rnd() * Math.PI * 2;
         const r = Math.sqrt(rnd()) * spread;
         px[i] = x0 + Math.cos(a) * r - cell / 2;
         py[i] = y0 + Math.sin(a) * r - cell / 2;
-        // Most of the spray stays near the point of impact; a few fly far
-        const speed = kind[i] === K_STAIN ? 260 + 700 * rnd() : 240 + 1700 * Math.pow(rnd(), 1.7);
         const dir = rnd() * Math.PI * 2;
+        const lobeBoost = 1 + 0.28 * Math.cos(dir * 8 + 0.4) + 0.14 * Math.sin(dir * 3);
+        const baseSpeed = kind[i] === K_STAIN ? 260 + 720 * rnd() : 230 + 1720 * Math.pow(rnd(), 1.65);
+        const speed = baseSpeed * lobeBoost;
         vx[i] = Math.cos(dir) * speed;
         vy[i] = Math.sin(dir) * speed;
         mode[i] = M_FLY;
@@ -396,7 +486,6 @@ const tagline = '日常记录 · 技术分享';
     let skipAt = 0;
     let lifted = false;
 
-    // What the type covers this frame: 0 nothing · 1 above the scanline · 2 all · 3 below it
     let textMode = 0;
     let scanY = 0;
     function covered(y: number) {
@@ -418,6 +507,7 @@ const tagline = '日常记录 · 技术分享';
       const dragSettle = Math.exp(-3 * dt * settle);
       const steer = 1 - Math.exp(-4 * dt);
       const stainsDry = t > T.form + 0.4;
+      const ashPhaseBase = Math.floor(t * 244) & 255;
 
       for (let i = 0; i < N; i += 1) {
         const m = mode[i];
@@ -428,7 +518,6 @@ const tagline = '日常记录 · 技术分享';
             if (stainsDry) { mode[i] = M_DEAD; alive -= 1; }
             continue;
           }
-          // Locked into the title: leave for home once the type has let go of this row
           if (homeKind[i] !== H_NONE && t >= tH[i] - (homeKind[i] === H_HOME ? 0.45 : 0) && (skipping || !covered(ty[i] + cell / 2))) {
             px[i] = tx[i];
             py[i] = ty[i];
@@ -446,14 +535,13 @@ const tagline = '日常记录 · 技术分享';
 
         if (m === M_ASH) {
           vy[i] -= 30 * dt;
-          px[i] += vx[i] * dt + Math.sin(t * 6 + i) * 20 * dt;
+          px[i] += vx[i] * dt + SIN_LUT[(ashPhaseBase + i * 7) & 255] * 20 * dt;
           py[i] += vy[i] * dt;
           life[i] -= dt / 0.5;
           if (life[i] <= 0) { mode[i] = M_DEAD; alive -= 1; }
           continue;
         }
 
-        // Riding inside a chunk until it splits
         const L = leader[i];
         if (L >= 0) {
           if (t < splitAt[L]) { px[i] = px[L]; py[i] = py[L]; vx[i] = vx[L]; vy[i] = vy[L]; continue; }
@@ -478,7 +566,6 @@ const tagline = '日常记录 · 技术分享';
           continue;
         }
 
-        // Time to go home (or to blow away) straight out of free flight
         if (homeKind[i] !== H_NONE && t >= tH[i] - (homeKind[i] === H_HOME ? 0.45 : 0)) {
           if (homeKind[i] === H_HOME) mode[i] = M_HOME;
           else startAsh(i);
@@ -497,7 +584,6 @@ const tagline = '日常记录 · 技术分享';
           }
           px[i] += vx[i] * dt;
           py[i] += vy[i] * dt;
-          // Snap onto the grid once it is close and slow — the "lock-in"
           if ((dx * dx + dy * dy < 1 && vSq < 8100) || t > tA[i] + 0.9) {
             px[i] = tx[i]; py[i] = ty[i]; vx[i] = 0; vy[i] = 0; mode[i] = M_LOCK;
           }
@@ -516,12 +602,14 @@ const tagline = '日常记录 · 技术分享';
         }
         if (kind[i] === K_GLYPH && t >= tA[i] - 0.42) { mode[i] = M_SEEK; continue; }
         if (vortexMix > 0) {
-          // Differential rotation around the title's centre, each pixel drawn to its own radius
+          // Fast rSq + single Math.sqrt replaces costly Math.hypot across 7000 particles
           const dx = px[i] - cx, dy = py[i] - cy;
-          const r = Math.max(1, Math.hypot(dx, dy));
-          const nx = dx / r, ny = dy / r;
-          const tang = Math.min(460, 140 + 90000 / (r + 120));
-          const inward = Math.max(-160, Math.min(320, (r - pref[i]) * 0.9));
+          const rSq = dx * dx + dy * dy;
+          const r = rSq > 1 ? Math.sqrt(rSq) : 1;
+          const invR = 1 / r;
+          const nx = dx * invR, ny = dy * invR;
+          const tang = Math.min(470, 145 + 92000 / (r + 118));
+          const inward = Math.max(-160, Math.min(325, (r - pref[i]) * 0.92));
           const wantX = -ny * tang - nx * inward;
           const wantY = nx * tang - ny * inward;
           const g = steer * vortexMix * (kind[i] === K_FREE ? 1 - settle * 0.85 : 1);
@@ -544,10 +632,9 @@ const tagline = '日常记录 · 技术分享';
       const plan: Array<{ el: HTMLElement; at: number }> = (window as any).__peekPageEnter?.() ?? [];
       const span = plan.reduce((m, p) => Math.max(m, p.at), 0);
       const timeScale = span > 1.1 ? Math.min(2.2, span / 1.1) : 1;
-      const base = T.release + 0.06; // the choreography's own delay on a hard load
+      const base = T.release + 0.06;
       const visible = (el: HTMLElement | null) => !!el && el.offsetParent !== null && el.getBoundingClientRect().width > 0;
 
-      // The word goes home: pixels land on the brand mark's own glyphs
       let brandPts: number[] = [];
       let brandHost: HTMLElement | null = null;
       const brandText = document.querySelector<HTMLElement>('.brand-mark > span:last-child');
@@ -560,7 +647,6 @@ const tagline = '日常记录 · 技术分享';
         brandPts = rasterCells(box, 2, (c) => { c.font = f; c.textBaseline = 'middle'; c.textAlign = 'left'; c.fillText(text, box.x, box.y + box.h / 2); });
         brandHost = brandText!.closest<HTMLElement>('[data-enter]');
       } else {
-        // Sidebar collapsed: the expand button stands in for it
         const btn = document.querySelector<HTMLElement>('.sidebar-expand-btn');
         if (visible(btn)) {
           const r = btn!.getBoundingClientRect();
@@ -603,7 +689,6 @@ const tagline = '日常记录 · 技术分享';
       const when = (planned: number) => (fast ? now + 0.1 + rnd() * 0.35 : planned + rnd() * 0.22);
       let k = 0;
 
-      // The word goes home — a dusting over the brand mark's glyphs, not a clump on top of them
       const cnt = homes.brandPts.length / 2;
       if (cnt > 0) {
         const n = Math.min(Math.round(pool.length * 0.12), cnt * 8);
@@ -617,7 +702,6 @@ const tagline = '日常记录 · 技术分享';
         }
       }
 
-      // The rest spread over the first-screen elements by size, arriving as each one enters
       const rest = pool.length - k;
       const totalW = homes.others.reduce((s, o) => s + o.w, 0) || 1;
       for (const o of homes.others) {
@@ -631,7 +715,6 @@ const tagline = '日常记录 · 技术分享';
         }
       }
 
-      // Whatever is left over blows away like ash
       for (; k < pool.length; k += 1) {
         const i = pool[k];
         homeKind[i] = H_ASH;
@@ -643,6 +726,7 @@ const tagline = '日常记录 · 技术分享';
     let parX = 0, parY = 0, mouseX = 0, mouseY = 0;
     let impactAt = -1;
     let fi = 0;
+    let lastStageCss = '';
     const zoomAt = (t: number) => 1 + 0.06 * (1 - easeOutQuad(clamp01(t / T.scan2)));
     const parallaxGain = (t: number) => (skipping ? 0 : 1 - clamp01((t - T.scan2) / (T.scan2End - T.scan2)));
     function scanLine(a: number, b: number, t: number) {
@@ -669,36 +753,73 @@ const tagline = '日常记录 · 技术分享';
           grainY = Math.floor(rnd() * 128);
         }
         const gx = grainX + ox * 0.3, gy = grainY + oy * 0.3;
+        const pat = grainTiles[grainTile];
         ctx!.globalAlpha = grainAlpha;
-        ctx!.fillStyle = grainTiles[grainTile];
-        ctx!.save();
-        ctx!.translate(gx, gy);
-        ctx!.fillRect(-gx - 128, -gy - 128, W + 256, H + 256);
-        ctx!.restore();
+        if (grainMatrix && typeof pat.setTransform === 'function') {
+          grainMatrix.e = gx;
+          grainMatrix.f = gy;
+          pat.setTransform(grainMatrix);
+          ctx!.fillStyle = pat;
+          ctx!.fillRect(0, 0, W, H);
+        } else {
+          ctx!.fillStyle = pat;
+          ctx!.save();
+          ctx!.translate(gx, gy);
+          ctx!.fillRect(-gx, -gy, W, H);
+          ctx!.restore();
+        }
         ctx!.globalAlpha = 1;
       }
 
-      // World space: zoomed about the viewport centre, nudged by the pointer; identity by 归
+      // World space: zoomed about viewport centre, nudged by pointer; identity by 归
       ctx!.translate(W / 2 + ox, H / 2 + oy);
       ctx!.scale(s, s);
       ctx!.translate(-W / 2, -H / 2);
-      stage.style.transform = `translate3d(${(parX * 18 * gain).toFixed(2)}px, ${(parY * 12 * gain).toFixed(2)}px, 0) scale(${s.toFixed(4)})`;
+
+      const nextStageCss = `translate3d(${(parX * 18 * gain).toFixed(2)}px, ${(parY * 12 * gain).toFixed(2)}px, 0) scale(${s.toFixed(4)})`;
+      if (nextStageCss !== lastStageCss) {
+        lastStageCss = nextStageCss;
+        stage.style.transform = nextStageCss;
+      }
 
       if (!spawned) { if (!skipping) drawDrop(ctx!, t); return; }
 
-      // Shock rings from the burst
+      // Multi-ring splash-ink shockwaves + warm cinnabar inner pulse
       if (impactAt >= 0) {
-        ctx!.strokeStyle = ink;
-        for (let k = 0; k < 2; k += 1) {
-          const q = clamp01((t - impactAt - k * 0.12) / 1.1);
+        for (let k = 0; k < 3; k += 1) {
+          const q = clamp01((t - impactAt - k * 0.11) / (k === 2 ? 0.85 : 1.15));
           if (q <= 0 || q >= 1) continue;
-          ctx!.globalAlpha = (1 - q) * (k ? 0.35 : 0.55);
-          ctx!.lineWidth = 1.5 * (1 - q) + 0.4;
+          ctx!.strokeStyle = k === 2 ? sealColor : ink;
+          ctx!.globalAlpha = (1 - q) * (k === 0 ? 0.58 : k === 1 ? 0.36 : 0.32);
+          ctx!.lineWidth = (1.6 - k * 0.35) * (1 - q) + 0.4;
           ctx!.beginPath();
-          ctx!.arc(cx, cy, easeOutExpo(q) * minWH * (k ? 0.36 : 0.55), 0, Math.PI * 2);
+          ctx!.arc(cx, cy, easeOutExpo(q) * minWH * (k === 0 ? 0.56 : k === 1 ? 0.38 : 0.24), 0, Math.PI * 2);
           ctx!.stroke();
         }
         ctx!.globalAlpha = 1;
+      }
+
+      // Calligraphic vortex ink-ribbons (旋墨游丝) coiling around the center during 旋 & 聚
+      if (!skipping && t >= T.vortex && t < T.formEnd) {
+        const vAlpha = Math.sin(clamp01((t - T.vortex) / (T.formEnd - T.vortex)) * Math.PI) * 0.22;
+        if (vAlpha > 0.01) {
+          const spiralPath = new Path2D();
+          for (let arm = 0; arm < 4; arm += 1) {
+            const baseA = t * 2.4 + (arm * Math.PI) / 2;
+            const rArm = vortexR * (0.55 + arm * 0.18) * (1 - 0.38 * smooth(T.form, T.formEnd, t));
+            spiralPath.moveTo(cx + Math.cos(baseA) * rArm, cy + Math.sin(baseA) * (rArm * 0.78));
+            for (let sIdx = 1; sIdx <= 10; sIdx += 1) {
+              const aa = baseA + sIdx * 0.14;
+              const rr = rArm * (1 - sIdx * 0.022);
+              spiralPath.lineTo(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * (rr * 0.78));
+            }
+          }
+          ctx!.strokeStyle = ink;
+          ctx!.globalAlpha = vAlpha;
+          ctx!.lineWidth = 1.1;
+          ctx!.stroke(spiralPath);
+          ctx!.globalAlpha = 1;
+        }
       }
 
       textMode = 0;
@@ -711,8 +832,6 @@ const tagline = '日常记录 · 技术分享';
       const breathing = t >= T.formEnd && t < T.scan2;
       const stainAlpha = 0.34 * (1 - smooth(T.vortex, T.form + 0.4, t));
       const freeAlpha = 1 - 0.45 * smooth(T.form, T.formEnd, t);
-      // Pixels sit one screen px short of their cell, so the formed face reads as a dot matrix
-      // and the scanline visibly fills it in when the type takes over
       const dot = Math.max(2, cell - 1);
       ctx!.fillStyle = ink;
       // Alpha bucketing: batch draw calls into fixed alpha paths to eliminate Draw Call explosion
@@ -733,7 +852,7 @@ const tagline = '日常记录 · 技术分享';
         const m = mode[i];
         if (m === M_IDLE || m === M_DEAD) continue;
         const L = leader[i];
-        if (L >= 0 && t < splitAt[L]) continue; // still inside its chunk
+        if (L >= 0 && t < splitAt[L]) continue;
 
         if (kind[i] === K_STAIN) {
           if (!hasStains) continue;
@@ -745,7 +864,6 @@ const tagline = '日常记录 · 技术分享';
 
         if (m === M_LOCK) {
           if (covered(ty[i] + cell / 2)) continue;
-          // The formed face breathes: the odd cell shivers by half a pixel now and then
           const j = breathing && (i * 7 + (fi >> 3)) % 17 === 0 ? 0.5 : 0;
           p100.rect(tx[i] + j, ty[i], dot, dot);
           count100 += 1;
@@ -828,7 +946,6 @@ const tagline = '日常记录 · 技术分享';
         else if (textMode === 3) ctx!.rect(-W, scanY, W * 3, H * 2);
         else ctx!.rect(-W, -H, W * 3, H * 3);
         ctx!.clip();
-        // Misregistered impressions right after the pass — a print that has not quite settled
         const g = textMode === 3 ? 0 : 2.6 * (1 - smooth(T.scan1, T.scan1End + 0.3, t));
         if (g > 0.05) {
           ctx!.globalAlpha = 0.32;
@@ -840,25 +957,21 @@ const tagline = '日常记录 · 技术分享';
         ctx!.restore();
       }
       if (textMode === 1 || textMode === 3) {
-        const band = ctx!.createLinearGradient(0, scanY - 22, 0, scanY);
-        band.addColorStop(0, withAlpha(ink, 0));
-        band.addColorStop(1, withAlpha(ink, 0.22));
-        ctx!.fillStyle = band;
-        ctx!.fillRect(0, scanY - 22, W, 22);
-        ctx!.fillStyle = ink;
-        ctx!.globalAlpha = 0.85;
-        ctx!.fillRect(0, scanY, W, 1);
-        ctx!.globalAlpha = 1;
+        ctx!.drawImage(scanStrip, 0, scanY - 23, W, 24);
       }
     }
 
     // ---------- Clock ----------
-    let started = 0, last = 0, acc = 0, simT = 0, frameId = 0;
+    let started = 0, last = 0, acc = 0, simT = 0, frameId = 0, hiddenAt = 0;
     let statusPhase = '凝';
     const now = () => (started ? (performance.now() - started) / 1000 : 0);
 
     function loop(stamp: number) {
       if (finished) return;
+      if (document.hidden) {
+        frameId = 0;
+        return;
+      }
       if (!started) { started = stamp; last = stamp; }
       holdScroll();
       const t = (stamp - started) / 1000;
@@ -871,13 +984,13 @@ const tagline = '日常记录 · 技术分享';
           spawnAll(cx, cy, 6);
           simT = t;
           impactAt = t;
-          splash(cx, cy, 26);
+          splash(cx, cy, 24);
         }
         if (spawned) {
           acc += dtFrame;
           let n = 0;
           while (acc >= STEP && n < 2) { step(STEP, simT); simT += STEP; acc -= STEP; n += 1; }
-          if (acc >= STEP) { acc = 0; simT = t; } // back from a hidden tab: don't try to catch up
+          if (acc >= STEP) { acc = 0; simT = t; }
         }
         if (!cachedHomes && !skipping && t >= 6.0) getHomes();
         if (!skipping && !homesAssigned && t >= T.scan2) assignHomes(t, false);
@@ -896,9 +1009,12 @@ const tagline = '日常记录 · 技术分享';
     // ---------- DOM timeline ----------
     gsap.set(taglineEl, { opacity: 0 });
     gsap.set(foot, { opacity: 0, y: 10 });
+    if (sealEl) gsap.set(sealEl, { opacity: 0, scale: 2.15, rotation: -16, transformOrigin: '50% 50%' });
+    if (ringEl) gsap.set(ringEl, { opacity: 0, scale: 0.08 });
     typed.textContent = '';
 
     const meter = { value: 0 };
+    let lastStatusStr = '';
     const tl = gsap.timeline();
     tl.to(meter, {
       value: 1,
@@ -906,12 +1022,41 @@ const tagline = '日常记录 · 技术分享';
       ease: 'none',
       onUpdate: () => {
         progress.style.transform = `scaleX(${meter.value})`;
-        status.textContent = `ENTERING · ${String(Math.round(meter.value * 100)).padStart(2, '0')}% · ${statusPhase}`;
+        const nextStr = `ENTERING · ${String(Math.round(meter.value * 100)).padStart(2, '0')}% · ${statusPhase}`;
+        if (nextStr !== lastStatusStr) {
+          lastStatusStr = nextStr;
+          status.textContent = nextStr;
+        }
       },
     }, 0);
     tl.to(foot, { opacity: 1, y: 0, duration: 0.7, ease: 'power2.out' }, 0.5);
     // The burst kicks the whole sheet
     tl.to(intro, { keyframes: { x: [0, 3, -3, 2, -1, 0], y: [0, -2, 2, -1, 1, 0], easeEach: 'none' }, duration: 0.32, ease: 'none' }, T.impact);
+
+    // 朱砂落印 (Cinnabar Seal Impression) right after 秋 completes
+    if (sealEl) {
+      tl.to(sealEl, {
+        opacity: 1,
+        scale: 1,
+        rotation: -4,
+        duration: 0.46,
+        ease: 'intro-seal-press',
+        onStart: () => {
+          gsap.delayedCall(0.14, () => {
+            if (!finished && !skipping) splash(sealLandX + 18, sealLandY + 18, 12);
+          });
+        },
+      }, T.seal);
+    }
+    if (ringEl) {
+      tl.fromTo(
+        ringEl,
+        { opacity: 0.68, scale: 0.08 },
+        { opacity: 0, scale: 1, duration: 0.95, ease: 'power3.out' },
+        T.seal + 0.12
+      );
+    }
+
     tl.call(() => { getHomes(); }, undefined, 6.2);
     const cursor = { index: 0 };
     tl.to(taglineEl, { opacity: 1, duration: 0.3, ease: 'none' }, T.tagline - 0.1);
@@ -924,6 +1069,7 @@ const tagline = '日常记录 · 技术分享';
     }, T.tagline);
     tl.call(() => { lifted = true; intro.classList.add('is-lifting'); }, undefined, T.lift);
     tl.to(taglineEl, { opacity: 0, duration: 0.35, ease: 'power2.in' }, T.lift);
+    if (sealEl) tl.to(sealEl, { opacity: 0, scale: 0.92, duration: 0.32, ease: 'power2.in' }, T.lift);
     tl.to(foot, { opacity: 0, duration: 0.3, ease: 'power2.in' }, T.lift);
     tl.call(() => { assignHomes(now(), false); releasePage({ timeScale: homeTimeScale }); }, undefined, T.release);
     tl.call(finish, undefined, T.end);
@@ -947,27 +1093,26 @@ const tagline = '日常记录 · 技术分享';
       gsap.set(intro, { clearProps: 'transform' });
       lifted = true;
       intro.classList.add('is-lifting');
-      gsap.to([taglineEl, foot], { opacity: 0, duration: 0.2, ease: 'power2.in', overwrite: 'auto' });
+      const fadeTargets = [taglineEl, foot, sealEl, ringEl].filter(Boolean);
+      gsap.to(fadeTargets, { opacity: 0, duration: 0.2, ease: 'power2.in', overwrite: 'auto' });
       textMode = 0;
 
-      // Hard safety timer: guarantee finish is ALWAYS called within 300ms,
-      // completely eliminating any possibility of a stuck blank screen
+      // Hard safety timer: guarantee finish is ALWAYS called within 300ms
       window.clearTimeout(skipFallbackTimer);
       skipFallbackTimer = window.setTimeout(finish, 300);
 
       if (!ready) {
-        // Font still loading (well under a second in): nothing to fly yet, just let the page in
         releasePage({ timeScale: 3 });
         return;
       }
       if (!spawned) { const p = dropPos(t); spawnAll(p.x, p.y, 4); simT = t; impactAt = -1; }
       if (homesAssigned) {
-        // Already on the way home: hurry the stragglers along
         for (let i = 0; i < N; i += 1) if (mode[i] !== M_DEAD) tH[i] = Math.min(tH[i], t + 0.05 + rnd() * 0.15);
       } else {
         assignHomes(t, true);
       }
       releasePage({ timeScale: Math.max(homeTimeScale, 2.5) });
+      if (!frameId && !document.hidden) frameId = requestAnimationFrame(loop);
     }
 
     function finish() {
@@ -976,10 +1121,11 @@ const tagline = '日常记录 · 技术分享';
       window.clearTimeout(skipFallbackTimer);
       window.clearTimeout(readyWatchdog);
       cancelAnimationFrame(frameId);
+      frameId = 0;
       controller.abort();
       timeline?.kill();
       timeline = null;
-      gsap.killTweensOf([intro, taglineEl, foot]);
+      gsap.killTweensOf([intro, taglineEl, foot, sealEl, ringEl].filter(Boolean));
       document.documentElement.classList.remove('site-intro-active');
       document.documentElement.classList.remove('js-enter');
       (window as any).__siteIntroPending = false;
@@ -991,11 +1137,11 @@ const tagline = '日常记录 · 技术分享';
       } catch {}
       teardown = null;
     }
-    teardown = () => { cancelAnimationFrame(frameId); timeline?.kill(); timeline = null; controller.abort(); };
+    teardown = () => { cancelAnimationFrame(frameId); frameId = 0; timeline?.kill(); timeline = null; controller.abort(); };
+    (window as any).__areSetSiteIntroCleanup__ = teardown;
 
     skipBtn.addEventListener('click', skip, { signal });
     intro.addEventListener('click', skip, { signal });
-    // Wheel and touchskip handlers to never swallow user intent
     intro.addEventListener('wheel', (event) => { event.preventDefault(); skip(); }, { passive: false, signal });
     intro.addEventListener('touchstart', () => skip(), { passive: true, signal });
     document.addEventListener('keydown', (event) => {
@@ -1007,13 +1153,34 @@ const tagline = '日常记录 · 技术分享';
         event.preventDefault();
       }
     }, { signal });
+    document.addEventListener('visibilitychange', () => {
+      if (finished) return;
+      if (document.hidden) {
+        hiddenAt = performance.now();
+        timeline?.pause();
+        if (frameId) {
+          cancelAnimationFrame(frameId);
+          frameId = 0;
+        }
+      } else {
+        if (hiddenAt > 0 && started > 0) {
+          const pausedMs = performance.now() - hiddenAt;
+          started += pausedMs;
+          last = performance.now();
+        }
+        hiddenAt = 0;
+        timeline?.resume();
+        if (!frameId) {
+          frameId = requestAnimationFrame(loop);
+        }
+      }
+    }, { signal });
     if (finePointer) {
       window.addEventListener('pointermove', (event) => {
         mouseX = (event.clientX / W - 0.5) * 2;
         mouseY = (event.clientY / H - 0.5) * 2;
       }, { passive: true, signal });
     }
-    // A resize mid-curtain would leave every home and glyph cell aiming at stale coordinates
     window.addEventListener('resize', () => { if (!finished) skip(); }, { signal, once: true });
 
     // Ready watchdog: if font or canvas doesn't report ready within 600ms, auto-skip to avoid blank screen
@@ -1030,7 +1197,6 @@ const tagline = '日常记录 · 技术分享';
 
   runSiteIntro();
 
-  // Leaving mid-curtain must not strand a dead overlay or a stopped Lenis in the next document
   document.addEventListener('astro:before-swap', () => {
     if (finished) return;
     finished = true;

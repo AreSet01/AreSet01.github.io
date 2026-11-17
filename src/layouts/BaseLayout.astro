@@ -179,7 +179,44 @@ const {
           window.clearTimeout(themeTransitionTimer);
           themeTransitionTimer = window.setTimeout(function() {
             document.documentElement.classList.remove('theme-switching');
-          }, 980);
+            document.documentElement.removeAttribute('data-vt-active');
+          }, 860);
+        }
+
+        /* 主题/字形切换水墨晕环：纯 GPU transform + opacity，零 blur 零紫边 */
+        function spawnThemeInkRipple(x, y, nextTheme) {
+          try {
+            if (!document.body) return;
+            var oldRing = document.getElementById('theme-switch-ink-ring');
+            if (oldRing) oldRing.remove();
+            var ring = document.createElement('div');
+            ring.id = 'theme-switch-ink-ring';
+            ring.className = 'theme-switch-ink-ring';
+            ring.setAttribute('data-theme-ink-ring', nextTheme || 'ink');
+            ring.style.left = Math.round(x) + 'px';
+            ring.style.top = Math.round(y) + 'px';
+            var maxR = Math.hypot(
+              Math.max(x, window.innerWidth - x),
+              Math.max(y, window.innerHeight - y)
+            );
+            var size = Math.max(48, Math.round(maxR * 2));
+            ring.style.width = size + 'px';
+            ring.style.height = size + 'px';
+            document.body.appendChild(ring);
+            if (typeof ring.animate === 'function') {
+              var anim = ring.animate(
+                [
+                  { transform: 'translate3d(-50%, -50%, 0) scale(0.02)', opacity: 0.62 },
+                  { transform: 'translate3d(-50%, -50%, 0) scale(0.62)', opacity: 0.32, offset: 0.58 },
+                  { transform: 'translate3d(-50%, -50%, 0) scale(1.04)', opacity: 0 },
+                ],
+                { duration: 700, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
+              );
+              anim.onfinish = function() { ring.remove(); };
+            } else {
+              window.setTimeout(function() { ring.remove(); }, 720);
+            }
+          } catch (err) {}
         }
 
         function applyTheme(explicitTheme) {
@@ -276,9 +313,17 @@ const {
           );
 
           try {
+            document.documentElement.setAttribute('data-vt-active', 'true');
+            spawnThemeInkRipple(x, y, 'font');
             var transition = document.startViewTransition(function() {
               applyFont(nextFont);
             });
+
+            if (transition && transition.finished && typeof transition.finished.finally === 'function') {
+              transition.finished.finally(function() {
+                document.documentElement.removeAttribute('data-vt-active');
+              });
+            }
 
             if (transition && transition.ready && typeof transition.ready.then === 'function') {
               transition.ready
@@ -287,21 +332,24 @@ const {
                     document.documentElement.animate(
                       {
                         clipPath: [
-                          'circle(14px at ' + x + 'px ' + y + 'px)',
+                          'circle(12px at ' + x + 'px ' + y + 'px)',
                           'circle(' + endRadius + 'px at ' + x + 'px ' + y + 'px)',
                         ],
                       },
                       {
-                        duration: 760,
-                        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                        duration: 640,
+                        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
                         pseudoElement: '::view-transition-new(root)',
                       }
                     );
                   }
                 })
-                .catch(function() {});
+                .catch(function() {
+                  document.documentElement.removeAttribute('data-vt-active');
+                });
             }
           } catch (e) {
+            document.documentElement.removeAttribute('data-vt-active');
             applyFont(nextFont);
           }
         }
@@ -335,10 +383,18 @@ const {
           );
 
           try {
+            document.documentElement.setAttribute('data-vt-active', 'true');
+            spawnThemeInkRipple(x, y, nextTheme);
             var transition = document.startViewTransition(function() {
               markThemeSwitching();
               applyTheme(nextTheme);
             });
+
+            if (transition && transition.finished && typeof transition.finished.finally === 'function') {
+              transition.finished.finally(function() {
+                document.documentElement.removeAttribute('data-vt-active');
+              });
+            }
 
             if (transition && transition.ready && typeof transition.ready.then === 'function') {
               transition.ready
@@ -347,21 +403,24 @@ const {
                     document.documentElement.animate(
                       {
                         clipPath: [
-                          'circle(14px at ' + x + 'px ' + y + 'px)',
+                          'circle(12px at ' + x + 'px ' + y + 'px)',
                           'circle(' + endRadius + 'px at ' + x + 'px ' + y + 'px)',
                         ],
                       },
                       {
-                        duration: 820,
-                        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                        duration: 680,
+                        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
                         pseudoElement: '::view-transition-new(root)',
                       }
                     );
                   }
                 })
-                .catch(function() {});
+                .catch(function() {
+                  document.documentElement.removeAttribute('data-vt-active');
+                });
             }
           } catch (e) {
+            document.documentElement.removeAttribute('data-vt-active');
             markThemeSwitching();
             applyTheme(nextTheme);
           }
@@ -711,17 +770,23 @@ const {
       // scrolling up) so the motion always agrees with where the element actually came from.
       // Opt-outs: data-enter-once (sidebar: only on hard loads), data-no-replay (inside pins).
       // Gentle, refined offsets: soft slide without violent jerking or snapping
-      const ENTER_OFFSET = { left: -46, right: 46, top: -38, bottom: 38 };
-      const ENTER_SCROLL_BIAS = 22; // subtle vertical nudge on horizontal kinds during scroll re-entries
+      const ENTER_OFFSET = { left: -34, right: 34, top: -28, bottom: 28 };
+      const ENTER_SCROLL_BIAS = 18; // subtle vertical nudge on horizontal kinds during scroll re-entries
       const ENTER_TRIGGER_PREFIX = 'enter:';
       // Sides converge first, then verticals, then scale/stamps/bloom, ink rows last
       const ENTER_ORDER = { left: 0, right: 0, top: 1, bottom: 1, card: 2, scale: 2, stamp: 2, bloom: 2, ink: 3 };
-      const ENTER_STAGGER = { default: 0.08, card: 0.06, stamp: 0.12, bloom: 0.12, ink: 0.07 };
+      const ENTER_STAGGER = { default: 0.068, card: 0.056, stamp: 0.11, bloom: 0.11, ink: 0.062 };
       let hasNavigated = false;
       let cardYawCounter = 0;
 
       // Smooth, natural brush glide ease: gentle start, steady acceleration and soft settle (zero whip/snap)
       CustomEase.create('enter', 'M0,0 C0.16,1 0.3,1 1,1');
+      // 宣纸舒卷曲线：起笔温润，收锋安定，消除前段过陡急刹感
+      CustomEase.create('paper-glide', 'M0,0 C0.2,0.84 0.3,1 1,1');
+      // 宣纸水墨毛细渗透曲线：先浸润纸肌，后缓缓晕开收口
+      CustomEase.create('ink-seep', 'M0,0 C0.14,0.74 0.26,0.97 1,1');
+      // 朱砂石章钤印曲线：干脆落印轻压宣纸（微陷 0.985），随即沉稳落定，摒弃廉价橡胶弹跳
+      CustomEase.create('cinnabar-seal', 'M0,0 C0.15,0.94 0.28,1.032 0.54,0.988 0.78,0.996 1,1 1,1');
 
       // Which way the page is moving — CSS reveals (post body) read it off <html>
       ScrollTrigger.create({
@@ -742,7 +807,7 @@ const {
       // Rotation the stylesheet gives this element (e.g. .home-stat's rotate(-1.5deg)), in degrees
       function restingRotation(el) {
         const wasEntering = el.classList.contains('is-entering');
-        el.classList.remove('is-entering'); // .is-entering forces transform:none — read the real value
+        el.classList.remove('is-entering');
         const matrix = getComputedStyle(el).transform;
         if (wasEntering) el.classList.add('is-entering');
         const match = /matrix\(([^,]+),([^,]+)/.exec(matrix);
@@ -750,14 +815,42 @@ const {
         return Math.atan2(parseFloat(match[2]), parseFloat(match[1])) * 180 / Math.PI;
       }
 
-      function inkOrigin(el) {
-        // Spread from where the date sits; falls back to the row's leading edge
+      function measureInkSpec(el, cachedRect) {
         const seed = el.querySelector('time') || el;
-        const rowRect = el.getBoundingClientRect();
-        const seedRect = seed.getBoundingClientRect();
+        const rowRect = cachedRect || el.getBoundingClientRect();
+        const seedRect = seed === el ? rowRect : seed.getBoundingClientRect();
         const x = seedRect.left - rowRect.left + Math.min(seedRect.width, 40) / 2;
         const y = seedRect.top - rowRect.top + seedRect.height / 2;
-        return `${Math.round(x)}px ${Math.round(y)}px`;
+        const radius = Math.max(24, Math.ceil(Math.hypot(rowRect.width || el.offsetWidth || 240, rowRect.height || el.offsetHeight || 48)));
+        return { origin: `${Math.round(x)}px ${Math.round(y)}px`, radius };
+      }
+
+      // Spawn a lightweight GPU-composited cinnabar/ink impression ring on stamp landing
+      function spawnStampSealHalo(el) {
+        if (!el || !el.isConnected || !document.body) return;
+        const rect = el.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+        const halo = document.createElement('div');
+        halo.className = 'stamp-seal-halo';
+        Object.assign(halo.style, {
+          left: `${Math.round(rect.left)}px`,
+          top: `${Math.round(rect.top)}px`,
+          width: `${Math.round(rect.width)}px`,
+          height: `${Math.round(rect.height)}px`,
+        });
+        document.body.appendChild(halo);
+        if (typeof halo.animate === 'function') {
+          const anim = halo.animate(
+            [
+              { transform: 'scale(0.94)', opacity: 0.62 },
+              { transform: 'scale(1.24)', opacity: 0 },
+            ],
+            { duration: 540, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'forwards' }
+          );
+          anim.onfinish = () => halo.remove();
+        } else {
+          window.setTimeout(() => halo.remove(), 560);
+        }
       }
 
       function finishEnter(el) {
@@ -766,7 +859,7 @@ const {
         if (enterKind(el) === 'card') {
           clearCardMotion(el, false);
         } else {
-          gsap.set(el, { clearProps: 'transform,opacity,clipPath,filter,transformOrigin' });
+          gsap.set(el, { clearProps: 'transform,opacity,clipPath,filter,transformOrigin,willChange' });
         }
         if (el.matches?.('.glass-nav') || el.querySelector?.('.glass-nav')) {
           (window as any).__syncNavMagneticGlider?.();
@@ -780,7 +873,7 @@ const {
         const counter = { value: 0 };
         gsap.to(counter, {
           value: target,
-          duration: 1.3,
+          duration: 1.2,
           delay,
           ease: 'expo.out',
           onUpdate: () => { el.textContent = String(Math.round(counter.value)); },
@@ -796,12 +889,12 @@ const {
         const centerX = Math.round(rect.left + rect.width / 2);
         const centerY = Math.round(rect.top + rect.height / 2);
         if (centerX <= 15 && centerY <= 15) return;
-        window.__inkSplash(centerX, centerY, 14);
+        window.__inkSplash(centerX, centerY, 12);
       }
 
       // Adds this element's entrance to `tl` at `at` seconds; returns how long to wait before the
       // next one. `scrollDir` is null for the first-paint choreography, 'down' | 'up' on re-entries.
-      function scheduleEnter(tl, el, at, scrollDir = null, cardIndex = -1, knownPanel = undefined) {
+      function scheduleEnter(tl, el, at, scrollDir = null, cardIndex = -1, knownPanel = undefined, preMeta = undefined) {
         const kind = enterKind(el);
         const isArticle = Boolean(document.querySelector('[data-post-prose]'));
         const isReplay = el.dataset.enteredOnce === 'true';
@@ -832,96 +925,114 @@ const {
         // On replay: use ultra-light GPU compositor-only animation (zero filter:blur, zero splash DOM injection)
         if (isReplay) {
           const scrollY = scrollDir ? (scrollDir === 'down' ? 1 : -1) : 0;
-          const fromY = scrollY * (kind === 'top' || kind === 'bottom' ? ENTER_OFFSET.bottom * 0.6 : ENTER_SCROLL_BIAS);
-          const fromX = (kind === 'left' || kind === 'right') ? ENTER_OFFSET[kind] * 0.5 : 0;
-          gsap.set(el, { opacity: 0, x: fromX, y: fromY, scale: 0.98 });
+          const fromY = scrollY * (kind === 'top' || kind === 'bottom' ? ENTER_OFFSET.bottom * 0.55 : ENTER_SCROLL_BIAS);
+          const fromX = (kind === 'left' || kind === 'right') ? ENTER_OFFSET[kind] * 0.45 : 0;
+          gsap.set(el, { opacity: 0, x: fromX, y: fromY, scale: 0.985, willChange: 'transform, opacity' });
           tl.to(el, {
             opacity: 1, x: 0, y: 0, scale: 1,
-            duration: isArticle ? 0.72 : 0.45,
-            ease: isArticle ? 'article-enter' : 'power2.out',
+            duration: isArticle ? 0.66 : 0.44,
+            ease: isArticle ? 'article-enter' : 'paper-glide',
             onComplete: () => finishEnter(el),
           }, at);
           return ENTER_STAGGER.default * 0.6;
         }
 
         if (kind === 'stamp') {
-          // Land on the card's own CSS tilt so clearProps hands back to the stylesheet without a snap
-          const restRotation = restingRotation(el);
-          const rect = el.getBoundingClientRect();
+          // 朱砂钤印：沉稳石章压纸落印 + 朱砂余韵光环扩散
+          const restRotation = preMeta?.restRotation ?? restingRotation(el);
+          const rect = preMeta?.rect ?? el.getBoundingClientRect();
           const origin = (rect.right > window.innerWidth * 0.65) ? 'right center' : '50% 50%';
-          gsap.set(el, { opacity: 0, scale: 1.7, rotation: restRotation - 14, transformOrigin: origin });
-          tl.to(el, {
-            opacity: 1, scale: 1, rotation: restRotation,
-            duration: 0.62,
-            ease: 'back.out(2.2)',
-            onStart: () => {
-              gsap.delayedCall(0.2, () => {
-                if (el && el.isConnected) splashAt(el);
-              });
-            },
-            onComplete: () => finishEnter(el),
-          }, at);
-          el.querySelectorAll('[data-count]').forEach((numEl) => countUp(numEl, at + 0.25));
-          return ENTER_STAGGER.stamp;
-        }
-
-        if (kind === 'bloom') {
-          // 落墨生花：首次进入墨韵氤氲渐显
           gsap.set(el, {
             opacity: 0,
-            y: 20,
-            scale: 0.94,
-            filter: 'blur(10px)',
-            transformOrigin: '50% 50%',
+            scale: 1.56,
+            rotation: restRotation - 11,
+            transformOrigin: origin,
+            willChange: 'transform, opacity',
           });
           tl.to(el, {
             opacity: 1,
-            y: 0,
             scale: 1,
-            filter: 'blur(0px)',
-            duration: 0.95,
-            ease: 'power3.out',
+            rotation: restRotation,
+            duration: 0.58,
+            ease: 'cinnabar-seal',
             onStart: () => {
-              gsap.delayedCall(0.18, () => {
-                if (el && el.isConnected) splashAt(el);
+              gsap.delayedCall(0.16, () => {
+                if (el && el.isConnected) {
+                  spawnStampSealHalo(el);
+                  splashAt(el);
+                }
               });
             },
             onComplete: () => finishEnter(el),
           }, at);
           el.querySelectorAll('[data-count]').forEach((numEl) => countUp(numEl, at + 0.2));
+          return ENTER_STAGGER.stamp;
+        }
+
+        if (kind === 'bloom') {
+          // 落墨生花：零 filter:blur 掉帧，纯合成器宣纸墨卷绽放（clip-path + scale + opacity）
+          gsap.set(el, {
+            opacity: 0,
+            y: 14,
+            scale: 0.96,
+            clipPath: 'inset(6% 4% 6% 4% round 16px)',
+            transformOrigin: '50% 50%',
+            willChange: 'transform, opacity, clip-path',
+          });
+          tl.to(el, {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            clipPath: 'inset(0% 0% 0% 0% round 16px)',
+            duration: 0.78,
+            ease: 'ink-seep',
+            onStart: () => {
+              gsap.delayedCall(0.16, () => {
+                if (el && el.isConnected) splashAt(el);
+              });
+            },
+            onComplete: () => finishEnter(el),
+          }, at);
+          el.querySelectorAll('[data-count]').forEach((numEl) => countUp(numEl, at + 0.18));
           return ENTER_STAGGER.bloom;
         }
 
         if (kind === 'ink') {
-          const origin = inkOrigin(el);
-          gsap.set(el, { opacity: 1, clipPath: `circle(0px at ${origin})` });
+          const spec = preMeta?.inkSpec ?? measureInkSpec(el, preMeta?.rect);
+          gsap.set(el, {
+            opacity: 0.36,
+            x: -8,
+            clipPath: `circle(0px at ${spec.origin})`,
+            willChange: 'clip-path, transform, opacity',
+          });
           tl.to(el, {
-            clipPath: `circle(${Math.ceil(Math.hypot(el.offsetWidth, el.offsetHeight))}px at ${origin})`,
-            duration: 1.1,
-            ease: 'enter',
+            opacity: 1,
+            x: 0,
+            clipPath: `circle(${spec.radius}px at ${spec.origin})`,
+            duration: 0.94,
+            ease: 'ink-seep',
             onComplete: () => finishEnter(el),
           }, at);
           return ENTER_STAGGER.ink;
         }
 
-        const from = { opacity: 0, x: 0, y: 0, scale: 1 };
+        const from = { opacity: 0, x: 0, y: 0, scale: 1, willChange: 'transform, opacity' };
         const scrollY = scrollDir ? (scrollDir === 'down' ? 1 : -1) : 0;
         if (kind === 'left' || kind === 'right') {
           from.x = ENTER_OFFSET[kind];
           from.y = scrollY * ENTER_SCROLL_BIAS;
         } else if (kind === 'top' || kind === 'bottom') {
-          // Authored direction on first paint; whichever edge it's entering from afterwards
           from.y = scrollDir ? scrollY * ENTER_OFFSET.bottom : ENTER_OFFSET[kind];
         } else if (kind === 'scale') {
-          from.scale = 0.78;
+          from.scale = 0.86;
           from.y = scrollY * ENTER_SCROLL_BIAS * 0.5;
         }
 
         gsap.set(el, from);
         tl.to(el, {
           opacity: 1, x: 0, y: 0, scale: 1,
-          duration: isArticle ? 1.0 : 0.82,
-          ease: isArticle ? 'article-enter' : 'enter',
+          duration: isArticle ? 0.88 : 0.74,
+          ease: isArticle ? 'article-enter' : 'paper-glide',
           onComplete: () => finishEnter(el),
         }, at);
         return ENTER_STAGGER.default;
@@ -1105,17 +1216,26 @@ const {
         });
 
         if (immediate.length) {
-          // Leave a beat after the page swap so the "page turn" reads before parts fly in;
-          // when releasing directly after post title docks, start right away with no dead gap.
+          // Pre-measure stamp/ink metadata in a single read pass BEFORE writing any inline styles
+          const preMetaMap = new Map();
+          immediate.forEach(({ el, kind }) => {
+            const r = rectMap.get(el);
+            if (kind === 'stamp' && el.dataset.enteredOnce !== 'true') {
+              preMetaMap.set(el, { rect: r || el.getBoundingClientRect(), restRotation: restingRotation(el) });
+            } else if (kind === 'ink' && el.dataset.enteredOnce !== 'true') {
+              preMetaMap.set(el, { rect: r, inkSpec: measureInkSpec(el, r) });
+            }
+          });
+
           const tl = gsap.timeline({
-            delay: fromPostTitleHold ? 0.02 : (hasNavigated ? 0.14 : 0.06),
+            delay: fromPostTitleHold ? 0.02 : (hasNavigated ? 0.12 : 0.05),
             onComplete: () => {
               document.documentElement.classList.remove('js-enter');
             },
           });
           tl.timeScale(timeScale);
           immediate.forEach(({ el, at, cardIdx, knownPanel }) =>
-            scheduleEnter(tl, el, at, null, cardIdx, knownPanel)
+            scheduleEnter(tl, el, at, null, cardIdx, knownPanel, preMetaMap.get(el))
           );
         } else {
           document.documentElement.classList.remove('js-enter');
@@ -1356,7 +1476,7 @@ const {
       initScrollableContainers();
       initMagneticButtons();
 
-      // Magnetic Micro-interactions (Continuous zero-drift multi-hover physics)
+      // Magnetic Micro-interactions (rAF-coalesced zero-drift physics, zero pointermove reflow)
       function initMagneticButtons() {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         
@@ -1368,6 +1488,9 @@ const {
 
           let restCenterX = 0;
           let restCenterY = 0;
+          let moveRaf = 0;
+          let pendingX = 0;
+          let pendingY = 0;
 
           const updateRestCenter = () => {
             const currentRect = el.getBoundingClientRect();
@@ -1382,21 +1505,31 @@ const {
           };
 
           const onMove = (e: MouseEvent | PointerEvent) => {
-            if (!restCenterX || !restCenterY) {
-              updateRestCenter();
-            }
-            const x = (e.clientX - restCenterX) * 0.25;
-            const y = (e.clientY - restCenterY) * 0.25;
-            gsap.to(el, {
-              x,
-              y,
-              duration: 0.32,
-              ease: 'power2.out',
-              overwrite: 'auto'
+            pendingX = e.clientX;
+            pendingY = e.clientY;
+            if (moveRaf) return;
+            moveRaf = requestAnimationFrame(() => {
+              moveRaf = 0;
+              if (!restCenterX || !restCenterY) {
+                updateRestCenter();
+              }
+              const x = (pendingX - restCenterX) * 0.25;
+              const y = (pendingY - restCenterY) * 0.25;
+              gsap.to(el, {
+                x,
+                y,
+                duration: 0.28,
+                ease: 'power2.out',
+                overwrite: 'auto'
+              });
             });
           };
           
           const onLeave = () => {
+            if (moveRaf) {
+              cancelAnimationFrame(moveRaf);
+              moveRaf = 0;
+            }
             restCenterX = 0;
             restCenterY = 0;
             gsap.to(el, { 
@@ -1409,50 +1542,44 @@ const {
             });
           };
 
-          el.addEventListener('pointerenter', onEnter as EventListener);
-          el.addEventListener('pointermove', onMove as EventListener);
-          el.addEventListener('pointerleave', onLeave as EventListener);
-          el.addEventListener('pointercancel', onLeave as EventListener);
+          el.addEventListener('pointerenter', onEnter as EventListener, { passive: true });
+          el.addEventListener('pointermove', onMove as EventListener, { passive: true });
+          el.addEventListener('pointerleave', onLeave as EventListener, { passive: true });
+          el.addEventListener('pointercancel', onLeave as EventListener, { passive: true });
         });
       }
 
-      // Modal Stagger Animations (弹窗时间轴错落展开)
-      document.addEventListener('astro:page-load', () => {
-        const modals = document.querySelectorAll('.search-overlay, .preview-overlay, .image-viewer-overlay');
-        
-        modals.forEach(overlay => {
-          const observer = new MutationObserver((mutations) => {
-            mutations.forEach(mutation => {
-              if (mutation.attributeName === 'class') {
-                const isOpen = overlay.classList.contains('is-open');
-                const modalInner = overlay.querySelector('.search-panel, .preview-modal, .image-viewer-shell');
-                
-                if (isOpen && modalInner && window.gsap) {
-                  // Find elements to stagger
-                  const children = Array.from(modalInner.children);
-                  
-                  // Reset first
-                  gsap.set(children, { y: 18, opacity: 0 });
-
-                  // Animate in
-                  gsap.to(children, {
-                    y: 0,
-                    opacity: 1,
-                    duration: 0.9,
-                    stagger: 0.07,
-                    ease: "ink",
-                    delay: 0.16,
-                    overwrite: "auto",
-                    clearProps: "transform,opacity"
-                  });
-                }
+      // Search Palette Stagger (image-viewer-overlay uses dedicated crisp FLIP without child opacity hiding)
+      function bindSearchPaletteStagger() {
+        const searchOv = document.querySelector('.search-overlay');
+        if (!searchOv || (searchOv as any).__staggerObserved) return;
+        (searchOv as any).__staggerObserved = true;
+        const observer = new MutationObserver((mutations) => {
+          if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+          mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'class' && searchOv.classList.contains('is-open')) {
+              const modalInner = searchOv.querySelector('.search-panel');
+              if (modalInner && window.gsap) {
+                const children = Array.from(modalInner.children);
+                gsap.set(children, { y: 12, opacity: 0 });
+                gsap.to(children, {
+                  y: 0,
+                  opacity: 1,
+                  duration: 0.48,
+                  stagger: 0.04,
+                  ease: 'paper-glide',
+                  delay: 0.06,
+                  overwrite: 'auto',
+                  clearProps: 'transform,opacity',
+                });
               }
-            });
+            }
           });
-          
-          observer.observe(overlay, { attributes: true });
         });
-      });
+        observer.observe(searchOv, { attributes: true });
+      }
+      bindSearchPaletteStagger();
+      document.addEventListener('astro:page-load', bindSearchPaletteStagger);
     </script>
     <script is:inline define:vars={{ searchIndexPath, isDev: import.meta.env.DEV }}>
       (() => {
@@ -1485,114 +1612,107 @@ const {
 
 
         function sparkle(x, y, count) {
+          if (isDisposed || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
           if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-          // Guard against top-left (0, 0) origin collapse and out-of-bounds coordinates
           if (x <= 15 && y <= 15) return;
           if (x < 0 || y < 0) return;
 
           const currentTheme = document.documentElement.getAttribute('data-theme');
           const sparkleColors = currentTheme === 'moss' ? [
-            '#FFF1F4', '#FFC2D1', '#FBE3E9', '#FFD3DE',
-            '#F0C4CF', '#FFE4EA', '#FFB6C8', '#FFF7F9'
+            '#FFF1F4', '#FFC2D1', '#FBE3E9', '#FFD3DE', '#F0C4CF'
           ] : currentTheme === 'rice' ? [
-            '#2B241C', '#423A30', '#5E4531', '#6B5B45',
-            '#7D5C42', '#8C6B4F', '#4E4132', '#3A3128'
+            '#2B241C', '#423A30', '#5E4531', '#6B5B45', '#A83B28'
           ] : currentTheme === 'dark' ? [
-            '#ffffff', '#f2f2f2', '#e6e6e6', '#d9d9d9',
-            '#cccccc', '#bfbfbf', '#b3b3b3', '#a6a6a6'
+            '#EAE8E3', '#D9D6CE', '#BFBCB4', '#A6A39B', '#D9533F'
           ] : [
-            '#1a1814', '#0d0c09', '#3a352c',
-            '#2a2620', '#1f1c18', '#161310',
-            '#4a4338', '#6b6353', '#564e42',
+            '#1A1814', '#0D0C09', '#3A352C', '#2A2620', '#B83B28'
           ];
 
-          const frag = document.createDocumentFragment();
-          const splotchCount = Math.max(3, Math.round(count * 0.35));
+          const safeCount = Math.min(16, Math.max(4, count));
+          const splotchCount = Math.max(2, Math.round(safeCount * 0.28));
+          const container = document.createElement('div');
+          container.dataset.inkSplashGroup = 'true';
+          Object.assign(container.style, {
+            position: 'fixed',
+            inset: '0',
+            pointerEvents: 'none',
+            zIndex: '2147483640',
+            contain: 'strict',
+          });
 
-          for (let i = 0; i < count; i += 1) {
+          for (let i = 0; i < safeCount; i += 1) {
             const el = document.createElement('div');
-            const size = Math.random() * 5 + 2;
-            const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.5;
-            const distance = Math.random() * 56 + 14;
-            const color = sparkleColors[Math.floor(Math.random() * sparkleColors.length)];
-            const delay = Math.random() * 60;
-            const elongation = 0.55 + Math.random() * 0.5;
+            const size = Math.random() * 4.5 + 2;
+            const angle = (Math.PI * 2 * i) / safeCount + (Math.random() - 0.5) * 0.45;
+            const distance = Math.random() * 48 + 12;
+            const isSealFleck = i === 0;
+            const color = isSealFleck
+              ? sparkleColors[sparkleColors.length - 1]
+              : sparkleColors[Math.floor(Math.random() * (sparkleColors.length - 1))];
+            const elongation = 0.52 + Math.random() * 0.48;
+            const deg = (angle * 180 / Math.PI).toFixed(1);
 
             Object.assign(el.style, {
-              position: 'fixed',
-              left: `${x - size / 2}px`,
-              top: `${y - size / 2}px`,
-              width: `${size}px`,
-              height: `${size * elongation}px`,
+              position: 'absolute',
+              left: `${Math.round(x - size / 2)}px`,
+              top: `${Math.round(y - size / 2)}px`,
+              width: `${size.toFixed(1)}px`,
+              height: `${(size * elongation).toFixed(1)}px`,
               borderRadius: '50%',
               background: color,
-              pointerEvents: 'none',
-              zIndex: '2147483640',
-              boxShadow: `0 0 ${size + 3}px ${color}`,
-              opacity: '0.78',
-              filter: 'blur(0.3px)',
-              transition: 'none',
-              transform: `rotate(${(angle * 180 / Math.PI).toFixed(1)}deg)`,
-              transformOrigin: 'center center',
+              opacity: '0.82',
+              willChange: 'transform, opacity',
+              transform: `translate3d(0, 0, 0) rotate(${deg}deg) scale(1)`,
+              transition: 'transform 680ms cubic-bezier(0.22, 1, 0.36, 1), opacity 680ms cubic-bezier(0.22, 0.8, 0.3, 1)',
             });
 
-            frag.appendChild(el);
-
-            window.setTimeout(() => {
-              requestAnimationFrame(() => {
-                const drift = 4 + Math.random() * 8;
-                Object.assign(el.style, {
-                  transition: 'transform 1.05s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.05s cubic-bezier(0.22, 0.8, 0.3, 1), filter 1.05s ease-out',
-                  transform: `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance + drift}px) rotate(${(angle * 180 / Math.PI).toFixed(1)}deg) scale(${(0.4 + Math.random() * 0.3).toFixed(2)})`,
-                  opacity: '0',
-                  filter: 'blur(2.5px)',
-                });
-              });
-            }, delay);
-
-            window.setTimeout(() => el.remove(), 1300);
+            container.appendChild(el);
+            el.dataset.tx = (Math.cos(angle) * distance).toFixed(1);
+            el.dataset.ty = (Math.sin(angle) * distance + 4 + Math.random() * 6).toFixed(1);
+            el.dataset.deg = deg;
+            el.dataset.sc = (0.35 + Math.random() * 0.3).toFixed(2);
           }
 
           for (let i = 0; i < splotchCount; i += 1) {
             const dot = document.createElement('div');
-            const dSize = Math.random() * 8 + 6;
-            const dx = (Math.random() - 0.5) * 22;
-            const dy = (Math.random() - 0.5) * 22;
-            const dColor = sparkleColors[Math.floor(Math.random() * sparkleColors.length)];
+            const dSize = Math.random() * 9 + 7;
+            const dx = (Math.random() - 0.5) * 18;
+            const dy = (Math.random() - 0.5) * 18;
+            const dColor = sparkleColors[0];
 
             Object.assign(dot.style, {
-              position: 'fixed',
-              left: `${x - dSize / 2 + dx}px`,
-              top: `${y - dSize / 2 + dy}px`,
-              width: `${dSize}px`,
-              height: `${dSize}px`,
+              position: 'absolute',
+              left: `${Math.round(x - dSize / 2 + dx)}px`,
+              top: `${Math.round(y - dSize / 2 + dy)}px`,
+              width: `${dSize.toFixed(1)}px`,
+              height: `${dSize.toFixed(1)}px`,
               borderRadius: '50%',
-              background: `radial-gradient(circle, ${dColor} 0%, ${dColor} 35%, transparent 75%)`,
-              pointerEvents: 'none',
-              zIndex: '2147483639',
-              opacity: '0.5',
-              filter: 'blur(1.6px)',
-              transform: 'scale(0.6)',
-              transition: 'none',
+              background: `radial-gradient(circle, ${dColor} 0%, transparent 72%)`,
+              opacity: '0.36',
+              willChange: 'transform, opacity',
+              transform: 'translate3d(0, 0, 0) scale(0.55)',
+              transition: 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1), opacity 620ms ease-out',
             });
-
-            frag.appendChild(dot);
-
-            window.setTimeout(() => {
-              requestAnimationFrame(() => {
-                Object.assign(dot.style, {
-                  transition: 'transform 920ms cubic-bezier(0.16, 1, 0.3, 1), opacity 920ms ease-out, filter 920ms ease-out',
-                  transform: `scale(${1.4 + Math.random() * 0.6})`,
-                  opacity: '0',
-                  filter: 'blur(4px)',
-                });
-              });
-            }, Math.random() * 40);
-
-            window.setTimeout(() => dot.remove(), 1100);
+            dot.dataset.splotch = (1.35 + Math.random() * 0.45).toFixed(2);
+            container.appendChild(dot);
           }
 
-          document.body.appendChild(frag);
+          document.body.appendChild(container);
+          requestAnimationFrame(() => {
+            if (!container.isConnected) return;
+            Array.from(container.children).forEach((child) => {
+              const node = child;
+              if (node.dataset.splotch) {
+                node.style.transform = `translate3d(0, 0, 0) scale(${node.dataset.splotch})`;
+                node.style.opacity = '0';
+              } else {
+                node.style.transform = `translate3d(${node.dataset.tx}px, ${node.dataset.ty}px, 0) rotate(${node.dataset.deg}deg) scale(${node.dataset.sc})`;
+                node.style.opacity = '0';
+              }
+            });
+          });
+
+          window.setTimeout(() => container.remove(), 740);
         }
 
         window.__inkSplash = sparkle;
@@ -1871,6 +1991,7 @@ const {
         imageOverlay.dataset.generatedImageViewer = 'true';
         imageOverlay.innerHTML = `
           <div class="image-viewer-shell" role="dialog" aria-modal="true" aria-labelledby="image-viewer-caption" data-lenis-prevent>
+            <span class="image-viewer-silk-corners" data-viewer-corners aria-hidden="true"></span>
             <div class="image-viewer-toolbar">
               <span class="image-viewer-counter" hidden>1 / 1</span>
               <div class="image-viewer-zoom-controls">
@@ -2068,6 +2189,7 @@ const {
 
         function stepImageViewer(delta) {
           if (imageViewerGallery.length <= 1) return;
+          const prevSrc = imageViewerMedia.currentSrc || imageViewerMedia.src;
           restoreSourceImageHidden(imageViewerSourceEl);
           imageViewerIndex = (imageViewerIndex + delta + imageViewerGallery.length) % imageViewerGallery.length;
           const nextEl = imageViewerGallery[imageViewerIndex];
@@ -2080,18 +2202,54 @@ const {
           applyViewerTransform(false);
 
           const nextSrc = nextEl.currentSrc || nextEl.src;
-          imageViewerMedia.classList.add('is-switching');
-          window.setTimeout(() => {
+          const captionText = getImageCaption(nextEl);
+          imageViewerCaption.textContent = captionText;
+          imageViewerCaption.hidden = !captionText;
+          if (imageViewerCounter) {
+            imageViewerCounter.textContent = `${imageViewerIndex + 1} / ${imageViewerGallery.length}`;
+          }
+
+          imageViewerViewport?.querySelectorAll('.image-viewer-media-ghost').forEach((g) => g.remove());
+
+          if (prefersReducedMotion || !prevSrc || prevSrc === nextSrc || !imageViewerViewport) {
             imageViewerMedia.src = nextSrc;
             imageViewerMedia.alt = nextEl.alt || '';
-            const captionText = getImageCaption(nextEl);
-            imageViewerCaption.textContent = captionText;
-            imageViewerCaption.hidden = !captionText;
-            if (imageViewerCounter) {
-              imageViewerCounter.textContent = `${imageViewerIndex + 1} / ${imageViewerGallery.length}`;
-            }
-            imageViewerMedia.classList.remove('is-switching');
-          }, 110);
+            return;
+          }
+
+          // 连续切图轻盈双层交叉淡入 (~210ms, 零闪烁、零重缩、零 filter:blur)
+          const ghost = document.createElement('img');
+          ghost.className = 'image-viewer-media image-viewer-media-ghost';
+          ghost.src = prevSrc;
+          ghost.alt = '';
+          ghost.decoding = 'async';
+          imageViewerViewport.appendChild(ghost);
+
+          imageViewerMedia.src = nextSrc;
+          imageViewerMedia.alt = nextEl.alt || '';
+
+          const dirOffset = delta >= 0 ? 16 : -16;
+          if (typeof imageViewerMedia.animate === 'function') {
+            const ghostAnim = ghost.animate(
+              [
+                { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
+                { opacity: 0, transform: `translate3d(${-dirOffset}px, 0, 0) scale(0.992)` },
+              ],
+              { duration: 210, easing: 'cubic-bezier(0.25, 0.1, 0.25, 1)', fill: 'forwards' }
+            );
+            ghostAnim.onfinish = () => ghost.remove();
+            ghostAnim.oncancel = () => ghost.remove();
+
+            imageViewerMedia.animate(
+              [
+                { opacity: 0, transform: `translate3d(${dirOffset}px, 0, 0) scale(0.992)` },
+                { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
+              ],
+              { duration: 210, easing: 'cubic-bezier(0.25, 0.1, 0.25, 1)' }
+            );
+          } else {
+            ghost.remove();
+          }
         }
 
         function openImageViewer(sourceEl) {
@@ -2497,44 +2655,47 @@ const {
         }
 
         function setImageViewerMotion(sourceEl) {
-          if (!(sourceEl instanceof Element)) {
+          if (!(sourceEl instanceof Element) || !sourceEl.isConnected) {
             resetImageViewerMotion();
             return;
           }
 
           const sourceRect = sourceEl.getBoundingClientRect();
           const shellRect = imageViewerShell.getBoundingClientRect();
-          const sourceStyle = window.getComputedStyle(sourceEl);
-          const startX = sourceRect.left + sourceRect.width / 2 - window.innerWidth / 2;
-          const startY = sourceRect.top + sourceRect.height / 2 - window.innerHeight / 2;
-          const scaleRatioX = sourceRect.width / Math.max(shellRect.width, 1);
-          const scaleRatioY = sourceRect.height / Math.max(shellRect.height, 1);
-          const sourceRadius = parseFloat(sourceStyle.borderTopLeftRadius) || 16;
-          // Use precise FLIP scaling without clamps
-          const startScaleX = scaleRatioX;
-          const startScaleY = scaleRatioY;
-          const pinchScaleX = startScaleX * 0.8;
-          const pinchScaleY = startScaleY * 1.05;
-          const driftX = 0;
-          const driftY = 0;
+          if (sourceRect.width <= 0 || sourceRect.height <= 0 || shellRect.width <= 0 || shellRect.height <= 0) {
+            resetImageViewerMotion();
+            return;
+          }
+
+          const shellCenterX = shellRect.left + shellRect.width / 2;
+          const shellCenterY = shellRect.top + shellRect.height / 2;
+          const startX = sourceRect.left + sourceRect.width / 2 - shellCenterX;
+          const startY = sourceRect.top + sourceRect.height / 2 - shellCenterY;
+          const scaleRatioX = Math.max(0.14, Math.min(1.08, sourceRect.width / Math.max(shellRect.width, 1)));
+          const scaleRatioY = Math.max(0.14, Math.min(1.08, sourceRect.height / Math.max(shellRect.height, 1)));
+          // Blend uniform & aspect ratios so the silk frame never distorts typography while honoring exact FLIP origin
+          const uniformRatio = Math.sqrt(scaleRatioX * scaleRatioY);
+          const startScaleX = uniformRatio * 0.65 + scaleRatioX * 0.35;
+          const startScaleY = uniformRatio * 0.65 + scaleRatioY * 0.35;
 
           imageViewerMotion = {
             startX,
             startY,
             startScaleX,
             startScaleY,
-            pinchScaleX,
-            pinchScaleY,
-            driftX,
-            driftY,
-            overshootScaleX: 1.01,
-            overshootScaleY: 0.992,
+            pinchScaleX: startScaleX,
+            pinchScaleY: startScaleY,
+            driftX: 0,
+            driftY: 0,
+            overshootScaleX: 1,
+            overshootScaleY: 1,
           };
         }
 
         function applyImageViewerStartStyles() {
           const { startX, startY, startScaleX, startScaleY } = imageViewerMotion;
           imageOverlay.style.opacity = '0';
+          imageViewerShell.style.willChange = 'transform, opacity';
           imageViewerShell.style.transform = `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`;
           imageViewerShell.style.opacity = '0';
         }
@@ -2543,13 +2704,21 @@ const {
           imageOverlay.style.opacity = '1';
           imageViewerShell.style.transform = 'translate3d(0, 0, 0) scale(1, 1)';
           imageViewerShell.style.opacity = '1';
+          imageViewerShell.style.removeProperty('will-change');
         }
 
         function clearImageViewerInlineStyles() {
           imageOverlay.style.removeProperty('opacity');
           imageViewerShell.style.removeProperty('transform');
           imageViewerShell.style.removeProperty('opacity');
+          imageViewerShell.style.removeProperty('will-change');
         }
+
+        // 宣纸绫裱画框 FLIP 展开 (~520ms 展开 / ~360ms 收拢，宣纸衬底纯 opacity 渐显，彻底根除 filter:blur 拖尾掉帧)
+        const VIEWER_OPEN_MS = 520;
+        const VIEWER_BACKDROP_OPEN_MS = 380;
+        const VIEWER_CLOSE_MS = 360;
+        const VIEWER_BACKDROP_CLOSE_MS = 280;
 
         function animateImageViewerOpen() {
           stopImageViewerAnimations();
@@ -2562,13 +2731,14 @@ const {
 
           const { startX, startY, startScaleX, startScaleY } = imageViewerMotion;
           imageViewerState = 'opening';
+          imageViewerShell.style.willChange = 'transform, opacity';
 
           if (typeof imageViewerShell.animate === 'function') {
             imageViewerOverlayAnimation = imageOverlay.animate(
               [{ opacity: 0 }, { opacity: 1 }],
               {
-                duration: 280,
-                easing: 'cubic-bezier(0.22, 0.82, 0.18, 1)',
+                duration: VIEWER_BACKDROP_OPEN_MS,
+                easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
                 fill: 'both',
               }
             );
@@ -2577,7 +2747,7 @@ const {
               [
                 {
                   transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
-                  opacity: 0,
+                  opacity: 0.16,
                 },
                 {
                   transform: 'translate3d(0, 0, 0) scale(1, 1)',
@@ -2585,8 +2755,8 @@ const {
                 },
               ],
               {
-                duration: 400,
-                easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                duration: VIEWER_OPEN_MS,
+                easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
                 fill: 'both',
               }
             );
@@ -2616,10 +2786,10 @@ const {
 
           if (window.gsap) {
             window.gsap.killTweensOf([imageOverlay, imageViewerShell]);
-            window.gsap.fromTo(imageOverlay, { opacity: 0 }, { opacity: 1, duration: 0.28, ease: "power2.out" });
+            window.gsap.fromTo(imageOverlay, { opacity: 0 }, { opacity: 1, duration: VIEWER_BACKDROP_OPEN_MS / 1000, ease: 'power2.out' });
             window.gsap.fromTo(imageViewerShell,
-              { x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0 },
-              { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, duration: 0.4, ease: "ink", onComplete: () => {
+              { x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0.16 },
+              { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, duration: VIEWER_OPEN_MS / 1000, ease: 'paper-glide', onComplete: () => {
                 applyImageViewerOpenStyles();
                 imageViewerState = 'open';
               }}
@@ -2629,6 +2799,7 @@ const {
 
         function finishImageViewerClose(restoreFocusEl) {
           stopImageViewerAnimations();
+          imageViewerViewport?.querySelectorAll('.image-viewer-media-ghost').forEach((g) => g.remove());
           imageOverlay.classList.remove('is-open');
           document.body.classList.remove('image-view-open');
           imageViewerCaption.hidden = true;
@@ -2657,17 +2828,22 @@ const {
             return;
           }
 
+          // Re-measure current active gallery image so closing after stepping flies back to the right frame
+          if (imageViewerSourceEl instanceof Element && imageViewerSourceEl.isConnected) {
+            setImageViewerMotion(imageViewerSourceEl);
+          }
           const { startX, startY, startScaleX, startScaleY } = imageViewerMotion;
 
           imageViewerState = 'closing';
           applyImageViewerOpenStyles();
+          imageViewerShell.style.willChange = 'transform, opacity';
 
           if (typeof imageViewerShell.animate === 'function') {
             imageViewerOverlayAnimation = imageOverlay.animate(
               [{ opacity: 1 }, { opacity: 0 }],
               {
-                duration: 240,
-                easing: 'cubic-bezier(0.36, 0, 0.4, 1)',
+                duration: VIEWER_BACKDROP_CLOSE_MS,
+                easing: 'cubic-bezier(0.32, 0, 0.2, 1)',
                 fill: 'both',
               }
             );
@@ -2684,8 +2860,8 @@ const {
                 },
               ],
               {
-                duration: 280,
-                easing: 'cubic-bezier(0.4, 0, 0.5, 1)',
+                duration: VIEWER_CLOSE_MS,
+                easing: 'cubic-bezier(0.32, 0, 0.2, 1)',
                 fill: 'both',
               }
             );
@@ -2712,10 +2888,10 @@ const {
 
           if (window.gsap) {
             window.gsap.killTweensOf([imageOverlay, imageViewerShell]);
-            window.gsap.to(imageOverlay, { opacity: 0, duration: 0.24, ease: "power2.inOut" });
+            window.gsap.to(imageOverlay, { opacity: 0, duration: VIEWER_BACKDROP_CLOSE_MS / 1000, ease: 'power2.inOut' });
             window.gsap.to(imageViewerShell, {
               x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0,
-              duration: 0.28, ease: "power3.inOut", onComplete: () => {
+              duration: VIEWER_CLOSE_MS / 1000, ease: 'power3.inOut', onComplete: () => {
                 finishImageViewerClose(restoreFocusEl);
               }
             });
@@ -3353,6 +3529,7 @@ const {
           overlay.remove();
           imageOverlay.remove();
           canvas.remove();
+          document.querySelectorAll('[data-ink-splash-group], .stamp-seal-halo, #theme-switch-ink-ring').forEach((n) => n.remove());
           document.body.classList.remove('search-lock', 'search-open', 'preview-lock', 'preview-active', 'preview-open', 'image-view-open');
           document.documentElement.style.setProperty('--scrollbar-offset', '0px');
         };
@@ -3527,14 +3704,29 @@ const {
       })();
     </script>
 
-    <!-- 3D Tilt Card System (张力十足 · 层高物理透视跟随 · 无光晕无溢出缩放) -->
+    <!-- 3D Tilt Card System (rAF 合帧 · 滚动缓存失效保护 · 无光晕无溢出缩放) -->
     <script>
       import gsap from 'gsap';
+
+      let tiltScrollInvalidateBound = false;
+      const tiltInvalidateCallbacks = new Set<() => void>();
 
       function initTiltCards() {
         (window as any).__initTiltCards = initTiltCards;
         if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        if (!tiltScrollInvalidateBound) {
+          tiltScrollInvalidateBound = true;
+          const invalidateAll = () => {
+            tiltInvalidateCallbacks.forEach((fn) => fn());
+          };
+          window.addEventListener('scroll', invalidateAll, { passive: true });
+          window.addEventListener('resize', invalidateAll, { passive: true });
+          document.addEventListener('astro:before-swap', () => {
+            tiltInvalidateCallbacks.clear();
+          });
+        }
 
         const cards = document.querySelectorAll<HTMLElement>('[data-tilt]');
         if (!cards.length) return;
@@ -3544,11 +3736,21 @@ const {
           (card as any).__tiltActive = true;
 
           let rect = { left: 0, top: 0, width: 1, height: 1 } as DOMRect;
+          let rectDirty = true;
           let isInside = false;
-          const maxTilt = 4.5; // 克制的纸面倾斜，避免文字与边框产生明显透视晃动
+          let tiltRaf = 0;
+          let pendingClientX = 0;
+          let pendingClientY = 0;
+          const maxTilt = 4.5;
+
+          const markDirty = () => {
+            rectDirty = true;
+          };
+          tiltInvalidateCallbacks.add(markDirty);
 
           const updateRect = () => {
             rect = card.getBoundingClientRect();
+            rectDirty = false;
           };
 
           const isCardInMotion = () =>
@@ -3562,34 +3764,43 @@ const {
 
           const onPointerMove = (e: PointerEvent) => {
             if (isCardInMotion()) return;
-            if (!isInside) {
-              isInside = true;
-              updateRect();
-            }
+            pendingClientX = e.clientX;
+            pendingClientY = e.clientY;
+            if (tiltRaf) return;
+            tiltRaf = requestAnimationFrame(() => {
+              tiltRaf = 0;
+              if (!isInside || rectDirty) {
+                isInside = true;
+                updateRect();
+              }
 
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+              const x = pendingClientX - rect.left;
+              const y = pendingClientY - rect.top;
 
-            const xPct = Math.max(0, Math.min(1, x / Math.max(1, rect.width))) - 0.5;
-            const yPct = Math.max(0, Math.min(1, y / Math.max(1, rect.height))) - 0.5;
+              const xPct = Math.max(0, Math.min(1, x / Math.max(1, rect.width))) - 0.5;
+              const yPct = Math.max(0, Math.min(1, y / Math.max(1, rect.height))) - 0.5;
 
-            const rotX = -yPct * maxTilt * 2;
-            const rotY = xPct * maxTilt * 2;
+              const rotX = -yPct * maxTilt * 2;
+              const rotY = xPct * maxTilt * 2;
 
-            // 保持无放大倍率 (scale: 1)，杜绝卡片尺寸放大超出网格，采用平滑位移与三维角度透视
-            gsap.to(card, {
-              rotateX: rotX,
-              rotateY: rotY,
-              y: -3,
-              transformPerspective: 1000,
-              duration: 0.38,
-              ease: 'card-enter',
-              overwrite: 'auto',
+              gsap.to(card, {
+                rotateX: rotX,
+                rotateY: rotY,
+                y: -3,
+                transformPerspective: 1000,
+                duration: 0.36,
+                ease: 'card-enter',
+                overwrite: 'auto',
+              });
             });
           };
 
           const onPointerLeave = () => {
             isInside = false;
+            if (tiltRaf) {
+              cancelAnimationFrame(tiltRaf);
+              tiltRaf = 0;
+            }
             if (isCardInMotion()) return;
 
             gsap.to(card, {
@@ -3597,15 +3808,15 @@ const {
               rotateY: 0,
               y: 0,
               transformPerspective: 1000,
-              duration: 0.72,
+              duration: 0.68,
               ease: 'card-enter',
               overwrite: 'auto',
             });
           };
 
-          card.addEventListener('pointerenter', onPointerEnter);
-          card.addEventListener('pointermove', onPointerMove);
-          card.addEventListener('pointerleave', onPointerLeave);
+          card.addEventListener('pointerenter', onPointerEnter, { passive: true });
+          card.addEventListener('pointermove', onPointerMove, { passive: true });
+          card.addEventListener('pointerleave', onPointerLeave, { passive: true });
         });
       }
 
@@ -3616,5 +3827,177 @@ const {
       }
       document.addEventListener('astro:page-load', initTiltCards);
     </script>
+
+    <style is:global>
+      /* ── 主题/字体切换水墨晕环 & 朱砂落印余波（纯合成器 transform + opacity，零 blur） ── */
+      .theme-switch-ink-ring {
+        position: fixed;
+        z-index: 2147483645;
+        border-radius: 50%;
+        pointer-events: none;
+        border: 1.5px solid rgba(184, 59, 40, 0.42);
+        background: radial-gradient(
+          circle,
+          transparent 62%,
+          rgba(26, 24, 20, 0.08) 92%,
+          transparent 100%
+        );
+        transform: translate3d(-50%, -50%, 0) scale(0.02);
+        will-change: transform, opacity;
+      }
+
+      [data-theme="dark"] .theme-switch-ink-ring {
+        border-color: rgba(217, 83, 63, 0.46);
+        background: radial-gradient(
+          circle,
+          transparent 62%,
+          rgba(234, 232, 227, 0.1) 92%,
+          transparent 100%
+        );
+      }
+
+      [data-theme="moss"] .theme-switch-ink-ring {
+        border-color: rgba(255, 194, 209, 0.55);
+        background: radial-gradient(
+          circle,
+          transparent 62%,
+          rgba(255, 241, 244, 0.14) 92%,
+          transparent 100%
+        );
+      }
+
+      .stamp-seal-halo {
+        position: fixed;
+        z-index: 60;
+        border-radius: 8px;
+        border: 1.25px solid rgba(184, 59, 40, 0.48);
+        pointer-events: none;
+        transform-origin: center center;
+        will-change: transform, opacity;
+      }
+
+      [data-theme="dark"] .stamp-seal-halo {
+        border-color: rgba(217, 83, 63, 0.52);
+      }
+
+      [data-theme="moss"] .stamp-seal-halo {
+        border-color: rgba(255, 194, 209, 0.6);
+      }
+
+      /* View Transition 运行中彻底静默内层 CSS 过渡，杜绝旧帧快照滞后与 box-shadow/filter 掉帧 */
+      html[data-vt-active="true"].theme-switching *,
+      html[data-vt-active="true"].theme-switching body,
+      html[data-vt-active="true"].theme-switching body::before,
+      html[data-vt-active="true"].theme-switching body::after {
+        transition: none !important;
+      }
+
+      /* 降级非 VT 路径：只柔和过渡墨色与背景色，严禁逐帧过滤模糊与阴影重绘 */
+      html:not([data-vt-active="true"]).theme-switching body,
+      html:not([data-vt-active="true"]).theme-switching .site-shell,
+      html:not([data-vt-active="true"]).theme-switching .glass-nav,
+      html:not([data-vt-active="true"]).theme-switching .surface-card,
+      html:not([data-vt-active="true"]).theme-switching .stat-card {
+        transition-property: background-color, color, border-color !important;
+        transition-duration: 380ms !important;
+        transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+      }
+
+      /* ── 全局图片/图表查看器（宣纸绫裱画框 FLIP · 零 filter:blur 拖尾 · 双层交叉切图） ── */
+      .image-viewer-overlay,
+      .image-viewer-overlay.is-open {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        background: rgba(246, 243, 237, 0.94) !important;
+        transition:
+          opacity 360ms cubic-bezier(0.22, 1, 0.36, 1),
+          visibility 0ms linear 0ms !important;
+      }
+
+      .image-viewer-overlay:not(.is-open) {
+        transition:
+          opacity 280ms cubic-bezier(0.32, 0, 0.2, 1),
+          visibility 0ms linear 280ms !important;
+      }
+
+      [data-theme="dark"] .image-viewer-overlay,
+      [data-theme="dark"] .image-viewer-overlay.is-open {
+        background: rgba(16, 16, 16, 0.94) !important;
+      }
+
+      [data-theme="moss"] .image-viewer-overlay,
+      [data-theme="moss"] .image-viewer-overlay.is-open {
+        background: rgba(0, 77, 64, 0.94) !important;
+      }
+
+      [data-theme="rice"] .image-viewer-overlay,
+      [data-theme="rice"] .image-viewer-overlay.is-open {
+        background: rgba(242, 233, 216, 0.95) !important;
+      }
+
+      .image-viewer-shell {
+        filter: none !important;
+        border-radius: 10px !important;
+        background: var(--bg-elev, #fcfaf8) !important;
+        border: 1px solid var(--rule-strong) !important;
+      }
+
+      /* 宣纸绫裱四角包边纹饰 */
+      .image-viewer-silk-corners {
+        position: absolute;
+        inset: 6px;
+        pointer-events: none;
+        z-index: 2;
+        border-radius: 6px;
+        background:
+          linear-gradient(90deg, #b83b28 12px, transparent 12px) 0 0 / 100% 1.5px no-repeat,
+          linear-gradient(180deg, #b83b28 12px, transparent 12px) 0 0 / 1.5px 100% no-repeat,
+          linear-gradient(270deg, #b83b28 12px, transparent 12px) 100% 100% / 100% 1.5px no-repeat,
+          linear-gradient(0deg, #b83b28 12px, transparent 12px) 100% 100% / 1.5px 100% no-repeat;
+        opacity: 0.52;
+      }
+
+      [data-theme="dark"] .image-viewer-silk-corners {
+        opacity: 0.45;
+      }
+
+      [data-theme="moss"] .image-viewer-silk-corners {
+        background:
+          linear-gradient(90deg, #ffc2d1 12px, transparent 12px) 0 0 / 100% 1.5px no-repeat,
+          linear-gradient(180deg, #ffc2d1 12px, transparent 12px) 0 0 / 1.5px 100% no-repeat,
+          linear-gradient(270deg, #ffc2d1 12px, transparent 12px) 100% 100% / 100% 1.5px no-repeat,
+          linear-gradient(0deg, #ffc2d1 12px, transparent 12px) 100% 100% / 1.5px 100% no-repeat;
+        opacity: 0.58;
+      }
+
+      .image-viewer-viewport {
+        position: relative !important;
+      }
+
+      .image-viewer-media {
+        filter: none !important;
+        transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+      }
+
+      .image-viewer-media-ghost {
+        position: absolute !important;
+        inset: 0;
+        margin: auto !important;
+        pointer-events: none !important;
+        z-index: 1;
+        will-change: transform, opacity;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .image-viewer-overlay,
+        .image-viewer-overlay.is-open,
+        .image-viewer-media,
+        .theme-switch-ink-ring,
+        .stamp-seal-halo {
+          transition: none !important;
+          animation: none !important;
+        }
+      }
+    </style>
   </body>
 </html>

@@ -238,6 +238,10 @@ interface ActiveSoundInstance {
 export class ZenAudioEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private analyser: AnalyserNode | null = null;
+  private freqBins: Uint8Array | null = null;
+  private lastTransientBoost = 0;
+  private lastTransientTime = 0;
   private currentInstance: ActiveSoundInstance | null = null;
   private isPlaying = false;
   private currentScene: SoundscapeId = 'rain';
@@ -304,12 +308,76 @@ export class ZenAudioEngine {
       this.ctx = new AudioCtx();
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
-      this.masterGain.connect(this.ctx.destination);
+      if (typeof this.ctx.createAnalyser === 'function') {
+        try {
+          this.analyser = this.ctx.createAnalyser();
+          this.analyser.fftSize = 64;
+          this.analyser.smoothingTimeConstant = 0.78;
+          this.freqBins = new Uint8Array(this.analyser.frequencyBinCount);
+          this.masterGain.connect(this.analyser);
+          this.analyser.connect(this.ctx.destination);
+        } catch {
+          this.analyser = null;
+          this.freqBins = null;
+          this.masterGain.connect(this.ctx.destination);
+        }
+      } else {
+        this.masterGain.connect(this.ctx.destination);
+      }
     }
     if (this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
     return this.ctx;
+  }
+
+  /**
+   * 零分配采样声景律动频段（供 ZenSoundscape 水墨律动谱在面板开启且播放时按帧读取）
+   */
+  public sampleWaveBands(out: Float32Array, nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()): boolean {
+    const count = out.length;
+    if (count === 0) return false;
+    if (!this.isPlaying || this.volume <= 0.001) {
+      for (let i = 0; i < count; i++) out[i] = 0.12;
+      return false;
+    }
+
+    const transientDecay = Math.max(0, 1 - (nowMs - this.lastTransientTime) / 420);
+    const transient = this.lastTransientBoost * transientDecay * transientDecay;
+
+    if (this.analyser && this.freqBins && this.ctx && this.ctx.state === 'running') {
+      this.analyser.getByteFrequencyData(this.freqBins);
+      const binCount = this.freqBins.length;
+      for (let i = 0; i < count; i++) {
+        const idx = Math.min(binCount - 1, Math.floor((i / count) * (binCount * 0.65)) + 1);
+        const raw = this.freqBins[idx] / 255;
+        const centerBias = 1 - Math.abs((i / Math.max(1, count - 1)) * 2 - 1) * 0.28;
+        out[i] = Math.min(1, Math.max(0.16, (raw * 0.82 + transient * 0.34) * centerBias + 0.14));
+      }
+      return true;
+    }
+
+    // 合成器静默或受限环境下的诗意程序化包络回退
+    const t = nowMs * 0.001;
+    const volScale = 0.35 + this.volume * 0.65;
+    for (let i = 0; i < count; i++) {
+      const phase = i * 0.85;
+      const wave =
+        this.currentScene === 'wind'
+          ? 0.42 + 0.32 * Math.sin(t * 1.6 + phase * 0.7) + 0.14 * Math.cos(t * 0.7 - phase)
+          : this.currentScene === 'stream'
+          ? 0.38 + 0.28 * Math.sin(t * 2.8 + phase) + 0.18 * Math.sin(t * 4.3 - phase * 1.2)
+          : this.currentScene === 'paper'
+          ? 0.3 + 0.22 * Math.sin(t * 2.1 + phase * 1.3) + 0.16 * Math.cos(t * 3.7 + phase)
+          : 0.4 + 0.26 * Math.sin(t * 2.4 + phase * 0.9) + 0.16 * Math.cos(t * 3.9 - phase);
+      out[i] = Math.min(1, Math.max(0.16, (wave + transient * 0.35) * volScale));
+    }
+    return true;
+  }
+
+  private markTransient(strength: number): void {
+    this.lastTransientBoost = Math.min(1, Math.max(0.15, strength));
+    this.lastTransientTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
   }
 
   public async play(sceneId?: SoundscapeId): Promise<void> {
@@ -764,6 +832,7 @@ export class ZenAudioEngine {
 
       osc.start(now);
       osc.stop(stopTime);
+      this.markTransient(isStoneTile ? 0.55 : 0.38);
     } catch (e) {}
   }
 
@@ -1271,6 +1340,7 @@ export class ZenAudioEngine {
       osc2.stop(now + 3.3);
       osc3.stop(now + 1.6);
       oscBeat.stop(now + 5.6);
+      this.markTransient(0.85);
     } catch (e) {}
   }
 }

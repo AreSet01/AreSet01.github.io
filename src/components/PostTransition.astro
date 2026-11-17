@@ -1,7 +1,8 @@
 ---
-// Fullscreen Chinese Ink Wash Transition for Post Navigation
-// 「落笔生澜 · 墨染宣纸」
-// Seamless full-screen ink blossom when entering article pages.
+// Fullscreen Chinese Xuan-Paper Dual-Layer Ink Wash & Feibai Transition for Post Navigation
+// 「浓淡破墨 · 飞白揭卷」
+// Dual-layer sumi diffusion (pale capillary wash + dense brush core + dry-brush feibai streaks)
+// with inner cloud-parting reveal on handoff.
 ---
 
 <div id="post-transition" class="post-transition" transition:persist="post-transition" aria-hidden="true">
@@ -28,7 +29,7 @@
   .post-transition-paper {
     position: absolute;
     inset: 0;
-    background: var(--bg);
+    background: var(--bg-base, var(--bg, #FCFAF8));
     opacity: 0;
     will-change: opacity;
   }
@@ -39,7 +40,7 @@
     width: 100%;
     height: 100%;
     display: block;
-    will-change: transform, opacity;
+    will-change: opacity;
   }
 </style>
 
@@ -50,6 +51,8 @@
 
   gsap.registerPlugin(CustomEase);
   CustomEase.create('post-ink', cubicBezierPoints(readArticleMotion().layoutEase));
+  CustomEase.create('post-ink-cover', '0.22, 0.88, 0.28, 1');
+  CustomEase.create('post-ink-part', '0.26, 0.74, 0.24, 1');
 
   (() => {
     // Prevent double-binding on astro page swaps
@@ -68,6 +71,10 @@
     let clickOrigin = { x: window.innerWidth / 2, y: window.innerHeight * 0.45 };
     let safetyTimer: number | null = null;
     let animTween: gsap.core.Tween | null = null;
+    let paperTween: gsap.core.Tween | null = null;
+
+    const controller = new AbortController();
+    const { signal } = controller;
 
     // Track user clicks on article links to anchor the ink bloom origin
     window.addEventListener(
@@ -80,44 +87,83 @@
           };
         }
       },
-      { capture: true, passive: true }
+      { capture: true, passive: true, signal }
     );
 
-    // Droplet particles for ink spray / 飞白
+    // Pre-compute 64-segment trigonometric & capillary fiber harmonics (zero per-vertex trig per frame)
+    const SEGMENTS = 64;
+    const COS_LUT = new Float32Array(SEGMENTS + 1);
+    const SIN_LUT = new Float32Array(SEGMENTS + 1);
+    const ANGLES = new Float32Array(SEGMENTS + 1);
+    for (let i = 0; i <= SEGMENTS; i++) {
+      const a = (i / SEGMENTS) * Math.PI * 2;
+      ANGLES[i] = a;
+      COS_LUT[i] = Math.cos(a);
+      SIN_LUT[i] = Math.sin(a);
+    }
+
+    // Splattered ink droplets + calligraphic feibai dry-brush arcs
     interface Droplet {
-      angle: number;
+      cos: number;
+      sin: number;
       distMultiplier: number;
       size: number;
-      seed: number;
-      alpha: number;
+      elongation: number;
+      angle: number;
+      heavy: boolean;
+    }
+
+    interface FeibaiStreak {
+      startAngle: number;
+      sweep: number;
+      radiusRatio: number;
+      width: number;
     }
 
     const droplets: Droplet[] = [];
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 28; i++) {
+      const angle = (i / 28) * Math.PI * 2 + (Math.random() - 0.5) * 0.22;
       droplets.push({
-        angle: Math.random() * Math.PI * 2,
-        distMultiplier: 0.35 + Math.random() * 0.75,
-        size: 2 + Math.random() * 7,
-        seed: Math.random() * 10,
-        alpha: 0.35 + Math.random() * 0.55,
+        cos: Math.cos(angle),
+        sin: Math.sin(angle),
+        distMultiplier: 0.58 + Math.random() * 0.62,
+        size: 1.8 + Math.random() * 5.2,
+        elongation: 1.2 + Math.random() * 1.5,
+        angle,
+        heavy: i % 3 !== 0,
+      });
+    }
+
+    const feibaiStreaks: FeibaiStreak[] = [];
+    for (let i = 0; i < 9; i++) {
+      const baseA = (i / 9) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+      feibaiStreaks.push({
+        startAngle: baseA,
+        sweep: 0.26 + Math.random() * 0.34,
+        radiusRatio: 0.86 + (i % 3) * 0.11,
+        width: 1.2 + (i % 2) * 0.9,
       });
     }
 
     function getThemeColors() {
-      const style = getComputedStyle(document.documentElement);
-      const bg = style.getPropertyValue('--bg').trim() || '#fcfbf9';
+      const root = document.documentElement;
+      const theme = root.getAttribute('data-theme') || 'light';
+      const style = getComputedStyle(root);
+      const bg = style.getPropertyValue('--bg-base').trim() || style.getPropertyValue('--bg').trim() || '#FCFAF8';
       const inkStrong = style.getPropertyValue('--ink-strong').trim() || '#111111';
       const inkMid = style.getPropertyValue('--ink-mid').trim() || '#555555';
-      const inkWash = style.getPropertyValue('--ink-wash').trim() || 'rgba(0, 0, 0, 0.45)';
-      const inkMist = style.getPropertyValue('--ink-mist').trim() || 'rgba(0, 0, 0, 0.18)';
-      return { bg, inkStrong, inkMid, inkWash, inkMist };
+      const inkWash = style.getPropertyValue('--ink-wash').trim() || 'rgba(0, 0, 0, 0.42)';
+      const inkMist = style.getPropertyValue('--ink-mist').trim() || 'rgba(0, 0, 0, 0.16)';
+      const sealRed =
+        theme === 'moss' ? '#FFC2D1' :
+        theme === 'dark' ? '#D9533F' : '#B83B28';
+      return { bg, inkStrong, inkMid, inkWash, inkMist, sealRed };
     }
 
-    // Read once per phase: getComputedStyle every frame forces a style recalc while the new
-    // document is being swapped in underneath, and the theme cannot change mid-transition.
+    // Read once per phase so style recalc never fires mid-transition
     let sceneColors = getThemeColors();
 
-    // Cap resolution scale to 1.25 for soft watercolor diffusion with 70% lower fill-rate
+    // Cap resolution scale to 1.25 for soft xuan-paper watercolor diffusion & low GPU fill-rate
     const CANVAS_SCALE = Math.min(window.devicePixelRatio || 1, 1.25);
 
     function resizeCanvas() {
@@ -132,103 +178,172 @@
       }
     }
 
-    // Draw an organic hand-brushed ink shape
-    function drawInkBlob(
+    // Draw an organic xuan-paper capillary ink front with optional feibai dry-brush jaggedness
+    function traceInkContour(
       c: CanvasRenderingContext2D,
       cx: number,
       cy: number,
       radius: number,
       seed: number,
-      color: string,
-      alpha: number
+      twist: number,
+      roughness: number
     ) {
-      if (radius <= 1) return;
-      c.save();
-      c.globalAlpha = Math.min(1, Math.max(0, alpha));
-      c.fillStyle = color;
       c.beginPath();
-
-      const steps = 32;
-      for (let i = 0; i <= steps; i++) {
-        const angle = (i / steps) * Math.PI * 2;
-        // Harmonic organic deformation
+      for (let i = 0; i <= SEGMENTS; i++) {
+        const a = ANGLES[i] + twist;
         const perturbation =
-          Math.sin(angle * 3 + seed) * 0.16 +
-          Math.cos(angle * 5 + seed * 1.6) * 0.11 +
-          Math.sin(angle * 7 + seed * 2.4) * 0.07 +
-          Math.cos(angle * 11 + seed * 3.2) * 0.04;
+          (Math.sin(a * 3 + seed) * 0.13 +
+            Math.cos(a * 5 - seed * 1.4) * 0.085 +
+            Math.sin(a * 9 + seed * 2.3) * 0.048 +
+            Math.cos(a * 15 + seed * 3.1) * 0.026) *
+          roughness;
         const r = Math.max(0, radius * (1 + perturbation));
-        const px = cx + Math.cos(angle) * r;
-        const py = cy + Math.sin(angle) * r;
+        const px = cx + COS_LUT[i] * r;
+        const py = cy + SIN_LUT[i] * r;
         if (i === 0) c.moveTo(px, py);
         else c.lineTo(px, py);
       }
       c.closePath();
-      c.fill();
-      c.restore();
     }
 
-    function renderScene(progress: number, isLeaving: boolean) {
+    function fillInkLayer(
+      c: CanvasRenderingContext2D,
+      cx: number,
+      cy: number,
+      radius: number,
+      seed: number,
+      twist: number,
+      roughness: number,
+      color: string,
+      alpha: number
+    ) {
+      if (radius <= 1 || alpha <= 0.004) return;
+      c.globalAlpha = Math.min(1, alpha);
+      c.fillStyle = color;
+      traceInkContour(c, cx, cy, radius, seed, twist, roughness);
+      c.fill();
+    }
+
+    function renderScene(easedP: number, rawP: number, isLeaving: boolean) {
       if (!canvas || !ctx) return;
       const w = window.innerWidth;
       const h = window.innerHeight;
 
-      ctx.save();
-      ctx.scale(CANVAS_SCALE, CANVAS_SCALE);
+      ctx.setTransform(CANVAS_SCALE, 0, 0, CANVAS_SCALE, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
       ctx.clearRect(0, 0, w, h);
 
       const colors = sceneColors;
       const originX = clickOrigin.x;
       const originY = clickOrigin.y;
-
-      // Max radius to cover entire viewport from origin
-      const maxDist = Math.hypot(Math.max(originX, w - originX), Math.max(originY, h - originY)) * 1.25;
-
-      let r: number;
-      let alphaMultiplier: number;
+      const maxDist = Math.hypot(Math.max(originX, w - originX), Math.max(originY, h - originY)) * 1.24;
 
       if (!isLeaving) {
-        // Entering: rapidly blooming outward
-        r = maxDist * progress;
-        alphaMultiplier = 1;
-      } else {
-        // Leaving: dispersing and softening outwards
-        r = maxDist * (1 + progress * 0.25);
-        alphaMultiplier = Math.max(0, 1 - progress);
-      }
+        // ── ENTER: 落笔破锋 · 浓淡双层水墨渗染 + 飞白枯锋 ──
+        // Pale capillary wash leads slightly faster than dense sumi core, mimicking real xuan-paper absorption
+        const haloP = Math.min(1, Math.pow(easedP, 0.82));
+        const coreP = easedP;
+        const rHalo = maxDist * haloP;
+        const rCore = maxDist * coreP;
+        const twist = (1 - easedP) * 0.24;
+        const edgeRough = Math.max(0.18, 1 - easedP * 0.65);
 
-      // 1. Soft atmospheric mist (淡墨微晕)
-      drawInkBlob(ctx, originX, originY, r * 1.28, 1.2, colors.inkMist, 0.45 * alphaMultiplier);
+        // Layer 1a: Outer pale xuan-paper capillary mist (淡墨微晕毛细渗边)
+        fillInkLayer(ctx, originX, originY, rHalo * 1.18, 1.3, twist * 0.6, edgeRough * 1.25, colors.inkMist, 0.52);
+        // Layer 1b: Secondary dilute sumi wash (清墨漫染层)
+        fillInkLayer(ctx, originX, originY, rHalo * 1.03, 3.6, -twist * 0.4, edgeRough * 1.05, colors.inkWash, 0.76);
 
-      // 2. Mid ink wash (水墨晕染)
-      drawInkBlob(ctx, originX, originY, r * 1.05, 3.4, colors.inkWash, 0.7 * alphaMultiplier);
+        // Layer 2a: Rich sumi body (浓墨主体层)
+        fillInkLayer(ctx, originX, originY, rCore * 0.90, 5.9, twist, edgeRough * 0.9, colors.inkMid, 0.90);
+        // Layer 2b: Pitch sumi core settling into paper ground (焦墨凝纸核心)
+        fillInkLayer(ctx, originX, originY, rCore * 0.78, 8.4, -twist * 0.8, edgeRough * 0.7, colors.inkStrong, 0.98);
 
-      // 3. Dense core ink (浓墨)
-      drawInkBlob(ctx, originX, originY, r * 0.88, 5.7, colors.inkMid, 0.85 * alphaMultiplier);
-
-      // 4. Heavy pitch ink (焦墨)
-      drawInkBlob(ctx, originX, originY, r * 0.72, 8.1, colors.inkStrong, 0.98 * alphaMultiplier);
-
-      // 5. Splattered ink droplets around the expanding boundary
-      if (r > 20 && alphaMultiplier > 0.05) {
-        ctx.save();
-        ctx.fillStyle = colors.inkStrong;
-        droplets.forEach((d) => {
-          const dropDist = r * d.distMultiplier;
-          const dx = originX + Math.cos(d.angle) * dropDist;
-          const dy = originY + Math.sin(d.angle) * dropDist;
-          const dropR = d.size * (isLeaving ? (1 - progress * 0.5) : (0.4 + progress * 0.6));
-          if (dropR > 0.5) {
-            ctx.globalAlpha = d.alpha * alphaMultiplier;
-            ctx.beginPath();
-            ctx.arc(dx, dy, dropR, 0, Math.PI * 2);
-            ctx.fill();
+        // Calligraphic Feibai dry-brush arcs sweeping along the expanding ink rim (飞白丝缕)
+        if (easedP > 0.04 && easedP < 0.94) {
+          const feibaiAlpha = Math.sin(easedP * Math.PI) * 0.55;
+          const feibaiPath = new Path2D();
+          for (let i = 0; i < feibaiStreaks.length; i++) {
+            const st = feibaiStreaks[i];
+            const arcR = rCore * st.radiusRatio;
+            if (arcR < 8) continue;
+            const a0 = st.startAngle + easedP * 0.32;
+            const a1 = a0 + st.sweep;
+            feibaiPath.moveTo(originX + Math.cos(a0) * arcR, originY + Math.sin(a0) * arcR);
+            feibaiPath.arc(originX, originY, arcR, a0, a1);
           }
-        });
-        ctx.restore();
+          ctx.globalAlpha = feibaiAlpha;
+          ctx.strokeStyle = colors.inkStrong;
+          ctx.lineWidth = 1.6;
+          ctx.lineCap = 'round';
+          ctx.stroke(feibaiPath);
+        }
+
+        // Batched ink spray droplets (泼墨飞白点群：仅 2 次 fill 批处理)
+        if (rHalo > 18 && easedP < 0.96) {
+          const sprayFade = 1 - Math.max(0, (easedP - 0.72) / 0.24);
+          const heavyPath = new Path2D();
+          const lightPath = new Path2D();
+          for (let i = 0; i < droplets.length; i++) {
+            const d = droplets[i];
+            const dist = rHalo * d.distMultiplier;
+            const dx = originX + d.cos * dist;
+            const dy = originY + d.sin * dist;
+            const rx = d.size * (0.45 + easedP * 0.55) * d.elongation;
+            const ry = d.size * (0.45 + easedP * 0.55) * 0.68;
+            const target = d.heavy ? heavyPath : lightPath;
+            target.moveTo(dx + Math.cos(d.angle) * rx, dy + Math.sin(d.angle) * rx);
+            target.ellipse(dx, dy, rx, ry, d.angle, 0, Math.PI * 2);
+          }
+          ctx.fillStyle = colors.inkStrong;
+          ctx.globalAlpha = 0.72 * sprayFade;
+          ctx.fill(heavyPath);
+          ctx.globalAlpha = 0.36 * sprayFade;
+          ctx.fill(lightPath);
+        }
+
+        // Subtle cinnabar touch-spark at brush origin on initial contact (起笔一点朱砂意)
+        if (rawP < 0.42) {
+          const sealQ = 1 - rawP / 0.42;
+          ctx.globalAlpha = sealQ * 0.55;
+          ctx.strokeStyle = colors.sealRed;
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.arc(originX, originY, 8 + rawP * 68, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      } else {
+        // ── LEAVE: 云开墨散 · 内圈破墨澄明 + 外圈淡烟消融 ──
+        const fadeOut = Math.max(0, 1 - easedP);
+        const outerR = maxDist * (1 + easedP * 0.18);
+        const revealCenterX = w * 0.5;
+        const revealCenterY = h * 0.44;
+        const revealMax = Math.hypot(w * 0.6, h * 0.6) * 1.16;
+        const clearR = revealMax * Math.pow(easedP, 0.88);
+
+        // Softly dispersing sumi wash body
+        fillInkLayer(ctx, originX, originY, outerR * 1.06, 3.6, easedP * 0.16, 0.55, colors.inkMist, 0.44 * fadeOut);
+        fillInkLayer(ctx, originX, originY, outerR * 0.94, 5.9, -easedP * 0.14, 0.48, colors.inkWash, 0.68 * fadeOut);
+        fillInkLayer(ctx, originX, originY, outerR * 0.82, 8.4, easedP * 0.1, 0.4, colors.inkStrong, 0.84 * fadeOut);
+
+        // Carve an organic dry-brush clearing from the optical reading center outward (破墨见章)
+        if (clearR > 2) {
+          ctx.globalCompositeOperation = 'destination-out';
+          fillInkLayer(ctx, revealCenterX, revealCenterY, clearR * 1.12, 2.7, easedP * 0.22, 0.85, '#000', 0.55);
+          fillInkLayer(ctx, revealCenterX, revealCenterY, clearR * 0.92, 6.3, -easedP * 0.18, 0.72, '#000', 1);
+          ctx.globalCompositeOperation = 'source-over';
+
+          // Delicate ink-rim whisper along the parting edge
+          if (fadeOut > 0.08) {
+            ctx.globalAlpha = fadeOut * 0.34;
+            ctx.strokeStyle = colors.inkMid;
+            ctx.lineWidth = 1.25;
+            traceInkContour(ctx, revealCenterX, revealCenterY, clearR * 0.96, 6.3, -easedP * 0.18, 0.72);
+            ctx.stroke();
+          }
+        }
       }
 
-      ctx.restore();
+      ctx.globalAlpha = 1;
     }
 
     const postTransition = {
@@ -241,7 +356,10 @@
         isTransitioning = true;
         (window as any).__postTransitionPending = true;
 
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        sceneColors = getThemeColors();
+        paper.style.background = sceneColors.bg;
+
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.hidden) {
           overlay.classList.add('is-active');
           gsap.set(overlay, { opacity: 1 });
           gsap.set(paper, { opacity: 1 });
@@ -249,7 +367,6 @@
         }
 
         resizeCanvas();
-        sceneColors = getThemeColors();
         overlay.classList.add('is-active');
         gsap.set(overlay, { opacity: 1 });
 
@@ -258,7 +375,7 @@
           (window as any).lenis?.stop();
         } catch {}
 
-        // Dead-man safety switch (1.8s) to guarantee UI never gets stuck
+        // Dead-man safety switch (1800ms) to guarantee UI never gets stuck
         if (safetyTimer) window.clearTimeout(safetyTimer);
         safetyTimer = window.setTimeout(() => {
           if (isTransitioning) {
@@ -269,24 +386,25 @@
         return new Promise<void>((resolve) => {
           const state = { p: 0 };
           if (animTween) animTween.kill();
+          if (paperTween) paperTween.kill();
 
-          // Let the existing ink blossom unfold before handing off to the title.
           gsap.set(paper, { opacity: 0 });
-          gsap.to(paper, {
+          paperTween = gsap.to(paper, {
             opacity: 1,
-            duration: 0.38,
-            ease: 'post-ink',
+            duration: 0.32,
+            delay: 0.04,
+            ease: 'post-ink-cover',
           });
 
           animTween = gsap.to(state, {
             p: 1,
-            duration: 0.42,
-            ease: 'post-ink',
+            duration: 0.36,
+            ease: 'post-ink-cover',
             onUpdate: () => {
-              renderScene(state.p, false);
+              renderScene(state.p, animTween?.progress() ?? state.p, false);
             },
             onComplete: () => {
-              renderScene(1, false);
+              renderScene(1, 1, false);
               resolve();
             },
           });
@@ -313,16 +431,24 @@
           safetyTimer = null;
         }
 
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.hidden) {
           (window as any).__postTransitionPending = false;
-          (window as any).__releasePageEnter?.();
+          if (!hasTitleHold()) {
+            (window as any).__releasePageEnter?.();
+          }
           window.dispatchEvent(new CustomEvent('post-transition-release'));
           try {
-            (window as any).lenis?.start();
+            if (!hasTitleHold()) {
+              (window as any).lenis?.start();
+            }
           } catch {}
           overlay.classList.remove('is-active');
           gsap.set(overlay, { opacity: 0 });
           gsap.set(paper, { opacity: 0 });
+          if (ctx && canvas) {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+          }
           isTransitioning = false;
           return;
         }
@@ -330,14 +456,15 @@
         return new Promise<void>((resolve) => {
           const state = { p: 0 };
           if (animTween) animTween.kill();
+          if (paperTween) paperTween.kill();
           sceneColors = getThemeColors();
+          paper.style.background = sceneColors.bg;
 
           let released = false;
           const triggerHandover = () => {
             if (released) return;
             released = true;
             (window as any).__postTransitionPending = false;
-            // Handover: release page enter directly only if post title is not holding it
             if (!hasTitleHold()) {
               (window as any).__releasePageEnter?.();
             }
@@ -349,19 +476,19 @@
             } catch {}
           };
 
-          // Softly fade paper background
-          gsap.to(paper, {
+          // Softly lift xuan-paper backing slightly ahead of outer ink dispersion
+          paperTween = gsap.to(paper, {
             opacity: 0,
-            duration: 0.52,
-            ease: 'post-ink',
+            duration: 0.42,
+            ease: 'post-ink-part',
           });
 
           animTween = gsap.to(state, {
             p: 1,
-            duration: 0.56,
-            ease: 'post-ink',
+            duration: 0.50,
+            ease: 'post-ink-part',
             onUpdate: () => {
-              renderScene(state.p, true);
+              renderScene(state.p, animTween?.progress() ?? state.p, true);
               // Wait for both visual clearance and at least 62% of elapsed time.
               // Eased progress alone can release the title too early.
               if (state.p >= 0.75 && (animTween?.progress() ?? 0) >= 0.62 && !released) {
@@ -373,15 +500,36 @@
               overlay.classList.remove('is-active');
               gsap.set(overlay, { opacity: 0 });
               if (ctx && canvas) {
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
               }
               isTransitioning = false;
               animTween = null;
+              paperTween = null;
               resolve();
             },
           });
         });
       },
+    };
+
+    document.addEventListener(
+      'visibilitychange',
+      () => {
+        if (document.hidden && isTransitioning) {
+          postTransition.leave();
+        }
+      },
+      { signal }
+    );
+
+    (window as any).__areSetPostTransitionCleanup__ = () => {
+      controller.abort();
+      if (safetyTimer) window.clearTimeout(safetyTimer);
+      animTween?.kill();
+      paperTween?.kill();
+      isTransitioning = false;
+      (window as any).__postTransitionPending = false;
     };
 
     (window as any).__postTransition = postTransition;
