@@ -1303,6 +1303,18 @@ const countByCategory = {
     const modalTitleEl = document.getElementById('modal-life-title');
     const modalSubtitleEl = modal?.querySelector<HTMLElement>('.modal-subtitle') || null;
 
+    const scheduleFrame =
+      typeof window.requestAnimationFrame === 'function'
+        ? window.requestAnimationFrame.bind(window)
+        : (cb: FrameRequestCallback) => window.setTimeout(() => cb(Date.now()), 16);
+    const cancelFrame =
+      typeof window.cancelAnimationFrame === 'function'
+        ? window.cancelAnimationFrame.bind(window)
+        : window.clearTimeout.bind(window);
+    let gliderInitRaf = 0;
+    let gliderResetRaf = 0;
+    let modalOpenRaf = 0;
+
     function syncLifeTabBrushGlider(immediate = false) {
       if (!catTabsWrap || !tabBrushGlider) return;
       const activeTab = catTabsWrap.querySelector<HTMLElement>('.life-cat-tab.is-active') || catTabs[0];
@@ -1321,7 +1333,9 @@ const countByCategory = {
       if (immediate || reduceMotion) {
         tabBrushGlider.style.transition = 'none';
         tabBrushGlider.style.transform = nextTransform;
-        requestAnimationFrame(() => {
+        if (gliderResetRaf) cancelFrame(gliderResetRaf);
+        gliderResetRaf = scheduleFrame(() => {
+          gliderResetRaf = 0;
           if (tabBrushGlider) tabBrushGlider.style.transition = '';
         });
       } else {
@@ -1331,7 +1345,12 @@ const countByCategory = {
       tabBrushGlider.classList.add('is-ready');
     }
 
-    requestAnimationFrame(() => syncLifeTabBrushGlider(true));
+    if (catTabsWrap && tabBrushGlider) {
+      gliderInitRaf = scheduleFrame(() => {
+        gliderInitRaf = 0;
+        syncLifeTabBrushGlider(true);
+      });
+    }
     document.fonts?.ready?.then(() => syncLifeTabBrushGlider(true)).catch(() => {});
     const tabGliderRO = typeof ResizeObserver !== 'undefined' && catTabsWrap
       ? new ResizeObserver(() => syncLifeTabBrushGlider(true))
@@ -1873,7 +1892,9 @@ const countByCategory = {
       }
 
       modal.classList.remove('hidden');
-      requestAnimationFrame(() => {
+      if (modalOpenRaf) cancelFrame(modalOpenRaf);
+      modalOpenRaf = scheduleFrame(() => {
+        modalOpenRaf = 0;
         modal.classList.add('is-open');
       });
       document.body.classList.add('life-modal-open');
@@ -2093,6 +2114,9 @@ const countByCategory = {
       activeContainer = null;
       controller.abort();
       tabGliderRO?.disconnect();
+      if (gliderInitRaf) cancelFrame(gliderInitRaf);
+      if (gliderResetRaf) cancelFrame(gliderResetRaf);
+      if (modalOpenRaf) cancelFrame(modalOpenRaf);
       window.clearTimeout(searchTimer);
       window.clearTimeout(modalHideTimer);
       spotlightTimers.forEach((tid) => window.clearTimeout(tid));

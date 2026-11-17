@@ -728,7 +728,9 @@ const year = new Date().getFullYear();
     }
 
     function onPointerEnter(e) {
-      if (e.pointerType === 'touch' || isMobile || !isFinePointer) return;
+      isFinePointer = finePointerMedia.matches;
+      isMobile = !isFinePointer;
+      if (e.pointerType === 'touch' || isMobile || !window.matchMedia('(pointer: fine)').matches) return;
       brush.isVisible = true;
       updateMouse(e);
       brush.x = mouse.x; brush.y = mouse.y;

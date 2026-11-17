@@ -1,6 +1,16 @@
 # 文章页动效审查与修改方案
 
-审查日期：2026-11-07。结论：应先修复终态覆盖与重复播放，再调整缓动、幅度和编排。当前同时存在“开头冲得快”“部分动作等待长”“同类动作不一致”，整体加长时长会进一步拖慢阅读。
+审查日期：2026-11-07（全站纸境水墨焕新验收：2026-11-18）。结论：应先修复终态覆盖与重复播放，再调整缓动、幅度和编排。当前同时存在“开头冲得快”“部分动作等待长”“同类动作不一致”，整体加长时长会进一步拖慢阅读。
+
+## 2026-11-18 全站纸境水墨动效焕新与零掉帧合流记录
+
+围绕「梦付千秋 · 清浅纸境水墨」美学与 60–120fps 零掉帧标准，分四条无交集工作流完成全站动效升级并合流至 `feat/ink-ask`：
+
+- **文章阅读与伴读（`reader-companion`）**：彻底根治 H2 / H3 入场终态偏移——未入场位移严格限定在 `:not(.is-in)`（`-10px` / `-8px`），`.prose .pr.is-in` 完成态严格归零为 `translate3d(0, 0, 0)` 且 `opacity: 1`；移除 `resetObserver`，段落显现后立即 `unobserve`，上下往返回看零重播闪烁；长列表与大表格交错排队上限收敛至 `Math.min(i, 3)`；左缘阅读脊线升级为 `rAF` 阻尼运笔（`stepSpineBrush`），途经章节生出朱砂微芒；新增代码块按高度自适应开合与「钤印已录」复制印记、加密文章「破封启卷」仪式、湿墨浸润连续划线（`computeWetInkStrokeDuration`）、无动态 `blur` 的书法飞白墨圈「墨问」（`InkAsk`）、锁定正文宽度的分屏/全屏协同（`CompanionLayout`）、抛物线飞白入驻与单帧拖拽的飞墨对照台（`PinWorkbench`）以及单 `rAF` 惯性平移缩放的 `MermaidRenderer`。
+- **全局壳层与转场（`shell-intro`）**：全局图片查看器（Lightbox）移除 1100ms 重度 `filter: blur` 拖尾，升级为 `520ms` 展开 / `360ms` 收拢的宣纸绫裱画框 FLIP 与 `210ms` 双层交叉切图；页面跳转（`PostTransition`）升级为 `SIN/COS LUT` 驱动的浓淡双层水墨渗染、书法飞白丝缕与 `destination-out` 破墨揭卷（双条件交接 `state.p >= 0.75 && progress >= 0.62`）；`SiteIntro` 移除 7000 粒子内层 `Math.hypot` 并支持后台自动休眠与朱砂压纸落印；侧栏导航游标采用 `WeakMap` 预缓存几何与毛笔微拉伸，指针水墨拖尾与圆圈光标合入单一 `rAF`；右键菜单升级为竹简展开与游走墨衬 Pill，更新提示升级为飞鸽朱砂小笺，`ZenRainscape` 采用三层 `Path2D` 批绘与离屏休眠。
+- **首页与典藏矩阵（`home-collections`）**：提炼 3D 宣纸卡片弹簧物理（`cardMotion.ts`），仅在 `pointerenter` 预缓存尺寸，`pointermove` 零同步回流，离手欠阻尼回弹后自动停帧；归档、分类筛选器等胶囊滑块采用纯合成器 `translate3d + scale(sx, sy)` 配合 `--pill-rx / --pill-ry` 反向圆角几何补偿，并在 `prefers-reduced-motion: reduce` 下完整保留高对比激活态；同步打磨跑马灯 EWMA 速度滤波、年轮手卷笔锋涟漪、标签星图、挥毫统计图与关于页多印文朱砂章。
+- **思维导图与应用工作台（`apps-mindmap`）**：`/mindmap` 实现单 `rAF` 惯性平移、焦点阻尼滚轮缩放、小地图联动与按层级收锋的非对称贝塞尔水墨枝蔓生长（`stroke-dashoffset`）；`/notes` 移除静息卡片常驻 `clip-path`（保留 3D 悬停，删除时按需触发墨迹收干）；`/gallery` 加入暗房水墨显影（`data-developed="1"`）；`/life` 加入线装册页 3D 翻阅详笺；`/settings` 与 `/account` 落地墨玉阻尼开关（对齐 `data-cursor-trail`、`site-font`、`__applyTheme` 全站契约）、纯合成器 `scaleX` 页签游标与朱砂印信云同步脉动。
+- **验证基准**：完整适配 `light` / `dark` / `moss` / `rice` 四套主题与 `prefers-reduced-motion: reduce`；全仓 **67 个测试套件（419 项测试，0 fail）100% 通过**，`npm run build` 生产静态产物零报错生成。
 
 ## 2026-11-08 原页面调校
 

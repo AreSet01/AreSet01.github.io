@@ -1,66 +1,69 @@
 # 动效系统与页面说明
 
-> 记录本次改造后的结构、可调参数，以及尚未完成的部分。
-> 最后更新：2026-10-27
+> 记录全站「梦付千秋 · 清浅纸境水墨」60–120fps 动效架构、页面交互契约与可调参数。
+> 最后更新：2026-11-18
 
 ---
 
-## 一、这次做了什么
+## 一、全站路由与核心功能
 
-### 新增页面
+### 页面矩阵
 
 | 路由 | 说明 |
 |---|---|
-| `/timeline` | 年轮。竖向滚动被 pin 住转成横向手卷，可拖拽；每个墨点是一篇文章，靠近时卡片像墨一样渗出来 |
-| `/tags` | 标签星图。力导向布局，字号=文章数，连线=共现次数，悬停点亮一个标签的星座 |
-| `/tags/[tag]` | 标签详情。列表用墨点渗开逐条刷出，顶部列出共现最多的兄弟标签 |
-| `/stats` | 写作统计。hero 数字 + KPI + 四张图（发文节奏、每篇体量、累计字数、标签分布）+ 数据表（`<details>`，开合由脚本接管：盒子按 `enter` 缓动撑开/收拢，行从左渗入级联，三角标记旋转；结束后 `refresh()` + `lenis.resize()`） |
+| `/` | 首页。3D 宣纸弹性文章卡片、EWMA 速度滤波跑马灯、水墨长卷统计胶囊与三枚隐藏彩蛋 |
+| `/archive` | 全部分类归档。顶部纯合成器水墨胶囊游标（反向圆角几何补偿），切换时按墨迹收干/渗开与年份块高度联动重排 |
+| `/timeline` | 年轮。竖向滚动被 pin 住转成横向手卷，支持惯性拖拽、毛笔笔锋进度与墨滴涟漪节点 |
+| `/tags` / `/tags/[tag]` | 标签星图（固定步长力导向星座，悬停点亮共现脉络）与标签详情（列表逐条渗墨刷出） |
+| `/stats` | 写作统计。Hero 数字 + KPI + 四张挥毫统计图 + 平滑开合的 `<details>` 数据表 |
+| `/about` | 关于页。宣纸名刺排印与可点击切换多组印文的朱砂石章 |
+| `/posts/[slug]` | 文章阅读与伴读。单次温润正文显现、阻尼阅读脊线、湿墨连续划线、书法飞白「墨问」、锁定正文宽度的分屏/全屏伴读、飞墨对照台、文内搜索与单 rAF 惯性 Mermaid 画布 |
+| `/mindmap` | 思维导图工作台。单 rAF 惯性平移与焦点阻尼滚轮缩放、层级收锋非对称贝塞尔水墨枝蔓（`stroke-dashoffset` 生长/收拢）与实时小地图 |
+| `/notes` | 案头便签中心。3D 宣纸笺悬停、多维筛选锚点预滚动与删除时按需触发的墨迹收干（`@keyframes notesCardInkDry`） |
+| `/gallery` | 暗房画廊。底片水墨显影（`data-developed="1"`）、五段式空态平滑收放与画廊灯箱 |
+| `/life` | 线装生活志。毛笔笔触分类游标、手账卡片抽签与 3D 册页翻转详笺（`openCardFolio`） |
+| `/settings` / `/account` | 偏好设置与账户中心。墨玉阻尼滑块（实时联动四套主题、行云手书/像素字体、水墨指针拖尾）、纯合成器 `scaleX` 页签游标、朱砂验印与云墨同步脉动 |
 
-导航栏现在是：`Main*` / `All Doc` / `Timeline` / `Tags` / `Stats` / `About Me`。
+### 全局特性
 
-### 新增功能
+**四套主题与切换仪式** —— 支持 `light`（浅色宣纸）、`dark`（深色徽墨）、`moss`（绿粉青苔）、`rice`（古籍米笺），以及像素点阵 / 行云手书（`html[data-font="kai"]`）双字形切换；切换时激发柔和的水墨晕环（`spawnThemeInkRipple`），并在 View Transition 期间静默内层 CSS 过渡消除阴影重绘卡顿。
 
-**系列导航** —— frontmatter 加 `series` 与 `seriesOrder`，文章页自动生成顶部墨点进度条（悬停出标题）和底部上/下篇卡片。已配置两个系列：UE5 Meta 七篇（含导读）、RenderDoc 两篇。
+**全局壳层微交互** —— 侧边栏导航采用 `WeakMap` 预缓存几何坐标与毛笔微拉伸磁吸游标；指针水墨拖尾与圆圈光标合入单一 `rAF` 调度（双层浓淡中锋，离屏与 `document.hidden` 自动休眠）；自定义右键菜单（`siteContextMenu.ts`）采用竹简笺条展开与游走墨衬 Pill；无感版本检测（`appAutoUpdate.ts`）以飞鸽朱砂小笺滑入提示；「烟雨濛濛」微气象（`ZenRainscape` / `ZenSoundscape`）通过三层 `Path2D` 批绘雨丝微澜并与程序化白噪音音景联动。
 
-**分类筛选** —— frontmatter 加 `category`（每篇手填，刻意比 tags 粗）。All Doc 顶部出现筛选 chips；文章页的 meta 行可点进对应分类，链接形如 `/archive?category=引擎开发`。切换动效见 2.3。
+**系列导航与分类筛选** —— frontmatter 加 `series` / `seriesOrder` 自动生成顶部墨点进度条与底部上下篇卡片；frontmatter 加 `category` 驱动 `/archive?category=xxx` 深链筛选。
 
-**站点进场幕** —— 每个浏览器会话第一次打开任意页面时播一段 10s 的开场「墨化为像素」（`src/components/SiteIntro.astro`），可跳过。见 2.4。About 页原来的像素开场已退役，由它接管。
+**站点进场幕** —— 每个浏览器会话首次打开任意页面时播放 10s「墨化为像素」（`src/components/SiteIntro.astro`），支持 `?intro=1` 强制重播与随时跳过放行。
 
-**代码块增强** —— Astro 的 Shiki transformer（`astro.config.mjs`）解析围栏元信息：
+**代码块与加密文章** —— Shiki 解析 `title="..."`、`{3-5}` 行高亮与自动行号；运行时增强按高度自适应时长的平滑折叠/展开与「钤印已录」复制反馈；加密文章解锁时执行「破封启卷」动效。
 
-````
-```cpp title="MyActor.h" {3-5}
-```
-````
-
-- `title="..."` → 工具栏左侧显示文件名（原本只显示语言名）
-- `{3-5,8}` → 这几行高亮，其余行淡到 40%，鼠标移上去恢复全亮
-- 行数 ≥ 5 自动加行号，`no-line-numbers` 可关
-
-**页面进场重播** —— 见下一节。
-
-**首页三个彩蛋** —— 长按标题让字掉到跑马灯上；三连点右下印章展开「愤青（bushi）言论」；`↑↑↓↓←→←→BA` 切换像素/CRT 模式（localStorage 持久化）。
-
-**绿粉主题** —— 主题循环 浅 → 深 → 绿粉，绿底 `#62A06F`。
-
-**划词问答（2026-09-23）** —— 文章里选中一段 → 选区末尾钤出「问」印 → 一笔墨圈圈住它 → 卡片里流式写出解释，可追问。见 2.6。服务端在 `server/`（零依赖 Node，key 只存服务器），本站没部署它时前端探测失败，整个功能不出现。
+**统一湿墨划线、墨问与伴读工作台** —— 正文划词可触发湿墨浸润连续高亮与批注、书法飞白墨圈「墨问」（`InkAsk.astro`，对接 `server/ask.mjs`，无后端时自动静默隐藏）、锁定阅读列宽的分屏/全屏伴读面板（`CompanionLayout.astro`）以及抛物线飞白入驻的对照工作台（`PinWorkbench.astro`）。
 
 ---
 
 ## 二、动效架构
 
-### 2.1 页面进场（`src/layouts/BaseLayout.astro`）
+### 2.1 全局壳层、页面进场、Lightbox FLIP 与路由转场（`BaseLayout` / `PostTransition` / `Header`）
 
-页面上任何带 `data-enter="<kind>"` 的元素都会被编排进场。
+页面上任何带 `data-enter="<kind>"` 的元素都会被编排进场。`initPageEnter` 先统一预读几何坐标（`preMetaMap`）再批量写入初始态，注册 `paper-glide`（宣纸舒卷）、`ink-seep`（水墨毛细渗透）与 `cinnabar-seal`（朱砂石章钤印）三条专属缓动，并在 `finishEnter` 结束时通过 `clearProps` 及时释放 `willChange`。
 
 **kind 取值**
 
 | kind | 动作 |
 |---|---|
-| `left` / `right` / `top` / `bottom` | 从对应方向位移进入 |
-| `scale` | 缩小进入 |
-| `stamp` | 钤印砸落（scale 1.7 + 旋转过冲），落点炸墨点，内部 `[data-count]` 数字同步 count-up |
-| `ink` | 从行首日期的位置以圆形 clip-path 渗开整行 |
+| `left` / `right` / `top` / `bottom` | 从对应方向沿 `paper-glide` 温润滑入 |
+| `scale` / `bloom` | 缩放或纯合成器 `clip-path: inset(...)` 宣纸绽放（严禁逐帧 `filter: blur`） |
+| `stamp` | 朱砂石章压纸钤落（`cinnabar-seal`），落点激发朱砂余韵光环（`spawnStampSealHalo`）与无阴影飞墨粒子，内部 `[data-count]` 数字同步 count-up |
+| `ink` | 从行首日期位置以圆形 `clip-path` 按 `ink-seep` 渗开整行 |
+
+**全局图片/图表查看器（Lightbox FLIP）**
+
+- 彻底移除旧版 1100ms `filter: blur` 拖尾与遮罩逐帧 `backdrop-filter` 动画。
+- 采用宣纸绫裱四角画框（`image-viewer-silk-corners`）纯合成器 FLIP：`520ms` 展开 / `360ms` 收拢；连续切图通过 `image-viewer-media-ghost` 执行 `210ms` 双层交叉淡入，消除重缩放闪烁。
+
+**水墨路由转场（`src/components/PostTransition.astro`）**
+
+- 采用预计算 `COS_LUT` / `SIN_LUT` 驱动的浓淡双层水墨晕染与书法飞白枯笔丝缕（`feibaiStreaks`），底衬读取 `--bg-base` 自动适配四套主题。
+- 揭开阶段使用 `globalCompositeOperation = 'destination-out'` 自中心破墨澄明，并在同时满足 `state.p >= 0.75` 与真实时间进度 `>= 0.62` 时精准放行新页进场。
 
 **两套触发**
 
@@ -73,7 +76,7 @@
 
 **首次播放 vs 重播的方向**
 
-首次播放用作者写死的方向；重播时垂直分量跟随滚动方向（向下滚则从下往上进，向上滚则从上往下落），所以动作永远和"它从哪儿来"一致。滚动方向由 `html[data-scroll-dir]` 承载，文章正文的 CSS 也读这个属性。
+首次播放用作者写死的方向；重播时垂直分量跟随滚动方向（向下滚则从下往上进，向上滚则从上往下落），所以动作永远和"它从哪儿来"一致。滚动方向由 `html[data-scroll-dir]` 承载。
 
 **逃生舱**
 
@@ -81,55 +84,58 @@
 |---|---|
 | `data-enter-once` | 只在硬加载时进场一次（侧边栏用） |
 | `data-no-replay` | 永不重播（pin 内部元素用，见下） |
-| `data-enter-hold` | 挂起整页进场，等 `window.__releasePageEnter()`（目前没有页面在用；站点进场幕走 `window.__siteIntroPending`，效果相同，放行时可传 `{ timeScale }` 压缩交错） |
+| `data-enter-hold` | 挂起整页进场，等 `window.__releasePageEnter()`（站点进场幕走 `window.__siteIntroPending`，放行时可传 `{ timeScale }` 压缩交错） |
 | `data-enter-state` | 运行时状态：`in` / `out`，其他脚本判断"动画有没有在管这个元素" |
 
-挂起有一个 14s 的保险：开场脚本若出错没能调用 release，页面也会自己放行，不会永远空白（进场幕本身在 8.5s 放行，保险必须晚于它）。
-
-`window.__peekPageEnter()` 返回首屏进场计划 `[{ el, at, kind }]` 而不播放——进场幕靠它把像素安排到每个元素开始进场的那一刻。
+挂起有安全保险：开场脚本若异常未调用 release，页面也会自动放行，绝不永久空白。`window.__peekPageEnter()` 返回首屏进场计划 `[{ el, at, kind }]` 供进场幕对齐像素落点。
 
 **为什么 pin 内部要 `data-no-replay`**：时间轴页的 stage 被 ScrollTrigger pin 住，pin spacer 会改变触发器的坐标；元素如果会重播，坐标算错就会误触发。
 
-**触发器只量一次，页面长高要告诉它**：触发器的 start/end 在 `refresh()` 时测量。一个 `[data-enter]` 元素如果事后长高了（统计页的「数据表」`<details>` 打开后从 1 屏变 3 屏），"完全离开视口 → 隐藏"的那条触发器还按旧高度算，往下读到旧的 end 就会把整块**在屏幕上**的表格藏掉——这就是曾经的"一大片空白"。现在有两道保险：`leaveEnter()` 会先看元素是否真的在视口外，还在就改为 `refresh()` 而不是隐藏；`BaseLayout` 在 capture 阶段监听全局 `toggle` 事件，任何 `<details>` 开合都会在下一帧 `refresh()`。自己写会改页高的东西（展开面板、加载更多）结束时也要调 `ScrollTrigger.refresh()` + `lenis.resize()`。
+**触发器只量一次，页面长高要告诉它**：`leaveEnter()` 会先校验元素是否真的在视口外，还在视口内则改为 `refresh()`；`BaseLayout` 在 capture 阶段监听全局 `toggle` 事件刷新 `<details>` 开合。任何改变页高的组件（展开面板、加载更多）结束时也应调 `ScrollTrigger.refresh()` + `lenis.resize()`。
 
-### 2.2 文章正文（`src/layouts/PostLayout.astro`）
+### 2.2 文章阅读器与伴读生态（`PostLayout` / `global.css` / `CompanionLayout` / `PinWorkbench` / `MermaidRenderer`）
 
-正文的每个直接子元素在运行时打上 `.pr` 和 `data-pr="<kind>"`，由 IntersectionObserver 切换 `.is-in`，动作全部走 CSS transition（不占 rAF）：
+正文的每个直接子元素在运行时打上 `.pr` 和 `data-pr="<kind>"`，由 IntersectionObserver 切换 `.is-in`，**单次温润显现后立即 `unobserve`**（不再使用 `resetObserver`，彻底消除上下回看时的闪烁与半透明回退）：
 
 | kind | 动作 |
 |---|---|
-| `block` | 上浮淡入（向上滚时改为从上方落下，见 `html[data-scroll-dir="up"]` 规则） |
-| `heading`（h2） | 顶部分割线从左画出，标题字晚 160ms 跟上 |
-| `subheading` | 从左滑入 |
-| `code` | 自上而下 clip-path 擦出，一根扫描线领着 |
-| `image` | 从中心圆形渗开，图本身 1.05 → 1 |
-| `table` / `list` | 行/项级联 |
-| `quote` | 大引号先带过冲落下 |
+| `block` | 轻盈上浮淡入 |
+| `heading`（h2） | 顶部朱墨渐变分割线从左运笔延展；未入场 `:not(.is-in)` 偏移 `-10px`，`.pr.is-in` 完成态严格归零 `translate3d(0, 0, 0)` |
+| `subheading`（h3） | 未入场 `:not(.is-in)` 偏移 `-8px`，`.pr.is-in` 完成态严格归零 `translate3d(0, 0, 0)` |
+| `code` | 自上而下 `clip-path` 擦出（外包 `.pr-wrap` 避免裁剪影响可见性判定）；支持按高度自适应时长的折叠/展开与「钤印已录」复制反馈 |
+| `image` | 从中心圆形渗开，点击无缝衔接全局宣纸绫裱 Lightbox FLIP |
+| `table` / `list` | 行/项轻量级联（排队索引上限收敛为 `Math.min(i, 3)`，杜绝大表格慢动作排队） |
+| `quote` | 温润引号落定（无静态或动态 `blur` 滤镜） |
 
-代码块和图片额外包了一层 `.pr-wrap`——Chrome 的 IntersectionObserver 会把元素自身的 `clip-path` 当作裁剪区，`circle(0)` 的元素永远判定为不可见。
+阅读增强与伴读组件：
 
-标题逐字落下、日期打字机、左缘阅读脊线（随滚动画出 + h2 处生墨点）也在这个文件里。
+- **左缘阅读脊线**：采用 `rAF` 柔顺阻尼运笔（`stepSpineBrush`），经过章节标题时墨点晕开朱砂微芒（`spineDotCinnabarBloom`）；点击目录跳转抵达目标标题时触发水墨底纹轻拂。
+- **破封启卷**：加密文章口令验证通过时播放朱砂启封与宣纸展卷过渡。
+- **湿墨连续划线与选区托盘**：跨行/跨代码选区经 `classifyRectsToGeometry` 合并几何，按划词长度计算湿墨浸润时长（`computeWetInkStrokeDuration`），选区托盘（`ArticleSelectionDock`）纯合成器显隐零 `blur`。
+- **分屏/全屏协同与飞墨对照台**：`CompanionLayout` 在分屏与全屏切换时锁定背景正文阅读列宽，避免长文重排换行；`PinWorkbench` 支持选区抛物线飞白入驻与单 `rAF` 预缓存尺寸拖拽；`MermaidRenderer` 在内嵌与全屏下共用单帧 `rAF` 惯性平移与双指/滚轮缩放，并注册 `__areSetMermaidCleanup__`。
 
-### 2.3 归档分类切换（`src/pages/archive.astro`）
+### 2.3 3D 宣纸卡片、水墨游标与归档切换（`cardMotion.ts` / `archive.astro` / `CollectionFilters.astro`）
 
-早先的版本是"先 `display:none` 再 FLIP 补位"，幸存行瞬移之后再滑回去，跟全站"墨渗开"的调性不搭。现在是一条 GSAP 时间线，全程只动 `height` / `clip-path` / `opacity`：
+**3D 宣纸弹簧卡片物理（`src/utils/cardMotion.ts`）**
+
+- 首页、便签等 `.paper-card[data-tilt]` 仅在 `pointerenter` 预缓存一次 `getBoundingClientRect`（滚动/缩放时标脏），高频 `pointermove` **零同步布局读取**。
+- `1/120s` 步长弹簧积分驱动微倾角、纸面轻抬与宣纸漫射光泽（sheen），指针移出后自然欠阻尼回弹并在收敛后自动停帧休眠。
+
+**游走式水墨胶囊游标（反向圆角几何补偿）**
+
+- 归档筛选栏（`.archive-ink-pill`）、集合筛选栏（`CollectionFilters`）、生活志分类栏（`.life-tab-brush-glider`）与账户中心页签（`.account-tab-glider`）均采用单枚底衬游标，仅过渡 `transform: translate3d(x, y, 0) scale(sx, sy)` 与 `opacity`。
+- 为避免 `100px × 36px` 基准胶囊在非等比 `scale(sx, sy)` 下圆角畸变，通过 `--pill-rx: (halfH / sx)px` 与 `--pill-ry: (halfH / sy)px` 做反向椭圆圆角补偿；在 `prefers-reduced-motion: reduce` 下关闭过渡但保留游标几何定位，杜绝激活按钮对比度丢失。
+
+**归档列表水墨收展时间线（`src/pages/archive.astro`）**
+
+一条可随时打断重规划的 GSAP 时间线，全程只动 `height` / `clip-path` / `opacity`：
 
 | 阶段 | 动作 |
 |---|---|
-| 离开的行 | 墨从行首日期处**收干**（`clip-path` 圆缩到 0，和 `data-enter="ink"` 的进场正好相反），同时行高塌到 0，后面的行被连续地带上来 |
-| 整年清空 | 该年的 section 作为一个整块塌陷（高度 + 上下 margin + 淡出），里面的行只收墨不塌高 |
-| 回来的行 | 先把盒子撑开（高度 0 → 实高），墨再从日期处渗开；从 0.3s 起和离开的尾巴重叠 |
-| 整年回来 | section 先撑开，行再往里渗 |
-| 年份计数 | `n entries` 数字随之滚动 |
-| 筛选 chip | 选中态的墨色从左往右灌满（`::before` 的 `scaleX`），不再是 background 瞬变 |
-
-要点：
-
-- 回来的行会在同一个任务里先被"打开 → 量高 → 折回 0"，浏览器不会画出中间态。
-- 高度用 `getBoundingClientRect().height`，不用 `offsetHeight`：后者取整，9 行累加会让列表肉眼可见地长高 2–3px。
-- Tailwind 的 `space-y-16` 把间距放在 `margin-bottom`，所以塌陷整年时上下 margin 都要一起动。
-- 动画中途再点一次 chip：先杀掉旧时间线并把所有行/section 的内联样式清干净，再按 class 重新读现状规划。
-- 结束时 `ScrollTrigger.refresh()` + `lenis.resize()`，深链接和 `prefers-reduced-motion` 走无动画分支。
+| 离开的行 | 墨从行首日期处**收干**（`clip-path` 圆缩到 0），同时行高塌到 0，后续行连续上移 |
+| 整年清空 | 该年 section 整体塌陷（高度 + 上下 margin + 淡出），内部行只收墨不塌高 |
+| 回来的行 / 整年 | 同帧隐式量取 `getBoundingClientRect().height` 后从 0 撑开，墨自日期处重新渗开 |
+| 年份计数 | `n entries` 数字随之滚动，结束时统一 `ScrollTrigger.refresh()` + `lenis.resize()` |
 
 ### 2.4 站点进场幕（`src/components/SiteIntro.astro`）
 
@@ -243,12 +249,25 @@ if (!window[LISTENER_KEY]) {
 - 实测（13 条 → 2 条，先滚到底）：改前 `scrollY 886 → 34` 在一帧内完成；改后 `0.24s` 滑到位，换骨帧 `scrollY` 稳定在 34。
 - 和 2.7 的分工：**筛到 0 条**走空态塌缩（有高度锁）；**筛到非 0 条**走这里的预滚动（无高度锁）。
 
-### 2.9 性能约定
+### 2.9 思维导图与应用工作台（`/mindmap`、`/notes`、`/gallery`、`/life`、`/settings`、`/account`）
 
-- 所有进场动画只动 `transform` / `opacity` / `clip-path`，不碰 `filter: blur`。
-- `will-change` 只在动画期间挂上，结束用 `clearProps` 摘掉。
-- 物理模拟按固定步长（标签星图 1/60s）累加时间，避免 165Hz 上跑得比 60Hz 快 2.75 倍。
-- 每帧强制布局读取要节制（时间轴的年份跟随做了 4 帧一次）。
+- **思维导图工作台（`src/pages/mindmap.astro` + `src/utils/mindmapEngine.ts`）**：
+  - 单 `rAF` 视口物理（`tickViewportPhysics`）统一合并拖拽平移、指数摩擦惯性（`Math.exp(-5.6 * dt)`）与焦点阻尼滚轮缩放（`1 - Math.exp(-20 * dt)`）；视口几何由 `ResizeObserver` 预缓存（`cachedVpRect`），`pointermove` / `wheel` 零同步回流。
+  - 连线采用按深度单调收锋（`computeInkBranchStrokeWidth` / `computeInkBranchOpacity`）的非对称三次贝塞尔书法枝蔓（`buildInkBranchPath`），展开与折叠节点时通过 `stroke-dashoffset` 演绎水墨枝蔓生长与收拢，并同步更新 `#mm-minimap`。
+- **便签 / 画廊 / 生活志**：
+  - `/notes` 静息卡片不挂常驻 `clip-path` 以完整保留 3D `preserve-3d` 纸面倾角，仅在 `.is-deleting` 期间触发 `@keyframes notesCardInkDry` 墨迹收干。
+  - `/gallery` 图片加载完成后写入 `data-developed="1"` 演绎暗房水墨显影。
+  - `/life` 卡片支持点击「展卷」以 3D 线装册页翻转（`rotateY` + `transformOrigin: left center`）打开手账详笺。
+- **偏好设置与账户同步（`/settings`、`/account`）**：
+  - `/settings` 墨玉滑块采用弹性阻尼位移，严格对齐全站状态协议（`html[data-cursor-trail="disabled"]` + `localStorage('cursor-trail')`、`html[data-font="kai"]` + `localStorage('site-font')`、`window.__applyTheme`）。
+  - `/account` 采用纯合成器 `scaleX` 页签游标（`.account-tab-glider`），登录验印与导图云端同步（`mindmapSync.ts`）配备朱砂落印与云墨呼吸脉冲。
+
+### 2.10 性能约定（60–120fps 零掉帧硬指标）
+
+- **纯合成器属性**：所有进出场、游标、抽屉、弹窗与卡片悬浮只过渡 `transform` / `opacity` / `clip-path`，严禁逐帧 `filter: blur(...)`、`backdrop-filter` 或 `box-shadow` 直接过渡（阴影统一拆至伪元素仅过渡 `opacity`）。
+- **零高频同步回流**：`pointermove`、`wheel`、`scroll` 热路径严禁读取 `getBoundingClientRect` / `offsetWidth` / `offsetHeight`；一律在 `pointerenter`、拖拽起点或 `ResizeObserver` 中预缓存尺寸并由单 `rAF` 合帧消费。
+- **帧率无关与离屏休眠**：弹簧、惯性与粒子模拟采用固定步长（`1/120s` 或 `1/60s`）或帧间隔指数阻尼，消除 60Hz 与 120/165Hz 速度差异；所有 Canvas 循环响应 `visibilitychange` / IntersectionObserver 自动休眠。
+- **显存与生命周期洁净**：`will-change` 仅在动画期按需挂载，结束立即释放；所有页面脚本通过 `AbortController` 与 `window.__areSet*Cleanup__` 实现幂等销毁；全站完整覆盖 `prefers-reduced-motion: reduce`。
 
 ---
 
@@ -256,62 +275,44 @@ if (!window[LISTENER_KEY]) {
 
 | 想改什么 | 去哪 |
 |---|---|
-| 进场位移距离 / 时长 / 缓动 | `BaseLayout.astro` 的 `ENTER_OFFSET`、`duration: 1.6`、`CustomEase.create('enter', ...)` |
-| 进场交错节奏 | `ENTER_STAGGER`、`ENTER_ORDER`、组间 `+= 0.08` |
-| 重播的进出阈值 | `BaseLayout.astro` 的 `reach()` |
-| 重播时横向元素的竖直偏移 | `ENTER_SCROLL_BIAS`（44px） |
-| 正文逐块浮现的快慢 | `global.css` 里 `.prose .pr` 区块（每类各有一条 transition） |
+| 进场位移 / 东方水墨缓动 | `BaseLayout.astro` 的 `ENTER_OFFSET`、`paper-glide` / `ink-seep` / `cinnabar-seal` 曲线 |
+| 全局 Lightbox FLIP 时长 | `BaseLayout.astro` 的 `VIEWER_OPEN_MS`（520ms）/ `VIEWER_CLOSE_MS`（360ms） |
+| 路由水墨飞白转场 | `PostTransition.astro`：`feibaiStreaks`、`COS_LUT` / `SIN_LUT`、放行阈值 `state.p >= 0.75 && progress >= 0.62` |
+| 3D 宣纸卡片弹簧物理 | `src/utils/cardMotion.ts` 的 `PAPER_TILT_CONFIG`（倾角上限、刚度、阻尼、光泽强度） |
+| 正文显现与阅读脊线 | `global.css` 的 `.prose .pr` 区块；`PostLayout.astro` 的 `stepSpineBrush` 与 `articleMotion.ts` |
+| 湿墨划线浸润时长 | `src/utils/unifiedHighlightGeometry.ts` 的 `computeWetInkStrokeDuration()` |
 | 跑马灯 | `HomeTicker.astro` 顶部：`BASE_SPEED` / `HOVER_FACTOR` / `MAX_BOOST` / `MAX_SKEW` |
 | 时间轴手卷 | `timeline.astro`：`scrub: 0.55`、甩动系数 `velocity * 260` |
 | 标签星图 | `tags/index.astro`：斥力 `3200`、弹簧 `140 / weight`、衰减 `alpha *= 0.985`、`STEP = 1/60` |
-| 侧边栏折叠 | `Header.astro`：GSAP 时间线的三个时间点 + CSS 的 `820ms` |
-| 搜索弹窗 | `BaseLayout.astro` 的 `animateSearchModal()` |
-| 归档分类切换的快慢 | `archive.astro` 顶部：`EXIT_CLIP` / `EXIT_COLLAPSE` / `ARRIVE_AT` / `ARRIVE_CLIP` / `SECTION_MOVE` |
-| 筛选为空的空状态节奏 | `gallery.astro` / `notes.astro` / `life.astro` 三处空分支的同一组常量：卷收 `0.28`、浮现 `0.42`、塌缩 `0.55`、回滚 `offset -90` / `0.65s`、触发阈值 `scrollY > 80`；塌缩期间的滚动钳制开关是 `refreshScroll(clamp)` |
-| 普通筛选的滚动落点 | `notes.astro` / `life.astro` 的 `captureViewportAnchor()`（锚点）、`predictedMax`（不可见测量出的新上限）、Lenis 的 `duration: 0.26`；换骨帧用 `refreshScroll({ clamp: false })` |
-| 统计页数据表的开合 | `stats.astro` 里 `duration: 0.85`（开）/ `0.6`（关）；行级联在 `global.css` 的 `.stats-table.is-animated tr`（每行 40ms，最多数到第 18 行） |
-| 站点进场幕的节奏 / 文案 | `SiteIntro.astro`：`T` 对象各时间点、`MAX` / `MIN` 粒子预算、`fontSize`；frontmatter 的 `tagline`，标题在脚本顶部的 `TITLE` |
-| 站点进场幕只播一次的范围 | `BaseLayout.astro` `<head>` 内联脚本：把 `sessionStorage` 换成 `localStorage` 即为"每设备一次" |
-| 划词问答的墨圈形状 / 卡片节奏 | `InkAsk.astro`：`strokePoints()`（圈数与抖动）、`ANCHOR_CHARS`（前后各取多少字）、`MAX_SELECTION`；CSS 的 `780ms`（画圈）/ `640ms`（渗开）/ `380ms`（收回），`is-sheet` 的断点是 `768px` |
+| 侧边栏折叠与磁吸游标 | `Header.astro`：`readArticleMotion().panelMs`、`setupNavMagneticGliderController` |
+| 归档分类切换与胶囊游标 | `archive.astro`：`EXIT_CLIP` / `EXIT_COLLAPSE` / `ARRIVE_AT` / `ARRIVE_CLIP` / `--pill-rx` |
+| 筛选为空的空状态节奏 | `gallery.astro` / `notes.astro` / `life.astro` 共享常量：卷收 `0.28`、浮现 `0.42`、塌缩 `0.55`、回滚 `offset -90` / `0.65s` |
+| 普通筛选的滚动落点 | `notes.astro` / `life.astro` 的 `captureViewportAnchor()`、`predictedMax`、Lenis `duration: 0.26` |
+| 思维导图惯性与水墨枝蔓 | `mindmap.astro` 的 `tickViewportPhysics`；`mindmapEngine.ts` 的 `computeInkBranchStrokeWidth` / `buildInkBranchPath` |
+| 站点进场幕的节奏 / 文案 | `SiteIntro.astro`：`T` 对象各时间点、`MAX` / `MIN` 粒子预算、`fontSize`、`TITLE` |
+| 划词问答的墨圈与卡片节奏 | `InkAsk.astro`：`strokePoints()`、`ANCHOR_CHARS`、`MAX_SELECTION` |
 | 划词问答的模型 / 限流 / 缓存 | `server/ask.env.example`（部署时是 `/etc/blog-ask.env`），说明见 `server/README.md` |
 
 ---
 
-## 四、未完成 / 待办
+## 四、内容维护与后续演进备忘
 
-### 需要你自己动手的
+### 内容配置提示
 
-1. **代码块标题没人用**。`title="文件名"` 和 `{3-5}` 高亮都能工作（用临时文章验证过），但站内 9 篇没有一处在用。想用的话直接在 `src/content/posts/*.md` 的围栏上加：
+1. **代码块文件名与行高亮**：在 `src/content/posts/*.md` 的围栏上可直接启用：
 
    ````md
    ```cpp title="MyActor.h" {2-4}
    ````
 
-2. **首页「愤青言论」只有一条**。位置在 `src/pages/index.astro` 的 `.home-rant`，现在是「如果觉得这个社会不好，那就努力去斗争」。三连点印章可见。
+2. **首页三连印章彩蛋**：文案位于 `src/pages/index.astro` 的 `.home-rant`，连续三次点击右下印章展开。
+3. **系列与分类归属**：新文章归入系列需在 frontmatter 同时填写 `series` 与 `seriesOrder`；归档分类填写 `category`。
 
-3. **系列归属**。目前只有 UE5 Meta（7 篇 + 导读）和 RenderDoc（2 篇）配了 `series` / `seriesOrder`。新文章要归入系列，记得两个字段一起写。分类同理（`category`，现在只有「引擎开发」「图形逆向」）。
+### 架构取舍与候选方向
 
-### 没验证过的
-
-4. **真机性能**。所有动画只在 headless Chrome 里验证过逻辑正确性，165fps 的实际手感没测。重点关注：文章页滚动时正文逐块浮现、时间轴 pin 段、标签星图的力导向收敛（约 4s）。
-5. **移动端**。时间轴在 <1024px 会退化成竖向列表、标签星图高度是 `min(70vh, 44rem)`、统计页图表在窄屏的表现——都只写了样式，没在真机或窄视口跑过。
-6. **`astro preview` 之外的部署环境**。分类深链 `/archive?category=xxx`（不带尾斜杠）在 preview 下返回 200，GitHub Pages 上没验证。
-
-### 已知的取舍
-
-7. **About 页的像素开场已退役**（2026-09-19），站点进场幕接管了"首次落地"的开场；About 页现在和其他页一样只播 `[data-enter]` 进场。
-8. **标签星图是 O(n²) 斥力**。20 个标签没问题，标签数涨到 60+ 会开始吃 CPU，那时需要空间网格或降级成静态布局。
-9. **搜索索引进站才拉**。首次打开搜索面板要等 fetch（localStorage 没缓存索引）。
-
-### 讨论过但没做
-
-10. RSS 订阅（注意站点是 `noindex`，要不要公开自己定）
-11. 阅读记忆（localStorage 记录已读 + 阅读位置，卡片盖「阅」章）
-12. 印章工坊 `/seal`（输入 2–4 字生成像素印章并导出 SVG/PNG）
-
-### 收尾
-
-13. **本次改动尚未提交**。`git status` 里有 23 个改动文件 + 5 个新增文件，建议先 `npm run dev` 逐页看过再提交。
+4. **About 页开场**：早先的独立像素开场已合并由全局 `SiteIntro.astro` 接管首次会话落地体验。
+5. **标签星图规模**：当前标签量级采用固定步长力导向；若未来标签涨至 60+ 可切换空间网格加速。
+6. **可选后续特性**：RSS 订阅、跨设备阅读位置记忆与独立印章工坊 `/seal`。
 
 ---
 
