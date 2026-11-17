@@ -327,3 +327,89 @@ test('6. stats.astro, about.astro & AboutIntro.astro: brush charts, paper note g
   assert.ok(aboutIntroSrc.includes('__areSetAboutIntroCleanup__') && aboutIntroSrc.includes('__areSetAboutIntroBound__'), 'AboutIntro registers idempotent cleanup and listener guard');
   assert.match(aboutIntroSrc, /ctx!\.beginPath\(\);\s*for\s*\(let\s+i\s*=\s*0;\s*i\s*<\s*N;\s*i\+\+\)[\s\S]*?ctx!\.rect\([\s\S]*?ctx!\.fill\(\);/, 'AboutIntro batches all 1,600+ particles into a single Canvas path fill');
 });
+
+test('8. CollectionFilters.astro: prefers-reduced-motion MutationObserver microtask safety & custom glider skip guard', async () => {
+  const filtersSrc = readSrc('src/components/CollectionFilters.astro');
+  const scriptBody = filtersSrc.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const jsCode = esbuild.transformSync(scriptBody, { loader: 'ts' }).code;
+
+  // 8a. prefers-reduced-motion: reduce must NOT trigger MutationObserver classList self-excitation loop
+  const rmDom = new JSDOM(
+    `<div class="collection-filters" data-collection-filters>
+      <div class="collection-filter-row">
+        <div class="collection-category-tabs">
+          <button type="button" data-category-tab="all" class="is-active">All</button>
+          <button type="button" data-category-tab="street">Street</button>
+        </div>
+      </div>
+    </div>`,
+    { url: 'http://localhost/gallery', runScripts: 'outside-only' },
+  );
+  try {
+    rmDom.window.matchMedia = (q) => ({ matches: q.includes('prefers-reduced-motion') });
+    rmDom.window.requestAnimationFrame = (cb) => { cb(0); return 1; };
+    const buttons = rmDom.window.document.querySelectorAll('[data-category-tab]');
+    Object.defineProperty(buttons[0], 'offsetLeft', { value: 0 });
+    Object.defineProperty(buttons[0], 'offsetTop', { value: 2 });
+    Object.defineProperty(buttons[0], 'offsetWidth', { value: 68 });
+    Object.defineProperty(buttons[0], 'offsetHeight', { value: 34 });
+    Object.defineProperty(buttons[1], 'offsetLeft', { value: 80 });
+    Object.defineProperty(buttons[1], 'offsetTop', { value: 2 });
+    Object.defineProperty(buttons[1], 'offsetWidth', { value: 88 });
+    Object.defineProperty(buttons[1], 'offsetHeight', { value: 34 });
+
+    let pillClassWrites = 0;
+    rmDom.window.eval(jsCode);
+    const pill = rmDom.window.document.querySelector('[data-collection-ink-pill]');
+    assert.ok(pill, 'Pill mounted under prefers-reduced-motion');
+
+    const pillSpy = new rmDom.window.MutationObserver(() => {
+      pillClassWrites += 1;
+      if (pillClassWrites > 20) {
+        throw new Error('Infinite MutationObserver loop detected on [data-collection-ink-pill]');
+      }
+    });
+    pillSpy.observe(pill, { attributes: true, attributeFilter: ['class'] });
+
+    // Switch active category tab -> triggers CollectionFilters' MutationObserver in microtask
+    buttons[0].classList.remove('is-active');
+    buttons[1].classList.add('is-active');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    assert.equal(pillClassWrites, 0, 'Pill class attribute must not churn in reduced-motion microtasks');
+    assert.match(pill.style.transform, /translate3d\(80\.0px,\s*2\.0px,\s*0px\)/, 'Pill moves immediately to newly active tab');
+    pillSpy.disconnect();
+  } finally {
+    rmDom.window.close();
+  }
+
+  // 8b. Custom glider skip guard (/life already mounts .life-tab-brush-glider)
+  const lifeDom = new JSDOM(
+    `<div class="collection-filters" data-collection-filters>
+      <div class="collection-filter-row">
+        <div class="life-category-tabs collection-category-tabs" id="life-category-tabs">
+          <span class="life-tab-brush-glider" id="life-tab-brush-glider" data-custom-glider aria-hidden="true"></span>
+          <button type="button" data-category-tab="all" class="life-cat-tab is-active">All</button>
+          <button type="button" data-category-tab="places" class="life-cat-tab">Places</button>
+        </div>
+      </div>
+    </div>`,
+    { url: 'http://localhost/life', runScripts: 'outside-only' },
+  );
+  try {
+    lifeDom.window.matchMedia = () => ({ matches: false });
+    lifeDom.window.eval(jsCode);
+    assert.equal(
+      lifeDom.window.document.querySelectorAll('[data-collection-ink-pill], [data-collection-ink-whisper]').length,
+      0,
+      'Must skip auto-injecting collection ink pill when .life-tab-brush-glider / [data-custom-glider] exists',
+    );
+    assert.equal(
+      lifeDom.window.document.querySelectorAll('#life-tab-brush-glider').length,
+      1,
+      'Preserves single custom brush glider on /life',
+    );
+  } finally {
+    lifeDom.window.close();
+  }
+});

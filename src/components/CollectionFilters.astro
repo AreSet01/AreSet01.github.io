@@ -28,7 +28,7 @@
 
     roots.forEach((root) => {
       const tabsWrap = root.querySelector<HTMLElement>('.collection-category-tabs');
-      if (!tabsWrap) return;
+      if (!tabsWrap || tabsWrap.querySelector('.life-tab-brush-glider, [data-custom-glider]')) return;
 
       const tabs = Array.from(tabsWrap.querySelectorAll<HTMLElement>('[data-category-tab]'));
       if (tabs.length === 0) return;
@@ -90,10 +90,18 @@
         if (!m) return;
 
         if (!animate || reduceMotion) {
-          pill.classList.add('is-instant');
+          if (!pill.classList.contains('is-instant')) {
+            pill.classList.add('is-instant');
+          }
           applyBoxTransform(pill, m, 1);
           pill.style.opacity = '1';
-          requestAnimationFrame(() => pill.classList.remove('is-instant'));
+          if (!reduceMotion) {
+            requestAnimationFrame(() => {
+              if (pill.classList.contains('is-instant')) {
+                pill.classList.remove('is-instant');
+              }
+            });
+          }
           return;
         }
 
@@ -101,10 +109,14 @@
         // 水墨灌注拉伸质感：横向跨距越大，运笔飞白微张越明显，落定后自然收拢
         const dist = prevIdx >= 0 && metrics[prevIdx] ? Math.abs(m.x - metrics[prevIdx].x) : 0;
         if (dist > 24) {
-          pill.classList.add('is-gliding');
+          if (!pill.classList.contains('is-gliding')) {
+            pill.classList.add('is-gliding');
+          }
           window.clearTimeout(pulseTimer);
           pulseTimer = window.setTimeout(() => {
-            pill.classList.remove('is-gliding');
+            if (pill.classList.contains('is-gliding')) {
+              pill.classList.remove('is-gliding');
+            }
           }, 360);
         }
         applyBoxTransform(pill, m, 1);
@@ -156,8 +168,15 @@
         { signal },
       );
 
-      // 监听外部页面脚本切换 .is-active，自动驱动水墨游标滑移并隐藏残余浅晕
-      const mo = new MutationObserver(() => {
+      // 监听外部页面脚本切换按钮 .is-active，自动驱动水墨游标滑移并隐藏残余浅晕（仅响应按钮目标，严禁游标自身 class 变更微任务自激）
+      const mo = new MutationObserver((mutations) => {
+        if (
+          !mutations.some(
+            (m) => m.target instanceof HTMLElement && m.target.hasAttribute('data-category-tab'),
+          )
+        ) {
+          return;
+        }
         whisper.style.opacity = '0';
         syncActivePill(true);
       });

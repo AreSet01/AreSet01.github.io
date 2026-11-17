@@ -91,7 +91,7 @@ const countByCategory = {
 
       <!-- 一级分类切换 Tab（含毛笔笔触游标） -->
       <div slot="categories" class="life-category-tabs collection-category-tabs" id="life-category-tabs" data-enter="bottom" data-no-replay>
-        <span class="life-tab-brush-glider" id="life-tab-brush-glider" aria-hidden="true"></span>
+        <span class="life-tab-brush-glider" id="life-tab-brush-glider" data-custom-glider aria-hidden="true"></span>
         {categories.map((cat) => (
           <button
             type="button"

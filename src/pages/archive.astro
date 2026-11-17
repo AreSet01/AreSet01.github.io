@@ -476,10 +476,18 @@ const latestYear = years[0] ?? String(new Date().getFullYear());
       if (!m) return;
       chipsWrap.dataset.pillReady = 'true';
       if (!animate || reduceMotion) {
-        inkPill.classList.add('is-instant');
+        if (!inkPill.classList.contains('is-instant')) {
+          inkPill.classList.add('is-instant');
+        }
         setBoxTransform(inkPill, m);
         inkPill.style.opacity = '1';
-        requestAnimationFrame(() => inkPill.classList.remove('is-instant'));
+        if (!reduceMotion) {
+          requestAnimationFrame(() => {
+            if (inkPill.classList.contains('is-instant')) {
+              inkPill.classList.remove('is-instant');
+            }
+          });
+        }
       } else {
         inkPill.style.opacity = '1';
         setBoxTransform(inkPill, m);
