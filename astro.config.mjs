@@ -5,6 +5,51 @@ import remarkCjkFriendly from 'remark-cjk-friendly';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { rehypeTableScroll } from './src/utils/rehypeTableScroll.ts';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+
+const APP_BUILD_VERSION =
+  process.env.BLOG_BUILD_VERSION ||
+  `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+process.env.PUBLIC_APP_BUILD_VERSION = APP_BUILD_VERSION;
+
+function versionManifestIntegration() {
+  return {
+    name: 'areset:version-manifest',
+    hooks: {
+      'astro:server:setup'({ server }) {
+        server.middlewares.use('/version.json', (_req, res) => {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+          res.end(
+            JSON.stringify({
+              version: APP_BUILD_VERSION,
+              builtAt: new Date().toISOString(),
+              dev: true,
+            }),
+          );
+        });
+      },
+      'astro:build:done'({ dir }) {
+        const outFile = path.join(fileURLToPath(dir), 'version.json');
+        fs.writeFileSync(
+          outFile,
+          JSON.stringify(
+            {
+              version: APP_BUILD_VERSION,
+              builtAt: new Date().toISOString(),
+            },
+            null,
+            2,
+          ),
+          'utf8',
+        );
+      },
+    },
+  };
+}
 
 /**
  * Fence meta we understand, e.g.
@@ -157,6 +202,7 @@ function remarkMermaid() {  return (tree) => {
 
 export default defineConfig({
   site: 'https://AreSet01.github.io',
+  integrations: [versionManifestIntegration()],
   markdown: {
     // 让 **…** 在中文全角标点旁也能正确解析（CommonMark 的 flanking 规则在 CJK 下会失效）；
     // 必须放在 remarkMermaid 之前，确保解析阶段就挂上 micromark 扩展。
@@ -167,6 +213,9 @@ export default defineConfig({
     },
   },
   vite: {
+    define: {
+      'import.meta.env.PUBLIC_APP_BUILD_VERSION': JSON.stringify(APP_BUILD_VERSION),
+    },
     plugins: [tailwindcss()],
     server: {
       // 划词问答：本地另开一个 `npm run ask`（server/ask.mjs，默认 8787），dev 服务器把 /api 转过去

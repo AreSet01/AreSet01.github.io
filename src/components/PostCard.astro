@@ -14,10 +14,9 @@ interface Props {
 
 const { title, description, pubDate, tags = [], slug, index = 0, locked = false } = Astro.props;
 const noteNumber = String(index + 1).padStart(2, '0');
-const enterFrom = (['left', 'bottom', 'right'] as const)[index % 3];
 ---
 
-<article class="h-full" data-enter={enterFrom}>
+<article class="h-full" data-enter="card">
   <!-- The card body is a plain element so the tag links inside can be real links; the post link
        is stretched over the whole card via ::after, keeping the preview-modal behaviour. -->
   <div class="note-card group" data-tilt>

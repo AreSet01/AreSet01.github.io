@@ -45,6 +45,11 @@
 
 <script>
   import gsap from 'gsap';
+  import CustomEase from 'gsap/CustomEase';
+  import { readArticleMotion, cubicBezierPoints } from '../utils/articleMotion';
+
+  gsap.registerPlugin(CustomEase);
+  CustomEase.create('post-ink', cubicBezierPoints(readArticleMotion().layoutEase));
 
   (() => {
     // Prevent double-binding on astro page swaps
@@ -253,30 +258,30 @@
           (window as any).lenis?.stop();
         } catch {}
 
-        // Dead-man safety switch (0.8s) to guarantee UI never gets stuck
+        // Dead-man safety switch (1.8s) to guarantee UI never gets stuck
         if (safetyTimer) window.clearTimeout(safetyTimer);
         safetyTimer = window.setTimeout(() => {
           if (isTransitioning) {
             postTransition.leave();
           }
-        }, 800);
+        }, 1800);
 
         return new Promise<void>((resolve) => {
           const state = { p: 0 };
           if (animTween) animTween.kill();
 
-          // Animate paper opacity and ink blossom (snappy 0.22s bloom)
+          // Let the existing ink blossom unfold before handing off to the title.
           gsap.set(paper, { opacity: 0 });
           gsap.to(paper, {
             opacity: 1,
-            duration: 0.20,
-            ease: 'power2.in',
+            duration: 0.38,
+            ease: 'post-ink',
           });
 
           animTween = gsap.to(state, {
             p: 1,
-            duration: 0.22,
-            ease: 'power2.in',
+            duration: 0.42,
+            ease: 'post-ink',
             onUpdate: () => {
               renderScene(state.p, false);
             },
@@ -347,20 +352,19 @@
           // Softly fade paper background
           gsap.to(paper, {
             opacity: 0,
-            duration: 0.26,
-            ease: 'power2.out',
+            duration: 0.52,
+            ease: 'post-ink',
           });
 
           animTween = gsap.to(state, {
             p: 1,
-            duration: 0.28,
-            ease: 'power2.out',
+            duration: 0.56,
+            ease: 'post-ink',
             onUpdate: () => {
               renderScene(state.p, true);
-              // Defer handover to state.p >= 0.75 (~200ms) for pipeline de-confliction:
-              // At p = 0.75, ink is >75% dispersed and faded, allowing DOM-heavy post-reveal
-              // and title descent to start smoothly without competing with GPU ink expansion.
-              if (state.p >= 0.75 && !released) {
+              // Wait for both visual clearance and at least 62% of elapsed time.
+              // Eased progress alone can release the title too early.
+              if (state.p >= 0.75 && (animTween?.progress() ?? 0) >= 0.62 && !released) {
                 triggerHandover();
               }
             },

@@ -9,8 +9,8 @@ import Header from '../components/Header.astro';
     <section class="account-shell" data-account-shell>
       <header class="account-head">
         <p class="account-kicker">Account / Sync</p>
-        <h1 class="account-title">账号与笔记同步</h1>
-        <p class="account-desc">登录后，划词笔记、备注和「存入笔记」的墨问回答会跨设备同步。未登录时仍然只保存在本机。</p>
+        <h1 class="account-title">账号与数据同步</h1>
+        <p class="account-desc">登录后，划词笔记、备注、「存入笔记」的墨问回答与思维导图都会跨设备同步。未登录时仅保存在本机。</p>
       </header>
 
       <div id="authView" class="account-card">
@@ -57,7 +57,7 @@ import Header from '../components/Header.astro';
         <div class="account-sync-card">
           <div class="account-sync-card-head">
             <div class="account-sync-header-left">
-              <span class="account-label" style="margin: 0;">多设备笔记同步</span>
+              <span class="account-label" style="margin: 0;">多设备笔记与导图同步</span>
               <div class="account-sync-badge" id="syncBadge" data-state="checking">
                 <span class="sync-badge-dot"></span>
                 <span id="syncBadgeText">正在校验…</span>
@@ -126,10 +126,11 @@ import Header from '../components/Header.astro';
 
         <div class="account-actions">
           <button type="button" id="exportNotesBtn" class="account-ghost-btn">导出全部笔记 (JSON)</button>
+          <button type="button" id="exportMindmapsBtn" class="account-ghost-btn">导出全部导图 (JSON)</button>
           <a href="/" class="account-ghost-btn account-link-btn">返回首页</a>
         </div>
 
-        <p class="account-hint">提示：文章里的「笔记」抽屉可以直接添加备注、新建自由笔记；墨问回答结束后的「存入笔记」也会同步到这里。</p>
+        <p class="account-hint">提示：文章里的「笔记」抽屉与「MindMap」工作台均可离线编辑，登录后自动与云端增量合并。</p>
       </div>
     </section>
   </main>
@@ -137,8 +138,10 @@ import Header from '../components/Header.astro';
 
 <script>
   import { initNotesSync } from '../utils/notesSync';
+  import { initMindmapSync } from '../utils/mindmapSync';
 
   initNotesSync();
+  initMindmapSync();
 
   const CLEANUP_KEY = '__areSetAccountCleanup__';
 
@@ -245,7 +248,8 @@ import Header from '../components/Header.astro';
     }
 
     async function refreshSyncStatus() {
-      const sync = (window as any).__notesSync;
+      const notesSync = (window as any).__notesSync;
+      const mindmapsSync = (window as any).__mindmapsSync;
       const syncBadge = $('syncBadge');
       const syncBadgeText = $('syncBadgeText');
       const syncStatus = $('syncStatus');
@@ -253,7 +257,7 @@ import Header from '../components/Header.astro';
       const pushPendingTag = $('pushPendingTag');
       const pullIncomingTag = $('pullIncomingTag');
 
-      if (!sync || typeof sync.checkSyncStatus !== 'function') {
+      if (!notesSync || typeof notesSync.checkSyncStatus !== 'function') {
         if (syncStatus) syncStatus.textContent = '同步模块尚未就绪';
         return;
       }
@@ -262,13 +266,22 @@ import Header from '../components/Header.astro';
       if (syncBadgeText) syncBadgeText.textContent = '校验中…';
 
       try {
-        const status = await sync.checkSyncStatus();
-        if (!status.ok) {
-          if (syncBadge) syncBadge.setAttribute('data-state', status.state || 'error');
-          if (syncBadgeText) syncBadgeText.textContent = status.state === 'need-login' ? '未登录' : '校验异常';
-          if (syncStatus) syncStatus.textContent = status.message || '无法获取同步状态';
+        const [notesSt, mmSt] = await Promise.all([
+          notesSync.checkSyncStatus(),
+          mindmapsSync?.checkSyncStatus ? mindmapsSync.checkSyncStatus() : Promise.resolve(null),
+        ]);
+        if (!notesSt.ok) {
+          if (syncBadge) syncBadge.setAttribute('data-state', notesSt.state || 'error');
+          if (syncBadgeText) syncBadgeText.textContent = notesSt.state === 'need-login' ? '未登录' : '校验异常';
+          if (syncStatus) syncStatus.textContent = notesSt.message || '无法获取同步状态';
           return;
         }
+
+        const totalPending = Number(notesSt.pendingCount || 0) + Number(mmSt?.pendingCount || 0);
+        const totalIncoming = Number(notesSt.incomingCount || 0) + Number(mmSt?.incomingCount || 0);
+        const ahead = totalPending > 0;
+        const behind = totalIncoming > 0 || notesSt.state === 'behind' || notesSt.state === 'diverged' || mmSt?.state === 'behind' || mmSt?.state === 'diverged';
+        const combinedState = ahead && behind ? 'diverged' : ahead ? 'ahead' : behind ? 'behind' : 'latest';
 
         const stateLabels: Record<string, string> = {
           latest: '本地已是最新',
@@ -277,18 +290,24 @@ import Header from '../components/Header.astro';
           diverged: '需双向同步',
         };
 
-        if (syncBadge) syncBadge.setAttribute('data-state', status.state);
-        if (syncBadgeText) syncBadgeText.textContent = stateLabels[status.state] || '已校验';
-        if (syncStatus) syncStatus.textContent = status.message || '已就绪';
+        if (syncBadge) syncBadge.setAttribute('data-state', combinedState);
+        if (syncBadgeText) syncBadgeText.textContent = stateLabels[combinedState] || '已校验';
+        if (syncStatus) {
+          syncStatus.textContent = combinedState === 'latest'
+            ? '笔记与思维导图均已是最新，与云端完全同步'
+            : `待提交 ${totalPending} 项（笔记 ${notesSt.pendingCount} / 导图 ${mmSt?.pendingCount || 0}）· 待拉取 ${totalIncoming} 项`;
+        }
 
-        const lastTime = status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString('zh-CN') : '从未同步';
+        const lastSyncAt = Math.max(Number(notesSt.lastSyncAt || 0), Number(mmSt?.lastSyncAt || 0));
+        const lastTime = lastSyncAt ? new Date(lastSyncAt).toLocaleString('zh-CN') : '从未同步';
+        const mmRev = mmSt?.ok ? ` · 导图 rev: r${mmSt.localRev}/r${mmSt.serverRev}` : '';
         if (syncDetail) {
-          syncDetail.textContent = `本地版本: r${status.localRev} · 云端版本: r${status.serverRev} · 待提交: ${status.pendingCount} 条 · 待拉取: ${status.incomingCount} 条 · 上次同步: ${lastTime}`;
+          syncDetail.textContent = `笔记: r${notesSt.localRev}/r${notesSt.serverRev}${mmRev} · 待提交: ${totalPending} · 待拉取: ${totalIncoming} · 上次同步: ${lastTime}`;
         }
 
         if (pushPendingTag) {
-          if (status.pendingCount > 0) {
-            pushPendingTag.textContent = `${status.pendingCount} 条待提交`;
+          if (totalPending > 0) {
+            pushPendingTag.textContent = `${totalPending} 项待提交`;
             pushPendingTag.removeAttribute('hidden');
           } else {
             pushPendingTag.setAttribute('hidden', '');
@@ -296,8 +315,8 @@ import Header from '../components/Header.astro';
         }
 
         if (pullIncomingTag) {
-          if (status.incomingCount > 0) {
-            pullIncomingTag.textContent = `${status.incomingCount} 条新内容`;
+          if (totalIncoming > 0) {
+            pullIncomingTag.textContent = `${totalIncoming} 项新内容`;
             pullIncomingTag.removeAttribute('hidden');
           } else {
             pullIncomingTag.setAttribute('hidden', '');
@@ -360,7 +379,10 @@ import Header from '../components/Header.astro';
           return;
         }
         showProfile(data.user);
-        await (window as any).__notesSync?.syncNow?.({ migrate: true });
+        await Promise.all([
+          (window as any).__notesSync?.syncNow?.({ migrate: true }),
+          (window as any).__mindmapsSync?.syncNow?.({ migrate: true }),
+        ]);
       } finally {
         if (submit) submit.disabled = false;
       }
@@ -390,7 +412,10 @@ import Header from '../components/Header.astro';
           return;
         }
         showProfile(data.user);
-        await (window as any).__notesSync?.syncNow?.({ migrate: true });
+        await Promise.all([
+          (window as any).__notesSync?.syncNow?.({ migrate: true }),
+          (window as any).__mindmapsSync?.syncNow?.({ migrate: true }),
+        ]);
       } finally {
         if (submit) submit.disabled = false;
       }
@@ -414,21 +439,26 @@ import Header from '../components/Header.astro';
     }, { signal });
 
     $('pushSyncBtn')?.addEventListener('click', async () => {
-      const sync = (window as any).__notesSync;
-      if (!sync || typeof sync.pushSync !== 'function') {
+      const notesSync = (window as any).__notesSync;
+      const mindmapsSync = (window as any).__mindmapsSync;
+      if (!notesSync || typeof notesSync.pushSync !== 'function') {
         setFeedback('同步模块尚未加载', 'error');
         return;
       }
       const btn = $('pushSyncBtn') as HTMLButtonElement | null;
       if (btn) btn.disabled = true;
-      setFeedback('正在提交本地修改到云端…', 'info');
+      setFeedback('正在提交本地笔记与导图到云端…', 'info');
       try {
-        const res = await sync.pushSync();
-        if (res.ok) {
-          setFeedback(res.pushedCount > 0 ? `✓ ${res.message}` : '本地暂无待提交的更改（已最新）', 'ok');
+        const [nRes, mRes] = await Promise.all([
+          notesSync.pushSync(),
+          mindmapsSync?.pushSync ? mindmapsSync.pushSync() : Promise.resolve({ ok: true, pushedCount: 0 }),
+        ]);
+        if (nRes.ok && mRes.ok) {
+          const totalPushed = (nRes.pushedCount || 0) + (mRes.pushedCount || 0);
+          setFeedback(totalPushed > 0 ? `✓ 提交完成（笔记 ${nRes.pushedCount || 0} 条 · 导图 ${mRes.pushedCount || 0} 张）` : '本地暂无待提交的更改（已最新）', 'ok');
           await refreshSyncStatus();
         } else {
-          setFeedback(`提交失败：${res.reason || '网络错误'}`, 'error');
+          setFeedback(`提交失败：${(!nRes.ok ? nRes.reason : mRes.reason) || '网络错误'}`, 'error');
         }
       } catch (err: any) {
         setFeedback(`提交异常：${err?.message || '未知错误'}`, 'error');
@@ -438,21 +468,26 @@ import Header from '../components/Header.astro';
     }, { signal });
 
     $('pullSyncBtn')?.addEventListener('click', async () => {
-      const sync = (window as any).__notesSync;
-      if (!sync || typeof sync.pullSync !== 'function') {
+      const notesSync = (window as any).__notesSync;
+      const mindmapsSync = (window as any).__mindmapsSync;
+      if (!notesSync || typeof notesSync.pullSync !== 'function') {
         setFeedback('同步模块尚未加载', 'error');
         return;
       }
       const btn = $('pullSyncBtn') as HTMLButtonElement | null;
       if (btn) btn.disabled = true;
-      setFeedback('正在从云端拉取多设备最新笔记…', 'info');
+      setFeedback('正在从云端拉取最新笔记与导图…', 'info');
       try {
-        const res = await sync.pullSync();
-        if (res.ok) {
-          setFeedback(res.pulledCount > 0 ? `✓ ${res.message}` : '✓ 云端暂无新内容，本地已是最新', 'ok');
+        const [nRes, mRes] = await Promise.all([
+          notesSync.pullSync(),
+          mindmapsSync?.pullSync ? mindmapsSync.pullSync() : Promise.resolve({ ok: true, pulledCount: 0 }),
+        ]);
+        if (nRes.ok && mRes.ok) {
+          const totalPulled = (nRes.pulledCount || 0) + (mRes.pulledCount || 0);
+          setFeedback(totalPulled > 0 ? `✓ 拉取完成（笔记 ${nRes.pulledCount || 0} 条 · 导图 ${mRes.pulledCount || 0} 张）` : '✓ 云端暂无新内容，本地已是最新', 'ok');
           await refreshSyncStatus();
         } else {
-          setFeedback(`拉取失败：${res.reason || '网络错误'}`, 'error');
+          setFeedback(`拉取失败：${(!nRes.ok ? nRes.reason : mRes.reason) || '网络错误'}`, 'error');
         }
       } catch (err: any) {
         setFeedback(`拉取异常：${err?.message || '未知错误'}`, 'error');
@@ -462,8 +497,9 @@ import Header from '../components/Header.astro';
     }, { signal });
 
     $('syncNowBtn')?.addEventListener('click', async () => {
-      const sync = (window as any).__notesSync;
-      if (!sync || typeof sync.syncNow !== 'function') {
+      const notesSync = (window as any).__notesSync;
+      const mindmapsSync = (window as any).__mindmapsSync;
+      if (!notesSync || typeof notesSync.syncNow !== 'function') {
         setFeedback('同步模块尚未加载', 'error');
         return;
       }
@@ -471,12 +507,18 @@ import Header from '../components/Header.astro';
       if (btn) btn.disabled = true;
       setFeedback('正在进行双向全量同步…', 'info');
       try {
-        const res = await sync.syncNow({ migrate: true });
-        if (res.ok) {
-          setFeedback(`✓ 双向同步完成（提交 ${res.pushedCount || 0} 条，拉取 ${res.pulledCount || 0} 条）`, 'ok');
+        const [nRes, mRes] = await Promise.all([
+          notesSync.syncNow({ migrate: true }),
+          mindmapsSync?.syncNow ? mindmapsSync.syncNow({ migrate: true }) : Promise.resolve({ ok: true, pushedCount: 0, pulledCount: 0 }),
+        ]);
+        if (nRes.ok && mRes.ok) {
+          setFeedback(
+            `✓ 双向同步完成（提交 笔记${nRes.pushedCount || 0}/导图${mRes.pushedCount || 0}，拉取 笔记${nRes.pulledCount || 0}/导图${mRes.pulledCount || 0}）`,
+            'ok'
+          );
           await refreshSyncStatus();
         } else {
-          setFeedback(`同步失败：${res.reason || '网络错误'}`, 'error');
+          setFeedback(`同步失败：${(!nRes.ok ? nRes.reason : mRes.reason) || '网络错误'}`, 'error');
         }
       } catch (err: any) {
         setFeedback(`同步异常：${err?.message || '未知错误'}`, 'error');
@@ -486,6 +528,9 @@ import Header from '../components/Header.astro';
     }, { signal });
 
     window.addEventListener('article-notes:synced', () => {
+      void refreshSyncStatus();
+    }, { signal });
+    window.addEventListener('mindmaps:synced', () => {
       void refreshSyncStatus();
     }, { signal });
 
@@ -500,6 +545,21 @@ import Header from '../components/Header.astro';
       const link = document.createElement('a');
       link.href = url;
       link.download = `notes-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }, { signal });
+
+    $('exportMindmapsBtn')?.addEventListener('click', async () => {
+      const { res, data } = await api('/api/mindmaps/export');
+      if (!res.ok) {
+        if (syncStatus) syncStatus.textContent = data.error || '导图导出失败';
+        return;
+      }
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `mindmaps-${new Date().toISOString().slice(0, 10)}.json`;
       link.click();
       URL.revokeObjectURL(url);
     }, { signal });
@@ -600,17 +660,18 @@ import Header from '../components/Header.astro';
     padding: 1.4rem;
     box-shadow: var(--glass-shadow);
     opacity: 0;
-    transform: translate3d(0, 14px, 0);
+    transform: translate3d(0, 24px, 0) scale(0.985);
+    transform-origin: 50% 70%;
     transition:
-      opacity 700ms cubic-bezier(0.16, 1, 0.3, 1) 150ms,
-      transform 760ms cubic-bezier(0.16, 1, 0.3, 1) 150ms,
-      box-shadow 260ms ease,
-      border-color 260ms ease;
+      opacity 460ms var(--ease-card) 120ms,
+      transform 760ms var(--ease-card) 120ms,
+      box-shadow 420ms var(--ease-card),
+      border-color 320ms var(--ease-card);
   }
 
   .account-shell.is-ready .account-card {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 
   .account-card::before {

@@ -9,6 +9,7 @@
   import { renderMarkdown, domRangeToMarkdown } from '../utils/inkAskMarkdown';
   import { makeResizable, loadPanelSize } from '../utils/panelResize';
   import { bindScrollIsolation } from '../utils/scrollIsolation';
+  import { readArticleMotion } from '../utils/articleMotion';
   import { lockScrollAnchor } from '../utils/scrollAnchorLock';
 
   const ENDPOINT = '/api/ask';
@@ -48,6 +49,7 @@
   let sidebarDrawer: HTMLElement | null = null;
   let sidebarOverlay: HTMLElement | null = null;
   let sidebarController: AbortController | null = null;
+  let sidebarCloseVersion = 0;
   let recallActiveDrawerTurn: (() => void) | null = null;
 
   const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -768,9 +770,9 @@
           { transform: `translate(calc(-50% + ${dxEnd}px), calc(-50% + ${dyEnd}px)) scale(0.28)`, opacity: 0 },
         ],
         {
-          duration: 440,
+          duration: 600,
           delay: idx * 24,
-          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+          easing: readArticleMotion().surfaceEase,
           fill: 'forwards',
         }
       );
@@ -1378,7 +1380,7 @@
 
       const toggleDrawerMaximize = () => {
         if (!sidebarDrawer) return;
-        lockScrollAnchor(400);
+        lockScrollAnchor(readArticleMotion().panelMs + 100);
 
         const first = sidebarDrawer.getBoundingClientRect();
         const isMax = !sidebarDrawer.classList.contains('is-maximized');
@@ -1391,7 +1393,7 @@
         sidebarDrawer.style.transform = `translate3d(${dx}px, 0, 0) scale(0.96)`;
         void sidebarDrawer.offsetHeight;
 
-        sidebarDrawer.style.transition = 'transform 380ms cubic-bezier(0.16, 1, 0.3, 1)';
+        sidebarDrawer.style.transition = 'transform var(--article-duration-panel) var(--article-ease-layout)';
         sidebarDrawer.style.transform = 'translate3d(0, 0, 0) scale(1)';
 
         const onEnd = (e: TransitionEvent) => {
@@ -1406,7 +1408,7 @@
           sidebarDrawer.style.transition = '';
           sidebarDrawer.style.transform = '';
           sidebarDrawer.removeEventListener('transitionend', onEnd);
-        }, 420);
+        }, readArticleMotion().panelMs + 80);
       };
       drawerMaxBtn?.addEventListener('click', toggleDrawerMaximize);
       drawerHead?.addEventListener('dblclick', (e) => {
@@ -1797,12 +1799,13 @@
   }
 
   function openSidebar(opts?: { silent?: boolean } | Event) {
+    sidebarCloseVersion++;
     const isSilent = Boolean(opts && !(opts instanceof Event) && opts.silent);
     ensureSidebar();
     setWelcomeEpigraph(sidebarDrawer?.querySelector<HTMLElement>('.ink-ask-welcome-epigraph'));
     const wasOpen = Boolean(sidebarDrawer?.classList.contains('is-open'));
 
-    lockScrollAnchor(500);
+    lockScrollAnchor(readArticleMotion().panelMs + 100);
 
     if (isSilent && sidebarDrawer) {
       sidebarDrawer.style.transition = 'none';
@@ -1825,7 +1828,7 @@
             { clipPath: 'circle(8% at 88% 6%)', opacity: 0.38 },
             { clipPath: 'circle(145% at 88% 6%)', opacity: 1 },
           ],
-          { duration: 400, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+          { duration: readArticleMotion().panelMs, easing: readArticleMotion().surfaceEase }
         );
         if (!sidebarDrawer.classList.contains('has-turns')) {
           const welcomeEl = sidebarDrawer.querySelector<HTMLElement>('.ink-ask-drawer-welcome');
@@ -1846,8 +1849,9 @@
   }
 
   function closeSidebar(opts?: { instant?: boolean } | Event) {
+    const closeVersion = ++sidebarCloseVersion;
     const isInstant = Boolean(opts && !(opts instanceof Event) && opts.instant);
-    lockScrollAnchor(500);
+    lockScrollAnchor(readArticleMotion().panelMs + 100);
     const wasMax = sidebarDrawer?.classList.contains('is-maximized');
 
     if (isInstant && sidebarDrawer) {
@@ -1876,6 +1880,7 @@
     window.dispatchEvent(new CustomEvent('companion:panel', { detail: { kind: 'ask', open: false } }));
 
     setTimeout(() => {
+      if (closeVersion !== sidebarCloseVersion) return;
       if (sidebarDrawer?.classList.contains('is-open')) return;
       if (wasMax && sidebarDrawer) {
         sidebarDrawer.classList.remove('is-maximized');
@@ -1886,7 +1891,7 @@
           maxBtn.dataset.tip = '全屏展开';
         }
       }
-    }, 340);
+    }, reduceMotion() ? 0 : readArticleMotion().panelMs + 40);
   }
 
   function toggleSidebar() {
@@ -3149,7 +3154,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.45rem 0.95rem 0.45rem 0.75rem;
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     background: var(--glass-bg);
     border: 1px solid var(--rule-strong);
     box-shadow:
@@ -3225,8 +3230,8 @@
       transform: translate3d(calc(100% + 2.5rem), 0, 0) scale(0.985);
       opacity: 0;
       transition:
-        transform 380ms cubic-bezier(0.16, 1, 0.3, 1),
-        opacity 260ms cubic-bezier(0.16, 1, 0.3, 1);
+        transform var(--article-duration-panel) var(--article-ease-layout),
+        opacity var(--article-duration-fade) var(--article-ease-surface);
       font-family: var(--font-hand);
       overflow: hidden;
       overscroll-behavior: contain;
@@ -3286,7 +3291,7 @@
       backdrop-filter: blur(24px) saturate(180%);
       -webkit-backdrop-filter: blur(24px) saturate(180%);
       transform: translate3d(0, 100%, 0);
-      transition: transform 380ms cubic-bezier(0.16, 1, 0.3, 1);
+      transition: transform var(--article-duration-panel) var(--article-ease-layout);
       font-family: var(--font-hand);
       overflow: hidden;
     }

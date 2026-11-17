@@ -94,7 +94,7 @@ test('Markup & Structure: gallery.astro provides white-mat mount borders and dar
   assert.ok(galleryContent.includes('data-enter="left"'), 'Title must have data-enter="left"');
   assert.ok(galleryContent.includes('data-enter="stamp"'), 'Stats must have data-enter="stamp"');
   assert.ok(galleryContent.includes('data-enter="bottom"'), 'Tabs/Search must have data-enter="bottom"');
-  assert.ok(galleryContent.includes('data-enter={enterFrom}'), 'Cards must have data-enter');
+  assert.ok(galleryContent.includes('data-enter="card"'), 'Cards must use the shared soft card entrance');
   assert.ok(!galleryContent.includes('class="gallery-title-seal"'), 'Title must not feature red seal stamp');
 
   // 2. Stats odometer counter
@@ -165,9 +165,11 @@ test('Gallery Scheme B Animations: Clean typography & Full consistency with /lif
   assert.ok(galleryContent.includes("CustomEase.create('enter'"), 'Must register enter custom ease');
   assert.ok(galleryContent.includes("CustomEase.create('ink'"), 'Must register ink custom ease');
 
-  // Calligraphy scroll unfurling clip-path stages
-  assert.ok(galleryContent.includes("inset(0 100% 0 0)"), 'Must include scroll roll-up clip-path');
-  assert.ok(galleryContent.includes("inset(0 0% 0 0)"), 'Must include scroll unfurl clip-path');
+  // Shared soft card motion: vertical rise + fade, never a horizontal clip wipe
+  assert.ok(galleryContent.includes('addCardEnter('), 'Must include shared card entrance');
+  assert.ok(galleryContent.includes('addCardExit('), 'Must include shared card exit');
+  assert.ok(!galleryContent.includes("inset(0 100% 0 0)"), 'Must not restore the horizontal clip wipe');
+  assert.ok(!galleryContent.includes('x: -16'), 'Must not restore sideways card flight');
 
   // Card seal stamps removed per user request for clean aesthetic
   assert.ok(!galleryContent.includes('class="gallery-card-seal"'), 'Gallery cards must not feature card seal stamps');
@@ -194,9 +196,11 @@ test('Gallery Interactive Consistency & Architecture: BaseLayout integration and
   const galleryContent = fs.readFileSync(path.join(rootDir, 'src/pages/gallery.astro'), 'utf-8');
   const baseLayoutContent = fs.readFileSync(path.join(rootDir, 'src/layouts/BaseLayout.astro'), 'utf-8');
 
-  // 1. Scroll re-entry handled naturally by BaseLayout triggers (no data-no-replay)
+  // 1. Cards replay on scroll; the search and filter bars enter once per page visit.
+  const cardOpeningTag = galleryContent.match(/<article\b[^>]*class="gallery-mat-card[^>]*>/)?.[0];
+  assert.ok(cardOpeningTag, 'Gallery card markup must exist');
   assert.ok(
-    !galleryContent.includes('data-no-replay'),
+    !cardOpeningTag.includes('data-no-replay'),
     'Gallery cards must not declare data-no-replay so BaseLayout can manage scroll entrance'
   );
 
@@ -256,16 +260,16 @@ test('Gallery Lightbox Animations & Sidebar Layout Robustness', () => {
     'openLightbox must not use outdated non-existent .lightbox-drawer class'
   );
   assert.ok(
-    galleryContent.includes('back.out(1.4)') || galleryContent.includes('back.out(1.5)'),
-    'openLightbox must use spring rise choreography for main stage container'
+    galleryContent.includes("ease: 'gallery-layout'") && !galleryContent.includes('back.out('),
+    'Lightbox expansion should settle smoothly without a rebound'
   );
   assert.ok(
     galleryContent.includes('power2.in'),
     'closeLightbox must use power2.in choreography for smooth exit transition'
   );
   assert.ok(
-    galleryContent.includes('filter: blur(10px)') || galleryContent.includes("filter: 'blur(10px)'"),
-    'openLightbox must unfurl photo from ink blur'
+    galleryContent.includes('measureLightboxDestination()') && !galleryContent.includes("filter: 'blur(10px)'"),
+    'Lightbox must use measured dimensions and keep the photo sharp'
   );
   assert.ok(
     !galleryContent.includes('lightbox-seal'),
@@ -276,14 +280,14 @@ test('Gallery Lightbox Animations & Sidebar Layout Robustness', () => {
     'Lightbox top-bar must not have duplicate prev button (stage arrows handle navigation)'
   );
 
-  // 2. Sidebar Navigation balanced layout & overflow protection
+  // 2. Keep the sidebar reachable in short windows and share its width with the inner content.
   assert.ok(
-    headerContent.includes('overflow-y: hidden !important'),
-    'Header.astro must enforce overflow-y: hidden on desktop to prevent accidental scrolling'
+    headerContent.includes('overflow-y: auto !important'),
+    'Sidebar navigation must remain scrollable when the viewport cannot fit every item'
   );
   assert.ok(
-    headerContent.includes('clamp(15.5rem, 20vw, 19rem)'),
-    'Header.astro must use balanced, substantial sidebar width'
+    headerContent.includes('width: var(--sidebar-width)'),
+    'Sidebar and inner content must share the responsive width'
   );
   assert.ok(
     headerContent.includes('nav.scrollTop = 0') && headerContent.includes('requestAnimationFrame(resetScroll)'),

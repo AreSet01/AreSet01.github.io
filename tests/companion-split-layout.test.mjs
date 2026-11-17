@@ -214,7 +214,7 @@ test('6. global.css：留白画框容器、恒定左墨问·右笔记并排几�
     /html\[data-companion-mode="split"\] \.article-notes-drawer \{[\s\S]{0,220}?left: calc\(var\(--companion-frame-pad\) \+ var\(--companion-split\) \* var\(--companion-inner-w\) \+ 14px\) !important;/,
     '右卷恒为高亮笔记，紧贴 14px 分隔缝右侧'
   );
-  assert.match(css, /html\[data-companion-mode="split"\] \.site-shell > main \{[\s\S]{0,160}?padding-right: clamp\(1\.5rem, 3vw, 2\.5rem\) !important;/, '并排时正文不再让位');
+  assert.doesNotMatch(css, /html\[data-companion-mode="split"\] \.site-shell > main\s*\{/, '并排开合保留阅读列宽度，避免背景正文连续重排');
 
   // 彻底杜绝双浮岛同开把正文挤成窄条，且不得在并排面板写死 transform: none !important 阻断 WAAPI 过渡
   assert.ok(!css.includes('html[data-companion-both="true"]'), '绝不得保留双浮岛同开挤压正文的旧 CSS 规则');

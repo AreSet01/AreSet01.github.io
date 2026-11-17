@@ -7,10 +7,9 @@ const rootDir = path.resolve(import.meta.dirname, '..');
 const readPage = (rel) => fs.readFileSync(path.join(rootDir, rel), 'utf-8');
 
 /**
- * 三页的「筛到 0 条」必须是同一条时间线：
- *   ① 钉高 → ② 视口回流筛选栏 → ③ 卷收 → ④ 换骨 + 空面板浮现 → ⑤ 高度塌缩收尾
- * gallery.astro 是基准实现，notes / life 逐字对齐。这里把两边共用的常量钉死，
- * 任何一页单独改手感都会让测试失败，从而逼出「三页一起改」。
+ * 三页的「筛到 0 条」必须是同一条柔和时间线：
+ *   ① 钉高 → ② 视口回流筛选栏 → ③ 卡片轻微下沉淡出 → ④ 换骨 + 空面板浮现 → ⑤ 高度塌缩收尾
+ * 三页共用 src/utils/cardMotion.ts 的进退场参数，禁止任何一页单独回退到横向卷收。
  */
 const PAGES = {
   gallery: readPage('src/pages/gallery.astro'),
@@ -24,20 +23,19 @@ const SHARED_CONSTANTS = [
   // ② 视口回流到筛选栏
   ['offset: -90', '回滚锚点偏移必须与 gallery 一致'],
   ['duration: 0.65', '回滚时长必须与 gallery 一致'],
-  // ③ 卷轴卷收
-  ["clipPath: 'inset(0 100% 0 0)'", '卡片卷收必须用 clip-path'],
-  ['duration: 0.28', '卷收时长必须与 gallery 一致'],
-  ['stagger: 0.02', '卷收交错必须与 gallery 一致'],
-  // ④ 空面板浮现
-  ['{ opacity: 0, y: 16, scale: 0.98 }', '空面板必须从 y16 / scale .98 起浮'],
-  ["{ opacity: 1, y: 0, scale: 1, duration: 0.42, ease: 'power2.out' }", '空面板浮现时长与缓动必须与 gallery 一致'],
+  // ③ 卡片离场：共享轻量下沉淡出，不再横向裁切
+  ['addCardExit(tl,', '卡片离场必须走共享的 addCardExit'],
+  ['cardExitDuration(', '换骨时刻必须由共享的 cardExitDuration 计算'],
+  // ④ 空面板浮现：与卡片入场共用同一套姿势
+  ['setCardEnterState(', '空面板必须使用共享的 setCardEnterState'],
+  ['addCardEnter(', '空面板必须使用共享的 addCardEnter'],
   // ⑤ 高度塌缩
   ['duration: 0.55', '塌缩时长必须与 gallery 一致'],
-  ["ease: 'power2.inOut'", '塌缩缓动必须与 gallery 一致'],
+  ['minHeight: 0,', '塌缩 tween 必须以 minHeight: 0 收尾'],
   ["container.style.minHeight = '0px';", '塌缩结束后必须把钉高落到 0'],
 ];
 
-test('空状态动效：gallery / notes / life 共用同一套时间线与常量', () => {
+test('空状态动效：gallery / notes / life 共用同一套柔和卡片时间线', () => {
   for (const [name, src] of Object.entries(PAGES)) {
     for (const [needle, reason] of SHARED_CONSTANTS) {
       assert.ok(src.includes(needle), `${name}.astro 缺少 "${needle}"：${reason}`);
@@ -46,6 +44,8 @@ test('空状态动效：gallery / notes / life 共用同一套时间线与常量
       src.includes('window.scrollY > 80') || src.includes('window.scrollY <= 80'),
       `${name}.astro 必须按 gallery 的 scrollY > 80 阈值决定是否回滚视口`
     );
+    assert.ok(!src.includes("clipPath: 'inset(0 100% 0 0)'"), `${name}.astro 不应再使用横向卷收`);
+    assert.ok(!src.includes('x: -16'), `${name}.astro 不应再横向飞入`);
   }
 });
 
@@ -54,11 +54,11 @@ test('notes / life：塌缩期间禁止强制钳制滚动，且 is-empty 只在�
     const src = PAGES[name];
 
     assert.ok(
-      src.includes('function refreshScroll(clamp = true)'),
-      `${name}.astro 的 refreshScroll 必须支持关闭强制钳制（塌缩期间逐帧钳制会让整页跳动）`
+      src.includes('{ clamp?: boolean }') && src.includes('options.clamp !== false'),
+      `${name}.astro 的 refreshScroll 必须真正识别 { clamp: false }（对象参数曾被当作 truthy）`
     );
     assert.ok(
-      src.includes("refreshScroll({ clamp: false })"),
+      src.includes('refreshScroll({ clamp: false })'),
       `${name}.astro 的塌缩阶段必须用 refreshScroll({ clamp: false })`
     );
     assert.ok(
@@ -79,13 +79,13 @@ test('notes / life：塌缩期间禁止强制钳制滚动，且 is-empty 只在�
   }
 });
 
-test('notes / life：空分支把卷收、浮现、塌缩排在同一时间点上，并整体挂进 filterTimeline', () => {
+test('notes / life：空分支把淡出、空面板浮现、塌缩排在同一时间点并挂进 filterTimeline', () => {
   for (const name of ['notes', 'life']) {
     const src = PAGES[name];
     assert.match(
       src,
-      /const switchTime = 0\.28 \+ Math\.min\(/,
-      `${name}.astro 必须用与 gallery 一致的 switchTime（0.28 + 交错尾长）作为换骨时刻`
+      /const switchTime = cardExitDuration\(/,
+      `${name}.astro 必须用共享的 cardExitDuration 作为换骨时刻`
     );
     assert.match(
       src,

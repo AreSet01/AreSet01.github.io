@@ -30,6 +30,8 @@
 </div>
 
 <script>
+  import { readArticleMotion } from '../utils/articleMotion';
+  import { createCompanionLayoutMotion } from '../utils/companionLayoutMotion';
   import {
     clampSplitRatio,
     ratioFromPointer,
@@ -91,6 +93,7 @@
 
     const controller = new AbortController();
     const { signal } = controller;
+    const layoutMotion = createCompanionLayoutMotion();
 
     const isWide = () => window.innerWidth >= DESKTOP;
     const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -129,7 +132,7 @@
       }
     }
 
-    function runAnim(el: HTMLElement | null | undefined, keyframes: Keyframe[], duration = 380, easing = 'cubic-bezier(0.16, 1, 0.3, 1)') {
+    function runAnim(el: HTMLElement | null | undefined, keyframes: Keyframe[], duration = readArticleMotion().panelMs, easing = readArticleMotion().layoutEase) {
       if (!el || reduceMotion() || typeof el.animate !== 'function') return;
       cancelPanelAnim(el);
       const anim = el.animate(keyframes, { duration, easing });
@@ -317,15 +320,9 @@
       }
     }
 
-    function captureOpenRect(kind: Kind): DOMRect | null {
-      const p = panels[kind];
-      if (!p || !p.api.isOpen()) return null;
-      const r = p.el.getBoundingClientRect();
-      return r.width > 0 && r.height > 0 ? r : null;
-    }
-
     // ---------------------------------------------------------------- 单栏原位互切（浮岛 / 单全屏）
     function switchPanel(targetKind: Kind) {
+      layoutMotion.finish();
       ensureMounted(targetKind);
       const target = panels[targetKind];
       if (!target) return;
@@ -340,7 +337,7 @@
       const wantFull = mode === 'ask-full' || mode === 'notes-full';
       const wasOtherOpen = Boolean(other?.api.isOpen());
       // 左墨问 · 右笔记：切向笔记则新卷自右展卷，切向墨问则新卷自左展卷
-      const dirX = targetKind === 'notes' ? 28 : -28;
+      const dirX = targetKind === 'notes' ? 18 : -18;
       const clipFrom = targetKind === 'notes' ? 'inset(0 0% 0 24%)' : 'inset(0 24% 0 0%)';
 
       const prevActiveSegBtn = other?.el.querySelector<HTMLElement>(
@@ -382,7 +379,7 @@
                 opacity: 0,
                 clipPath: clipFrom,
                 transform: `translate3d(${dirX}px, 0, 0)`,
-                filter: 'blur(4px)',
+                filter: 'blur(2px)',
               },
               {
                 opacity: 1,
@@ -391,8 +388,8 @@
                 filter: 'blur(0px)',
               },
             ],
-            340 + idx * 24,
-            'cubic-bezier(0.16, 1, 0.3, 1)'
+            480 + idx * 30,
+            readArticleMotion().layoutEase
           );
         });
       } else {
@@ -408,44 +405,24 @@
       const other: Kind = kind === 'notes' ? 'ask' : 'notes';
       const otherPanel = panels[other];
 
-      const firstRect = captureOpenRect(kind) || captureOpenRect(other);
-
-      guarded(() => {
-        if (otherPanel?.api.isOpen()) {
-          otherPanel.api.setFull(false, { silent: true });
-          otherPanel.api.close({ instant: true });
-        }
-        if (!target.api.isOpen()) {
-          target.api.open({ silent: true });
-        }
-        target.api.setFull(true, { silent: true });
-      });
-
       lastActiveKind = kind;
       mode = kind === 'notes' ? 'notes-full' : 'ask-full';
-      apply();
-
-      if (!reduceMotion()) {
-        const lastRect = target.el.getBoundingClientRect();
-        const dx = firstRect
-          ? Math.round((firstRect.left + firstRect.width / 2 - (lastRect.left + lastRect.width / 2)) * 0.52)
-          : 0;
-        runAnim(
-          target.el,
-          [
-            {
-              opacity: firstRect ? 0.92 : 0,
-              transform: `translate3d(${dx}px, 0, 0) scale(0.955)`,
-            },
-            {
-              opacity: 1,
-              transform: 'translate3d(0, 0, 0) scale(1)',
-            },
-          ],
-          360,
-          'cubic-bezier(0.16, 1, 0.3, 1)'
-        );
-      }
+      const moving = [{ panel: target.el, entering: !target.api.isOpen(), leaving: false, direction: kind === 'ask' ? -1 : 1 }];
+      if (otherPanel) moving.push({ panel: otherPanel.el, entering: !otherPanel.api.isOpen(), leaving: true, direction: other === 'ask' ? -1 : 1 });
+      layoutMotion.transitionMany(moving, () => {
+        root.setAttribute('data-companion-mode', mode);
+        guarded(() => {
+          if (otherPanel?.api.isOpen()) {
+            otherPanel.api.setFull(false, { silent: true });
+            otherPanel.api.close({ instant: true });
+          }
+          if (!target.api.isOpen()) {
+            target.api.open({ silent: true });
+          }
+          target.api.setFull(true, { silent: true });
+        });
+        apply();
+      });
     }
 
     // ---------------------------------------------------------------- 双卷并排（恒定左墨问 · 右笔记）
@@ -464,97 +441,27 @@
       }
       ensureMounted('ask');
       ensureMounted('notes');
-
-      const askFirst = captureOpenRect('ask');
-      const notesFirst = captureOpenRect('notes');
-
       lastActiveKind = initiator;
       mode = 'split';
-      apply();
-
-      guarded(() => {
-        (['ask', 'notes'] as Kind[]).forEach((kind) => {
-          const panel = panels[kind];
-          if (!panel) return;
-          panel.api.setFull(false, { silent: true });
-          if (!panel.api.isOpen()) {
-            panel.api.open({ silent: true });
-          }
-        });
+      const moving = (['ask', 'notes'] as Kind[]).flatMap(kind => {
+        const panel = panels[kind];
+        return panel ? [{ panel: panel.el, entering: !panel.api.isOpen(), direction: kind === 'ask' ? -1 : 1 }] : [];
       });
-
-      apply();
-
-      if (!reduceMotion()) {
-        const askEl = panels.ask?.el;
-        const notesEl = panels.notes?.el;
-
-        if (askEl) {
-          const askLast = askEl.getBoundingClientRect();
-          if (askFirst) {
-            const dx = Math.round(
-              (askFirst.left + askFirst.width / 2 - (askLast.left + askLast.width / 2)) * 0.56
-            );
-            runAnim(
-              askEl,
-              [
-                { transform: `translate3d(${dx}px, 0, 0) scale(1.02)` },
-                { transform: 'translate3d(0, 0, 0) scale(1)' },
-              ],
-              380,
-              'cubic-bezier(0.16, 1, 0.3, 1)'
-            );
-          } else {
-            runAnim(
-              askEl,
-              [
-                { opacity: 0, transform: 'translate3d(56px, 0, 0) scale(0.97)' },
-                { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
-              ],
-              380,
-              'cubic-bezier(0.16, 1, 0.3, 1)'
-            );
-          }
-        }
-
-        if (notesEl) {
-          const notesLast = notesEl.getBoundingClientRect();
-          if (notesFirst) {
-            const dx = Math.round(
-              (notesFirst.left + notesFirst.width / 2 - (notesLast.left + notesLast.width / 2)) * 0.56
-            );
-            runAnim(
-              notesEl,
-              [
-                { transform: `translate3d(${dx}px, 0, 0) scale(1.02)` },
-                { transform: 'translate3d(0, 0, 0) scale(1)' },
-              ],
-              380,
-              'cubic-bezier(0.16, 1, 0.3, 1)'
-            );
-          } else {
-            runAnim(
-              notesEl,
-              [
-                { opacity: 0, transform: 'translate3d(-56px, 0, 0) scale(0.97)' },
-                { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
-              ],
-              380,
-              'cubic-bezier(0.16, 1, 0.3, 1)'
-            );
-          }
-        }
-
-        runAnim(
-          splitter,
-          [
-            { opacity: 0, transform: 'scaleY(0.18)' },
-            { opacity: 1, transform: 'scaleY(1)' },
-          ],
-          320,
-          'cubic-bezier(0.16, 1, 0.3, 1)'
-        );
-      }
+      layoutMotion.transitionMany(moving, () => {
+        apply();
+        guarded(() => {
+          (['ask', 'notes'] as Kind[]).forEach((kind) => {
+            const panel = panels[kind];
+            if (!panel) return;
+            panel.api.setFull(false, { silent: true });
+            if (!panel.api.isOpen()) {
+              panel.api.open({ silent: true });
+            }
+          });
+        });
+        apply();
+        runAnim(splitter, [{ opacity: 0 }, { opacity: 1 }], 420, readArticleMotion().surfaceEase);
+      });
     }
 
     // ---------------------------------------------------------------- 退回右侧单浮岛（绝不双浮岛挤压正文）
@@ -563,39 +470,25 @@
         preferKind ||
         (mode === 'notes-full' ? 'notes' : mode === 'ask-full' ? 'ask' : lastActiveKind || 'ask');
       const closeKind: Kind = keepKind === 'ask' ? 'notes' : 'ask';
-      const firstRect = captureOpenRect(keepKind);
-
       lastActiveKind = keepKind;
       mode = 'rail';
-
-      guarded(() => {
-        (Object.keys(panels) as Kind[]).forEach((k) => panels[k]?.api.setFull(false, { silent: true }));
-        if (panels[closeKind]?.api.isOpen()) {
-          panels[closeKind]!.api.close({ instant: true });
-        }
-        if (panels[keepKind] && !panels[keepKind]!.api.isOpen()) {
-          panels[keepKind]!.api.open({ silent: true });
-        }
-      });
-
-      apply();
-
+      const commit = () => {
+        root.setAttribute('data-companion-mode', mode);
+        guarded(() => {
+          (Object.keys(panels) as Kind[]).forEach((k) => panels[k]?.api.setFull(false, { silent: true }));
+          if (panels[closeKind]?.api.isOpen()) panels[closeKind]!.api.close({ instant: true });
+          if (panels[keepKind] && !panels[keepKind]!.api.isOpen()) panels[keepKind]!.api.open({ silent: true });
+        });
+        apply();
+      };
       const keepEl = panels[keepKind]?.el;
-      if (keepEl && firstRect && !reduceMotion()) {
-        const lastRect = keepEl.getBoundingClientRect();
-        const dx = Math.round(
-          (firstRect.left + firstRect.width / 2 - (lastRect.left + lastRect.width / 2)) * 0.42
-        );
-        runAnim(
-          keepEl,
-          [
-            { transform: `translate3d(${dx}px, 0, 0) scale(1.025)` },
-            { transform: 'translate3d(0, 0, 0) scale(1)' },
-          ],
-          340,
-          'cubic-bezier(0.16, 1, 0.3, 1)'
-        );
+      const closePanel = panels[closeKind];
+      if (keepEl) {
+        const moving = [{ panel: keepEl, entering: !panels[keepKind]!.api.isOpen(), leaving: false, direction: 1 }];
+        if (closePanel) moving.push({ panel: closePanel.el, entering: !closePanel.api.isOpen(), leaving: true, direction: closeKind === 'ask' ? -1 : 1 });
+        layoutMotion.transitionMany(moving, commit);
       }
+      else { layoutMotion.finish(); commit(); }
     }
 
     // ---------------------------------------------------------------- 监听面板自身开合事件
@@ -603,6 +496,7 @@
       if (internalDepth > 0) return;
 
       if (!open) {
+        layoutMotion.cancel();
         if (mode === 'split') {
           const other: Kind = kind === 'notes' ? 'ask' : 'notes';
           if (panels[other]?.api.isOpen()) {
@@ -610,7 +504,7 @@
             return;
           }
         }
-        if (mode !== 'rail') {
+        if (mode !== 'rail' || root.getAttribute('data-companion-mode') !== 'rail') {
           mode = 'rail';
           guarded(() => {
             (Object.keys(panels) as Kind[]).forEach((k) => panels[k]?.api.setFull(false, { silent: true }));
@@ -659,7 +553,7 @@
                   opacity: 0,
                   clipPath: clipFrom,
                   transform: `translate3d(${dirX}px, 0, 0)`,
-                  filter: 'blur(4px)',
+                  filter: 'blur(2px)',
                 },
                 {
                   opacity: 1,
@@ -668,8 +562,8 @@
                   filter: 'blur(0px)',
                 },
               ],
-              340 + idx * 24,
-              'cubic-bezier(0.16, 1, 0.3, 1)'
+              480 + idx * 30,
+              readArticleMotion().layoutEase
             );
           });
         }
@@ -877,6 +771,7 @@
     window.addEventListener(
       'resize',
       () => {
+        layoutMotion.finish();
         window.clearTimeout(resizeTimer);
         resizeTimer = window.setTimeout(() => {
           if (mode === 'split' && !isWide()) leaveToRail();
@@ -938,6 +833,7 @@
     );
 
     (window as any)[CLEANUP_KEY] = () => {
+      layoutMotion.cancel();
       controller.abort();
       delete (window as any).__companion;
       (window as any).__companionOverlayEl__ = undefined;

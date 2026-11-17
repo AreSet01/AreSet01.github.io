@@ -1,0 +1,58 @@
+<div class="collection-filters">
+  <div class="collection-filter-row">
+    <div class="collection-search" data-enter="bottom" data-no-replay>
+      <slot name="search" />
+    </div>
+    <slot name="categories" />
+  </div>
+</div>
+
+<style>
+  .collection-filters {
+    container-type: inline-size;
+    margin-block: 1.75rem;
+  }
+
+  .collection-filter-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 0.85rem 1.25rem;
+  }
+
+  .collection-search {
+    width: 100%;
+    max-width: 26rem;
+    min-width: 0;
+  }
+
+  .collection-search :global(.collection-search-field) {
+    width: 100%;
+    max-width: none;
+  }
+
+  .collection-search :global(input) {
+    min-width: 0;
+    padding: 0.65rem 2.6rem;
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  .collection-filter-row :global(.collection-category-tabs) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+    margin: 0;
+    padding: 2px 0;
+    overflow: visible;
+  }
+
+  /* Keep both pages stacked until the longer Gallery category list fits beside search. */
+  @container (min-width: 68rem) {
+    .collection-filter-row {
+      grid-template-columns: minmax(16rem, 0.8fr) minmax(0, 2fr);
+    }
+  }
+</style>

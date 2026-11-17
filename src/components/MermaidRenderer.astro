@@ -44,10 +44,14 @@
 </div>
 
 <script>
+  import { waitForPostEntrance } from '../utils/postEntranceGate';
+
   let renderCounter = 0;
   let activeSessionId = 0;
+  let renderController: AbortController | null = null;
   let globalDelegationBound = false;
-  let modalBound = false;
+  let boundModal: HTMLElement | null = null;
+  let modalController: AbortController | null = null;
 
   // Modal elements & state
   let modalScale = 1.0;
@@ -65,6 +69,7 @@
   }
 
   function openModal(title: string, svgContent: string) {
+    ensureModalBound();
     const modal = document.getElementById('mermaid-modal');
     const modalCanvas = document.getElementById('mermaid-modal-canvas');
     const modalLabel = document.getElementById('mermaid-modal-label');
@@ -117,10 +122,14 @@
   }
 
   function ensureModalBound() {
-    if (modalBound) return;
     const modal = document.getElementById('mermaid-modal');
+    if (modal === boundModal) return;
+    modalController?.abort();
+    modalController = null;
+    boundModal = modal;
     if (!modal) return;
-    modalBound = true;
+    modalController = new AbortController();
+    const { signal } = modalController;
 
     const modalContent = document.getElementById('mermaid-modal-content');
     const modalZoomIn = document.getElementById('mermaid-modal-zoom-in');
@@ -130,34 +139,34 @@
     modal.addEventListener('wheel', (e) => {
       e.preventDefault();
       e.stopPropagation();
-    }, { passive: false });
+    }, { passive: false, signal });
 
     modal.querySelectorAll('[data-mermaid-modal-close]').forEach((el) => {
-      el.addEventListener('click', closeModal);
+      el.addEventListener('click', closeModal, { signal });
     });
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !modal.hidden) {
         closeModal();
       }
-    });
+    }, { signal });
 
     modalZoomIn?.addEventListener('click', () => {
       modalScale = Math.min(5.0, Math.round((modalScale + 0.25) * 100) / 100);
       updateModalTransform();
-    });
+    }, { signal });
 
     modalZoomOut?.addEventListener('click', () => {
       modalScale = Math.max(0.4, Math.round((modalScale - 0.25) * 100) / 100);
       updateModalTransform();
-    });
+    }, { signal });
 
     modalZoomReset?.addEventListener('click', () => {
       modalScale = 1.0;
       modalTranslateX = 0;
       modalTranslateY = 0;
       updateModalTransform();
-    });
+    }, { signal });
 
     if (modalContent) {
       let isModalDragging = false;
@@ -169,21 +178,23 @@
         modalDragStartX = e.clientX - modalTranslateX;
         modalDragStartY = e.clientY - modalTranslateY;
         modalContent.classList.add('is-dragging');
-      });
+      }, { signal });
 
       window.addEventListener('pointermove', (e) => {
-        if (!isModalDragging) return;
+        if (!isModalDragging || modal.hidden) return;
         modalTranslateX = e.clientX - modalDragStartX;
         modalTranslateY = e.clientY - modalDragStartY;
         updateModalTransform();
-      });
+      }, { signal });
 
-      window.addEventListener('pointerup', () => {
+      const stopDragging = () => {
         if (isModalDragging) {
           isModalDragging = false;
           modalContent.classList.remove('is-dragging');
         }
-      });
+      };
+      window.addEventListener('pointerup', stopDragging, { signal });
+      window.addEventListener('pointercancel', stopDragging, { signal });
 
       modalContent.addEventListener('wheel', (e) => {
         e.preventDefault();
@@ -192,7 +203,7 @@
         const step = e.deltaY < 0 ? 0.12 : -0.12;
         modalScale = Math.min(5.0, Math.max(0.4, Math.round((modalScale + step) * 100) / 100));
         updateModalTransform();
-      }, { passive: false });
+      }, { passive: false, signal });
     }
   }
 
@@ -540,48 +551,30 @@
 
   // ---------- 渲染等待与动画 ----------
 
-  const ENTRANCE_SETTLE_MS = 1100;
-  const NEAR_VIEWPORT_PX = 1500;
-
-  function waitForScrollIdle(idleMs = 100) {
-    return new Promise<void>((resolve) => {
+  function waitForScrollIdle(idleMs: number, signal: AbortSignal) {
+    if (signal.aborted) return Promise.resolve(false);
+    return new Promise<boolean>((resolve) => {
       let last = 0;
+      let frame = 0;
       const bump = () => { last = performance.now(); };
-      window.addEventListener('scroll', bump, { passive: true });
+      const finish = (ready: boolean) => {
+        cancelAnimationFrame(frame);
+        window.removeEventListener('scroll', bump);
+        signal.removeEventListener('abort', cancel);
+        resolve(ready);
+      };
+      const cancel = () => finish(false);
+      window.addEventListener('scroll', bump, { passive: true, signal });
+      signal.addEventListener('abort', cancel, { once: true });
       const tick = () => {
         if (last === 0 || performance.now() - last >= idleMs) {
-          window.removeEventListener('scroll', bump);
-          resolve();
+          finish(true);
           return;
         }
-        requestAnimationFrame(tick);
+        frame = requestAnimationFrame(tick);
       };
-      requestAnimationFrame(tick);
+      frame = requestAnimationFrame(tick);
     });
-  }
-
-  async function waitForQuietMoment(blocks: NodeListOf<HTMLElement>): Promise<void> {
-    const afterEntrance = new Promise<void>((resolve) => {
-      if ((window as any).__postTransitionPending) {
-        window.addEventListener('post-transition-release', () => window.setTimeout(resolve, ENTRANCE_SETTLE_MS), { once: true });
-      } else {
-        window.setTimeout(resolve, ENTRANCE_SETTLE_MS);
-      }
-    });
-
-    const scrolledClose = new Promise<void>((resolve) => {
-      if (!('IntersectionObserver' in window)) return;
-      const io = new IntersectionObserver((entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          io.disconnect();
-          resolve();
-        }
-      }, { rootMargin: `${NEAR_VIEWPORT_PX}px 0px ${NEAR_VIEWPORT_PX}px 0px` });
-      blocks.forEach((block) => io.observe(block));
-    });
-
-    await Promise.race([afterEntrance, scrolledClose]);
-    await waitForScrollIdle(100);
   }
 
   function getMermaidTheme(themeName: string) {
@@ -677,8 +670,12 @@
 
     // 2. 渲染会话管理（防重入竞争）
     const sessionId = ++activeSessionId;
+    renderController?.abort();
+    renderController = new AbortController();
+    const { signal } = renderController;
 
-    await waitForQuietMoment(blocks);
+    if (!await waitForPostEntrance(signal)) return;
+    if (!await waitForScrollIdle(100, signal)) return;
     if (sessionId !== activeSessionId || !blocks[0].isConnected) return;
 
     const { default: mermaid } = await import('mermaid');
@@ -711,9 +708,9 @@
     for (let i = 0; i < blocks.length; i++) {
       if (sessionId !== activeSessionId) return;
       if (i > 0) {
-        await waitForScrollIdle(100);
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        if (!await waitForScrollIdle(100, signal)) return;
       }
+      if (sessionId !== activeSessionId || !blocks[i].isConnected) return;
       const block = blocks[i];
       const encoded = block.dataset.mermaidCode || '';
       const rawCode = decodeURIComponent(encoded);
@@ -757,6 +754,7 @@
 
         animateMermaidSvg(renderEl);
       } catch (error: any) {
+        if (sessionId !== activeSessionId) return;
         console.error('[Mermaid Render Error]:', error);
         if (loadingEl) loadingEl.remove();
         renderEl.innerHTML = `
@@ -800,6 +798,11 @@
   // 4. 页面即将切换时清理 Modal 状态
   document.addEventListener('astro:before-swap', () => {
     activeSessionId++;
+    renderController?.abort();
+    renderController = null;
     closeModal();
+    modalController?.abort();
+    modalController = null;
+    boundModal = null;
   });
 </script>

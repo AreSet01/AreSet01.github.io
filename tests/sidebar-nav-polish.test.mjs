@@ -17,11 +17,11 @@ describe('侧边栏极简无边框排版光学居中与搜索栏同款物理磁�
     assert.ok(content.includes('data-nav-link'), '各菜单项应包含 data-nav-link 标识');
   });
 
-  it('2. 样式规范: 导航块光学居中、间距宽裕舒展、纯文本无边框与水墨游标', () => {
+  it('2. 样式规范: 共享栏宽、对称内边距、纯文本无边框与水墨游标', () => {
     const headerPath = path.join(rootDir, 'src/components/Header.astro');
     const headerContent = fs.readFileSync(headerPath, 'utf8');
-    assert.ok(headerContent.includes('padding-left: clamp(1.4rem, 2.4vw, 2.8rem)'), 'nav-links 应设置光学居中左内边距');
-    assert.ok(headerContent.includes('gap: clamp(1.05rem, 2.5vh, 1.7rem)'), 'nav-links 应扩大纵向间距避免拥挤');
+    assert.ok(headerContent.includes('width: var(--sidebar-width)'), '侧栏与内层应共享宽度，避免折叠时两层尺寸不一致');
+    assert.ok(headerContent.includes('padding: 0 var(--sidebar-inset)'), '侧栏内容应使用对称内边距');
     assert.ok(headerContent.includes('letter-spacing: 0.2em'), 'nav-link 应具备 0.2em 舒展呼吸感字距');
 
     const globalCssPath = path.join(rootDir, 'src/styles/global.css');

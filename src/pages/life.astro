@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
+import CollectionFilters from '../components/CollectionFilters.astro';
 import {
   LIFE_CATEGORIES,
   LIFE_ITEMS,
@@ -26,7 +27,7 @@ const countByCategory = {
 
   <main id="main-content" tabindex="-1" class="container-wide flex-1 pt-6 pb-20 lg:pt-8 outline-none min-h-[calc(100vh-140px)]">
     <!-- 顶部标题与介绍 -->
-    <section class="panel pb-10 border-b border-[var(--rule)]" style="border-image: linear-gradient(to right, transparent 5%, var(--rule-strong) 50%, transparent 95%) 1;">
+    <section class="panel">
       <p class="eyebrow" data-enter="top">Life</p>
 
       <div class="mt-6 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between flex-wrap">
@@ -61,57 +62,57 @@ const countByCategory = {
         </div>
       </div>
 
-      <!-- 搜索栏 -->
-      <div class="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4" data-enter="bottom" data-enter-once>
-        <div class="life-search-wrapper flex-1">
-          <svg class="life-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input
-            type="text"
-            id="life-search-input"
-            class="life-search-input"
-            placeholder="搜索地点、玩法、标签或心得内容..."
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button
-            type="button"
-            id="life-search-clear"
-            class="life-search-clear hidden"
-            aria-label="清空搜索"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
     </section>
 
-    <!-- 一级分类切换 Tab -->
-    <div class="life-category-tabs" data-enter="bottom" data-enter-once>
-      {categories.map((cat) => (
+    <CollectionFilters>
+      <div slot="search" class="life-search-wrapper collection-search-field">
+        <svg class="life-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input
+          type="text"
+          id="life-search-input"
+          aria-label="搜索地点、玩法、标签或心得"
+          class="life-search-input"
+          placeholder="搜索地点、玩法或标签..."
+          autocomplete="off"
+          spellcheck="false"
+        />
         <button
           type="button"
-          class={`life-cat-tab ${cat.id === 'all' ? 'is-active' : ''}`}
-          data-category-tab={cat.id}
+          id="life-search-clear"
+          class="life-search-clear hidden"
+          aria-label="清空搜索"
         >
-          <span class="cat-icon">{cat.icon}</span>
-          <span class="cat-name">{cat.name}</span>
-          <i class="cat-count">{countByCategory[cat.id as keyof typeof countByCategory]}</i>
+          ✕
         </button>
-      ))}
-    </div>
+      </div>
+
+      <!-- 一级分类切换 Tab -->
+      <div slot="categories" class="life-category-tabs collection-category-tabs" data-enter="bottom" data-no-replay>
+        {categories.map((cat) => (
+          <button
+            type="button"
+            class={`life-cat-tab ${cat.id === 'all' ? 'is-active' : ''}`}
+            data-category-tab={cat.id}
+          >
+            <span class="cat-icon">{cat.icon}</span>
+            <span class="cat-name">{cat.name}</span>
+            <i class="cat-count">{countByCategory[cat.id as keyof typeof countByCategory]}</i>
+          </button>
+        ))}
+      </div>
+    </CollectionFilters>
 
     <!-- 卡片展示列表 -->
-    <div class="life-grid mt-8" id="life-cards-container">
-      {allItems.map((item, index) => {
-        const enterFrom = (['left', 'bottom', 'right'] as const)[index % 3];
+    <div class="life-grid" id="life-cards-container">
+      {allItems.map((item) => {
         return (
           <article
             class="life-card"
             data-tilt
-            data-enter={enterFrom}
+            data-enter="card"
             data-life-id={item.id}
             data-category={item.category}
             data-city={item.city}
@@ -276,7 +277,7 @@ const countByCategory = {
     color: var(--text-strong);
     background: var(--bg-soft);
     border: 1px solid var(--rule-strong);
-    border-radius: 9999px;
+    border-radius: var(--radius-control);
     cursor: pointer;
     transition: all 260ms cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
@@ -341,7 +342,7 @@ const countByCategory = {
     color: var(--muted-strong);
     background: var(--bg-soft);
     border: 1px solid var(--rule-soft);
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
     white-space: nowrap;
   }
@@ -356,8 +357,7 @@ const countByCategory = {
     position: relative;
     display: flex;
     align-items: center;
-    max-width: 480px;
-    border-radius: 8px;
+    border-radius: var(--radius-control);
     border: 1px solid var(--rule);
     background: var(--bg-soft);
     cursor: default;
@@ -393,8 +393,8 @@ const countByCategory = {
     color: var(--text-strong);
     background: transparent;
     border: none;
-    border-radius: 8px;
-    clip-path: inset(0 round 8px);
+    border-radius: var(--radius-control);
+    clip-path: inset(0 round var(--radius-control));
     outline: none;
   }
 
@@ -406,7 +406,7 @@ const countByCategory = {
     color: var(--muted);
     background: transparent;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-control);
     cursor: pointer;
     transition: color 180ms ease, transform 180ms ease;
   }
@@ -416,15 +416,7 @@ const countByCategory = {
     transform: scale(1.15);
   }
 
-  /* 一级分类 Tab */
-  .life-category-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.6rem;
-    padding: 4px 2px;
-    margin-top: calc(1.75rem - 4px);
-  }
-
+  /* 一级分类 Tab：布局与搜索框共用 CollectionFilters */
   .life-cat-tab {
     position: relative;
     isolation: isolate;
@@ -438,7 +430,7 @@ const countByCategory = {
     color: var(--muted-strong);
     background: transparent;
     border: 1px solid var(--rule-strong);
-    border-radius: 4px;
+    border-radius: var(--radius-control);
     cursor: pointer;
     user-select: none;
     box-sizing: border-box;
@@ -500,7 +492,7 @@ const countByCategory = {
     min-width: 1.45rem;
     height: 1.45rem;
     padding-inline: 0.35rem;
-    border-radius: 3px;
+    border-radius: var(--radius-control);
     background: var(--bg-soft);
     border: 1px solid var(--rule);
     font-size: 0.68rem;
@@ -548,7 +540,6 @@ const countByCategory = {
     border: 1px solid var(--rule);
     border-radius: 12px !important;
     box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.04);
-    will-change: transform, opacity;
   }
 
   .life-card.is-filtered-out {
@@ -560,8 +551,13 @@ const countByCategory = {
     transition: box-shadow 240ms var(--ease), border-color 240ms var(--ease);
   }
 
+  .life-card.is-entered:hover {
+    will-change: transform;
+  }
+
   .life-card.is-reflowing,
   .life-card.is-entering {
+    will-change: transform, opacity;
     transition: none !important;
   }
 
@@ -864,7 +860,7 @@ const countByCategory = {
     color: var(--text-strong);
     background: var(--bg-soft);
     border: 1px solid var(--rule-strong);
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     cursor: pointer;
     transition: all 220ms ease;
   }
@@ -1001,7 +997,7 @@ const countByCategory = {
   .life-modal-locate-btn {
     padding: 0.55rem 1.2rem;
     font-size: 0.85rem;
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     flex: 1 1 130px;
     text-align: center;
     cursor: pointer;
@@ -1022,23 +1018,29 @@ const countByCategory = {
   import gsap from 'gsap';
   import { ScrollTrigger } from 'gsap/ScrollTrigger';
   import CustomEase from 'gsap/CustomEase';
+  import { addCardEnter, addCardExit, cardExitDuration, clearCardMotion, setCardEnterState } from '../utils/cardMotion';
 
   gsap.registerPlugin(ScrollTrigger, CustomEase);
-  CustomEase.create('enter', 'M0,0 C0.16,1 0.3,1 1,1');
   CustomEase.create('ink', '0.25, 1, 0.5, 1');
 
   const CLEANUP_KEY = '__areSetLifePageCleanup__';
   const LISTENER_KEY = '__areSetLifePageBound__';
+  let activeContainer: HTMLElement | null = null;
 
   function initLifePage() {
+    const container = document.getElementById('life-cards-container');
+    // The module and astro:page-load both run on first entry. Keep the same DOM's
+    // handlers alive so cleanup cannot settle cards halfway through their entrance.
+    if (container && container === activeContainer) return;
+
     // 若之前已存在清理函数，先执行清理
     const previousCleanup = (window as any)[CLEANUP_KEY];
     if (typeof previousCleanup === 'function') {
       previousCleanup();
     }
 
-    const container = document.getElementById('life-cards-container');
     if (!container) return;
+    activeContainer = container;
 
     const controller = new AbortController();
     const { signal } = controller;
@@ -1083,8 +1085,13 @@ const countByCategory = {
       el.classList.remove('is-entering', 'is-reflowing');
       el.classList.add('is-entered');
       el.dataset.enterState = 'in';
-      gsap.killTweensOf(el);
-      gsap.set(el, { clearProps: 'clipPath,opacity,transform,scale,x,y' });
+      clearCardMotion(el);
+    }
+
+    // 空态复用卡片的双层进入节奏，只收敛位移与缩放幅度。
+    function setEmptyEnterState(el: HTMLElement) {
+      setCardEnterState(el);
+      gsap.set(el, { y: 20, scale: 0.985 });
     }
 
     /**
@@ -1092,8 +1099,10 @@ const countByCategory = {
      *
      * clamp = false 用于「空状态塌缩」期间：文档正在连续变矮，如果每帧都把滚动位置硬钳到
      * 新的 limit，整页就会一格一格往下跳；塌缩期间只刷新尺寸，钳制交给回滚动画与收尾那次刷新。
+     * 同时兼容 boolean 与 { clamp }，避免对象参数被当成 truthy 导致防钳制失效。
      */
-    function refreshScroll(clamp = true) {
+    function refreshScroll(options: boolean | { clamp?: boolean } = true) {
+      const clamp = typeof options === 'boolean' ? options : options.clamp !== false;
       if (typeof ScrollTrigger !== 'undefined') {
         ScrollTrigger.refresh();
       }
@@ -1142,10 +1151,10 @@ const countByCategory = {
     }
 
     /**
-     * 方案 B：【书法卷轴徐展 + 原位同卡静止】
+     * 柔和卡片换场 + 原位同卡静止：
      * 1. 原位同卡（在切换前后均命中且网格次序未变）保持完全静止；
-     * 2. 卷轴卷收 (Roll-up): 仅被筛除或位置发生改变的卡片从右向左合拢 (clip-path: inset(0 100% 0 0), 0.28s)；
-     * 3. 卷轴徐展 (Scroll Unfurling): 仅新增或位置发生改变的卡片从左向右舒展 (clip-path: inset(0 0% 0 0), 0.68s, ease: 'enter')。
+     * 2. 仅被筛除或位置发生改变的卡片轻微下移、缩小并淡出；
+     * 3. 仅新增或位置发生改变的卡片使用统一的纵向进入与 card-enter 节奏。
      */
     function applyFilters(animate = true, _forceRun = false) {
       if (filterTimeline) {
@@ -1160,11 +1169,10 @@ const countByCategory = {
       const currentH = container.offsetHeight;
       container.style.minHeight = '';
       cards.forEach((card) => {
-        gsap.killTweensOf(card);
+        clearCardMotion(card);
         card.classList.remove('is-reflowing', 'is-entering');
         card.classList.add('is-entered');
         card.dataset.enterState = 'in';
-        gsap.set(card, { clearProps: 'clipPath,opacity,transform,scale,x,y' });
       });
 
       const q = searchQuery.toLowerCase().trim();
@@ -1205,13 +1213,13 @@ const countByCategory = {
           container.classList.add('is-empty');
           if (emptyState) {
             emptyState.classList.remove('hidden');
-            gsap.set(emptyState, { clearProps: 'opacity,transform' });
+            clearCardMotion(emptyState);
           }
         } else {
           container.classList.remove('is-empty');
           if (emptyState) {
             emptyState.classList.add('hidden');
-            gsap.set(emptyState, { clearProps: 'opacity,transform' });
+            clearCardMotion(emptyState);
           }
         }
         refreshScroll();
@@ -1229,25 +1237,22 @@ const countByCategory = {
           container.classList.add('is-empty');
           if (emptyState) {
             emptyState.classList.remove('hidden');
+            setEmptyEnterState(emptyState);
             const tl = gsap.timeline({
               onComplete: () => {
-                gsap.set(emptyState, { clearProps: 'opacity,transform' });
+                clearCardMotion(emptyState);
                 refreshScroll();
                 filterTimeline = null;
               },
             });
             filterTimeline = tl;
-            tl.fromTo(
-              emptyState,
-              { opacity: 0, y: 14, scale: 0.98 },
-              { opacity: 1, y: 0, scale: 1, duration: 0.38, ease: 'power2.out' }
-            );
+            addCardEnter(tl, emptyState);
           }
           return;
         }
 
         // 子场景 A2：从有卡片切到空状态
-        // 与 gallery 空态同一套五段式：钉高 → 视口回流 → 卷收 → 空面板浮现 → 高度塌缩
+        // 与 gallery 空态同一套五段式：钉高 → 视口回流 → 卡片淡出 → 空面板浮现 → 高度塌缩
         if (emptyState) {
           emptyState.classList.add('hidden');
         }
@@ -1261,13 +1266,12 @@ const countByCategory = {
           c.classList.add('is-reflowing');
           c.classList.remove('is-entered');
         });
-        gsap.set(exitingCards, { clipPath: 'inset(0 0% 0 0)' });
 
-        const switchTime = 0.28 + Math.min(exitingCards.length - 1, 6) * 0.02;
+        const switchTime = cardExitDuration(exitingCards.length);
         const tl = gsap.timeline({
           onComplete: () => {
             if (emptyState) {
-              gsap.set(emptyState, { clearProps: 'opacity,transform' });
+              clearCardMotion(emptyState);
             }
             refreshScroll();
             filterTimeline = null;
@@ -1275,15 +1279,8 @@ const countByCategory = {
         });
         filterTimeline = tl;
 
-        // 阶段 1：卡片从右向左卷收退场 (0..0.28s)
-        tl.to(exitingCards, {
-          clipPath: 'inset(0 100% 0 0)',
-          opacity: 0,
-          scale: 0.98,
-          duration: 0.28,
-          ease: 'power2.inOut',
-          stagger: 0.02,
-        }, 0);
+        // 阶段 1：卡片轻微下移、缩小并淡出
+        addCardExit(tl, exitingCards, 0);
 
         // 阶段 2：换骨就位 —— 卡片标记为已筛除，但容器仍被钉在上面的高度上，文档高度此刻不塌
         tl.add(() => {
@@ -1298,14 +1295,10 @@ const countByCategory = {
           refreshScroll({ clamp: false });
         }, switchTime);
 
-        // 阶段 3：空状态面板原位浮现
+        // 阶段 3：空状态面板以同样的 card-enter 节奏原位浮现
         if (emptyState) {
-          tl.fromTo(
-            emptyState,
-            { opacity: 0, y: 16, scale: 0.98 },
-            { opacity: 1, y: 0, scale: 1, duration: 0.42, ease: 'power2.out' },
-            switchTime
-          );
+          setEmptyEnterState(emptyState);
+          addCardEnter(tl, emptyState, switchTime);
         }
 
         // 阶段 4：钉住的空白网格高度在 0.55s 内徐收至 0，空面板随之上浮到位
@@ -1350,7 +1343,7 @@ const countByCategory = {
         container.classList.remove('is-empty');
         if (emptyState) {
           emptyState.classList.add('hidden');
-          gsap.set(emptyState, { clearProps: 'opacity,transform' });
+          clearCardMotion(emptyState);
         }
         refreshScroll();
         return;
@@ -1439,31 +1432,18 @@ const countByCategory = {
         );
         switchTime = 0.18;
       } else if (exitingCards.length > 0) {
-        // 阶段 1（卡片 -> 卡片）：仅退场/换位卡片卷轴卷收，原位卡片保持静止
+        // 阶段 1（卡片 -> 卡片）：仅退场/换位卡片柔和淡出，原位卡片保持静止
         container.classList.remove('is-empty');
         if (emptyState) {
           emptyState.classList.add('hidden');
-          gsap.set(emptyState, { clearProps: 'opacity,transform' });
+          clearCardMotion(emptyState);
         }
         exitingCards.forEach((c) => {
           c.classList.add('is-reflowing');
           c.classList.remove('is-entered');
         });
-        gsap.set(exitingCards, { clipPath: 'inset(0 0% 0 0)' });
-        tl.to(
-          exitingCards,
-          {
-            clipPath: 'inset(0 100% 0 0)',
-            opacity: 0,
-            scale: 0.98,
-            duration: 0.28,
-            ease: 'power2.inOut',
-            stagger: 0.02,
-          },
-          0
-        );
-        const exitStaggerTotal = Math.min(exitingCards.length - 1, 6) * 0.02;
-        switchTime = 0.28 + exitStaggerTotal;
+        addCardExit(tl, exitingCards, 0);
+        switchTime = cardExitDuration(exitingCards.length);
       }
 
       // 阶段 2：先展开卡片容器再隐藏空状态面板，立即刷新 Lenis 滚动上限
@@ -1483,36 +1463,19 @@ const countByCategory = {
 
         if (emptyState) {
           emptyState.classList.add('hidden');
-          gsap.set(emptyState, { clearProps: 'opacity,transform' });
+          clearCardMotion(emptyState);
         }
 
         if (enteringCards.length > 0) {
-          gsap.set(enteringCards, {
-            clipPath: 'inset(0 100% 0 0)',
-            opacity: 0,
-            x: -16,
-            scale: 0.98,
-          });
+          setCardEnterState(enteringCards);
         }
         // 换骨这一帧不钳制滚动：Lenis 正在把视口滑向预测落点，钳一下会打断这次滑动
         refreshScroll({ clamp: false });
       }, switchTime);
 
-      // 阶段 3：仅新增/换位卡片从左向右卷轴徐展
+      // 阶段 3：仅新增/换位卡片沿统一的 card-enter 节奏轻轻上浮
       if (enteringCards.length > 0) {
-        tl.to(
-          enteringCards,
-          {
-            clipPath: 'inset(0 0% 0 0)',
-            opacity: 1,
-            x: 0,
-            scale: 1,
-            duration: 0.68,
-            ease: 'enter',
-            stagger: 0.06,
-          },
-          switchTime
-        );
+        addCardEnter(tl, enteringCards, switchTime);
       }
     }
 
@@ -1778,6 +1741,7 @@ const countByCategory = {
 
     // 页面卸载或重新载入时的清理函数
     (window as any)[CLEANUP_KEY] = () => {
+      activeContainer = null;
       controller.abort();
       window.clearTimeout(searchTimer);
       if (filterTimeline) {

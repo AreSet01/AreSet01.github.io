@@ -119,7 +119,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     </section>
 
     <!-- Hero: the one number this page leads with -->
-    <section class="stats-hero" data-enter="bottom">
+    <section class="stats-hero" data-enter="card">
       <p class="stats-hero-label">累计字数</p>
       <p class="stats-hero-value" data-stat-value={totalChars}>{nf.format(totalChars)}</p>
       <p class="stats-hero-note">
@@ -127,7 +127,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
       </p>
     </section>
 
-    <section class="stats-kpis" data-enter="bottom">
+    <section class="stats-kpis" data-enter="card">
       <div class="stats-kpi">
         <p class="stats-kpi-label">技术文章</p>
         <p class="stats-kpi-value" data-stat-value={posts.length}>{posts.length}</p>
@@ -166,7 +166,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     </section>
 
     <!-- 1. Cadence ------------------------------------------------------- -->
-    <section class="chart-card" data-enter="bottom">
+    <section class="chart-card" data-enter="card">
       <div class="chart-head">
         <h2>发文节奏</h2>
         <p>{months[0]?.year}年{months[0]?.month}月开始发文~</p>
@@ -195,7 +195,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     </section>
 
     <!-- 2. Volume per post ----------------------------------------------- -->
-    <section class="chart-card" data-enter="bottom">
+    <section class="chart-card" data-enter="card">
       <div class="chart-head">
         <h2>每篇的体量</h2>
         <p>按正文字数排序（不含代码）</p>
@@ -216,7 +216,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     </section>
 
     <!-- 3. Cumulative ---------------------------------------------------- -->
-    <section class="chart-card" data-enter="bottom">
+    <section class="chart-card" data-enter="card">
       <div class="chart-head">
         <h2>累计字数</h2>
         <p>从第一篇到最新一篇，字数是怎么堆起来的</p>
@@ -247,7 +247,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     </section>
 
     <!-- 4. Tags ---------------------------------------------------------- -->
-    <section class="chart-card" data-enter="bottom">
+    <section class="chart-card" data-enter="card">
       <div class="chart-head">
         <h2>标签分布</h2>
         <p>前 {topTags.length} 个标签，其余 {tailTags.length} 个合并在最后一行~<a href="/tags">去星图看全部 →</a></p>
@@ -279,7 +279,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     </section>
 
     <!-- 5. Life / 拾光生活统计 -------------------------------------------- -->
-    <section class="chart-card" data-enter="bottom">
+    <section class="chart-card" data-enter="card">
       <div class="chart-head flex flex-col md:flex-row md:items-center justify-between gap-2">
         <div>
           <h2>拾光纪事 · 生活印迹</h2>
@@ -309,7 +309,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     </section>
 
     <!-- 6. Gallery / 拾影画廊统计 ----------------------------------------- -->
-    <section class="chart-card" data-enter="bottom">
+    <section class="chart-card" data-enter="card">
       <div class="chart-head flex flex-col md:flex-row md:items-center justify-between gap-2">
         <div>
           <h2>拾影集 · 山海光影</h2>
@@ -339,7 +339,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     </section>
 
     <!-- Table view: every number above, reachable without hovering -------- -->
-    <details class="stats-table" data-enter="bottom">
+    <details class="stats-table" data-enter="card">
       <summary>数据表</summary>
       <div class="stats-table-scroll">
         <table>

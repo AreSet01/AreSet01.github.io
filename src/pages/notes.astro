@@ -197,7 +197,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
                 id="article-search-input"
                 aria-label="过滤文章来源"
                 placeholder="过滤文章来源..."
-                class="w-full bg-[var(--bg-soft)] border border-[var(--rule)] text-xs rounded-lg pl-7 pr-2.5 py-1.5 text-[var(--text-strong)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--ink-strong)]"
+                class="w-full bg-[var(--bg-soft)] border border-[var(--rule)] text-xs rounded-full pl-7 pr-2.5 py-1.5 text-[var(--text-strong)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--ink-strong)]"
               />
             </div>
 
@@ -519,7 +519,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     align-items: center;
     gap: 0.15rem;
     padding: 0.35rem 0.6rem;
-    border-radius: 9999px;
+    border-radius: var(--radius-control);
     user-select: none;
     -webkit-user-select: none;
     backdrop-filter: blur(12px);
@@ -535,6 +535,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   .notes-stat-item .stats-value,
   .notes-stat-item .stats-subnote {
     white-space: nowrap;
+  }
+  .notes-stat-item .stats-value {
+    display: inline-block;
+    min-width: 2ch;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    contain: layout style;
   }
   .notes-stat-item.is-hovered {
     color: var(--text-strong) !important;
@@ -567,7 +574,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     padding: 0.25rem 0.35rem;
     background: var(--bg-soft);
     border: 1px solid var(--rule-soft);
-    border-radius: 9999px;
+    border-radius: var(--radius-control);
     max-width: 100%;
     overflow-x: auto;
     overscroll-behavior-x: contain;
@@ -582,7 +589,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     top: 4px;
     bottom: 4px;
     left: 0;
-    border-radius: 9999px;
+    border-radius: var(--radius-control);
     background: var(--ink-strong);
     z-index: 1;
     pointer-events: none;
@@ -596,7 +603,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     font-weight: 500;
     letter-spacing: 0.04em;
     color: var(--muted-strong);
-    border-radius: 9999px;
+    border-radius: var(--radius-control);
     transition: color 220ms var(--ease) 120ms;
     cursor: pointer;
     background: transparent;
@@ -663,8 +670,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   /* 卡片平滑删除离场动画 */
   :global(.notes-card.is-deleting) {
     opacity: 0 !important;
-    transform: scale(0.92) !important;
-    filter: blur(2px) !important;
+    transform: translateY(-8px) scale(0.985) !important;
     max-height: 0 !important;
     margin-bottom: 0 !important;
     padding-top: 0 !important;
@@ -674,13 +680,12 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     overflow: hidden !important;
     pointer-events: none !important;
     transition:
-      opacity 240ms var(--ease),
-      transform 280ms var(--ease),
-      filter 240ms var(--ease),
-      max-height 320ms cubic-bezier(0.4, 0, 0.2, 1),
-      margin 320ms var(--ease),
-      padding 320ms var(--ease),
-      border-width 320ms var(--ease) !important;
+      opacity 220ms var(--ease-card),
+      transform 320ms var(--ease-card),
+      max-height 380ms var(--ease-card),
+      margin 380ms var(--ease-card),
+      padding 380ms var(--ease-card),
+      border-width 380ms var(--ease-card) !important;
   }
 
   /* 卡片是 JS 动态创建的，必须用 :global 才能命中 Astro 的作用域样式 */
@@ -701,15 +706,21 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.04);
     position: relative;
     word-break: break-word;
-    transform-style: preserve-3d;
     transition:
-      box-shadow 320ms var(--ease),
-      border-color 240ms var(--ease),
-      background 260ms var(--ease);
+      box-shadow 420ms var(--ease-card),
+      border-color 320ms var(--ease-card),
+      background 320ms var(--ease-card);
   }
   :global(.notes-card):hover {
-    box-shadow: 0 10px 24px -4px rgba(var(--accent-rgb), 0.08), 0 4px 12px -2px rgba(var(--accent-rgb), 0.04) !important;
+    transform-style: preserve-3d;
+    box-shadow: 0 12px 28px -6px rgba(var(--accent-rgb), 0.1), 0 4px 14px -4px rgba(var(--accent-rgb), 0.05) !important;
     border-color: var(--rule-strong);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    /* hover 只承载纸面浮光，transform 留给入场与 3D tilt，避免两套系统抢写。 */
+    :global(.notes-card:not(.is-entering):not(.is-reflowing)) {
+      will-change: auto;
+    }
   }
 
   /* 卡片过长时的内容截断与渐变遮罩 */
@@ -846,7 +857,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     box-shadow: 0 20px 48px -8px rgba(0, 0, 0, 0.18), 0 4px 14px rgba(0, 0, 0, 0.06);
     z-index: 50;
     transform-origin: top left;
-    transition: transform 260ms var(--ease-elastic), opacity 220ms var(--ease);
+    transition: transform 260ms var(--ease-card), opacity 220ms var(--ease-card);
   }
   .article-popover.is-open { transform: scale(1) translateY(0); opacity: 1; }
   .article-popover.is-closed { transform: scale(0.94) translateY(-8px); opacity: 0; pointer-events: none; }
@@ -865,7 +876,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     opacity: 1;
-    transition: opacity 280ms var(--ease);
+    transition: opacity 220ms var(--ease-card);
   }
   .modal-overlay.is-closed {
     opacity: 0;
@@ -875,20 +886,29 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     opacity: 1;
   }
   .modal-card {
-    transition: transform 340ms var(--ease-elastic), opacity 280ms var(--ease);
+    transition: transform 280ms var(--ease-card), opacity 220ms var(--ease-card);
   }
   .modal-overlay.is-open .modal-card { transform: scale(1) translateY(0); opacity: 1; }
-  .modal-overlay.is-closed .modal-card { transform: scale(0.95) translateY(12px); opacity: 0; }
+  .modal-overlay.is-closed .modal-card { transform: scale(0.978) translateY(10px); opacity: 0; }
 
   @media (prefers-reduced-motion: reduce) {
     :global(.notes-card),
-    :global(.notes-card.is-arriving),
+    :global(.notes-card.is-deleting),
     :global(.card-expand-prompt-btn),
+    :global(.note-color-dot),
+    .article-popover,
     .modal-overlay,
     .modal-card,
-    .subtabs-glider {
+    .subtabs-glider,
+    .stats-glider {
       animation: none !important;
       transition: none !important;
+      transform: none !important;
+      clip-path: none !important;
+    }
+    :global(.notes-card.is-deleting) {
+      opacity: 0 !important;
+      max-height: 0 !important;
     }
   }
 
@@ -1062,7 +1082,14 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
 <script>
   import gsap from 'gsap';
-  import CustomEase from 'gsap/CustomEase';
+  import {
+    addCardEnter,
+    addCardExit,
+    animateCardEnter,
+    cardExitDuration,
+    clearCardMotion,
+    setCardEnterState,
+  } from '../utils/cardMotion';
   import { renderMarkdown } from '../utils/inkAskMarkdown';
   import {
     getAllNotesAcrossSite,
@@ -1077,9 +1104,6 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   } from '../utils/articleHighlightEngine';
   import { initNotesSync, syncNow } from '../utils/notesSync';
   import { handleMarkdownKeydown, createMarkdownToolbar } from '../utils/markdownShortcuts';
-
-  gsap.registerPlugin(CustomEase);
-  CustomEase.create('enter', 'M0,0 C0.16,1 0.3,1 1,1');
 
   const LISTENER_KEY = '__areSetNotesPageInit';
   const CLEANUP_KEY = '__areSetNotesPageCleanup';
@@ -1137,6 +1161,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
     let notesDatabase: NoteItem[] = [];
     let isSelfDeleting = false;
+    let animateNextNotesRender = false;
     let currentFilter = {
       kind: 'all',
       article: 'all',
@@ -1339,22 +1364,31 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       return `${quote}\n\n—— ${source}${item.comment ? `\n> **批注**：${item.comment}` : ''}`;
     }
 
-    function animateCountUp(el: HTMLElement, targetVal: number, durationMs = 1200) {
+    function animateCountUp(el: HTMLElement, targetVal: number, durationMs = 440) {
+      if (targetVal <= 0) {
+        if (el.textContent !== '0') el.textContent = '0';
+        return;
+      }
       const start = performance.now();
       const from = 0;
+      let prevText = el.textContent || '';
       function tick(now: number) {
         const elapsed = now - start;
         const progress = Math.min(elapsed / durationMs, 1);
         const easeVal = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
         const current = Math.round(from + (targetVal - from) * easeVal);
-        el.textContent = String(current);
+        const nextText = String(current);
+        if (nextText !== prevText) {
+          el.textContent = nextText;
+          prevText = nextText;
+        }
         if (progress < 1) requestAnimationFrame(tick);
-        else el.textContent = String(targetVal);
       }
       requestAnimationFrame(tick);
       // 后台标签页 rAF 可能被节流；兜底保证最终值一定落地
       window.setTimeout(() => {
-        el.textContent = String(targetVal);
+        const finalStr = String(targetVal);
+        if (el.textContent !== finalStr) el.textContent = finalStr;
       }, durationMs + 120);
     }
 
@@ -1370,15 +1404,15 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const elAi = document.getElementById('stat-ai');
 
       if (animate && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-        if (elTotal) animateCountUp(elTotal, total, 1100);
-        if (elFree) animateCountUp(elFree, free, 1200);
-        if (elHighlights) animateCountUp(elHighlights, highlights, 1300);
-        if (elAi) animateCountUp(elAi, ai, 1400);
+        if (elTotal) animateCountUp(elTotal, total, 420);
+        if (elFree) animateCountUp(elFree, free, 450);
+        if (elHighlights) animateCountUp(elHighlights, highlights, 480);
+        if (elAi) animateCountUp(elAi, ai, 500);
       } else {
-        if (elTotal) elTotal.textContent = String(total);
-        if (elFree) elFree.textContent = String(free);
-        if (elHighlights) elHighlights.textContent = String(highlights);
-        if (elAi) elAi.textContent = String(ai);
+        if (elTotal && elTotal.textContent !== String(total)) elTotal.textContent = String(total);
+        if (elFree && elFree.textContent !== String(free)) elFree.textContent = String(free);
+        if (elHighlights && elHighlights.textContent !== String(highlights)) elHighlights.textContent = String(highlights);
+        if (elAi && elAi.textContent !== String(ai)) elAi.textContent = String(ai);
       }
     }
 
@@ -1481,6 +1515,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
       cluster.querySelectorAll<HTMLElement>('.sub-tab-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
+          // 集中先完成只读几何读取，再改 class，避免同步重排
+          const rect = btn.getBoundingClientRect();
+          const left = btn.offsetLeft;
+          const right = left + btn.offsetWidth;
+          const clusterLeft = cluster.scrollLeft;
+          const clusterWidth = cluster.clientWidth;
+
           cluster.querySelectorAll('.sub-tab-btn').forEach((b) => {
             b.classList.remove('active');
             b.setAttribute('aria-pressed', 'false');
@@ -1491,17 +1532,14 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           syncActiveStatKind(currentFilter.kind);
           try { sessionStorage.setItem('notes-subtab-kind', currentFilter.kind); } catch {}
 
-          const rect = btn.getBoundingClientRect();
           if (rect.width > 0 && rect.height > 0) {
             (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 6);
           }
 
           // 让被点中的页签在横向滚动容器里露出来，再测滑块
-          const left = btn.offsetLeft;
-          const right = left + btn.offsetWidth;
-          if (left < cluster.scrollLeft) cluster.scrollTo({ left, behavior: 'smooth' });
-          else if (right > cluster.scrollLeft + cluster.clientWidth) {
-            cluster.scrollTo({ left: right - cluster.clientWidth, behavior: 'smooth' });
+          if (left < clusterLeft) cluster.scrollTo({ left, behavior: 'smooth' });
+          else if (right > clusterLeft + clusterWidth) {
+            cluster.scrollTo({ left: right - clusterWidth, behavior: 'smooth' });
           }
           requestAnimationFrame(updateGlider);
           renderCards(true);
@@ -1667,8 +1705,12 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
      * clamp = false 用于「空状态塌缩」期间：此时文档正在连续变矮，如果每帧都把滚动位置
      * 硬钳到新的 limit，视觉上就是整页一格一格往下跳；塌缩期间只刷新尺寸，钳制留给
      * 回滚动画与结束后的那次完整刷新。
+     *
+     * 兼容 boolean 与 { clamp } 两种调用：历史代码里两种写法同时存在，
+     * 直接传对象时 `!clamp` 恒为 false，会让「不钳制」彻底失效并导致视口跳动。
      */
-    function refreshScroll(clamp = true) {
+    function refreshScroll(options: boolean | { clamp?: boolean } = true) {
+      const clamp = typeof options === 'boolean' ? options : options.clamp !== false;
       try {
         const lenis = (window as any).lenis;
         lenis?.resize?.();
@@ -1729,14 +1771,17 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       isSelfDeleting = true;
 
       if (cardEl) {
-        const initialHeight = cardEl.offsetHeight;
-        cardEl.style.maxHeight = `${initialHeight}px`;
-        void cardEl.offsetHeight;
-        cardEl.style.animationDelay = '0ms';
-        cardEl.classList.add('is-deleting');
+        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          const initialHeight = cardEl.offsetHeight;
+          cardEl.style.maxHeight = `${initialHeight}px`;
+          void cardEl.offsetHeight;
+          cardEl.style.animationDelay = '0ms';
+          cardEl.classList.add('is-deleting');
+        }
       }
 
       const deleted = deleteStoredNote(id, target.storageSlug || target.postSlug);
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
       setTimeout(() => {
         if (cardEl) cardEl.remove();
@@ -1750,49 +1795,17 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         }
         showToast(deleted ? '笔记已删除' : '删除失败');
         isSelfDeleting = false;
-      }, 320);
+      }, reduceMotion ? 0 : 420);
     }
 
-    function createNoteCardElement(note: StoredHighlight, index: number, withEnterAttr = false): HTMLElement {
-      const enterDirs = ['left', 'bottom', 'right'] as const;
-      const card = document.createElement('div');
-      card.className = 'notes-card group';
-      card.setAttribute('data-tilt', '');
-      card.dataset.cardIndex = String(index);
-      if (withEnterAttr) {
-        card.setAttribute('data-enter', enterDirs[index % 3]);
-      }
-      card.id = `card-${note.id}`;
+    // 缓存单条笔记渲染后的主体 HTML，避免筛选或滚动锚点测量时重复解析 Markdown
+    const noteBodyCache = new Map<string, string>();
+    signal.addEventListener('abort', () => noteBodyCache.clear());
 
-      const accentColor = colorHex(note.color);
-      // 笔记颜色通过 CSS 变量下发：色点光晕与引文块书脊都从这一处取色
-      card.style.setProperty('--note-accent', accentColor);
-
-      let badgeHtml = '';
-      const itemKind = note.kind || 'highlight';
-      if (itemKind === 'free') {
-        badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--text-strong)] whitespace-nowrap shrink-0">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-          Markdown 便签
-        </span>`;
-      } else if (itemKind === 'highlight') {
-        badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-red-500/10 text-red-500 whitespace-nowrap shrink-0">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 11-6 6v3h3l6-6"/><path d="m22 2-2.5 2.5a2.12 2.12 0 0 1-3 0l-1-1a2.12 2.12 0 0 1 0-3L18 0z"/><path d="M14.5 5.5 18.5 9.5"/></svg>
-          划线批注
-        </span>`;
-      } else {
-        badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-purple-500/10 text-purple-500 whitespace-nowrap shrink-0">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          墨问 AI 问答
-        </span>`;
-      }
-
-      const tagsHtml = (note.tags || [])
-        .map((t) => `<span class="text-[10px] text-[var(--muted)] bg-[var(--bg-soft)] px-1.5 py-0.5 rounded border border-[var(--rule)]">#${escapeHtml(t)}</span>`)
-        .join(' ');
-
-      const plainText = itemKind === 'highlight' ? quoteText(note) : (note.text || '');
-      const isLongContent = (plainText.length + (note.comment || '').length) > 130 || plainText.includes('\n\n') || plainText.includes('```');
+    function getCachedRawContentInner(note: StoredHighlight, itemKind: string): string {
+      const cacheKey = `${note.id}\0${noteTimestamp(note)}\0${itemKind}\0${note.title || ''}\0${note.text || ''}\0${note.markdown || ''}\0${note.comment || ''}\0${note.question || ''}`;
+      const hit = noteBodyCache.get(cacheKey);
+      if (hit !== undefined) return hit;
 
       let rawContentInner = '';
       if (itemKind === 'free') {
@@ -1825,6 +1838,52 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           ${note.comment ? `<div class="mt-2 text-xs text-[var(--text)] bg-[var(--bg-base)] p-2 rounded border border-[var(--rule-soft)]"><span class="text-[var(--muted)] font-normal mr-1">💭 想法：</span>${escapeHtml(note.comment)}</div>` : ''}
         `;
       }
+
+      if (noteBodyCache.size > 400) noteBodyCache.clear();
+      noteBodyCache.set(cacheKey, rawContentInner);
+      return rawContentInner;
+    }
+
+    function createNoteCardElement(note: StoredHighlight, index: number, withEnterAttr = false): HTMLElement {
+      const card = document.createElement('div');
+      card.className = 'notes-card group';
+      card.setAttribute('data-tilt', '');
+      card.dataset.cardIndex = String(index);
+      if (withEnterAttr) {
+        card.setAttribute('data-enter', 'card');
+      }
+      card.id = `card-${note.id}`;
+
+      const accentColor = colorHex(note.color);
+      // 笔记颜色通过 CSS 变量下发：色点光晕与引文块书脊都从这一处取色
+      card.style.setProperty('--note-accent', accentColor);
+
+      let badgeHtml = '';
+      const itemKind = note.kind || 'highlight';
+      if (itemKind === 'free') {
+        badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--text-strong)] whitespace-nowrap shrink-0">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Markdown 便签
+        </span>`;
+      } else if (itemKind === 'highlight') {
+        badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-red-500/10 text-red-500 whitespace-nowrap shrink-0">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 11-6 6v3h3l6-6"/><path d="m22 2-2.5 2.5a2.12 2.12 0 0 1-3 0l-1-1a2.12 2.12 0 0 1 0-3L18 0z"/><path d="M14.5 5.5 18.5 9.5"/></svg>
+          划线批注
+        </span>`;
+      } else {
+        badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-purple-500/10 text-purple-500 whitespace-nowrap shrink-0">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          墨问 AI 问答
+        </span>`;
+      }
+
+      const tagsHtml = (note.tags || [])
+        .map((t) => `<span class="text-[10px] text-[var(--muted)] bg-[var(--bg-soft)] px-1.5 py-0.5 rounded border border-[var(--rule)]">#${escapeHtml(t)}</span>`)
+        .join(' ');
+
+      const plainText = itemKind === 'highlight' ? quoteText(note) : (note.text || '');
+      const isLongContent = (plainText.length + (note.comment || '').length) > 130 || plainText.includes('\n\n') || plainText.includes('```');
+      const rawContentInner = getCachedRawContentInner(note, itemKind);
 
       let contentHtml = '';
       if (isLongContent) {
@@ -1975,10 +2034,64 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     }
 
     function settleNoteCard(el: HTMLElement) {
-      gsap.killTweensOf(el);
+      clearCardMotion(el);
       el.classList.remove('is-reflowing', 'is-entering');
       el.classList.add('is-entered');
-      gsap.set(el, { clearProps: 'clipPath,opacity,transform,scale,x,y' });
+    }
+
+    function splitViewportCards(cards: HTMLElement[]): { visible: HTMLElement[]; offscreen: HTMLElement[] } {
+      const cullBottom = window.innerHeight + 180;
+      const visible: HTMLElement[] = [];
+      const offscreen: HTMLElement[] = [];
+      cards.forEach((c) => {
+        if (c.getBoundingClientRect().top < cullBottom) visible.push(c);
+        else offscreen.push(c);
+      });
+      return { visible, offscreen };
+    }
+
+    /** 退场仅动画视口附近卡片，视口外长尾直接静默避让，减少并发离屏图层。 */
+    function launchFilterExit(tl: gsap.core.Timeline, cards: HTMLElement[]): number {
+      if (cards.length === 0) return 0;
+      const { visible, offscreen } = splitViewportCards(cards);
+      offscreen.forEach((c) => {
+        c.style.opacity = '0';
+      });
+      if (visible.length === 0) return 0.08;
+      visible.forEach((c) => {
+        c.classList.add('is-reflowing');
+        c.classList.remove('is-entered', 'is-entering');
+      });
+      addCardExit(tl, visible, 0);
+      return cardExitDuration(visible.length);
+    }
+
+    /** 仅对当前视口附近的卡片执行 3D 纸笺入场，视口外长尾卡片直接落定以控制 GPU 合成层数。 */
+    function launchFilterEnter(enteringCards: HTMLElement[]) {
+      const finishFilterEnter = () => {
+        enteringCards.forEach((c) => settleNoteCard(c));
+        (window as any).__initTiltCards?.();
+        refreshScroll();
+        filterTimeline = null;
+      };
+
+      const { visible: visibleEntering, offscreen: offscreenEntering } = splitViewportCards(enteringCards);
+      offscreenEntering.forEach((c) => settleNoteCard(c));
+
+      if (visibleEntering.length === 0) {
+        finishFilterEnter();
+        return;
+      }
+
+      visibleEntering.forEach((c) => {
+        c.classList.add('is-reflowing');
+        c.classList.remove('is-entered', 'is-entering');
+      });
+
+      // 新卡在换骨回调内创建，入场用独立时间线，避免父时间线回调重入。
+      filterTimeline = animateCardEnter(visibleEntering, {
+        onComplete: finishFilterEnter,
+      });
     }
 
     function renderCards(isFiltering = false, isInitialEnter = false) {
@@ -2012,7 +2125,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           emptyState.classList.remove('hidden');
           gsap.set(emptyState, { clearProps: 'opacity,transform' });
           if (isInitialEnter && !reduceMotion) {
-            emptyState.setAttribute('data-enter', 'bottom');
+            emptyState.setAttribute('data-enter', 'card');
           }
           refreshScroll();
           return;
@@ -2031,7 +2144,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           });
         }
         (window as any).__initTiltCards?.();
-        requestAnimationFrame(() => refreshScroll());
+        if (!isInitialEnter) {
+          requestAnimationFrame(() => refreshScroll());
+        } else {
+          refreshScroll();
+        }
         return;
       }
 
@@ -2045,6 +2162,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           container.classList.add('is-empty');
           emptyState.classList.remove('hidden');
           refreshScroll();
+          setCardEnterState(emptyState, { replay: true });
           const tl = gsap.timeline({
             onComplete: () => {
               gsap.set(emptyState, { clearProps: 'opacity,transform' });
@@ -2053,16 +2171,12 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             },
           });
           filterTimeline = tl;
-          tl.fromTo(
-            emptyState,
-            { opacity: 0, y: 14, scale: 0.98 },
-            { opacity: 1, y: 0, scale: 1, duration: 0.38, ease: 'power2.out' }
-          );
+          addCardEnter(tl, emptyState, 0, { replay: true });
           return;
         }
 
         // 子场景 A2：从有卡片切到空状态
-        // 与 gallery 空态同一套五段式：钉高 → 视口回流 → 卷收 → 空面板浮现 → 高度塌缩
+        // 钉高 → 视口回流 → 卡片柔和退场 → 空面板浮现 → 高度塌缩
         emptyState.classList.add('hidden');
 
         if (currentH > 0) {
@@ -2074,9 +2188,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           c.classList.add('is-reflowing');
           c.classList.remove('is-entered', 'is-entering');
         });
-        gsap.set(existingAllCards, { clipPath: 'inset(0 0% 0 0)' });
 
-        const switchTime = 0.28 + Math.min(existingAllCards.length - 1, 6) * 0.02;
+        const switchTime = cardExitDuration(existingAllCards.length);
         const tl = gsap.timeline({
           onComplete: () => {
             gsap.set(emptyState, { clearProps: 'opacity,transform' });
@@ -2086,15 +2199,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         });
         filterTimeline = tl;
 
-        // 阶段 1：退场卡片从右向左卷轴卷收 (0..0.28s)
-        tl.to(existingAllCards, {
-          clipPath: 'inset(0 100% 0 0)',
-          opacity: 0,
-          scale: 0.98,
-          duration: 0.28,
-          ease: 'power2.inOut',
-          stagger: 0.02,
-        }, 0);
+        // 阶段 1：卡片轻微下沉、缩放并淡出
+        addCardExit(tl, existingAllCards, 0);
 
         // 阶段 2：换骨就位 —— 清掉卡片 DOM，但容器仍被钉在上面的高度上，文档高度此刻不塌
         tl.add(() => {
@@ -2107,13 +2213,9 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           refreshScroll({ clamp: false });
         }, switchTime);
 
-        // 阶段 3：空状态面板原位平滑浮现
-        tl.fromTo(
-          emptyState,
-          { opacity: 0, y: 16, scale: 0.98 },
-          { opacity: 1, y: 0, scale: 1, duration: 0.42, ease: 'power2.out' },
-          switchTime
-        );
+        // 阶段 3：空状态面板以同一套 card-enter 节奏原位浮现
+        setCardEnterState(emptyState, { replay: true });
+        addCardEnter(tl, emptyState, switchTime, { replay: true });
 
         // 阶段 4：钉住的空白网格高度在 0.55s 内徐收至 0，空面板随之上浮到位
         tl.to(container, {
@@ -2148,34 +2250,16 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             emptyState,
             {
               opacity: 0,
-              y: -12,
-              scale: 0.98,
-              duration: 0.18,
+              y: -8,
+              scale: 0.99,
+              duration: 0.22,
               ease: 'power2.in',
             },
             0
           );
-          switchTime = 0.18;
+          switchTime = 0.22;
         } else if (existingAllCards.length > 0) {
-          existingAllCards.forEach((c) => {
-            c.classList.add('is-reflowing');
-            c.classList.remove('is-entered', 'is-entering');
-          });
-          gsap.set(existingAllCards, { clipPath: 'inset(0 0% 0 0)' });
-          tl.to(
-            existingAllCards,
-            {
-              clipPath: 'inset(0 100% 0 0)',
-              opacity: 0,
-              scale: 0.98,
-              duration: 0.28,
-              ease: 'power2.inOut',
-              stagger: 0.02,
-            },
-            0
-          );
-          const exitStaggerTotal = Math.min(existingAllCards.length - 1, 6) * 0.02;
-          switchTime = 0.28 + exitStaggerTotal;
+          switchTime = launchFilterExit(tl, existingAllCards);
         }
 
         tl.add(() => {
@@ -2191,33 +2275,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             filterTimeline = null;
             return;
           }
-
-          enteringCards.forEach((c) => {
-            c.classList.add('is-reflowing');
-            c.classList.remove('is-entered', 'is-entering');
-          });
-          gsap.set(enteringCards, {
-            clipPath: 'inset(0 100% 0 0)',
-            opacity: 0,
-            x: -16,
-            scale: 0.98,
-          });
-
-          filterTimeline = gsap.to(enteringCards, {
-            clipPath: 'inset(0 0% 0 0)',
-            opacity: 1,
-            x: 0,
-            scale: 1,
-            duration: 0.68,
-            ease: 'enter',
-            stagger: 0.06,
-            onComplete: () => {
-              enteringCards.forEach((c) => settleNoteCard(c));
-              (window as any).__initTiltCards?.();
-              refreshScroll();
-              filterTimeline = null;
-            },
-          });
+          launchFilterEnter(enteringCards);
         }, switchTime);
         return;
       }
@@ -2280,49 +2338,51 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       // 换骨那一帧视口已经在落点上，就不会再被钳。落点优先「你正在看的那张卡」，
       // 它被筛掉了就退到离原位最近的一张，再兜底到新的滚动上限。
       // ---------------------------------------------------------------
-      const anchor = captureViewportAnchor(container);
       const scrollBefore = window.scrollY;
-      let predictedMax = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-      let anchorScroll: number | null = null;
-      {
-        const oldCols = Array.from(container.children) as HTMLElement[];
-        oldCols.forEach((col) => col.remove());
-        mountCards(filtered, container, false);
-        predictedMax = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      if (scrollBefore > 4) {
+        const anchor = captureViewportAnchor(container);
+        let predictedMax = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        let anchorScroll: number | null = null;
+        {
+          const oldCols = Array.from(container.children) as HTMLElement[];
+          oldCols.forEach((col) => col.remove());
+          mountCards(filtered, container, false);
+          predictedMax = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
 
-        if (anchor) {
-          let el: HTMLElement | null = document.getElementById(anchor.id);
-          if (!el || el.offsetParent === null || el.classList.contains('is-filtered-out')) {
-            let bestDist = Infinity;
-            for (const c of getOrderedCards(container)) {
-              const dist = Math.abs(c.getBoundingClientRect().top - anchor.offset);
-              if (dist < bestDist) {
-                bestDist = dist;
-                el = c;
+          if (anchor) {
+            let el: HTMLElement | null = document.getElementById(anchor.id);
+            if (!el || el.offsetParent === null || el.classList.contains('is-filtered-out')) {
+              let bestDist = Infinity;
+              for (const c of getOrderedCards(container)) {
+                const dist = Math.abs(c.getBoundingClientRect().top - anchor.offset);
+                if (dist < bestDist) {
+                  bestDist = dist;
+                  el = c;
+                }
               }
             }
+            if (el) anchorScroll = scrollBefore + el.getBoundingClientRect().top - anchor.offset;
           }
-          if (el) anchorScroll = scrollBefore + el.getBoundingClientRect().top - anchor.offset;
+
+          container.innerHTML = '';
+          oldCols.forEach((col) => container.appendChild(col));
         }
 
-        container.innerHTML = '';
-        oldCols.forEach((col) => container.appendChild(col));
-      }
-
-      // 锚点只允许「向上追」：从子集切回超集（如 AI 问答 → 全部）时，锚点卡在新列表里会被
-      // 前面插入的卡片挤到更下方，若向下追就会出现「切回全部页面自己往下滑」。看板变高不会触发钳制，
-      // 保持原滚动位置即可；只有看板变矮 / 锚点上移时才需要预滚动。
-      const anchorLanding = Math.max(0, Math.min(anchorScroll ?? predictedMax, predictedMax));
-      const landing = Math.min(anchorLanding, Math.max(0, scrollBefore));
-      if (Math.abs(landing - scrollBefore) > 4) {
-        const lenis = (window as any).lenis;
-        if (lenis && typeof lenis.scrollTo === 'function') {
-          lenis.scrollTo(landing, {
-            duration: 0.26,
-            easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-          });
-        } else {
-          window.scrollTo({ top: landing, behavior: 'smooth' });
+        // 锚点只允许「向上追」：从子集切回超集（如 AI 问答 → 全部）时，锚点卡在新列表里会被
+        // 前面插入的卡片挤到更下方，若向下追就会出现「切回全部页面自己往下滑」。看板变高不会触发钳制，
+        // 保持原滚动位置即可；只有看板变矮 / 锚点上移时才需要预滚动。
+        const anchorLanding = Math.max(0, Math.min(anchorScroll ?? predictedMax, predictedMax));
+        const landing = Math.min(anchorLanding, Math.max(0, scrollBefore));
+        if (Math.abs(landing - scrollBefore) > 4) {
+          const lenis = (window as any).lenis;
+          if (lenis && typeof lenis.scrollTo === 'function') {
+            lenis.scrollTo(landing, {
+              duration: 0.26,
+              easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+            });
+          } else {
+            window.scrollTo({ top: landing, behavior: 'smooth' });
+          }
         }
       }
 
@@ -2331,25 +2391,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
       let switchTime = 0;
       if (cardsToExit.length > 0) {
-        cardsToExit.forEach((c) => {
-          c.classList.add('is-reflowing');
-          c.classList.remove('is-entered', 'is-entering');
-        });
-        gsap.set(cardsToExit, { clipPath: 'inset(0 0% 0 0)' });
-        tl.to(
-          cardsToExit,
-          {
-            clipPath: 'inset(0 100% 0 0)',
-            opacity: 0,
-            scale: 0.98,
-            duration: 0.28,
-            ease: 'power2.inOut',
-            stagger: 0.02,
-          },
-          0
-        );
-        const exitStaggerTotal = Math.min(cardsToExit.length - 1, 6) * 0.02;
-        switchTime = 0.28 + exitStaggerTotal;
+        switchTime = launchFilterExit(tl, cardsToExit);
       }
 
       tl.add(() => {
@@ -2365,41 +2407,16 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           }
         }
 
-        // 换骨这一帧不钳制滚动：Lenis 正在把视口滑向预测落点，钳一下会打断这次滑动
-        refreshScroll({ clamp: false });
-
         if (enteringCards.length === 0) {
+          refreshScroll({ clamp: false });
           filterTimeline = null;
           return;
         }
 
         enteringCards.sort((a, b) => Number(a.dataset.cardIndex || 0) - Number(b.dataset.cardIndex || 0));
-        enteringCards.forEach((c) => {
-          c.classList.add('is-reflowing');
-          c.classList.remove('is-entered', 'is-entering');
-        });
-        gsap.set(enteringCards, {
-          clipPath: 'inset(0 100% 0 0)',
-          opacity: 0,
-          x: -16,
-          scale: 0.98,
-        });
-
-        filterTimeline = gsap.to(enteringCards, {
-          clipPath: 'inset(0 0% 0 0)',
-          opacity: 1,
-          x: 0,
-          scale: 1,
-          duration: 0.68,
-          ease: 'enter',
-          stagger: 0.06,
-          onComplete: () => {
-            enteringCards.forEach((c) => settleNoteCard(c));
-            (window as any).__initTiltCards?.();
-            refreshScroll();
-            filterTimeline = null;
-          },
-        });
+        launchFilterEnter(enteringCards);
+        // 换骨这一帧不钳制滚动：放在 launchFilterEnter 之后统一刷新，避免与 getBoundingClientRect() 连续重排
+        refreshScroll({ clamp: false });
       }, switchTime);
     }
 
@@ -2533,7 +2550,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         readerCloseTimer = null;
         syncModalLock();
         restoreFocus(lastFocusedEl);
-      }, 280);
+      }, 300);
     }
 
     function isModalVisible(id: string): boolean {
@@ -2602,7 +2619,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         syncModalLock();
         restoreFocus(confirmLastFocused);
         confirmLastFocused = null;
-      }, 220);
+      }, 240);
       resolve(ok);
     }
 
@@ -2817,7 +2834,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         editorCloseTimer = null;
         syncModalLock();
         restoreFocus(lastFocusedEl);
-      }, 280);
+      }, 300);
     }
 
     function switchEditorTab(tab: 'write' | 'preview') {
@@ -2923,6 +2940,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           return;
         }
 
+        animateNextNotesRender = true;
         document.dispatchEvent(new CustomEvent('article-notes:changed'));
         showToast(isAnnotation ? '批注修改已保存！' : '便签修改已保存！');
       } else {
@@ -2941,6 +2959,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           dirty: true,
           deleted: false,
         };
+        animateNextNotesRender = true;
         saveStandaloneNote(newRecord);
         const persisted = loadHighlights('__standalone__').some((r) => r.id === newRecord.id && !r.deleted);
         if (!persisted) {
@@ -3272,7 +3291,10 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       refreshNotesFromStorage();
       updateStats(false);
       renderArticleDropdown();
-      renderCards(false);
+      // 新增 / 编辑笔记走统一的进退场；同步与跨标签页刷新保持即时，不重播整页动画。
+      const shouldAnimate = animateNextNotesRender;
+      animateNextNotesRender = false;
+      renderCards(shouldAnimate);
     }, { signal });
 
     // 监听屏幕断点变化，自适应重排列（1列 / 2列 / 3列）

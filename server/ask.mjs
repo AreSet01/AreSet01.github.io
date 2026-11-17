@@ -212,6 +212,7 @@ function maskApiKey(key) {
 const DATA_DIR = config.dataDir;
 const ACCOUNTS_FILE = path.join(DATA_DIR, 'accounts.json');
 const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
+const MINDMAPS_FILE = path.join(DATA_DIR, 'mindmaps.json');
 const SESSION_COOKIE = 'blog_notes_session';
 const SESSION_TTL_MS = config.sessionDays * 24 * 3600 * 1000;
 const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -228,6 +229,22 @@ const NOTE_LIMITS = {
   maxTags: 20,
   batch: 200,
   perUser: 5_000,
+};
+const MINDMAP_LIMITS = {
+  id: 80,
+  title: 140,
+  category: 32,
+  maxCategories: 24,
+  tag: 32,
+  maxTags: 12,
+  postSlug: 300,
+  postTitle: 200,
+  nodeText: 400,
+  nodeNote: 4_000,
+  maxNodesPerMap: 800,
+  maxDepth: 12,
+  batch: 50,
+  perUser: 500,
 };
 
 try {
@@ -252,6 +269,8 @@ accounts.users = accounts.users && typeof accounts.users === 'object' ? accounts
 accounts.invites = accounts.invites && typeof accounts.invites === 'object' ? accounts.invites : {};
 const notesDb = loadJsonFile(NOTES_FILE, { users: {} });
 notesDb.users = notesDb.users && typeof notesDb.users === 'object' ? notesDb.users : {};
+const mindmapsDb = loadJsonFile(MINDMAPS_FILE, { users: {} });
+mindmapsDb.users = mindmapsDb.users && typeof mindmapsDb.users === 'object' ? mindmapsDb.users : {};
 
 function atomicWriteJson(file, value) {
   const tmp = `${file}.${process.pid}.tmp`;
@@ -460,6 +479,125 @@ function authRateLimit(key, limit = 10, windowMs = 60_000) {
     return `操作太频繁，请 ${Math.ceil((record.resetAt - now) / 1000)} 秒后再试`;
   }
   return null;
+}
+
+// ---------- 思维导图 ----------
+let mindmapsSaveTimer = null;
+function saveMindmapsNow() {
+  if (mindmapsSaveTimer) {
+    clearTimeout(mindmapsSaveTimer);
+    mindmapsSaveTimer = null;
+  }
+  try {
+    atomicWriteJson(MINDMAPS_FILE, mindmapsDb);
+  } catch (err) {
+    log('保存 mindmaps.json 失败:', err.message);
+  }
+}
+function scheduleMindmapsSave() {
+  if (mindmapsSaveTimer) return;
+  mindmapsSaveTimer = setTimeout(saveMindmapsNow, 800);
+  mindmapsSaveTimer.unref?.();
+}
+
+const DEFAULT_MINDMAP_CATEGORIES = ['架构拆解', '源码研读', '知识体系', '灵感随想'];
+const MINDMAP_CARD_COLORS = new Set(['red', 'blue', 'green', 'yellow', 'gold']);
+const MINDMAP_NODE_COLORS = new Set(['ink', 'red', 'blue', 'green', 'yellow', 'gold']);
+const MINDMAP_LAYOUTS = new Set(['logic-right', 'mindmap-both', 'tree-down']);
+
+function sanitizeMindMapCategories(raw) {
+  if (!Array.isArray(raw)) return [...DEFAULT_MINDMAP_CATEGORIES];
+  const seen = new Set();
+  const out = [];
+  for (const item of raw) {
+    const clean = String(item ?? '').trim().slice(0, MINDMAP_LIMITS.category);
+    if (!clean || clean === 'all' || seen.has(clean)) continue;
+    seen.add(clean);
+    out.push(clean);
+    if (out.length >= MINDMAP_LIMITS.maxCategories) break;
+  }
+  return out.length > 0 ? out : [...DEFAULT_MINDMAP_CATEGORIES];
+}
+
+function getUserMindmaps(userId) {
+  if (!mindmapsDb.users[userId] || typeof mindmapsDb.users[userId] !== 'object') {
+    mindmapsDb.users[userId] = {
+      rev: 0,
+      categories: [...DEFAULT_MINDMAP_CATEGORIES],
+      categoriesUpdatedAt: 0,
+      maps: {},
+    };
+  }
+  const bucket = mindmapsDb.users[userId];
+  bucket.maps = bucket.maps && typeof bucket.maps === 'object' ? bucket.maps : {};
+  bucket.categories = sanitizeMindMapCategories(bucket.categories);
+  bucket.categoriesUpdatedAt = Number(bucket.categoriesUpdatedAt) || 0;
+  bucket.rev = Number(bucket.rev) || 0;
+  return bucket;
+}
+
+function sanitizeMindMapNode(raw, depth = 0, counter = { count: 0 }) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (depth > MINDMAP_LIMITS.maxDepth || counter.count >= MINDMAP_LIMITS.maxNodesPerMap) return null;
+  counter.count += 1;
+
+  const rawId = typeof raw.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(raw.id.trim())
+    ? raw.id.trim()
+    : `n_${counter.count}`;
+  const text = String(raw.text || '').replace(/\r?\n/g, ' ').trim().slice(0, MINDMAP_LIMITS.nodeText)
+    || (depth === 0 ? '核心主题' : '新节点');
+
+  const node = { id: rawId, text, children: [] };
+  if (raw.collapsed === true && depth >= 1) node.collapsed = true;
+  if (MINDMAP_NODE_COLORS.has(raw.color) && raw.color !== 'ink') node.color = raw.color;
+  if (typeof raw.note === 'string' && raw.note.trim()) {
+    node.note = raw.note.trim().slice(0, MINDMAP_LIMITS.nodeNote);
+  }
+  if (raw.side === 'left' || raw.side === 'right') node.side = raw.side;
+
+  if (Array.isArray(raw.children) && depth < MINDMAP_LIMITS.maxDepth) {
+    for (const child of raw.children) {
+      if (counter.count >= MINDMAP_LIMITS.maxNodesPerMap) break;
+      const sanitized = sanitizeMindMapNode(child, depth + 1, counter);
+      if (sanitized) node.children.push(sanitized);
+    }
+  }
+  return node;
+}
+
+function sanitizeMindMap(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = String(raw.id || '').trim();
+  if (!id || id.length > MINDMAP_LIMITS.id || !/^[A-Za-z0-9_-]+$/.test(id)) return null;
+
+  const root = sanitizeMindMapNode(raw.root, 0, { count: 0 }) || {
+    id: 'n_root',
+    text: '核心主题',
+    children: [],
+  };
+  const numberOr = (value, fallback) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  };
+  const createdAt = numberOr(raw.createdAt, Date.now());
+  const updatedAt = numberOr(raw.updatedAt, createdAt);
+
+  return {
+    id,
+    title: (String(raw.title || '').trim() || root.text || '未命名导图').slice(0, MINDMAP_LIMITS.title),
+    category: (String(raw.category || '').trim() || DEFAULT_MINDMAP_CATEGORIES[0]).slice(0, MINDMAP_LIMITS.category),
+    tags: Array.isArray(raw.tags)
+      ? raw.tags.map((t) => String(t || '').trim().slice(0, MINDMAP_LIMITS.tag)).filter(Boolean).slice(0, MINDMAP_LIMITS.maxTags)
+      : [],
+    color: MINDMAP_CARD_COLORS.has(raw.color) ? raw.color : 'blue',
+    layout: MINDMAP_LAYOUTS.has(raw.layout) ? raw.layout : 'logic-right',
+    postSlug: String(raw.postSlug || '').trim().slice(0, MINDMAP_LIMITS.postSlug),
+    postTitle: String(raw.postTitle || '').trim().slice(0, MINDMAP_LIMITS.postTitle),
+    root,
+    createdAt,
+    updatedAt,
+    deleted: Boolean(raw.deleted),
+  };
 }
 
 // ---------- 笔记 ----------
@@ -1290,6 +1428,104 @@ async function handleNotes(req, res, pathname) {
   return sendJson(res, 404, { error: 'not found' });
 }
 
+async function handleMindmaps(req, res, pathname) {
+  const user = currentUser(req);
+  if (!user) return sendJson(res, 401, { error: '未登录' });
+  const method = req.method || 'GET';
+  if (method !== 'GET' && !sameOrigin(req)) {
+    return sendJson(res, 403, { error: '请求来源不合法' });
+  }
+
+  const bucket = getUserMindmaps(user.id);
+
+  if (pathname === '/api/mindmaps/export' && method === 'GET') {
+    const items = Object.values(bucket.maps)
+      .filter((m) => !m.deleted)
+      .sort((a, b) => Number(b.updatedAt || b.createdAt) - Number(a.updatedAt || a.createdAt));
+    return sendJson(res, 200, {
+      ok: true,
+      user: publicUser(user),
+      rev: bucket.rev,
+      categories: bucket.categories,
+      mindmaps: items,
+    });
+  }
+
+  if (pathname === '/api/mindmaps/status' && method === 'GET') {
+    const urlObj = new URL(req.url || '/', 'http://localhost');
+    const since = Math.max(0, Number(urlObj.searchParams.get('since')) || 0);
+    const changes = Object.values(bucket.maps).filter((m) => Number(m.serverRev) > since);
+    const catChanged = bucket.categoriesUpdatedAt > 0 && since === 0 ? 1 : 0;
+    return sendJson(res, 200, {
+      ok: true,
+      rev: bucket.rev,
+      incomingCount: changes.length + catChanged,
+      totalCount: Object.values(bucket.maps).filter((m) => !m.deleted).length,
+      categoriesUpdatedAt: bucket.categoriesUpdatedAt,
+    });
+  }
+
+  if (pathname === '/api/mindmaps/sync' && method === 'POST') {
+    let body;
+    try {
+      body = await readJson(req, 2 * 1024 * 1024);
+    } catch {
+      return sendJson(res, 400, { error: '请求数据过大或格式有误' });
+    }
+
+    const since = Math.max(0, Number(body?.since) || 0);
+    const incoming = Array.isArray(body?.changes) ? body.changes.slice(0, MINDMAP_LIMITS.batch) : [];
+    let dirty = false;
+
+    if (Array.isArray(body?.categories)) {
+      const incomingCatAt = Number(body?.categoriesUpdatedAt) || Date.now();
+      if (incomingCatAt > Number(bucket.categoriesUpdatedAt || 0)) {
+        bucket.categories = sanitizeMindMapCategories(body.categories);
+        bucket.categoriesUpdatedAt = incomingCatAt;
+        bucket.rev += 1;
+        dirty = true;
+      }
+    }
+
+    for (const raw of incoming) {
+      const clean = sanitizeMindMap(raw);
+      if (!clean) continue;
+      const existing = bucket.maps[clean.id];
+      if (!existing) {
+        if (Object.keys(bucket.maps).length >= MINDMAP_LIMITS.perUser) {
+          return sendJson(res, 413, { error: `思维导图上限 ${MINDMAP_LIMITS.perUser} 张` });
+        }
+        bucket.maps[clean.id] = { ...clean, serverRev: ++bucket.rev };
+        dirty = true;
+        continue;
+      }
+      if (Number(existing.updatedAt) > Number(clean.updatedAt)) continue;
+      if (Number(existing.updatedAt) === Number(clean.updatedAt) && Boolean(existing.deleted) === Boolean(clean.deleted)) {
+        continue;
+      }
+      bucket.maps[clean.id] = { ...clean, serverRev: ++bucket.rev };
+      dirty = true;
+    }
+
+    if (dirty) scheduleMindmapsSave();
+
+    const allChanges = Object.values(bucket.maps)
+      .filter((m) => Number(m.serverRev) > since)
+      .sort((a, b) => Number(a.serverRev) - Number(b.serverRev));
+    const changes = allChanges.slice(0, 500);
+    return sendJson(res, 200, {
+      ok: true,
+      rev: bucket.rev,
+      changes,
+      hasMore: allChanges.length > 500,
+      categories: bucket.categories,
+      categoriesUpdatedAt: bucket.categoriesUpdatedAt,
+    });
+  }
+
+  return sendJson(res, 404, { error: 'not found' });
+}
+
 async function handleSettings(req, res, subPath) {
   const ip = clientIp(req);
 
@@ -1609,6 +1845,14 @@ const server = http.createServer((req, res) => {
     });
   }
 
+  if (pathname.startsWith('/api/mindmaps/')) {
+    return handleMindmaps(req, res, pathname).catch((error) => {
+      log('mindmaps crash:', error?.stack || error);
+      if (!res.headersSent) sendJson(res, 500, { error: '服务出错了' });
+      else res.end();
+    });
+  }
+
   if (pathname.startsWith('/api/settings')) {
     const subPath = pathname.slice('/api/settings'.length);
     return handleSettings(req, res, subPath).catch((error) => {
@@ -1632,6 +1876,7 @@ server.listen(config.port, config.host, () => {
 const shutdown = () => {
   saveAnswers();
   saveNotesNow();
+  saveMindmapsNow();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 2000).unref();
 };

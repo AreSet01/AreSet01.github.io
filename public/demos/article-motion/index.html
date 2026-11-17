@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN" data-mode="proposed" data-theme="light" data-font="pixel">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>文章动效预览 · 梦付千秋</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="demo-toolbar">
+    <div class="demo-brand"><span class="brand-glyph" aria-hidden="true">阅</span><div><strong>阅读之间</strong><span>ARTICLE MOTION / 01</span></div></div>
+    <div class="mode-switch" role="group" aria-label="动效方案">
+      <button type="button" data-mode-button="current" aria-pressed="false">当前节奏</button>
+      <button type="button" data-mode-button="proposed" aria-pressed="true">建议方案 <span class="mode-dot"></span></button>
+    </div>
+    <div class="toolbar-actions">
+      <button type="button" id="replay" class="replay-button"><span aria-hidden="true">↻</span> 重播开场</button>
+      <button type="button" id="speed" aria-pressed="false" title="以半速观察动作">1× <span>速度</span></button>
+      <button type="button" id="font" aria-pressed="false" title="切换像素字体与行楷">字<span class="desktop-label">体</span></button>
+      <label class="theme-control"><span class="sr-only">颜色主题</span><select id="theme"><option value="light">浅纸</option><option value="dark">深墨</option><option value="moss">绿粉</option></select></label>
+    </div>
+  </header>
+  <div class="demo-context"><span class="context-dot"></span><p id="mode-description">原位显现 · 回看稳定 · 面板同步舒展</p><span class="demo-disclaimer">交互样稿 · 当前节奏按现有代码参数复现</span></div>
+
+  <div class="workspace">
+    <aside class="site-nav" aria-label="预览导览">
+      <a class="site-name" href="../../../">梦付千秋<span>笔记与思考的留白处</span></a>
+      <div class="nav-label">体验动效</div>
+      <nav class="scenario-nav">
+        <button type="button" data-scene="intro" class="active"><span>01</span> 进入文章 <i>↗</i></button>
+        <button type="button" data-scene="reading"><span>02</span> 滚动阅读 <i>↓</i></button>
+        <button type="button" data-scene="toc"><span>03</span> 展开目录 <i>↕</i></button>
+        <button type="button" data-scene="code"><span>04</span> 长代码块 <i>↕</i></button>
+        <button type="button" data-scene="notes"><span>05</span> 伴读笔记 <i>↗</i></button>
+        <button type="button" data-scene="search"><span>06</span> 文内搜索 <i>⌕</i></button>
+      </nav>
+      <div class="nav-foot"><span class="little-line"></span><p>留一点动静，<br>让阅读从容一些。</p><small>同一篇文章，两种节奏。</small><a href="../../../posts/ue5-uht-generated-code-deep-dive">打开正式文章 ↗</a></div>
+    </aside>
+
+    <main class="stage" id="stage">
+      <div class="reading-progress" aria-hidden="true"><span id="progress"></span></div>
+      <div id="reader" tabindex="0" aria-label="文章预览，向下滚动阅读">
+        <article class="article">
+          <header class="article-header" id="article-top">
+            <div class="article-meta intro-secondary">ARCHIVE <span>/</span> <time datetime="2026-09-21">2026年9月21日</time> <span>/</span> 引擎开发 <span>/</span> 9 MIN READ</div>
+            <h1 id="post-title"><span class="title-rule" aria-hidden="true"></span><span id="title-text">UE5 反射系统与底层架构深度解析（上）：UHT 运作机制</span></h1>
+            <p class="article-description intro-secondary">从编译期的代码生成，到运行时的类型注册。沿着一条构建流水线，理解虚幻引擎如何让 C++ 拥有反射能力。</p>
+            <div class="article-tags intro-secondary"><span># Unreal Engine</span><span># UE5</span><span># 反射系统</span><span># UHT</span><span># C++</span></div>
+          </header>
+          <div class="article-below">
+            <div class="series-strip"><div><span class="eyebrow">SERIES</span> UE5 反射系统与底层架构深度解析</div><span>1 / 6</span><div class="series-marks" aria-hidden="true"><i class="selected"></i><i></i><i></i><i></i><i></i><i></i></div></div>
+            <section class="toc" id="toc">
+              <div class="toc-header"><button type="button" id="toc-toggle" aria-expanded="true" aria-controls="toc-content"><span class="toc-caret" aria-hidden="true">⌄</span><span class="eyebrow">NAVIGATION</span><span class="toc-title">文章目录</span></button><span class="toc-count">04 节</span></div>
+              <div id="toc-content"><nav class="toc-links" aria-label="文章目录"><a href="#section-intro"><span>01</span> 标准 C++ 与虚幻引擎的反射</a><a href="#section-pipeline"><span>02</span> UHT 在构建流水线中的位置</a><a href="#section-code"><span>03</span> generated.h：编译期的接口</a><a href="#section-summary"><span>04</span> 从声明到运行时</a></nav></div>
+            </section>
+
+            <div class="prose" id="prose">
+              <h2 id="section-intro" data-reveal="heading"><span class="section-number">01 /</span> 标准 C++ 与虚幻引擎的反射</h2>
+              <p data-reveal="block">在现代计算机语言生态中，C#、Java 等语言拥有原生反射能力。程序可以在运行时查询自身的类名、成员变量与方法签名，进而完成动态调用与序列化。</p>
+              <p data-reveal="block">而标准 C++ 坚持<strong>零成本抽象</strong>的设计哲学。它提供的 RTTI 能力有限，无法直接枚举一个类的全部属性，也不能按名称动态调用任意成员函数。</p>
+              <blockquote data-reveal="quote"><p>反射并不是让编译器猜出一切，而是将类型的信息，提前写进程序能够读取的数据结构。</p><cite>理解 UHT 的一个入口</cite></blockquote>
+              <p data-reveal="block">为了兼顾原生性能与动态能力，虚幻引擎引入了 <strong>UHT（Unreal Header Tool）</strong>。它读取带有反射标记的声明，为普通的 C++ 类型生成额外的描述信息和接口。</p>
+              <ul data-reveal="list"><li>按名称查找类、属性与函数。</li><li>通过统一的属性描述完成序列化。</li><li>为编辑器、蓝图和网络复制提供类型信息。</li></ul>
+
+              <h2 id="section-pipeline" data-reveal="heading"><span class="section-number">02 /</span> UHT 在构建流水线中的位置</h2>
+              <p data-reveal="block">点击 Build 之后，UBT 负责组织整个构建任务。在调用 C++ 编译器之前，它先运行 UHT，处理工程中需要参与反射的头文件。</p>
+              <figure class="pipeline" data-reveal="media"><figcaption><span class="eyebrow">BUILD PIPELINE</span> 从声明到可执行代码</figcaption><div class="pipeline-nodes"><div><small>调度</small><strong>UBT</strong></div><span>→</span><div class="pipeline-focus"><small>生成</small><strong>UHT</strong></div><span>→</span><div><small>编译</small><strong>C++</strong></div><span>→</span><div><small>链接</small><strong>DLL</strong></div></div><p>头文件声明 → 反射元数据 → 原生机器码</p></figure>
+              <h3 data-reveal="subheading">扫描、校验、构建与生成</h3>
+              <p data-reveal="block">UHT 关注的是类和成员的声明。它识别 <code>UCLASS()</code>、<code>UPROPERTY()</code> 与 <code>UFUNCTION()</code> 等标记，检查说明符，再构建用于生成代码的类型模型。</p>
+              <div class="table-wrap" data-reveal="table"><table><thead><tr><th>阶段</th><th>主要工作</th><th>产出</th></tr></thead><tbody><tr><td>扫描</td><td>识别声明与反射标记</td><td>语法信息</td></tr><tr><td>校验</td><td>检查类型和说明符约束</td><td>有效声明</td></tr><tr><td>构建</td><td>组织类型与继承关系</td><td>反射模型</td></tr><tr><td>生成</td><td>输出胶水代码和注册代码</td><td>生成文件</td></tr></tbody></table></div>
+              <p data-reveal="block">这些生成文件最终仍然交给普通 C++ 编译器处理。对编译器而言，反射所需的数据与接口也只是参与编译的 C++ 代码。</p>
+
+              <h2 id="section-code" data-reveal="heading"><span class="section-number">03 /</span> generated.h：编译期的接口</h2>
+              <p data-reveal="block">对于参与反射的类型，生成头文件应位于其他 include 之后。类中的 <code>GENERATED_BODY()</code> 为生成代码提供展开位置。</p>
+              <div class="code-block" data-reveal="code"><div class="code-toolbar"><span><i aria-hidden="true"></i> MyInventoryComponent.h</span><button type="button" id="code-toggle" aria-expanded="false" aria-controls="code-content">展开代码 <span>↕</span></button></div><div id="code-content" class="code-content collapsed"><pre><code><span class="code-comment">// 反射接口示例</span>
+<span class="code-keyword">#pragma</span> once
+
+<span class="code-keyword">#include</span> "CoreMinimal.h"
+<span class="code-keyword">#include</span> "Components/ActorComponent.h"
+<span class="code-keyword">#include</span> "MyInventoryComponent.generated.h"
+
+<span class="code-fn">UCLASS</span>(ClassGroup=(Custom),
+       meta=(BlueprintSpawnableComponent))
+<span class="code-keyword">class</span> MYPROJECT_API UMyInventoryComponent
+    : <span class="code-keyword">public</span> UActorComponent
+{
+    <span class="code-fn">GENERATED_BODY</span>()
+
+<span class="code-keyword">public</span>:
+    <span class="code-fn">UPROPERTY</span>(EditAnywhere, BlueprintReadWrite,
+              Category="Inventory")
+    int32 Capacity = 20;
+
+    <span class="code-fn">UFUNCTION</span>(BlueprintCallable,
+              Category="Inventory")
+    bool AddItem(int32 ItemID);
+
+    <span class="code-fn">UFUNCTION</span>(BlueprintPure,
+              Category="Inventory")
+    int32 GetCapacity() const;
+};</code></pre></div><button type="button" id="code-veil" class="code-veil">展开全部 27 行 <span>↓</span></button></div>
+              <p data-reveal="block">这段声明描述了组件的公开能力。UHT 将反射标记转换为可供引擎查询的信息，让编辑器和蓝图能够找到这些属性与函数。</p>
+              <aside class="callout" data-reveal="block"><span>NOTE</span><p><code>.generated.h</code> 与 <code>.gen.cpp</code> 是同一套生成流程的不同产物。阅读时把接口声明和注册实现放在一起看，会更容易理解它们的配合。</p></aside>
+
+              <h2 id="section-summary" data-reveal="heading"><span class="section-number">04 /</span> 从声明到运行时</h2>
+              <p data-reveal="block">编译阶段建立好类型描述，运行阶段再把这些信息注册到引擎的类型系统中。编辑器、序列化与蓝图由此获得了统一访问 C++ 对象的入口。</p>
+              <p data-reveal="block">回到最初的问题：反射能力来自一条完整的协作链路。声明提供意图，UHT 生成描述，编译器生成机器码，引擎在运行时使用这些信息。</p>
+              <blockquote data-reveal="quote"><p>读到这里，可以向上回看，再向下翻。留意文字是否还会重新淡入，以及章节标题是否保持在原位。</p><cite>动效体验提示</cite></blockquote>
+              <div class="article-end"><span>—  本篇预览完  —</span><button type="button" data-scene="intro">回到开头，再看一次 ↗</button></div>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="ink-curtain" id="curtain" aria-hidden="true"><div class="ink-bloom"></div></div>
+      <div class="mobile-backdrop" id="panel-backdrop" hidden></div>
+      <aside class="notes-panel" id="notes-panel" aria-labelledby="notes-title" hidden>
+        <div class="notes-header"><div><span class="eyebrow">READING COMPANION</span><h2 id="notes-title">伴读笔记</h2></div><button type="button" id="notes-close" class="icon-button" aria-label="关闭笔记">×</button></div>
+        <div class="notes-tabs" role="group" aria-label="笔记分类"><button type="button" data-note-tab="excerpt" aria-pressed="true">摘录 <span>02</span></button><button type="button" data-note-tab="thought" aria-pressed="false">随想 <span>01</span></button></div>
+        <div class="notes-content" id="notes-content"><p class="notes-caption">留住值得回看的片刻</p><div id="excerpt-notes"><div class="note-card"><small>01 · 标准 C++ 与反射</small><blockquote>将类型的信息，提前写进程序能够读取的数据结构。</blockquote><p>从“生成描述”的角度理解反射，比从宏本身入手更直观。</p></div><div class="note-card"><small>02 · 构建流水线</small><blockquote>生成文件最终仍然交给普通 C++ 编译器处理。</blockquote><p>UHT 是构建过程的一环。</p></div></div><div id="thought-notes" hidden><div class="note-card"><small>阅读随想</small><p>下次沿着一个 UPROPERTY 的生成结果，跟踪到运行时的 FProperty，串起整条链路。</p></div></div></div>
+        <div class="notes-footer"><span class="context-dot"></span> 预览笔记，仅用于体验面板动效</div>
+      </aside>
+
+      <section class="search-hud" id="search-hud" role="dialog" aria-label="搜索预览文章" hidden><div class="search-input-row"><span aria-hidden="true">⌕</span><input type="search" id="search-input" placeholder="搜索这篇文章…" aria-label="搜索关键词" autocomplete="off"><kbd>/</kbd><button type="button" id="search-close" class="icon-button" aria-label="关闭搜索">×</button></div><div class="search-results" id="search-results" aria-live="polite"></div></section>
+      <div class="floating-actions"><button type="button" id="notes-open" aria-expanded="false" aria-controls="notes-panel"><span aria-hidden="true">✎</span> 笔记 <small>2</small></button><button type="button" id="search-open" aria-expanded="false" aria-controls="search-hud"><span aria-hidden="true">⌕</span> 搜本文 <kbd>/</kbd></button></div>
+      <div class="reduced-notice" id="reduced-notice" hidden>已遵循系统的“减少动态效果”设置</div>
+    </main>
+  </div>
+  <footer class="demo-footer"><div><span class="status-dot"></span><strong id="status-label">建议方案</strong><span id="status-text">向下阅读，再向上回看；也可以打开右下角的笔记。</span></div><button type="button" id="replay-visible">重播当前正文 <span>↻</span></button></footer>
+  <script src="./demo.js"></script>
+</body>
+</html>

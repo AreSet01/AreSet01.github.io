@@ -361,8 +361,14 @@
   import { initNotesSync } from '../utils/notesSync';
   import { renderMarkdown } from '../utils/inkAskMarkdown';
   import { bindScrollIsolation } from '../utils/scrollIsolation';
+  import { readArticleMotion } from '../utils/articleMotion';
   import { lockScrollAnchor } from '../utils/scrollAnchorLock';
   import { handleMarkdownKeydown, createMarkdownToolbar } from '../utils/markdownShortcuts';
+  import {
+    collectRangeTextRects,
+    collectMarkRects,
+    classifyRectsToGeometry,
+  } from '../utils/unifiedHighlightGeometry';
 
   initNotesSync();
 
@@ -459,7 +465,7 @@
 
     const toggleNotesMaximize = () => {
       if (!drawer) return;
-      lockScrollAnchor(400);
+      lockScrollAnchor(readArticleMotion().panelMs + 100);
 
       const first = drawer.getBoundingClientRect();
       const isMax = !drawer.classList.contains('is-maximized');
@@ -476,7 +482,7 @@
       drawer.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${sx}, ${sy})`;
       void drawer.offsetHeight; // Force browser layout flush so the inverted transform takes effect!
 
-      drawer.style.transition = 'transform 380ms cubic-bezier(0.16, 1, 0.3, 1), border-radius 380ms ease';
+      drawer.style.transition = 'transform var(--article-duration-panel) var(--article-ease-layout), border-radius var(--article-duration-panel) var(--article-ease-layout)';
       drawer.style.transform = 'translate3d(0, 0, 0) scale(1, 1)';
 
       const onEnd = (e: TransitionEvent) => {
@@ -492,7 +498,7 @@
         drawer.style.transform = '';
         drawer.style.transformOrigin = '';
         drawer.removeEventListener('transitionend', onEnd);
-      }, 450);
+      }, readArticleMotion().panelMs + 80);
     };
     const setNotesMaximized = (want: boolean, opts?: { silent?: boolean }) => {
       if (!drawer) return;
@@ -812,8 +818,270 @@
     let isDockVisible = false;
     let stampTimeoutId: number | null = null;
 
+    // ---------- 统一连续底纹与块级高亮渲染系统 ----------
+    prose.querySelectorAll('.prose-highlight-backdrop, .prose-selection-backdrop').forEach((n) => n.remove());
+    const highlightBackdrop = document.createElement('div');
+    highlightBackdrop.className = 'prose-highlight-backdrop';
+    highlightBackdrop.setAttribute('aria-hidden', 'true');
+
+    const selectionBackdrop = document.createElement('div');
+    selectionBackdrop.className = 'prose-selection-backdrop';
+    selectionBackdrop.setAttribute('aria-hidden', 'true');
+    prose.prepend(highlightBackdrop, selectionBackdrop);
+
+    const selectionShapeEl = document.createElement('div');
+    let lastSelCoveredCodes: HTMLElement[] = [];
+
+    interface UnifiedBlockEntry {
+      id: string;
+      top: number;
+      bottom: number;
+      element: HTMLElement;
+      marks: HTMLElement[];
+    }
+    const blockRegistry = new Map<string, UnifiedBlockEntry>();
+    let hoveredHighlightId: string | null = null;
+    let isPointerDraggingText = false;
+    let liveSelRaf = 0;
+    let blockSyncRaf = 0;
+
+    function clearSelectionCoveredCodes() {
+      for (let i = 0; i < lastSelCoveredCodes.length; i += 1) {
+        lastSelCoveredCodes[i].removeAttribute('data-sel-covered');
+      }
+      lastSelCoveredCodes = [];
+    }
+
+    function clearLiveSelectionVisual() {
+      clearSelectionCoveredCodes();
+      prose.classList.remove('has-unified-selection');
+      if (selectionShapeEl.parentElement) {
+        selectionShapeEl.remove();
+      }
+    }
+
+    function syncLiveSelectionVisual() {
+      liveSelRaf = 0;
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        clearLiveSelectionVisual();
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      if (!prose.contains(range.commonAncestorContainer)) {
+        clearLiveSelectionVisual();
+        return;
+      }
+
+      if (selection.toString().trim().length === 0) {
+        clearLiveSelectionVisual();
+        return;
+      }
+
+      const collected = collectRangeTextRects(range, prose);
+      const proseRect = prose.getBoundingClientRect();
+      const geom = classifyRectsToGeometry(collected, proseRect);
+
+      if (geom.mode === 'none') {
+        clearLiveSelectionVisual();
+        return;
+      }
+
+      clearSelectionCoveredCodes();
+      prose.classList.add('has-unified-selection');
+
+      collected.coveredInlineCodes.forEach((codeEl) => {
+        codeEl.setAttribute('data-sel-covered', 'true');
+        lastSelCoveredCodes.push(codeEl);
+      });
+
+      if (geom.mode === 'block') {
+        selectionShapeEl.className = 'article-selection-block';
+        selectionShapeEl.style.left = '';
+        selectionShapeEl.style.width = '';
+        selectionShapeEl.style.top = `${geom.top}px`;
+        selectionShapeEl.style.height = `${geom.height}px`;
+      } else if (geom.band) {
+        selectionShapeEl.className = 'article-selection-band';
+        selectionShapeEl.style.left = `${geom.band.left}px`;
+        selectionShapeEl.style.width = `${geom.band.width}px`;
+        selectionShapeEl.style.top = `${geom.band.top}px`;
+        selectionShapeEl.style.height = `${geom.band.height}px`;
+      }
+
+      if (selectionShapeEl.parentElement !== selectionBackdrop) {
+        selectionBackdrop.appendChild(selectionShapeEl);
+      }
+    }
+
+    function scheduleLiveSelectionVisual() {
+      if (liveSelRaf) return;
+      liveSelRaf = window.requestAnimationFrame(syncLiveSelectionVisual);
+    }
+
+    function setHoveredHighlight(nextId: string | null) {
+      if (hoveredHighlightId === nextId) return;
+      if (hoveredHighlightId) {
+        const prevOverlay = highlightBackdrop.querySelector<HTMLElement>(
+          `[data-highlight-id="${CSS.escape(hoveredHighlightId)}"]`
+        );
+        prevOverlay?.classList.remove('is-hovered');
+        prose
+          .querySelectorAll<HTMLElement>(`mark.article-highlight-mark[data-highlight-id="${CSS.escape(hoveredHighlightId)}"]`)
+          .forEach((m) => m.classList.remove('is-hovered'));
+      }
+      hoveredHighlightId = nextId;
+      if (nextId) {
+        const nextOverlay = highlightBackdrop.querySelector<HTMLElement>(
+          `[data-highlight-id="${CSS.escape(nextId)}"]`
+        );
+        nextOverlay?.classList.add('is-hovered');
+        prose
+          .querySelectorAll<HTMLElement>(`mark.article-highlight-mark[data-highlight-id="${CSS.escape(nextId)}"]`)
+          .forEach((m) => m.classList.add('is-hovered'));
+        prose.classList.add('has-highlight-hover');
+      } else {
+        prose.classList.remove('has-highlight-hover');
+      }
+    }
+
+    function syncActiveBlockState() {
+      highlightBackdrop
+        .querySelectorAll<HTMLElement>('.article-highlight-block, .article-highlight-band')
+        .forEach((el) => {
+          el.classList.toggle('is-active', Boolean(activeHighlightId && el.dataset.highlightId === activeHighlightId));
+        });
+    }
+
+    function findBlockIdAtPoint(clientX: number, clientY: number): string | null {
+      if (blockRegistry.size === 0) return null;
+      const proseRect = prose.getBoundingClientRect();
+      const relX = clientX - proseRect.left;
+      const relY = clientY - proseRect.top;
+      if (relX < -10 || relX > proseRect.width + 10) return null;
+
+      let matchedId: string | null = null;
+      let bestSpan = Infinity;
+      blockRegistry.forEach((entry) => {
+        if (relY >= entry.top && relY <= entry.bottom) {
+          const span = entry.bottom - entry.top;
+          if (span <= bestSpan) {
+            bestSpan = span;
+            matchedId = entry.id;
+          }
+        }
+      });
+      return matchedId;
+    }
+
+    function syncHighlightBlocks(animateId?: string) {
+      blockSyncRaf = 0;
+      const allMarks = Array.from(prose.querySelectorAll<HTMLElement>('mark.article-highlight-mark[data-highlight-id]'));
+      if (allMarks.length === 0) {
+        blockRegistry.clear();
+        highlightBackdrop.innerHTML = '';
+        return;
+      }
+
+      const grouped = new Map<string, HTMLElement[]>();
+      allMarks.forEach((mark) => {
+        const id = mark.dataset.highlightId;
+        if (!id) return;
+        const list = grouped.get(id);
+        if (list) list.push(mark);
+        else grouped.set(id, [mark]);
+      });
+
+      const proseRect = prose.getBoundingClientRect();
+      const measured: Array<{
+        id: string;
+        marks: HTMLElement[];
+        geom: ReturnType<typeof classifyRectsToGeometry>;
+      }> = [];
+
+      grouped.forEach((marks, id) => {
+        const collected = collectMarkRects(marks, prose);
+        const geom = classifyRectsToGeometry(collected, proseRect);
+        measured.push({ id, marks, geom });
+      });
+
+      const activeOverlayIds = new Set<string>();
+      blockRegistry.clear();
+
+      for (const { id, marks, geom } of measured) {
+        if (geom.mode === 'block' || (geom.mode === 'single' && geom.band)) {
+          const isBlock = geom.mode === 'block';
+          activeOverlayIds.add(id);
+
+          marks.forEach((m) => {
+            m.classList.toggle('is-block-highlight', isBlock);
+            m.classList.toggle('is-band-highlight', !isBlock);
+          });
+
+          let overlayEl = highlightBackdrop.querySelector<HTMLElement>(
+            `[data-highlight-id="${CSS.escape(id)}"]`
+          );
+          if (!overlayEl) {
+            overlayEl = document.createElement('div');
+            overlayEl.dataset.highlightId = id;
+            highlightBackdrop.appendChild(overlayEl);
+          }
+
+          overlayEl.classList.toggle('article-highlight-block', isBlock);
+          overlayEl.classList.toggle('article-highlight-band', !isBlock);
+
+          if (isBlock) {
+            overlayEl.style.left = '';
+            overlayEl.style.width = '';
+            overlayEl.style.top = `${geom.top}px`;
+            overlayEl.style.height = `${geom.height}px`;
+            blockRegistry.set(id, {
+              id,
+              top: geom.top,
+              bottom: geom.top + geom.height,
+              element: overlayEl,
+              marks,
+            });
+          } else if (geom.band) {
+            overlayEl.style.left = `${geom.band.left}px`;
+            overlayEl.style.width = `${geom.band.width}px`;
+            overlayEl.style.top = `${geom.band.top}px`;
+            overlayEl.style.height = `${geom.band.height}px`;
+          }
+
+          overlayEl.classList.toggle('is-active', activeHighlightId === id);
+          overlayEl.classList.toggle('is-hovered', hoveredHighlightId === id);
+          overlayEl.classList.toggle('is-fading-out', marks.some((m) => m.classList.contains('is-fading-out')));
+
+          if (animateId === id) {
+            overlayEl.classList.remove('is-drawing');
+            void overlayEl.offsetWidth;
+            overlayEl.classList.add('is-drawing');
+            window.setTimeout(() => {
+              overlayEl?.classList.remove('is-drawing');
+            }, 520);
+          }
+        } else {
+          marks.forEach((m) => m.classList.remove('is-block-highlight', 'is-band-highlight'));
+        }
+      }
+
+      highlightBackdrop.querySelectorAll<HTMLElement>('[data-highlight-id]').forEach((el) => {
+        if (!el.dataset.highlightId || !activeOverlayIds.has(el.dataset.highlightId)) {
+          el.remove();
+        }
+      });
+    }
+
+    function scheduleSyncHighlightBlocks() {
+      if (blockSyncRaf) return;
+      blockSyncRaf = window.requestAnimationFrame(() => syncHighlightBlocks());
+    }
+
     // 1. 初次加载：扫描并重新挂载持久化高亮
     rehydrateHighlights(storedRecords, prose);
+    syncHighlightBlocks();
     updateBadges();
 
     window.addEventListener('article-notes:synced', () => {
@@ -842,6 +1110,7 @@
       }
 
       storedRecords = incomingRecords;
+      syncHighlightBlocks();
       updateBadges();
       if (drawer?.classList.contains('is-open')) renderDrawerNotes();
     }, { signal });
@@ -938,9 +1207,12 @@
       if (mode === 'create' && currentSelectedRange) {
         targetRect = currentSelectedRange.getBoundingClientRect();
       } else if (mode === 'manage' && activeHighlightId) {
+        const blockEl = blockRegistry.get(activeHighlightId)?.element;
         const mark = prose.querySelector<HTMLElement>(`mark[data-highlight-id="${activeHighlightId}"]`);
-        targetRect = mark ? mark.getBoundingClientRect() : null;
+        targetRect = blockEl ? blockEl.getBoundingClientRect() : (mark ? mark.getBoundingClientRect() : null);
       }
+
+      syncActiveBlockState();
 
       if (targetRect && targetRect.bottom > window.innerHeight - 90) {
         dock.classList.add('is-flipped-top');
@@ -1002,6 +1274,7 @@
         dockTimeoutId = null;
         currentSelectedRange = null;
         activeHighlightId = null;
+        syncActiveBlockState();
       }, 210);
     }
 
@@ -1011,6 +1284,7 @@
       if (isDockInteracting) return;
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        clearLiveSelectionVisual();
         // 如果当前没有点击在已划线 mark 上，则收起 dock
         if (!activeHighlightId) {
           hideDock();
@@ -1020,45 +1294,93 @@
 
       const range = selection.getRangeAt(0);
       if (!prose.contains(range.commonAncestorContainer)) {
+        clearLiveSelectionVisual();
         if (!activeHighlightId) hideDock();
         return;
       }
 
       const text = selection.toString().trim();
       if (text.length === 0) {
+        clearLiveSelectionVisual();
         if (!activeHighlightId) hideDock();
         return;
       }
 
+      syncLiveSelectionVisual();
+
       // 有效选区，保存引用并展示创建微托盘
       currentSelectedRange = range.cloneRange();
       activeHighlightId = null;
+      syncActiveBlockState();
       showDock('create');
     }
 
     document.addEventListener('selectionchange', () => {
+      scheduleLiveSelectionVisual();
       window.clearTimeout(selectionTimer);
       selectionTimer = window.setTimeout(checkProseSelection, 120);
     }, { signal });
 
-    // ---------- 点击已有高亮 Mark 触发管理模式 ----------
+    prose.addEventListener('pointerdown', (e) => {
+      if (e.button === 0) isPointerDraggingText = true;
+    }, { signal });
+
+    prose.addEventListener('pointermove', (e) => {
+      if (isPointerDraggingText) {
+        scheduleLiveSelectionVisual();
+        return;
+      }
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('pre, .mermaid-block')) {
+        setHoveredHighlight(null);
+        return;
+      }
+      const directMark =
+        target?.closest<HTMLElement>('.article-highlight-mark') ||
+        target?.closest<HTMLElement>(':not(pre) > code')?.querySelector<HTMLElement>('.article-highlight-mark') ||
+        null;
+      if (directMark?.dataset.highlightId) {
+        setHoveredHighlight(directMark.dataset.highlightId);
+        return;
+      }
+      if (!target?.closest('a, button, input, textarea, summary, .table-scroll, img')) {
+        const blockId = findBlockIdAtPoint(e.clientX, e.clientY);
+        setHoveredHighlight(blockId);
+        return;
+      }
+      setHoveredHighlight(null);
+    }, { signal });
+
+    prose.addEventListener('pointerleave', () => {
+      setHoveredHighlight(null);
+    }, { signal });
+
+    // ---------- 点击已有高亮 Mark 或整块区域触发管理模式 ----------
     prose.addEventListener('click', (e) => {
       const target = e.target as HTMLElement | null;
       const mark =
         target?.closest<HTMLElement>('.article-highlight-mark') ||
         target?.closest<HTMLElement>(':not(pre) > code')?.querySelector<HTMLElement>('.article-highlight-mark') ||
         null;
-      if (mark) {
-        e.stopPropagation();
-        const id = mark.dataset.highlightId;
-        if (id) {
-          activeHighlightId = id;
-          currentSelectedRange = null;
-          try {
-            window.getSelection()?.removeAllRanges();
-          } catch {}
-          showDock('manage');
+      let id = mark?.dataset.highlightId || null;
+
+      if (!id) {
+        const selText = window.getSelection()?.toString().trim() || '';
+        if (selText.length === 0 && !target?.closest('a, button, input, textarea, summary, pre, .mermaid-block, .table-scroll, img')) {
+          id = findBlockIdAtPoint(e.clientX, e.clientY);
         }
+      }
+
+      if (id) {
+        e.stopPropagation();
+        activeHighlightId = id;
+        currentSelectedRange = null;
+        clearLiveSelectionVisual();
+        try {
+          window.getSelection()?.removeAllRanges();
+        } catch {}
+        syncActiveBlockState();
+        showDock('manage');
       }
     }, { signal });
 
@@ -1072,17 +1394,43 @@
 
     window.addEventListener('pointerup', () => {
       isDockInteracting = false;
+      isPointerDraggingText = false;
     }, { signal });
     window.addEventListener('pointercancel', () => {
       isDockInteracting = false;
+      isPointerDraggingText = false;
     }, { signal });
 
-    // 点击页面空白处关闭 Dock
+    const proseResizeObserver =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            scheduleSyncHighlightBlocks();
+            scheduleLiveSelectionVisual();
+          })
+        : null;
+    proseResizeObserver?.observe(prose);
+    prose.addEventListener('toggle', () => {
+      scheduleSyncHighlightBlocks();
+    }, { capture: true, signal });
+    window.addEventListener('resize', () => {
+      scheduleSyncHighlightBlocks();
+      scheduleLiveSelectionVisual();
+    }, { passive: true, signal });
+
+    // 点击页面空白处关闭 Dock（右键菜单与块级高亮区域内部点击不误收）
     document.addEventListener('pointerdown', (e) => {
+      if (e.button === 2) return;
       const target = e.target as HTMLElement | null;
       if (
-        target?.closest('#article-selection-dock, .article-highlight-mark, #article-highlights-floating-pill, #article-notes-drawer') ||
+        target?.closest('#article-selection-dock, #site-context-menu, .article-highlight-mark, #article-highlights-floating-pill, #article-notes-drawer') ||
         target?.closest(':not(pre) > code')?.querySelector('.article-highlight-mark')
+      ) {
+        return;
+      }
+      if (
+        prose.contains(target) &&
+        !target?.closest('a, button, input, textarea, summary, pre, .mermaid-block, .table-scroll, img') &&
+        findBlockIdAtPoint(e.clientX, e.clientY)
       ) {
         return;
       }
@@ -1127,46 +1475,57 @@
         }
         notifyNotesChanged();
 
-        // 水墨笔意舒展动效 (Ink-Sweep: 0.4x 优雅慢调，单笔笔势如流水贯穿整句)
+        // 先同步测量并计算块级/单行几何分类，块级与连续条带高亮采用统一底纹入场，纯代码块维持笔锋扫光
+        syncHighlightBlocks(newRecord.id);
+        const isUnifiedOverlay = marks.every(
+          (m) => m.classList.contains('is-block-highlight') || m.classList.contains('is-band-highlight')
+        );
+
         const totalChars = marks.reduce((sum, m) => sum + Math.max(1, m.textContent?.length || 1), 0);
         const totalDuration = 450; // 0.4x 呼吸节奏
 
-        let accumulatedChars = 0;
-        marks.forEach((m) => {
-          const charCount = Math.max(1, m.textContent?.length || 1);
-          const fraction = charCount / totalChars;
-          const delay = Math.round((accumulatedChars / totalChars) * totalDuration);
-          const duration = Math.max(30, Math.round(fraction * totalDuration));
-          accumulatedChars += charCount;
+        if (!isUnifiedOverlay) {
+          let accumulatedChars = 0;
+          marks.forEach((m) => {
+            const charCount = Math.max(1, m.textContent?.length || 1);
+            const fraction = charCount / totalChars;
+            const delay = Math.round((accumulatedChars / totalChars) * totalDuration);
+            const duration = Math.max(30, Math.round(fraction * totalDuration));
+            accumulatedChars += charCount;
 
-          m.style.setProperty('--mark-draw-delay', `${delay}ms`);
-          m.style.setProperty('--mark-draw-duration', `${duration}ms`);
-          if (m.parentElement?.tagName === 'CODE' && m.parentElement.parentElement?.tagName !== 'PRE') {
-            m.parentElement.style.setProperty('--mark-draw-delay', `${delay}ms`);
-            m.parentElement.style.setProperty('--mark-draw-duration', `${duration}ms`);
-          }
-          m.classList.add('is-drawing');
-        });
+            m.style.setProperty('--mark-draw-delay', `${delay}ms`);
+            m.style.setProperty('--mark-draw-duration', `${duration}ms`);
+            if (m.parentElement?.tagName === 'CODE' && m.parentElement.parentElement?.tagName !== 'PRE') {
+              m.parentElement.style.setProperty('--mark-draw-delay', `${delay}ms`);
+              m.parentElement.style.setProperty('--mark-draw-duration', `${duration}ms`);
+            }
+            m.classList.add('is-drawing');
+          });
+        }
 
-        // 划完立即清掉原生选区，避免橙红选区与黄色 mark 同时存在，看起来像闪一下
+        // 划完立即清掉原生选区与实时遮罩，避免橙红选区与黄色高亮同时存在导致闪屏
+        clearLiveSelectionVisual();
         try {
           window.getSelection()?.removeAllRanges();
         } catch {}
 
-        // 统一在整句笔势绘制完毕后温和清理动效类名，避免分段逐个移除产生图层跳跃或闪烁重演
-        setTimeout(() => {
-          marks.forEach((m) => {
-            m.classList.remove('is-drawing');
-            m.style.removeProperty('--mark-draw-delay');
-            m.style.removeProperty('--mark-draw-duration');
-            if (m.parentElement?.tagName === 'CODE' && m.parentElement.parentElement?.tagName !== 'PRE') {
-              m.parentElement.style.removeProperty('--mark-draw-delay');
-              m.parentElement.style.removeProperty('--mark-draw-duration');
-            }
-          });
-        }, totalDuration + 60);
+        if (!isUnifiedOverlay) {
+          // 统一在整句笔势绘制完毕后温和清理动效类名，避免分段逐个移除产生图层跳跃或闪烁重演
+          setTimeout(() => {
+            marks.forEach((m) => {
+              m.classList.remove('is-drawing');
+              m.style.removeProperty('--mark-draw-delay');
+              m.style.removeProperty('--mark-draw-duration');
+              if (m.parentElement?.tagName === 'CODE' && m.parentElement.parentElement?.tagName !== 'PRE') {
+                m.parentElement.style.removeProperty('--mark-draw-delay');
+                m.parentElement.style.removeProperty('--mark-draw-duration');
+              }
+            });
+          }, totalDuration + 60);
+        }
       }
 
+      clearLiveSelectionVisual();
       try {
         window.getSelection()?.removeAllRanges();
       } catch {}
@@ -1282,7 +1641,7 @@
             { transform: `translate(calc(-50% + ${Math.round(midX - startX)}px), calc(-50% + ${Math.round(midY - startY)}px)) scale(0.88)`, opacity: 0.92, offset: 0.48 },
             { transform: `translate(calc(-50% + ${Math.round(endX - startX)}px), calc(-50% + ${Math.round(endY - startY)}px)) scale(0.48)`, opacity: 0 },
           ],
-          { duration: 380, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
+          { duration: 600, easing: readArticleMotion().surfaceEase, fill: 'forwards' }
         );
         anim.onfinish = () => {
           ghost.remove();
@@ -1366,28 +1725,41 @@
     // 6. 🗑️ 取消划线 / 删除笔记（正文平滑褪色 + 抽屉卡片物理淡出 + 唯一单次 FLIP 补位，采用 0.4x 呼吸感节奏）
     function fadeOutAndRemoveHighlight(id: string) {
       const marks = Array.from(prose.querySelectorAll<HTMLElement>(`mark[data-highlight-id="${id}"]`));
+      const overlayEl = highlightBackdrop.querySelector<HTMLElement>(
+        `[data-highlight-id="${CSS.escape(id)}"]`
+      );
       if (marks.length === 0) {
         removeHighlightFromDOM(id, prose);
+        syncHighlightBlocks();
         return;
       }
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         removeHighlightFromDOM(id, prose);
+        syncHighlightBlocks();
         return;
+      }
+
+      if (overlayEl) {
+        overlayEl.classList.remove('is-drawing', 'has-pulse');
+        overlayEl.classList.add('is-fading-out');
       }
 
       // 只收走底纹，不隐藏文字；文字一旦 opacity:0，解包后会立刻重新出现，造成闪跳 (duration: 550)
       marks.forEach((mark) => {
         mark.classList.remove('is-drawing');
         mark.classList.add('is-fading-out');
-        mark.style.setProperty('animation', 'none', 'important');
-        mark.style.setProperty('transition', 'background-size 380ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 380ms cubic-bezier(0.4, 0, 0.2, 1)', 'important');
-        mark.style.setProperty('background-size', '0% 1.5px, 0% 100%', 'important');
-        mark.style.setProperty('box-shadow', 'none', 'important');
+        if (!mark.classList.contains('is-block-highlight') && !mark.classList.contains('is-band-highlight')) {
+          mark.style.setProperty('animation', 'none', 'important');
+          mark.style.setProperty('transition', 'background-size 380ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 380ms cubic-bezier(0.4, 0, 0.2, 1)', 'important');
+          mark.style.setProperty('background-size', '0% 1.5px, 0% 100%', 'important');
+          mark.style.setProperty('box-shadow', 'none', 'important');
+        }
       });
 
       // 380ms 底纹收束完毕后再解包；此时文字始终可见，不会出现空白帧
       setTimeout(() => {
         removeHighlightFromDOM(id, prose);
+        syncHighlightBlocks();
       }, 380);
     }
 
@@ -2423,7 +2795,8 @@
           parent = parent.parentElement;
         }
 
-        const rect = mark.getBoundingClientRect();
+        const overlayEl = highlightBackdrop.querySelector<HTMLElement>(`[data-highlight-id="${CSS.escape(id)}"]`);
+        const rect = overlayEl ? overlayEl.getBoundingClientRect() : mark.getBoundingClientRect();
         const targetY = Math.max(0, window.scrollY + rect.top - (window.innerHeight / 2) + (rect.height / 2));
 
         if ((window as any).lenis && typeof (window as any).lenis.scrollTo === 'function') {
@@ -2439,10 +2812,17 @@
         }
 
         // 触发温润的高亮水墨波动
-        mark.classList.remove('has-pulse');
-        void mark.offsetWidth;
-        mark.classList.add('has-pulse');
-        setTimeout(() => mark.classList.remove('has-pulse'), 2200);
+        if (overlayEl) {
+          overlayEl.classList.remove('has-pulse');
+          void overlayEl.offsetWidth;
+          overlayEl.classList.add('has-pulse');
+          setTimeout(() => overlayEl.classList.remove('has-pulse'), 2200);
+        } else {
+          mark.classList.remove('has-pulse');
+          void mark.offsetWidth;
+          mark.classList.add('has-pulse');
+          setTimeout(() => mark.classList.remove('has-pulse'), 2200);
+        }
         return;
       }
 
@@ -2712,7 +3092,9 @@
 
     // ---------- 抽屉开合 ----------
 
+    let drawerCloseVersion = 0;
     function openNotesDrawer(opts?: { silent?: boolean } | Event) {
+      drawerCloseVersion++;
       if (!drawer || !backdrop) return;
       const isSilent = Boolean(opts && !(opts instanceof Event) && opts.silent);
       const wasOpen = Boolean(drawer.classList.contains('is-open'));
@@ -2734,7 +3116,7 @@
         }
       }
 
-      lockScrollAnchor(500);
+      lockScrollAnchor(readArticleMotion().panelMs + 100);
       drawer.hidden = false;
       drawer.style.display = 'flex';
       backdrop.hidden = false;
@@ -2762,7 +3144,7 @@
               { clipPath: 'circle(8% at 86% 92%)', opacity: 0.38 },
               { clipPath: 'circle(145% at 86% 92%)', opacity: 1 },
             ],
-            { duration: 400, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+            { duration: readArticleMotion().panelMs, easing: readArticleMotion().surfaceEase }
           );
         }
       }
@@ -2778,8 +3160,9 @@
 
     function closeNotesDrawer(opts?: { instant?: boolean } | Event) {
       if (!drawer || !backdrop) return;
+      const closeVersion = ++drawerCloseVersion;
       const isInstant = Boolean(opts && !(opts instanceof Event) && opts.instant);
-      lockScrollAnchor(500);
+      lockScrollAnchor(readArticleMotion().panelMs + 100);
       const wasMax = drawer.classList.contains('is-maximized');
 
       if (isInstant) {
@@ -2809,7 +3192,8 @@
       window.dispatchEvent(new CustomEvent('companion:panel', { detail: { kind: 'notes', open: false } }));
 
       setTimeout(() => {
-        // 340ms 内被重新打开时不要把它藏掉，否则协调器会以为面板还开着
+        // A reopened drawer owns its visibility; wait for the full closing motion.
+        if (closeVersion !== drawerCloseVersion) return;
         if (drawer.classList.contains('is-open')) return;
         if (wasMax) {
           drawer.classList.remove('is-maximized');
@@ -2824,7 +3208,7 @@
         drawer.style.display = 'none';
         backdrop.hidden = true;
         backdrop.style.display = 'none';
-      }, 340);
+      }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : readArticleMotion().panelMs + 40);
     }
 
     floatingPill?.addEventListener('click', openNotesDrawer, { signal });
@@ -3095,6 +3479,13 @@
     (window as any)[CLEANUP_KEY] = () => {
       if (unbindDrawerScroll) unbindDrawerScroll();
       document.body.classList.remove('has-selection-dock-open');
+      prose.classList.remove('has-unified-selection', 'has-highlight-hover');
+      clearSelectionCoveredCodes();
+      proseResizeObserver?.disconnect();
+      if (liveSelRaf) window.cancelAnimationFrame(liveSelRaf);
+      if (blockSyncRaf) window.cancelAnimationFrame(blockSyncRaf);
+      highlightBackdrop.remove();
+      selectionBackdrop.remove();
       controller.abort();
       if (dockTimeoutId) window.clearTimeout(dockTimeoutId);
       if (stampTimeoutId) window.clearTimeout(stampTimeoutId);
@@ -3204,17 +3595,15 @@
     background-repeat: no-repeat !important;
     background-size: 100% 1.5px, 100% 100% !important;
     background-color: transparent !important;
-    border-top: none !important;
-    border-bottom: none !important;
-    border-left: 1px solid transparent !important;
-    border-right: 1px solid transparent !important;
+    border: none !important;
     border-radius: 0 !important;
-    padding: 0.20em 0.42em 0.125em !important;
+    padding: 0.19em 0.38em 0.145em !important;
     margin: 0 !important;
     vertical-align: baseline;
     cursor: pointer;
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
+    transition: background-image 0.2s ease, box-shadow 0.2s ease;
   }
   [data-theme="dark"] :not(pre) > code:has(mark.article-highlight-mark) {
     --mark-sweep-line: rgba(255, 215, 80, 0.9);
@@ -3232,6 +3621,7 @@
     color: #2B241C !important;
   }
   :not(pre) > code:has(mark.article-highlight-mark:hover),
+  :not(pre) > code:has(mark.article-highlight-mark.is-hovered),
   :not(pre) > code:hover:has(mark.article-highlight-mark) {
     --mark-sweep-line: rgba(215, 140, 10, 0.95);
     --mark-sweep-bg: rgba(255, 197, 61, 0.52);
@@ -3312,23 +3702,27 @@
     box-shadow: 0 0 10px rgba(255, 200, 60, 0.4) !important;
   }
 
-  mark.article-highlight-mark:hover {
+  mark.article-highlight-mark:hover,
+  mark.article-highlight-mark.is-hovered {
     --mark-sweep-line: rgba(215, 140, 10, 0.95);
     --mark-sweep-bg: rgba(255, 197, 61, 0.52);
   }
 
-  [data-theme="dark"] mark.article-highlight-mark:hover {
+  [data-theme="dark"] mark.article-highlight-mark:hover,
+  [data-theme="dark"] mark.article-highlight-mark.is-hovered {
     --mark-sweep-line: rgba(255, 215, 80, 0.95);
     --mark-sweep-bg: rgba(255, 197, 61, 0.52);
     box-shadow: 0 0 12px rgba(255, 197, 61, 0.35);
   }
 
-  [data-theme="moss"] mark.article-highlight-mark:hover {
+  [data-theme="moss"] mark.article-highlight-mark:hover,
+  [data-theme="moss"] mark.article-highlight-mark.is-hovered {
     --mark-sweep-line: rgba(255, 230, 120, 0.95);
     --mark-sweep-bg: rgba(255, 215, 95, 0.52);
   }
 
-  [data-theme="rice"] mark.article-highlight-mark:hover {
+  [data-theme="rice"] mark.article-highlight-mark:hover,
+  [data-theme="rice"] mark.article-highlight-mark.is-hovered {
     --mark-sweep-line: rgba(195, 120, 10, 0.95);
     --mark-sweep-bg: rgba(235, 160, 20, 0.48);
   }
@@ -3391,6 +3785,247 @@
   }
 
   /* =========================================================
+     统一多行/跨段连续整体块级底纹与实时划选图层
+     ========================================================= */
+  /* 统一单行连续条带 (.is-band-highlight) 与多行/跨段整体块 (.is-block-highlight) */
+  mark.article-highlight-mark.is-block-highlight,
+  mark.article-highlight-mark.is-block-highlight:hover,
+  mark.article-highlight-mark.is-block-highlight.is-hovered,
+  mark.article-highlight-mark.is-band-highlight,
+  mark.article-highlight-mark.is-band-highlight:hover,
+  mark.article-highlight-mark.is-band-highlight.is-hovered,
+  [data-theme="dark"] mark.article-highlight-mark.is-block-highlight,
+  [data-theme="dark"] mark.article-highlight-mark.is-block-highlight:hover,
+  [data-theme="dark"] mark.article-highlight-mark.is-band-highlight,
+  [data-theme="dark"] mark.article-highlight-mark.is-band-highlight:hover,
+  [data-theme="moss"] mark.article-highlight-mark.is-block-highlight,
+  [data-theme="moss"] mark.article-highlight-mark.is-block-highlight:hover,
+  [data-theme="moss"] mark.article-highlight-mark.is-band-highlight,
+  [data-theme="moss"] mark.article-highlight-mark.is-band-highlight:hover,
+  [data-theme="rice"] mark.article-highlight-mark.is-block-highlight,
+  [data-theme="rice"] mark.article-highlight-mark.is-block-highlight:hover,
+  [data-theme="rice"] mark.article-highlight-mark.is-band-highlight,
+  [data-theme="rice"] mark.article-highlight-mark.is-band-highlight:hover {
+    background: none !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    animation: none !important;
+  }
+
+  :not(pre) > code:has(mark.article-highlight-mark.is-block-highlight),
+  :not(pre) > code:has(mark.article-highlight-mark.is-block-highlight:hover),
+  :not(pre) > code:hover:has(mark.article-highlight-mark.is-block-highlight),
+  :not(pre) > code:has(mark.article-highlight-mark.is-band-highlight),
+  :not(pre) > code:has(mark.article-highlight-mark.is-band-highlight:hover),
+  :not(pre) > code:hover:has(mark.article-highlight-mark.is-band-highlight),
+  [data-theme="dark"] :not(pre) > code:has(mark.article-highlight-mark.is-block-highlight),
+  [data-theme="dark"] :not(pre) > code:has(mark.article-highlight-mark.is-band-highlight),
+  [data-theme="moss"] :not(pre) > code:has(mark.article-highlight-mark.is-block-highlight),
+  [data-theme="moss"] :not(pre) > code:has(mark.article-highlight-mark.is-band-highlight),
+  [data-theme="rice"] :not(pre) > code:has(mark.article-highlight-mark.is-block-highlight),
+  [data-theme="rice"] :not(pre) > code:has(mark.article-highlight-mark.is-band-highlight) {
+    background: none !important;
+    background-image: none !important;
+    background-color: transparent !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+    padding: 0.12em 0.42em !important;
+    margin: 0 !important;
+    border-radius: 4px !important;
+    animation: none !important;
+  }
+
+  .article-highlight-band {
+    position: absolute;
+    border-radius: 4px;
+    background-image:
+      linear-gradient(to right, var(--mark-sweep-line), var(--mark-sweep-line)),
+      linear-gradient(to right, var(--mark-sweep-bg), var(--mark-sweep-bg));
+    background-position: left bottom, left top;
+    background-repeat: no-repeat;
+    background-size: 100% 1.5px, 100% 100%;
+    pointer-events: none;
+    transition: background-image 200ms ease, filter 200ms ease, opacity 360ms ease, clip-path 360ms ease;
+  }
+
+  .article-highlight-band.is-hovered,
+  .article-highlight-band.is-active {
+    filter: brightness(1.02) saturate(1.18);
+    box-shadow: 0 0 0 1px rgba(215, 140, 10, 0.22);
+  }
+
+  .article-highlight-band.is-drawing {
+    animation: unifiedBlockSweep 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .article-highlight-band.has-pulse {
+    animation: unifiedBlockPulse 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .article-highlight-band.is-fading-out {
+    opacity: 0;
+  }
+
+  .prose-highlight-backdrop,
+  .prose-selection-backdrop {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .prose-highlight-backdrop {
+    z-index: -2;
+  }
+
+  .prose-selection-backdrop {
+    z-index: -1;
+  }
+
+  .article-highlight-block {
+    --hl-block-bg: rgba(255, 197, 61, 0.22);
+    --hl-block-bg-hover: rgba(255, 197, 61, 0.34);
+    --hl-block-border: rgba(215, 140, 10, 0.86);
+    --hl-block-ring: rgba(215, 140, 10, 0.28);
+    position: absolute;
+    left: -10px;
+    right: -10px;
+    border-radius: 8px;
+    background: var(--hl-block-bg);
+    border-left: 3px solid var(--hl-block-border);
+    box-shadow: inset 0 0 0 1px rgba(215, 140, 10, 0.08);
+    pointer-events: none;
+    transform-origin: left center;
+    transition: background-color 220ms ease, box-shadow 220ms ease, border-color 220ms ease, opacity 360ms ease, transform 360ms ease;
+  }
+
+  [data-theme="dark"] .article-highlight-block {
+    --hl-block-bg: rgba(255, 197, 61, 0.16);
+    --hl-block-bg-hover: rgba(255, 197, 61, 0.27);
+    --hl-block-border: rgba(255, 215, 80, 0.9);
+    --hl-block-ring: rgba(255, 215, 80, 0.32);
+    box-shadow: inset 0 0 0 1px rgba(255, 215, 80, 0.1);
+  }
+
+  [data-theme="moss"] .article-highlight-block {
+    --hl-block-bg: rgba(255, 215, 95, 0.18);
+    --hl-block-bg-hover: rgba(255, 215, 95, 0.3);
+    --hl-block-border: rgba(255, 230, 120, 0.9);
+    --hl-block-ring: rgba(255, 230, 120, 0.32);
+  }
+
+  [data-theme="rice"] .article-highlight-block {
+    --hl-block-bg: rgba(235, 160, 20, 0.17);
+    --hl-block-bg-hover: rgba(235, 160, 20, 0.28);
+    --hl-block-border: rgba(195, 120, 10, 0.88);
+    --hl-block-ring: rgba(195, 120, 10, 0.28);
+  }
+
+  .article-highlight-block.is-hovered,
+  .article-highlight-block.is-active {
+    background: var(--hl-block-bg-hover);
+    box-shadow: 0 0 0 1px var(--hl-block-ring), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  .article-highlight-block.is-drawing {
+    animation: unifiedBlockSweep 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes unifiedBlockSweep {
+    0% {
+      opacity: 0.25;
+      clip-path: inset(0 100% 0 0 round 8px);
+    }
+    100% {
+      opacity: 1;
+      clip-path: inset(0 0 0 0 round 8px);
+    }
+  }
+
+  .article-highlight-block.has-pulse {
+    animation: unifiedBlockPulse 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes unifiedBlockPulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(255, 197, 61, 0.72);
+      background: var(--hl-block-bg-hover);
+    }
+    45% {
+      box-shadow: 0 0 0 10px rgba(255, 197, 61, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(255, 197, 61, 0);
+    }
+  }
+
+  .article-highlight-block.is-fading-out {
+    opacity: 0;
+    transform: scaleY(0.985);
+  }
+
+  .article-selection-block {
+    --sel-block-bg: rgba(194, 74, 44, 0.14);
+    --sel-block-border: rgba(194, 74, 44, 0.76);
+    position: absolute;
+    left: -10px;
+    right: -10px;
+    border-radius: 8px;
+    background: var(--sel-block-bg);
+    border-left: 3px solid var(--sel-block-border);
+    box-shadow: inset 0 0 0 1px rgba(194, 74, 44, 0.1);
+    pointer-events: none;
+  }
+
+  .article-selection-band {
+    position: absolute;
+    border-radius: 4px;
+    background: rgba(194, 74, 44, 0.22);
+    pointer-events: none;
+  }
+
+  [data-theme="dark"] .article-selection-block {
+    --sel-block-bg: rgba(235, 94, 40, 0.22);
+    --sel-block-border: rgba(235, 94, 40, 0.88);
+    box-shadow: inset 0 0 0 1px rgba(235, 94, 40, 0.14);
+  }
+  [data-theme="dark"] .article-selection-band {
+    background: rgba(235, 94, 40, 0.32);
+  }
+
+  [data-theme="moss"] .article-selection-block {
+    --sel-block-bg: rgba(255, 194, 209, 0.24);
+    --sel-block-border: rgba(255, 194, 209, 0.88);
+    box-shadow: inset 0 0 0 1px rgba(255, 194, 209, 0.16);
+  }
+  [data-theme="moss"] .article-selection-band {
+    background: rgba(255, 194, 209, 0.36);
+  }
+
+  [data-theme="rice"] .article-selection-block {
+    --sel-block-bg: rgba(168, 72, 36, 0.15);
+    --sel-block-border: rgba(168, 72, 36, 0.78);
+    box-shadow: inset 0 0 0 1px rgba(168, 72, 36, 0.12);
+  }
+  [data-theme="rice"] .article-selection-band {
+    background: rgba(168, 72, 36, 0.22);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .article-highlight-block.is-drawing,
+    .article-highlight-block.has-pulse {
+      animation: none !important;
+      clip-path: none !important;
+    }
+    .article-highlight-block {
+      transition: none !important;
+    }
+  }
+
+  /* =========================================================
      1. 底部居中微托盘 (Screen Bottom Floating Micro-Capsule)
      ========================================================= */
   .article-selection-dock {
@@ -3434,9 +4069,9 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
 
-  /* 入场与退场动画 (280ms enter, 200ms exit) */
+  /* 入场与退场动画 (380ms enter, 200ms exit) */
   .article-selection-dock.is-entering {
-    animation: selection-dock-in 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: selection-dock-in 380ms var(--article-ease-surface) forwards;
   }
 
   .article-selection-dock.is-exiting {
@@ -3444,7 +4079,7 @@
   }
 
   .article-selection-dock.is-flipped-top.is-entering {
-    animation: selection-dock-in-top 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: selection-dock-in-top 380ms var(--article-ease-surface) forwards;
   }
 
   .article-selection-dock.is-flipped-top.is-exiting {
@@ -3883,8 +4518,8 @@
       transform: translate3d(calc(100% + 2.5rem), 0, 0) scale(0.985);
       opacity: 0;
       transition:
-        transform 380ms cubic-bezier(0.16, 1, 0.3, 1),
-        opacity 260ms cubic-bezier(0.16, 1, 0.3, 1);
+        transform var(--article-duration-panel) var(--article-ease-layout),
+        opacity var(--article-duration-fade) var(--article-ease-surface);
       font-family: var(--font-body);
       overflow: hidden;
       overscroll-behavior: contain;
@@ -3943,7 +4578,7 @@
       backdrop-filter: blur(24px) saturate(180%);
       -webkit-backdrop-filter: blur(24px) saturate(180%);
       transform: translate3d(0, 100%, 0);
-      transition: transform 380ms cubic-bezier(0.16, 1, 0.3, 1);
+      transition: transform var(--article-duration-panel) var(--article-ease-layout);
       font-family: var(--font-body);
       overflow: hidden;
     }

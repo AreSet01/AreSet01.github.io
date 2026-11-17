@@ -95,12 +95,12 @@ test('Decoupled Article Title Entrance & Cold-Load Blank Screen Prevention Suite
     );
   });
 
-  await t.test('4. PostTransition: 时序解耦与安全超时收紧至 800ms', () => {
-    // 验证 safetyTimer 收紧至 800ms
+  await t.test('4. PostTransition: 时序解耦与舒缓转场的安全超时', () => {
+    // 兜底晚于 420ms 覆盖和 560ms 揭开，避免截断正常播放。
     assert.match(
       postTransitionContent,
-      /safetyTimer = window\.setTimeout\(\(\) => \{\s*if \(isTransitioning\) \{\s*postTransition\.leave\(\);\s*\}\s*\}, 800\);/,
-      'PostTransition safetyTimer 必须收紧至 800ms'
+      /safetyTimer = window\.setTimeout\(\(\) => \{\s*if \(isTransitioning\) \{\s*postTransition\.leave\(\);\s*\}\s*\}, 1800\);/,
+      'PostTransition 保留 1800ms 兜底释放'
     );
     // 验证 triggerHandover 优先让位给文章标题解耦动画
     assert.match(
@@ -134,16 +134,16 @@ test('Decoupled Article Title Entrance & Cold-Load Blank Screen Prevention Suite
       /gsap\.set\(title, \{[\s\S]*?x: deltaX,[\s\S]*?y: deltaY,[\s\S]*?force3D: true,[\s\S]*?position: 'relative',[\s\S]*?zIndex: 30/,
       'PostLayout 必须使用相对定位与 GPU translate3d 保持在常规文档流中'
     );
-    // 验证逐字落墨从容优雅节拍 (~480ms)
+    // 保留逐字落墨，放缓至 720ms。
     assert.match(
       postLayoutContent,
-      /const charDuration = 0\.(?:48|50);/,
-      '标题文字单个下落时长必须优雅从容 (~0.5s)'
+      /const charDuration = 0\.72;/,
+      '标题文字下落使用舒缓的 720ms 节拍'
     );
     // 验证 FLIP 滑入 Header 停靠位置
     assert.match(
       postLayoutContent,
-      /tl\.to\(title, \{\s*x: 0,\s*y: 0,\s*scale: 1,\s*duration: 0\.(?:46|62),/,
+      /tl\.to\(title, \{\s*x: 0,\s*y: 0,\s*scale: 1,\s*duration: 0\.92,/,
       '标题必须平滑滑行优雅停靠回 Header 原位'
     );
     // 验证停靠后放行全站组件入场 (__releasePageEnter)

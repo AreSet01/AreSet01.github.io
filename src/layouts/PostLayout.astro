@@ -388,11 +388,14 @@ const hasToc = tocHeadings.length > 1;
   )}
   <script>
     import gsap from 'gsap';
+    import { readArticleMotion, cubicBezierPoints } from '../utils/articleMotion';
     import { ScrollTrigger } from 'gsap/ScrollTrigger';
     import CustomEase from 'gsap/CustomEase';
 
     gsap.registerPlugin(ScrollTrigger, CustomEase);
-    CustomEase.create('post-enter', 'M0,0 C0.06,0.62 0.16,0.9 0.42,0.975 0.62,1.005 0.8,1 1,1');
+    const motion = readArticleMotion();
+    CustomEase.create('post-enter', cubicBezierPoints(motion.revealEase));
+    CustomEase.create('post-dock', cubicBezierPoints(motion.layoutEase));
 
     const CLEANUP_KEY = '__areSetPostRevealCleanup__';
     const LISTENER_KEY = '__areSetPostRevealBound__';
@@ -436,7 +439,8 @@ const hasToc = tocHeadings.length > 1;
       const header = document.querySelector<HTMLElement>('[data-post-header]') || title?.closest('header');
       const typed = document.querySelector<HTMLElement>('[data-post-typed]');
       const article = title?.closest('article') || document.querySelector<HTMLElement>('article');
-      if (article && !reduceMotion && !window.location.hash) {
+      const isAutoUpdateRestore = Boolean((window as any).__autoUpdateRestoring);
+      if (article && !reduceMotion && !window.location.hash && !isAutoUpdateRestore) {
         article.setAttribute('data-post-title-hold', 'true');
       }
 
@@ -609,6 +613,7 @@ const hasToc = tocHeadings.length > 1;
 
         // Release BaseLayout page entrance (including sidebar & header elements)
         (window as any).__releasePageEnter?.({ fromPostTitleHold: true });
+        window.dispatchEvent(new CustomEvent('post-title-release'));
 
         // Smoothly entrance post-body container and InkAsk floating pill
         const postBodyEl = document.querySelector<HTMLElement>('[data-post-body]');
@@ -617,7 +622,7 @@ const hasToc = tocHeadings.length > 1;
           gsap.fromTo(
             postBodyEl,
             { opacity: 0, y: 24 },
-            { opacity: 1, y: 0, duration: 0.78, ease: 'post-enter', clearProps: 'transform,opacity' }
+            { opacity: 1, y: 0, duration: 1.0, ease: 'post-enter', clearProps: 'transform,opacity' }
           );
         }
         const inkAskBtn = document.querySelector<HTMLElement>('.ink-ask-sidebar-trigger');
@@ -626,7 +631,7 @@ const hasToc = tocHeadings.length > 1;
           gsap.fromTo(
             inkAskBtn,
             { opacity: 0, y: -8 },
-            { opacity: 1, y: 0, duration: 0.55, delay: 0.12, ease: 'power2.out', clearProps: 'transform,opacity' }
+            { opacity: 1, y: 0, duration: 0.72, delay: 0.12, ease: 'post-enter', clearProps: 'transform,opacity' }
           );
         }
 
@@ -671,12 +676,12 @@ const hasToc = tocHeadings.length > 1;
         window.addEventListener('keydown', onKey, { capture: true, signal });
 
         removeInterruptListeners = () => {
-          window.removeEventListener('wheel', onInterrupt as any);
-          window.removeEventListener('touchstart', onInterrupt as any);
-          window.removeEventListener('touchmove', onInterrupt as any);
-          window.removeEventListener('pointerdown', onInterrupt as any);
-          window.removeEventListener('click', onInterrupt as any);
-          window.removeEventListener('keydown', onKey as any);
+          window.removeEventListener('wheel', onInterrupt as any, true);
+          window.removeEventListener('touchstart', onInterrupt as any, true);
+          window.removeEventListener('touchmove', onInterrupt as any, true);
+          window.removeEventListener('pointerdown', onInterrupt as any, true);
+          window.removeEventListener('click', onInterrupt as any, true);
+          window.removeEventListener('keydown', onKey as any, true);
         };
       }
 
@@ -745,7 +750,7 @@ const hasToc = tocHeadings.length > 1;
           gsap.set(charNodes, {
             y: 14,
             opacity: 0,
-            filter: 'blur(6px)',
+            filter: 'blur(4px)',
             force3D: true,
           });
         }
@@ -756,7 +761,7 @@ const hasToc = tocHeadings.length > 1;
       function startDecoupledTitleEntrance() {
         if (signal.aborted || isTitleDocked) return;
 
-        if (reduceMotion || !title || Boolean(window.location.hash)) {
+        if (reduceMotion || !title || Boolean(window.location.hash) || isAutoUpdateRestore) {
           fastForwardTitle();
           return;
         }
@@ -772,10 +777,10 @@ const hasToc = tocHeadings.length > 1;
               setupInterruptHandlers();
             }
           }, 420));
-          // Safety fallback timer (2.6s): fast-forward only if animation stalls
+          // Safety fallback timer (3.8s): fast-forward only if animation stalls
           timers.push(window.setTimeout(() => {
             if (!isTitleDocked) fastForwardTitle();
-          }, 2600));
+          }, 3800));
         }
 
         const tl = gsap.timeline({
@@ -787,7 +792,7 @@ const hasToc = tocHeadings.length > 1;
         titleEntranceTimeline = tl;
 
         // Living Calligraphy Choreography: 【错落淡入 · Stagger Fade】字韵流转
-        const charDuration = 0.50;
+        const charDuration = 0.72;
         const totalStagger = Math.min(0.34, 0.02 * charNodes.length);
         const staggerEach = charNodes.length > 0 ? totalStagger / charNodes.length : 0.02;
 
@@ -795,8 +800,8 @@ const hasToc = tocHeadings.length > 1;
         tl.to(title, {
           '--title-bar-opacity': 0.92,
           '--title-bar-scale': 1,
-          duration: 0.52,
-          ease: 'power3.out',
+          duration: 0.76,
+          ease: 'post-enter',
         }, 0.02);
 
         // Step 1: Stagger Fade across all word & character units
@@ -805,7 +810,7 @@ const hasToc = tocHeadings.length > 1;
             {
               y: 14,
               opacity: 0,
-              filter: 'blur(6px)',
+              filter: 'blur(4px)',
             },
             {
               y: 0,
@@ -813,15 +818,15 @@ const hasToc = tocHeadings.length > 1;
               filter: 'blur(0px)',
               duration: charDuration,
               stagger: staggerEach,
-              ease: 'power3.out',
+              ease: 'post-enter',
               force3D: true,
             },
             0.04
           );
         } else if (titleText) {
           tl.fromTo(titleText,
-            { y: 14, opacity: 0, filter: 'blur(6px)' },
-            { y: 0, opacity: 1, filter: 'blur(0px)', duration: charDuration, ease: 'power3.out' },
+            { y: 14, opacity: 0, filter: 'blur(4px)' },
+            { y: 0, opacity: 1, filter: 'blur(0px)', duration: charDuration, ease: 'post-enter' },
             0.04
           );
         }
@@ -835,8 +840,8 @@ const hasToc = tocHeadings.length > 1;
             x: 0,
             y: 0,
             scale: 1,
-            duration: 0.62,
-            ease: 'power3.inOut',
+            duration: 0.92,
+            ease: 'post-dock',
           }, '+=0.18');
         }
       }
@@ -849,7 +854,7 @@ const hasToc = tocHeadings.length > 1;
             { y: 10, opacity: 0.2, filter: 'blur(4px)' },
             {
               y: 0, opacity: 1, filter: 'blur(0px)',
-              duration: 0.55, ease: 'power2.out', stagger: 0.03,
+              duration: 0.76, ease: 'post-enter', stagger: { amount: 0.28 },
               onComplete: () => {
                 gsap.set(charNodes, { clearProps: 'transform,opacity,filter' });
               },
@@ -861,7 +866,7 @@ const hasToc = tocHeadings.length > 1;
             { y: 10, opacity: 0.2, filter: 'blur(4px)' },
             {
               y: 0, opacity: 1, filter: 'blur(0px)',
-              duration: 0.55, ease: 'power2.out',
+              duration: 0.76, ease: 'post-enter',
               onComplete: () => {
                 gsap.set(titleText, { clearProps: 'transform,opacity,filter' });
               },
@@ -922,7 +927,7 @@ const hasToc = tocHeadings.length > 1;
             startDecoupledTitleEntrance();
           };
           window.addEventListener('post-transition-release', trigger, { signal, once: true });
-          timers.push(window.setTimeout(trigger, 480));
+          timers.push(window.setTimeout(trigger, 900));
         } else {
           startDecoupledTitleEntrance();
         }
@@ -972,7 +977,7 @@ const hasToc = tocHeadings.length > 1;
           observersAttached = true;
 
           // 1. revealObserver (rootMargin: '0px 0px -4% 0px'):
-          //    元素滚动进入视口安全区时触发，添加 .is-in 播放 900ms 优雅进场动画。
+          //    元素滚动进入视口安全区时触发，添加 .is-in 播放统一的舒缓进场动画。
           //    绝不在视口内或视口边缘拔除 .is-in，彻底杜绝上下滑动与动画播放中途来回拉扯造成的撕裂抽搐。
           //    从视口上方进入的块（深链接或恢复滚动位置后向上滑）静默显形，绝不逆着手势播位移。
           const revealObserver = new IntersectionObserver((entries) => {
@@ -1310,6 +1315,7 @@ const hasToc = tocHeadings.length > 1;
         let isOpening = false;
         let isClosing = false;
         let tocAnim = null;
+        const tocEase = getComputedStyle(document.documentElement).getPropertyValue('--article-ease-layout').trim() || 'ease-in-out';
 
         if (summary && expander && inner) {
           // Event isolation for child buttons inside <summary>
@@ -1342,6 +1348,8 @@ const hasToc = tocHeadings.length > 1;
             const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             if (reduceMotion) {
               if (tocAnim) {
+                tocAnim.oncancel = null;
+                tocAnim.onfinish = null;
                 tocAnim.cancel();
                 tocAnim = null;
               }
@@ -1372,6 +1380,8 @@ const hasToc = tocHeadings.length > 1;
                 currentHeight = expander.getBoundingClientRect().height;
                 const style = window.getComputedStyle(expander);
                 currentOpacity = parseFloat(style.opacity) || 0;
+                tocAnim.oncancel = null;
+                tocAnim.onfinish = null;
                 tocAnim.cancel();
                 tocAnim = null;
               }
@@ -1384,7 +1394,7 @@ const hasToc = tocHeadings.length > 1;
               // preventing the 13.6px sudden jump at animation end.
               const targetHeight = expander.scrollHeight;
               const remainingFraction = targetHeight > 0 ? (targetHeight - currentHeight) / targetHeight : 1;
-              const duration = Math.max(160, Math.round(450 * Math.min(1, Math.max(0.2, remainingFraction))));
+              const duration = Math.max(180, Math.round(620 * Math.min(1, Math.max(0.2, remainingFraction))));
 
               tocAnim = expander.animate([
                 {
@@ -1399,12 +1409,14 @@ const hasToc = tocHeadings.length > 1;
                 }
               ], {
                 duration,
-                easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                easing: tocEase,
                 fill: 'forwards'
               });
 
               tocAnim.onfinish = () => {
                 if (tocAnim) {
+                  tocAnim.oncancel = null;
+                  tocAnim.onfinish = null;
                   tocAnim.cancel();
                   tocAnim = null;
                 }
@@ -1436,6 +1448,8 @@ const hasToc = tocHeadings.length > 1;
               if (tocAnim) {
                 const style = window.getComputedStyle(expander);
                 currentOpacity = parseFloat(style.opacity) || 1;
+                tocAnim.oncancel = null;
+                tocAnim.onfinish = null;
                 tocAnim.cancel();
                 tocAnim = null;
               }
@@ -1445,7 +1459,7 @@ const hasToc = tocHeadings.length > 1;
               const totalHeight = expander.scrollHeight || currentHeight;
 
               const remainingFraction = totalHeight > 0 ? currentHeight / totalHeight : 1;
-              const duration = Math.max(160, Math.round(420 * Math.min(1, Math.max(0.2, remainingFraction))));
+              const duration = Math.max(180, Math.round(560 * Math.min(1, Math.max(0.2, remainingFraction))));
 
               tocAnim = expander.animate([
                 {
@@ -1460,13 +1474,15 @@ const hasToc = tocHeadings.length > 1;
                 }
               ], {
                 duration,
-                easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                easing: tocEase,
                 fill: 'forwards'
               });
 
               tocAnim.onfinish = () => {
                 toc.open = false;
                 if (tocAnim) {
+                  tocAnim.oncancel = null;
+                  tocAnim.onfinish = null;
                   tocAnim.cancel();
                   tocAnim = null;
                 }
@@ -1597,10 +1613,13 @@ const hasToc = tocHeadings.length > 1;
       const listenerKey = '__areSetPostEnhancementsPageLoadBound__';
 
       function initPostEnhancements() {
+        const prose = document.querySelector('[data-post-prose]');
         const previousCleanup = window[cleanupKey];
+        // Inline execution and astro:page-load can target the same article.
+        // Keep its live controls instead of aborting handlers on enhanced nodes.
+        if (prose && previousCleanup?.prose === prose) return;
         if (typeof previousCleanup === 'function') previousCleanup();
 
-        const prose = document.querySelector('[data-post-prose]');
         if (!prose) {
           window[cleanupKey] = null;
           return;
@@ -1609,6 +1628,7 @@ const hasToc = tocHeadings.length > 1;
         const controller = new AbortController();
         const { signal } = controller;
         const previewCache = new Map();
+        const contentEase = getComputedStyle(document.documentElement).getPropertyValue('--article-ease-layout').trim() || 'ease-in-out';
         let linkPopover = null;
         let hoverIntentTimer = 0;
         let hidePopoverTimer = 0;
@@ -1753,12 +1773,13 @@ const hasToc = tocHeadings.length > 1;
             const setCodeCollapsed = (collapsed, animate = true) => {
               const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
               const COLLAPSED_HEIGHT = 240;
+              // Capture the visible height before cancelling an in-flight reversal.
+              const startH = pre.getBoundingClientRect().height;
               if (collapseAnim) {
                 collapseAnim.cancel();
                 collapseAnim = null;
               }
               if (collapsed) {
-                const startH = pre.getBoundingClientRect().height;
                 pre.classList.add('is-code-collapsed');
                 if (collapseButton) {
                   collapseButton.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg><span>展开 (${lineCount}行)</span>`;
@@ -1768,12 +1789,15 @@ const hasToc = tocHeadings.length > 1;
                 if (animate && !reduceMotion && startH > COLLAPSED_HEIGHT) {
                   collapseAnim = pre.animate(
                     [{ maxHeight: `${startH}px` }, { maxHeight: `${COLLAPSED_HEIGHT}px` }],
-                    { duration: 340, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+                    { duration: 520, easing: contentEase }
                   );
-                  collapseAnim.onfinish = () => { collapseAnim = null; };
+                  collapseAnim.onfinish = () => {
+                    collapseAnim = null;
+                    try { window.lenis?.resize(); } catch (_) {}
+                    try { window.ScrollTrigger?.refresh(); } catch (_) {}
+                  };
                 }
               } else {
-                const startH = pre.getBoundingClientRect().height;
                 pre.classList.remove('is-code-collapsed');
                 if (collapseButton) {
                   collapseButton.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"></polyline></svg><span>折叠 (${lineCount}行)</span>`;
@@ -1784,9 +1808,13 @@ const hasToc = tocHeadings.length > 1;
                 if (animate && !reduceMotion && endH > startH) {
                   collapseAnim = pre.animate(
                     [{ maxHeight: `${startH}px` }, { maxHeight: `${endH}px` }],
-                    { duration: 380, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+                    { duration: 600, easing: contentEase }
                   );
-                  collapseAnim.onfinish = () => { collapseAnim = null; };
+                  collapseAnim.onfinish = () => {
+                    collapseAnim = null;
+                    try { window.lenis?.resize(); } catch (_) {}
+                    try { window.ScrollTrigger?.refresh(); } catch (_) {}
+                  };
                 }
               }
             };
@@ -2162,6 +2190,7 @@ const hasToc = tocHeadings.length > 1;
           }
           controller.abort();
         };
+        window[cleanupKey].prose = prose;
       }
 
       window[initKey] = initPostEnhancements;
@@ -2223,7 +2252,7 @@ const hasToc = tocHeadings.length > 1;
       align-items: center;
       justify-content: center;
       color: var(--muted);
-      transition: transform 380ms cubic-bezier(0.16, 1, 0.3, 1), color 200ms ease;
+      transition: transform 620ms var(--article-ease-layout), color 200ms ease;
     }
     .post-toc[open] .post-toc-caret {
       transform: rotate(0deg);
@@ -2506,7 +2535,7 @@ const hasToc = tocHeadings.length > 1;
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), color 160ms ease, border-color 160ms ease, background 160ms ease;
+      transition: transform 200ms var(--article-ease-surface), color 160ms ease, border-color 160ms ease, background 160ms ease;
     }
     .code-collapse-button {
       border: 1px solid rgba(255, 255, 255, 0.16);
@@ -2528,15 +2557,15 @@ const hasToc = tocHeadings.length > 1;
       border-color: rgba(110, 231, 183, 0.6) !important;
       color: #6ee7b7 !important;
       background: rgba(16, 185, 129, 0.16) !important;
-      animation: codeCopySpring 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      animation: codeCopySpring 480ms var(--article-ease-surface);
     }
     @keyframes codeCopySpring {
-      0% { transform: scale(0.92); }
-      55% { transform: scale(1.07); }
+      0% { transform: scale(0.97); }
+      55% { transform: scale(1.025); }
       100% { transform: scale(1); }
     }
     .prose pre.is-code-collapsed {
-      max-height: 240px !important;
+      max-height: 240px;
       overflow: hidden !important;
       position: relative;
     }
@@ -2577,7 +2606,7 @@ const hasToc = tocHeadings.length > 1;
       font-size: 0.74rem;
       font-weight: 600;
       cursor: pointer;
-      transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), background 180ms ease, border-color 180ms ease;
+      transition: transform 180ms var(--article-ease-surface), background 180ms ease, border-color 180ms ease;
     }
     .code-expand-veil-btn:hover {
       background: rgba(255, 255, 255, 0.22);
@@ -2611,7 +2640,7 @@ const hasToc = tocHeadings.length > 1;
       opacity: 0;
       transform: translateX(-3px);
       cursor: pointer;
-      transition: opacity 180ms ease, transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), color 160ms ease, background 160ms ease, border-color 160ms ease;
+      transition: opacity 180ms ease, transform 200ms var(--article-ease-surface), color 160ms ease, background 160ms ease, border-color 160ms ease;
     }
     .prose h2[id]:hover .heading-anchor-btn,
     .prose h3[id]:hover .heading-anchor-btn,

@@ -67,8 +67,8 @@ test('Animation Buffering & Concurrency De-confliction Suite', async (t) => {
   await t.test('4. PostTransition: 文章转场放行推迟至 p >= 0.75 时序串行化', () => {
     assert.match(
       postTransitionContent,
-      /if\s*\(state\.p\s*>=\s*0\.75\s*&&\s*!released\)\s*\{\s*triggerHandover\(\);\s*\}/,
-      'PostTransition 必须将交割放行点推迟至 state.p >= 0.75，使水墨渲染与正文排版彻底串行解耦'
+      /if\s*\(state\.p\s*>=\s*0\.75\s*&&\s*\(animTween\?\.progress\(\)\s*\?\?\s*0\)\s*>=\s*0\.62\s*&&\s*!released\)/,
+      '转场须同时满足墨晕消散与实际时间门槛，避免缓动进度导致标题提前释放'
     );
     // 确保不再包含过早的 0.20 放行
     assert.doesNotMatch(

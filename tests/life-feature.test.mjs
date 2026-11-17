@@ -46,7 +46,7 @@ test('life.astro has complete animation coverage and attributes', () => {
   assert.ok(lifeContent.includes('data-enter="left"'), 'Title must have data-enter');
   assert.ok(lifeContent.includes('data-enter="stamp"'), 'Stats block must have data-enter="stamp"');
   assert.ok(lifeContent.includes('data-enter="bottom"'), 'Tabs/Search must have data-enter');
-  assert.ok(lifeContent.includes('data-enter={enterFrom}'), 'Cards must have data-enter attribute');
+  assert.ok(lifeContent.includes('data-enter="card"'), 'Cards must use the shared soft card entrance');
 
   // 2. Odometer number counter animation
   assert.ok(lifeContent.includes('data-count={allItems.length}'), 'Total count must have data-count');

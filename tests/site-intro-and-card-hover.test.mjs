@@ -127,49 +127,50 @@ describe('SiteIntro 首页限定与文章冷启动卡死消除 & 宣纸微浮墨
       'global.css .note-card 必须彻底移除 border-left: 2px solid transparent !important'
     );
 
-    // 确认已彻底移除 .note-card:hover 的 translateX 水平突进与 border-color
-    const noteCardHoverMatch = globalCssContent.match(/\.note-card:hover\s*\{([^}]+)\}/);
+    // 确认已彻底移除 .note-card:hover 的 translateX 水平突进、transform 抢写与 border-color
+    const noteCardHoverMatch = globalCssContent.match(/\.note-card:hover[^{]*\{([^}]+)\}/);
     assert.ok(noteCardHoverMatch, '必须找到 .note-card:hover 规则');
     assert.ok(
       !noteCardHoverMatch[1].includes('translateX'),
       '.note-card:hover 必须彻底移除 transform: translateX'
     );
     assert.ok(
+      !noteCardHoverMatch[1].includes('transform'),
+      '.note-card:hover 不得再写 transform，位移交给统一的 3D tilt 引擎'
+    );
+    assert.ok(
       !noteCardHoverMatch[1].includes('border-color'),
       '.note-card:hover 必须彻底移除 border-color 边框变色'
     );
-
-    // 验证微浮 translateY(-4px)
-    assert.match(
-      globalCssContent,
-      /\.note-card:hover\s*\{[\s\S]*?transform:\s*translateY\(-4px\);/,
-      '.note-card:hover 必须采用物理微浮 transform: translateY(-4px)'
+    assert.ok(
+      !noteCardHoverMatch[1].includes('border-radius'),
+      '.note-card:hover 不得再改变圆角，避免 hover 时形状单帧跳变'
     );
 
-    // 验证宣纸底色与圆角
+    // 验证宣纸底色
     assert.match(
-      globalCssContent,
-      /\.note-card:hover\s*\{[\s\S]*?background:\s*var\(--bg-soft\)\s*!important;/,
+      noteCardHoverMatch[1],
+      /background:\s*var\(--bg-soft\)\s*!important;/,
       '.note-card:hover 必须显现宣纸微白底色 var(--bg-soft) !important'
-    );
-    assert.match(
-      globalCssContent,
-      /\.note-card:hover\s*\{[\s\S]*?border-radius:\s*8px;/,
-      '.note-card:hover 必须具备 8px 柔和圆角'
     );
 
     // 验证多层柔性水墨阴影 rgba(var(--accent-rgb), ...)
     assert.match(
-      globalCssContent,
-      /\.note-card:hover\s*\{[\s\S]*?box-shadow:[\s\S]*?rgba\(var\(--accent-rgb\)/,
+      noteCardHoverMatch[1],
+      /box-shadow:[\s\S]*?rgba\(var\(--accent-rgb\)/,
       '.note-card:hover 必须具备包含 rgba(var(--accent-rgb)) 的多层柔墨晕开投影'
     );
 
-    // 验证 transition 包含 var(--ease-bounce) 与 transform/box-shadow
+    // 验证卡片 surface 过渡使用统一的 --ease-card，并且不再与 transform 抢控制权
     assert.match(
       globalCssContent,
-      /\.note-card\s*\{[\s\S]*?transition:[\s\S]*?transform\s+320ms\s+var\(--ease-bounce\)/,
-      '.note-card 必须在 transition 中为 transform 配置 var(--ease-bounce) 消除突兀跳跃'
+      /\.note-card\s*\{[\s\S]*?transition:[\s\S]*?box-shadow\s+420ms\s+var\(--ease-card\)/,
+      '.note-card 必须使用统一的 --ease-card 过渡盒阴影'
+    );
+    assert.doesNotMatch(
+      globalCssContent.match(/\.note-card\s*\{([\s\S]*?)\}/)[1],
+      /transition:[^;]*transform/,
+      '.note-card 基础过渡不得再声明 transform，避免与 GSAP 入场和 tilt 打架'
     );
 
     // 验证卡片箭头悬停滑动交互

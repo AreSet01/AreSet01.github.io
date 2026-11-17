@@ -7,7 +7,10 @@ import PostTransition from '../components/PostTransition.astro';
 import ZenSoundscape from '../components/ZenSoundscape.astro';
 import ZenRainscape from '../components/ZenRainscape.astro';
 
-const buildVersion = Date.now().toString(36);
+const buildVersion =
+  (import.meta.env as Record<string, string | undefined>).PUBLIC_APP_BUILD_VERSION ||
+  process.env.PUBLIC_APP_BUILD_VERSION ||
+  Date.now().toString(36);
 const searchIndexPath = `${import.meta.env.BASE_URL ?? '/'}search-index.json?v=${buildVersion}`;
 
 interface Props {
@@ -28,6 +31,7 @@ const {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="app-build-version" content={buildVersion} />
     <meta name="description" content={description} />
     <meta name="theme-color" content="#ffffff" />
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
@@ -544,8 +548,16 @@ const {
       import { ScrollTrigger } from 'gsap/ScrollTrigger';
       import CustomEase from 'gsap/CustomEase';
       import Lenis from 'lenis';
+      import { readArticleMotion, cubicBezierPoints } from '../utils/articleMotion';
+      import { addCardEnter, cardEnterDelay, clearCardMotion, setCardEnterState } from '../utils/cardMotion';
+      import { mountSiteContextMenu } from '../utils/siteContextMenu';
+      import { mountAppAutoUpdate } from '../utils/appAutoUpdate';
+
+      mountSiteContextMenu();
+      mountAppAutoUpdate({ baseUrl: import.meta.env.BASE_URL ?? '/' });
 
       gsap.registerPlugin(ScrollTrigger, CustomEase);
+      CustomEase.create('article-enter', cubicBezierPoints(readArticleMotion().revealEase));
 
       // Create a premium "ink-wash" custom ease
       CustomEase.create("ink", "0.25, 1, 0.5, 1");
@@ -690,7 +702,8 @@ const {
       // ================= Page-enter choreography =================
       // Every [data-enter] element flies in with a fast-in / long-settle ease, and plays again each
       // time it scrolls back into view. Kinds:
-      //   left | right | top | bottom | scale — transform + opacity only
+      //   left | right | top | bottom | scale — directional transform + opacity
+      //   card  — shared soft landing for every article / note / collection card
       //   stamp — seal slams down (scale + rotate), ink splash on landing, number counts up
       //   ink   — a drop of ink at the row's left edge spreads into the whole row (clip-path)
       // On first paint the authored direction plays; on scroll re-entries the vertical component
@@ -702,9 +715,10 @@ const {
       const ENTER_SCROLL_BIAS = 22; // subtle vertical nudge on horizontal kinds during scroll re-entries
       const ENTER_TRIGGER_PREFIX = 'enter:';
       // Sides converge first, then verticals, then scale/stamps/bloom, ink rows last
-      const ENTER_ORDER = { left: 0, right: 0, top: 1, bottom: 1, scale: 2, stamp: 2, bloom: 2, ink: 3 };
-      const ENTER_STAGGER = { default: 0.08, stamp: 0.12, bloom: 0.12, ink: 0.07 };
+      const ENTER_ORDER = { left: 0, right: 0, top: 1, bottom: 1, card: 2, scale: 2, stamp: 2, bloom: 2, ink: 3 };
+      const ENTER_STAGGER = { default: 0.08, card: 0.06, stamp: 0.12, bloom: 0.12, ink: 0.07 };
       let hasNavigated = false;
+      let cardYawCounter = 0;
 
       // Smooth, natural brush glide ease: gentle start, steady acceleration and soft settle (zero whip/snap)
       CustomEase.create('enter', 'M0,0 C0.16,1 0.3,1 1,1');
@@ -749,7 +763,11 @@ const {
       function finishEnter(el) {
         el.classList.remove('is-entering');
         el.classList.add('is-entered');
-        gsap.set(el, { clearProps: 'transform,opacity,clipPath,filter' });
+        if (enterKind(el) === 'card') {
+          clearCardMotion(el, false);
+        } else {
+          gsap.set(el, { clearProps: 'transform,opacity,clipPath,filter,transformOrigin' });
+        }
         if (el.matches?.('.glass-nav') || el.querySelector?.('.glass-nav')) {
           (window as any).__syncNavMagneticGlider?.();
         }
@@ -783,13 +801,33 @@ const {
 
       // Adds this element's entrance to `tl` at `at` seconds; returns how long to wait before the
       // next one. `scrollDir` is null for the first-paint choreography, 'down' | 'up' on re-entries.
-      function scheduleEnter(tl, el, at, scrollDir = null) {
+      function scheduleEnter(tl, el, at, scrollDir = null, cardIndex = -1, knownPanel = undefined) {
         const kind = enterKind(el);
+        const isArticle = Boolean(document.querySelector('[data-post-prose]'));
         const isReplay = el.dataset.enteredOnce === 'true';
         el.dataset.enterState = 'in';
         el.dataset.enteredOnce = 'true';
         el.classList.remove('is-entered');
         el.classList.add('is-entering');
+
+        if (kind === 'card') {
+          const direction = scrollDir === 'down' ? 1 : scrollDir === 'up' ? -1 : 0;
+          const yawIdx = cardIndex >= 0 ? cardIndex : cardYawCounter++;
+          setCardEnterState(el, {
+            replay: isReplay,
+            direction,
+            indexOffset: yawIdx,
+            preOrdered: true,
+            knownPanel,
+          });
+          addCardEnter(tl, el, at, {
+            replay: isReplay,
+            direction,
+            preOrdered: true,
+            onComplete: () => finishEnter(el),
+          });
+          return ENTER_STAGGER.card;
+        }
 
         // On replay: use ultra-light GPU compositor-only animation (zero filter:blur, zero splash DOM injection)
         if (isReplay) {
@@ -799,8 +837,8 @@ const {
           gsap.set(el, { opacity: 0, x: fromX, y: fromY, scale: 0.98 });
           tl.to(el, {
             opacity: 1, x: 0, y: 0, scale: 1,
-            duration: 0.45,
-            ease: 'power2.out',
+            duration: isArticle ? 0.72 : 0.45,
+            ease: isArticle ? 'article-enter' : 'power2.out',
             onComplete: () => finishEnter(el),
           }, at);
           return ENTER_STAGGER.default * 0.6;
@@ -882,20 +920,63 @@ const {
         gsap.set(el, from);
         tl.to(el, {
           opacity: 1, x: 0, y: 0, scale: 1,
-          duration: 0.82,
-          ease: 'enter',
+          duration: isArticle ? 1.0 : 0.82,
+          ease: isArticle ? 'article-enter' : 'enter',
           onComplete: () => finishEnter(el),
         }, at);
         return ENTER_STAGGER.default;
       }
 
-      // Scroll re-entry: play again with lightweight GPU-only animation
+      // Scroll discovery & re-entry: batch elements crossing the viewport within the same frame
+      // so multi-column cards ripple in a diagonal wave instead of snapping in flat lockstep
+      let pendingScrollReplays: Array<{ el: HTMLElement; scrollDir: string }> = [];
+      let pendingScrollReplayRaf = 0;
+
+      function flushPendingScrollReplays() {
+        pendingScrollReplayRaf = 0;
+        if (!pendingScrollReplays.length) return;
+        const batch = pendingScrollReplays;
+        pendingScrollReplays = [];
+
+        const valid = batch.filter(({ el }) =>
+          el.isConnected &&
+          el.dataset.enterState !== 'in' &&
+          isVisibleInFlow(el) &&
+          !el.classList.contains('is-filtered-out')
+        );
+        if (!valid.length) return;
+
+        const measured = valid.map((item, idx) => {
+          const r = item.el.getBoundingClientRect();
+          const vert = item.scrollDir === 'up' ? -r.top : r.top;
+          const isPanel =
+            item.el.matches?.('.stats-hero, .stats-kpis, .chart-card, .stats-table, [id*="empty-state"], .empty-state') ||
+            r.width > 680;
+          return { ...item, idx, score: vert + r.left * 0.48, isPanel };
+        });
+        measured.sort((a, b) => a.score - b.score || a.idx - b.idx);
+
+        const tl = gsap.timeline();
+        let at = 0;
+        measured.forEach(({ el, scrollDir, isPanel }, idx) => {
+          const wasSeen = el.dataset.enteredOnce === 'true';
+          gsap.killTweensOf(el);
+          scheduleEnter(tl, el, at, scrollDir, idx, isPanel);
+          const kind = enterKind(el);
+          at += kind === 'card' ? (wasSeen ? 0.042 : 0.06) : (wasSeen ? 0.04 : 0.065);
+        });
+      }
+
       function replayEnter(el, scrollDir) {
         if (el.dataset.enterState === 'in') return;
         if (!isVisibleInFlow(el)) return;
         if (el.classList.contains('is-filtered-out')) return;
-        gsap.killTweensOf(el);
-        scheduleEnter(gsap.timeline(), el, 0, scrollDir);
+        if (!pendingScrollReplays.some((item) => item.el === el)) {
+          pendingScrollReplays.push({ el, scrollDir });
+        }
+        if (!pendingScrollReplayRaf) {
+          pendingScrollReplayRaf = requestAnimationFrame(flushPendingScrollReplays);
+        }
       }
 
       // Scrolled fully out of the viewport: reset silently and arm for the next crossing
@@ -908,7 +989,7 @@ const {
           return;
         }
         el.dataset.enterState = 'out';
-        gsap.killTweensOf(el);
+        clearCardMotion(el, true);
         el.classList.remove('is-entered', 'is-entering');
         if (isVisibleInFlow(el)) gsap.set(el, { opacity: 0 });
       }
@@ -926,6 +1007,7 @@ const {
         const immediate = [];
         const deferred = [];
         const settled = []; // enter-once elements on a client navigation: shown, never animated
+        const rectMap = new Map();
         gsap.utils.toArray('[data-enter]').forEach((el) => {
           // The sidebar only makes its entrance once; on client navigations it stays put —
           // except when releasing from post-title-hold where .glass-nav was hidden
@@ -934,36 +1016,81 @@ const {
             return;
           }
           const rect = el.getBoundingClientRect();
+          rectMap.set(el, rect);
           const onScreen = rect.top < viewportH * 0.92 && rect.bottom > 0;
           (onScreen ? immediate : deferred).push(el);
         });
 
-        // Stable sort: by direction group, document order within a group
-        immediate.sort((a, b) => (ENTER_ORDER[enterKind(a)] ?? 1) - (ENTER_ORDER[enterKind(b)] ?? 1));
+        // Sort by group first; inside 'card' group, sort by spatial diagonal wave (top-left -> bottom-right)
+        // so multi-column masonry grids never animate down column 1 before column 2
+        immediate.sort((a, b) => {
+          const ga = ENTER_ORDER[enterKind(a)] ?? 1;
+          const gb = ENTER_ORDER[enterKind(b)] ?? 1;
+          if (ga !== gb) return ga - gb;
+          if (enterKind(a) === 'card' && enterKind(b) === 'card') {
+            const ra = rectMap.get(a);
+            const rb = rectMap.get(b);
+            if (ra && rb) {
+              return (ra.top + ra.left * 0.48) - (rb.top + rb.left * 0.48);
+            }
+          }
+          return 0;
+        });
 
         let at = 0;
         let lastGroup = -1;
+        let cardGroupStartAt = -1;
+        let cardCountInGroup = 0;
         const timed = immediate.map((el) => {
           const kind = enterKind(el);
           const group = ENTER_ORDER[kind] ?? 1;
           if (lastGroup !== -1 && group !== lastGroup) at += 0.08; // small breath between groups
           lastGroup = group;
-          const entry = { el, at, kind };
+          const r = rectMap.get(el);
+          const knownPanel =
+            Boolean(r && r.width > 680) ||
+            Boolean(el.matches?.('.stats-hero, .stats-kpis, .chart-card, .stats-table, [id*="empty-state"], .empty-state'));
+          if (kind === 'card') {
+            if (cardGroupStartAt < 0) cardGroupStartAt = Math.min(at, 0.24);
+            const cardIdx = cardCountInGroup++;
+            const cardAt = cardGroupStartAt + cardEnterDelay(cardIdx);
+            at = Math.max(at, cardAt + ENTER_STAGGER.card);
+            return { el, at: cardAt, kind, cardIdx, knownPanel };
+          }
+          const entry = { el, at, kind, cardIdx: -1, knownPanel };
           at += ENTER_STAGGER[kind] ?? ENTER_STAGGER.default;
           return entry;
         });
-        return { immediate: timed, deferred, settled };
+        return { immediate: timed, deferred, settled, rectMap };
       }
       window.__peekPageEnter = () => planPageEnter().immediate.map(({ el, at, kind }) => ({ el, at, kind }));
 
       // `timeScale` compresses the first-paint stagger; the curtain asks for it when a page has
       // more first-screen elements than its own closing beat can accompany one by one
       function initPageEnter({ timeScale = 1, fromPostTitleHold = false } = {}) {
+        if (pendingScrollReplayRaf) {
+          cancelAnimationFrame(pendingScrollReplayRaf);
+          pendingScrollReplayRaf = 0;
+        }
+        pendingScrollReplays = [];
         ScrollTrigger.getAll().forEach((trigger) => {
           if (String(trigger.vars.id || '').startsWith(ENTER_TRIGGER_PREFIX)) trigger.kill();
         });
 
-        const { immediate, deferred, settled } = planPageEnter({ forceEnterOnce: fromPostTitleHold });
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          document.querySelectorAll<HTMLElement>('[data-enter]').forEach((el) => {
+            gsap.killTweensOf(el);
+            el.dataset.enterState = 'in';
+            finishEnter(el);
+          });
+          document.querySelectorAll<HTMLElement>('[data-count]').forEach((el) => {
+            el.textContent = el.dataset.count ?? '';
+          });
+          document.documentElement.classList.remove('js-enter');
+          return;
+        }
+
+        const { immediate, deferred, settled, rectMap } = planPageEnter({ forceEnterOnce: fromPostTitleHold });
         const replayable = [];
 
         [...immediate.map((entry) => entry.el), ...deferred].forEach((el) => {
@@ -987,7 +1114,9 @@ const {
             },
           });
           tl.timeScale(timeScale);
-          immediate.forEach(({ el, at }) => scheduleEnter(tl, el, at));
+          immediate.forEach(({ el, at, cardIdx, knownPanel }) =>
+            scheduleEnter(tl, el, at, null, cardIdx, knownPanel)
+          );
         } else {
           document.documentElement.classList.remove('js-enter');
         }
@@ -1007,18 +1136,10 @@ const {
           }
         });
 
-        // Two triggers per element, because the thresholds are asymmetric: it should *play* once
-        // it is a little way in, but only *reset* once it is entirely off-screen — otherwise
-        // anything sitting near the top edge at scroll 0 (the hero eyebrow) would be "gone" after
-        // a few px of layout shift and never come back.
-        //
-        // "A little way in" is 12% of the viewport, or most of the element's own height for small
-        // things — but never more than the element's distance from the top of the document.
-        // Without that last clamp, the range for anything sitting at the very top of the page
-        // lands at negative scroll positions (the hero eyebrow measured -1064..-15, which no
-        // scroll can cross, so it played once on load and never again).
+        let useCachedHeights = true;
         const reach = (el) => {
-          return Math.round(Math.max(4, Math.min(window.innerHeight * 0.12, (el.offsetHeight || 60) * 0.5 + 20)));
+          const h = (useCachedHeights ? rectMap.get(el)?.height : 0) || el.offsetHeight || 60;
+          return Math.round(Math.max(4, Math.min(window.innerHeight * 0.12, h * 0.5 + 20)));
         };
         replayable.forEach((el, index) => {
           ScrollTrigger.create({
@@ -1038,6 +1159,7 @@ const {
             onLeaveBack: () => leaveEnter(el),
           });
         });
+        useCachedHeights = false;
 
         // Home hero: copy drifts up and fades as the reader scrolls past it.
         // The enter animation lives on the hero's children, so this scrub owns the wrapper alone.
@@ -1169,13 +1291,18 @@ const {
       }
 
       document.addEventListener('astro:before-swap', () => {
+        if (pendingScrollReplayRaf) {
+          cancelAnimationFrame(pendingScrollReplayRaf);
+          pendingScrollReplayRaf = 0;
+        }
+        pendingScrollReplays = [];
         try {
           if (typeof (window as any).__areSetPostRevealCleanup__ === 'function') {
             (window as any).__areSetPostRevealCleanup__();
           }
         } catch {}
         document.querySelectorAll('[data-enter]').forEach((el) => {
-          gsap.killTweensOf(el);
+          clearCardMotion(el, true);
         });
       });
 
@@ -1194,12 +1321,11 @@ const {
           document.documentElement.setAttribute('data-post-title-hold', 'true');
           document.documentElement.style.overflow = 'hidden';
           document.body.setAttribute('data-post-title-hold', 'true');
-          document.body.style.overflow = 'hidden';
         } else {
           document.documentElement.removeAttribute('data-post-title-hold');
           document.body.removeAttribute('data-post-title-hold');
           document.documentElement.style.overflow = '';
-          document.body.style.overflow = '';
+          if (document.body.style.overflow) document.body.style.overflow = '';
         }
 
         if ((window as any).__postTransitionPending && (window as any).__postTransition) {
@@ -1213,14 +1339,13 @@ const {
           (window as any).__postTransition.leave();
         }
         const sidebarNav = document.querySelector('.glass-nav');
-        if (sidebarNav) sidebarNav.scrollTop = 0;
+        if (sidebarNav && sidebarNav.scrollTop !== 0) sidebarNav.scrollTop = 0;
       });
 
       document.addEventListener('astro:page-load', () => {
         const sidebarNav = document.querySelector('.glass-nav');
-        if (sidebarNav) {
+        if (sidebarNav && sidebarNav.scrollTop !== 0) {
           sidebarNav.scrollTop = 0;
-          requestAnimationFrame(() => { sidebarNav.scrollTop = 0; });
         }
         if (!enteredThisDocument) runPageEnter();
         initMagneticButtons();
@@ -1812,6 +1937,7 @@ const {
         let previewOverlayAnimation = null;
         let previewModalAnimation = null;
         let previewState = 'closed';
+        let pendingPreviewData = null;
         let searchIndexPromise = null;
         let searchItems = [];
         let searchResults = [];
@@ -2411,21 +2537,18 @@ const {
           imageOverlay.style.opacity = '0';
           imageViewerShell.style.transform = `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`;
           imageViewerShell.style.opacity = '0';
-          imageViewerShell.style.filter = 'blur(14px)';
         }
 
         function applyImageViewerOpenStyles() {
           imageOverlay.style.opacity = '1';
           imageViewerShell.style.transform = 'translate3d(0, 0, 0) scale(1, 1)';
           imageViewerShell.style.opacity = '1';
-          imageViewerShell.style.filter = 'blur(0)';
         }
 
         function clearImageViewerInlineStyles() {
           imageOverlay.style.removeProperty('opacity');
           imageViewerShell.style.removeProperty('transform');
           imageViewerShell.style.removeProperty('opacity');
-          imageViewerShell.style.removeProperty('filter');
         }
 
         function animateImageViewerOpen() {
@@ -2438,83 +2561,70 @@ const {
           }
 
           const { startX, startY, startScaleX, startScaleY } = imageViewerMotion;
-          const initScaleX = (0.94 + (1 - startScaleX) * 0.05);
-          const initScaleY = (0.94 + (1 - startScaleY) * 0.05);
-
           imageViewerState = 'opening';
 
-          if (window.gsap) {
-             window.gsap.killTweensOf([imageOverlay, imageViewerShell]);
-             window.gsap.fromTo(imageOverlay, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: "power2.out" });
-             window.gsap.fromTo(imageViewerShell, 
-               { x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0 },
-               { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, duration: 0.85, ease: "ink", onComplete: () => {
-                 applyImageViewerOpenStyles();
-                 imageViewerState = 'open';
-               }}
-             );
-             window.gsap.fromTo(imageViewerShell,
-               { filter: 'blur(12px)' },
-               { filter: 'blur(0px)', duration: 1.1, ease: "power2.out" }
-             );
-             return;
+          if (typeof imageViewerShell.animate === 'function') {
+            imageViewerOverlayAnimation = imageOverlay.animate(
+              [{ opacity: 0 }, { opacity: 1 }],
+              {
+                duration: 280,
+                easing: 'cubic-bezier(0.22, 0.82, 0.18, 1)',
+                fill: 'both',
+              }
+            );
+
+            imageViewerShellAnimation = imageViewerShell.animate(
+              [
+                {
+                  transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
+                  opacity: 0,
+                },
+                {
+                  transform: 'translate3d(0, 0, 0) scale(1, 1)',
+                  opacity: 1,
+                },
+              ],
+              {
+                duration: 400,
+                easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                fill: 'both',
+              }
+            );
+
+            imageViewerOverlayAnimation.onfinish = () => {
+              imageOverlay.style.opacity = '1';
+              releaseAnimation(imageViewerOverlayAnimation);
+              imageViewerOverlayAnimation = null;
+            };
+
+            imageViewerOverlayAnimation.oncancel = () => {
+              imageViewerOverlayAnimation = null;
+            };
+
+            imageViewerShellAnimation.onfinish = () => {
+              applyImageViewerOpenStyles();
+              releaseAnimation(imageViewerShellAnimation);
+              imageViewerShellAnimation = null;
+              imageViewerState = 'open';
+            };
+
+            imageViewerShellAnimation.oncancel = () => {
+              imageViewerShellAnimation = null;
+            };
+            return;
           }
 
-          imageViewerOverlayAnimation = imageOverlay.animate(
-            [{ opacity: 0 }, { opacity: 1 }],
-            {
-              duration: 450,
-              easing: 'cubic-bezier(0.22, 0.82, 0.18, 1)',
-              fill: 'both',
-            }
-          );
-
-          imageViewerShellAnimation = imageViewerShell.animate(
-            [
-              {
-                transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
-                opacity: 0,
-                filter: 'blur(14px)',
-              },
-              {
-                transform: `translate3d(${startX * 0.3}px, ${startY * 0.3}px, 0) scale(${startScaleX + (1 - startScaleX) * 0.5}, ${startScaleY + (1 - startScaleY) * 0.5})`,
-                opacity: 0.8,
-                filter: 'blur(4px)',
-                offset: 0.4,
-              },
-              {
-                transform: 'translate3d(0, 0, 0) scale(1, 1)',
-                opacity: 1,
-                filter: 'blur(0)',
-              },
-            ],
-            {
-              duration: 850,
-              easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
-              fill: 'both',
-            }
-          );
-
-          imageViewerOverlayAnimation.onfinish = () => {
-            imageOverlay.style.opacity = '1';
-            releaseAnimation(imageViewerOverlayAnimation);
-            imageViewerOverlayAnimation = null;
-          };
-
-          imageViewerOverlayAnimation.oncancel = () => {
-            imageViewerOverlayAnimation = null;
-          };
-
-          imageViewerShellAnimation.onfinish = () => {
-            applyImageViewerOpenStyles();
-            releaseAnimation(imageViewerShellAnimation);
-            imageViewerShellAnimation = null;
-            imageViewerState = 'open';
-          };
-
-          imageViewerShellAnimation.oncancel = () => {
-            imageViewerShellAnimation = null;
-          };
+          if (window.gsap) {
+            window.gsap.killTweensOf([imageOverlay, imageViewerShell]);
+            window.gsap.fromTo(imageOverlay, { opacity: 0 }, { opacity: 1, duration: 0.28, ease: "power2.out" });
+            window.gsap.fromTo(imageViewerShell,
+              { x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0 },
+              { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, duration: 0.4, ease: "ink", onComplete: () => {
+                applyImageViewerOpenStyles();
+                imageViewerState = 'open';
+              }}
+            );
+          }
         }
 
         function finishImageViewerClose(restoreFocusEl) {
@@ -2552,64 +2662,64 @@ const {
           imageViewerState = 'closing';
           applyImageViewerOpenStyles();
 
-          if (window.gsap) {
-             window.gsap.killTweensOf([imageOverlay, imageViewerShell]);
-             window.gsap.to(imageOverlay, { opacity: 0, duration: 0.4, ease: "power2.inOut" });
-             window.gsap.to(imageViewerShell, { 
-               x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0, filter: 'blur(12px)', 
-               duration: 0.55, ease: "power3.inOut", onComplete: () => {
-                 finishImageViewerClose(restoreFocusEl);
-               }
-             });
-             return;
+          if (typeof imageViewerShell.animate === 'function') {
+            imageViewerOverlayAnimation = imageOverlay.animate(
+              [{ opacity: 1 }, { opacity: 0 }],
+              {
+                duration: 240,
+                easing: 'cubic-bezier(0.36, 0, 0.4, 1)',
+                fill: 'both',
+              }
+            );
+
+            imageViewerShellAnimation = imageViewerShell.animate(
+              [
+                {
+                  transform: 'translate3d(0, 0, 0) scale(1, 1)',
+                  opacity: 1,
+                },
+                {
+                  transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
+                  opacity: 0,
+                },
+              ],
+              {
+                duration: 280,
+                easing: 'cubic-bezier(0.4, 0, 0.5, 1)',
+                fill: 'both',
+              }
+            );
+
+            imageViewerOverlayAnimation.onfinish = () => {
+              imageOverlay.style.opacity = '0';
+              releaseAnimation(imageViewerOverlayAnimation);
+              imageViewerOverlayAnimation = null;
+            };
+
+            imageViewerOverlayAnimation.oncancel = () => {
+              imageViewerOverlayAnimation = null;
+            };
+
+            imageViewerShellAnimation.onfinish = () => {
+              finishImageViewerClose(restoreFocusEl);
+            };
+
+            imageViewerShellAnimation.oncancel = () => {
+              imageViewerShellAnimation = null;
+            };
+            return;
           }
 
-          imageViewerOverlayAnimation = imageOverlay.animate(
-            [{ opacity: 1 }, { opacity: 0 }],
-            {
-              duration: 400,
-              easing: 'cubic-bezier(0.36, 0, 0.4, 1)',
-              fill: 'both',
-            }
-          );
-
-          imageViewerShellAnimation = imageViewerShell.animate(
-            [
-              {
-                transform: 'translate3d(0, 0, 0) scale(1, 1)',
-                opacity: 1,
-                filter: 'blur(0)',
-              },
-              {
-                transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
-                opacity: 0,
-                filter: 'blur(12px)',
-              },
-            ],
-            {
-              duration: 550,
-              easing: 'cubic-bezier(0.4, 0, 0.5, 1)',
-              fill: 'both',
-            }
-          );
-
-          imageViewerOverlayAnimation.onfinish = () => {
-            imageOverlay.style.opacity = '0';
-            releaseAnimation(imageViewerOverlayAnimation);
-            imageViewerOverlayAnimation = null;
-          };
-
-          imageViewerOverlayAnimation.oncancel = () => {
-            imageViewerOverlayAnimation = null;
-          };
-
-          imageViewerShellAnimation.onfinish = () => {
-            finishImageViewerClose(restoreFocusEl);
-          };
-
-          imageViewerShellAnimation.oncancel = () => {
-            imageViewerShellAnimation = null;
-          };
+          if (window.gsap) {
+            window.gsap.killTweensOf([imageOverlay, imageViewerShell]);
+            window.gsap.to(imageOverlay, { opacity: 0, duration: 0.24, ease: "power2.inOut" });
+            window.gsap.to(imageViewerShell, {
+              x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0,
+              duration: 0.28, ease: "power3.inOut", onComplete: () => {
+                finishImageViewerClose(restoreFocusEl);
+              }
+            });
+          }
         }
 
         function stopPreviewAnimations() {
@@ -2643,33 +2753,26 @@ const {
 
           const sourceRect = previewSourceEl.getBoundingClientRect();
           const modalRect = modal.getBoundingClientRect();
-          const sourceStyle = window.getComputedStyle(previewSourceEl);
-          const startX = sourceRect.left + sourceRect.width / 2 - window.innerWidth / 2;
-          const startY = sourceRect.top + sourceRect.height / 2 - window.innerHeight / 2;
-          const scaleRatioX = sourceRect.width / Math.max(modalRect.width, 1);
-          const scaleRatioY = sourceRect.height / Math.max(modalRect.height, 1);
-          const sourceRadius = parseFloat(sourceStyle.borderTopLeftRadius) || 16;
-          // True FLIP without arbitrary clamps
-          const startScaleX = scaleRatioX;
-          const startScaleY = scaleRatioY;
-          const pinchScaleX = startScaleX * 0.8;
-          const pinchScaleY = startScaleY * 1.05;
-          const driftX = 0;
-          const driftY = 0;
-          const overshootScaleX = 1.018;
-          const overshootScaleY = 0.988;
+          const rawX = sourceRect.left + sourceRect.width / 2 - window.innerWidth / 2;
+          const rawY = sourceRect.top + sourceRect.height / 2 - window.innerHeight / 2;
+          const modalW = Math.max(modalRect.width || 720, 1);
+          const ratio = Math.min(sourceRect.width / modalW, 0.96);
+          // Damped uniform scale prevents distorted/squashed typography while preserving directional launch
+          const startScale = Math.max(0.88, Math.min(0.95, ratio > 0.3 ? ratio * 0.4 + 0.56 : 0.91));
+          const startX = Math.max(-180, Math.min(180, rawX * 0.28));
+          const startY = Math.max(-140, Math.min(140, rawY * 0.28 + 14));
 
           previewMotion = {
             startX,
             startY,
-            startScaleX,
-            startScaleY,
-            pinchScaleX,
-            pinchScaleY,
-            driftX,
-            driftY,
-            overshootScaleX,
-            overshootScaleY,
+            startScaleX: startScale,
+            startScaleY: startScale,
+            pinchScaleX: startScale,
+            pinchScaleY: startScale,
+            driftX: 0,
+            driftY: 0,
+            overshootScaleX: 1,
+            overshootScaleY: 1,
           };
         }
 
@@ -2678,21 +2781,18 @@ const {
           overlay.style.opacity = '0';
           modal.style.transform = `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`;
           modal.style.opacity = '0';
-          modal.style.filter = 'blur(16px)';
         }
 
         function applyPreviewOpenStyles() {
           overlay.style.opacity = '1';
           modal.style.transform = 'translate3d(0, 0, 0) scale(1, 1)';
           modal.style.opacity = '1';
-          modal.style.filter = 'blur(0)';
         }
 
         function clearPreviewInlineStyles() {
           overlay.style.removeProperty('opacity');
           modal.style.removeProperty('transform');
           modal.style.removeProperty('opacity');
-          modal.style.removeProperty('filter');
         }
 
         function animatePreviewOpen() {
@@ -2707,84 +2807,94 @@ const {
           const { startX, startY, startScaleX, startScaleY } = previewMotion;
           previewState = 'opening';
 
-          if (window.gsap) {
-             window.gsap.killTweensOf([overlay, modal]);
-             window.gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: "power2.out" });
-             window.gsap.fromTo(modal, 
-               { x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0 },
-               { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, duration: 0.85, ease: "ink", onComplete: () => {
-                 applyPreviewOpenStyles();
-                 previewState = 'open';
-               }}
-             );
-             window.gsap.fromTo(modal,
-               { filter: 'blur(12px)' },
-               { filter: 'blur(0px)', duration: 1.1, ease: "power2.out" }
-             );
-             return;
+          if (typeof modal.animate === 'function') {
+            previewOverlayAnimation = overlay.animate(
+              [{ opacity: 0 }, { opacity: 1 }],
+              {
+                duration: 260,
+                easing: 'cubic-bezier(0.22, 0.82, 0.18, 1)',
+                fill: 'both',
+              }
+            );
+
+            previewModalAnimation = modal.animate(
+              [
+                {
+                  transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
+                  opacity: 0,
+                },
+                {
+                  transform: 'translate3d(0, 0, 0) scale(1, 1)',
+                  opacity: 1,
+                },
+              ],
+              {
+                duration: 380,
+                easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                fill: 'both',
+              }
+            );
+
+            previewOverlayAnimation.onfinish = () => {
+              overlay.style.opacity = '1';
+              releaseAnimation(previewOverlayAnimation);
+              previewOverlayAnimation = null;
+            };
+
+            previewOverlayAnimation.oncancel = () => {
+              previewOverlayAnimation = null;
+            };
+
+            previewModalAnimation.onfinish = () => {
+              applyPreviewOpenStyles();
+              releaseAnimation(previewModalAnimation);
+              previewModalAnimation = null;
+              previewState = 'open';
+              if (pendingPreviewData) {
+                const payload = pendingPreviewData;
+                pendingPreviewData = null;
+                renderPreview(payload);
+              }
+              if (overlay.classList.contains('is-open')) {
+                closeBtn.focus({ preventScroll: true });
+              }
+            };
+
+            previewModalAnimation.oncancel = () => {
+              previewModalAnimation = null;
+            };
+            return;
           }
 
-          previewOverlayAnimation = overlay.animate(
-            [{ opacity: 0 }, { opacity: 1 }],
-            {
-              duration: 450,
-              easing: 'cubic-bezier(0.22, 0.82, 0.18, 1)',
-              fill: 'both',
-            }
-          );
+          if (window.gsap) {
+            window.gsap.killTweensOf([overlay, modal]);
+            window.gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.26, ease: "power2.out" });
+            window.gsap.fromTo(modal,
+              { x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0 },
+              { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, duration: 0.38, ease: "ink", onComplete: () => {
+                applyPreviewOpenStyles();
+                previewState = 'open';
+              }}
+            );
+          }
+        }
 
-          previewModalAnimation = modal.animate(
-            [
-              {
-                transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
-                opacity: 0,
-                filter: 'blur(16px)',
-              },
-              {
-                transform: `translate3d(${startX * 0.3}px, ${startY * 0.3}px, 0) scale(${startScaleX + (1 - startScaleX) * 0.5}, ${startScaleY + (1 - startScaleY) * 0.5})`,
-                opacity: 0.8,
-                filter: 'blur(4.5px)',
-                offset: 0.4,
-              },
-              {
-                transform: 'translate3d(0, 0, 0) scale(1, 1)',
-                opacity: 1,
-                filter: 'blur(0)',
-              },
-            ],
-            {
-              duration: 850,
-              easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
-              fill: 'both',
-            }
-          );
-
-          previewOverlayAnimation.onfinish = () => {
-            overlay.style.opacity = '1';
-            releaseAnimation(previewOverlayAnimation);
-            previewOverlayAnimation = null;
-          };
-
-          previewOverlayAnimation.oncancel = () => {
-            previewOverlayAnimation = null;
-          };
-
-          previewModalAnimation.onfinish = () => {
-            applyPreviewOpenStyles();
-            releaseAnimation(previewModalAnimation);
-            previewModalAnimation = null;
-            previewState = 'open';
-          };
-
-          previewModalAnimation.oncancel = () => {
-            previewModalAnimation = null;
-          };
+        function deliverPreviewPayload(url, payload) {
+          if (currentUrl !== url) return;
+          if (previewState === 'opening' && previewModalAnimation) {
+            pendingPreviewData = payload;
+            titleEl.textContent = payload.title || '文章预览';
+            return;
+          }
+          renderPreview(payload);
         }
 
         function openPreview(url, sourceEl) {
           cancelAnimationFrame(previewOpenFrame);
           stopPreviewAnimations();
+          pendingPreviewData = null;
           currentUrl = url;
+          previewState = 'opening';
           setPreviewMotion(sourceEl);
           readFullBtn.href = url;
           titleEl.textContent = '加载中...';
@@ -2797,24 +2907,18 @@ const {
           bodyEl.scrollTop = 0;
           syncScrollbarOffset();
           document.body.classList.add('preview-lock');
-          document.body.classList.add('preview-active');
           if (window.lenis) window.lenis.stop();
+          applyPreviewStartStyles();
           overlay.classList.add('is-open');
           notifyModalState('preview', true);
-          applyPreviewStartStyles();
 
           previewOpenFrame = requestAnimationFrame(() => {
-            document.body.classList.add('preview-open');
             animatePreviewOpen();
             previewOpenFrame = 0;
           });
 
-          window.setTimeout(() => {
-            if (overlay.classList.contains('is-open')) closeBtn.focus();
-          }, 180);
-
           if (previewCache.has(url)) {
-            renderPreview(previewCache.get(url));
+            deliverPreviewPayload(url, previewCache.get(url));
             return;
           }
 
@@ -2826,10 +2930,11 @@ const {
             .then((html) => {
               const parsed = parsePostHtml(html);
               previewCache.set(url, parsed);
-              if (currentUrl === url) renderPreview(parsed);
+              deliverPreviewPayload(url, parsed);
             })
             .catch(() => {
               if (currentUrl !== url) return;
+              pendingPreviewData = null;
 
               titleEl.textContent = '加载失败';
               bodyEl.innerHTML = `
@@ -2866,6 +2971,7 @@ const {
 
         function finishPreviewClose(restoreFocusEl) {
           stopPreviewAnimations();
+          pendingPreviewData = null;
           overlay.classList.remove('is-open');
           document.body.classList.remove('preview-open');
           document.body.classList.remove('preview-lock');
@@ -2903,64 +3009,64 @@ const {
 
           const { startX, startY, startScaleX, startScaleY } = previewMotion;
 
-          if (window.gsap) {
-             window.gsap.killTweensOf([overlay, modal]);
-             window.gsap.to(overlay, { opacity: 0, duration: 0.4, ease: "power2.inOut" });
-             window.gsap.to(modal, { 
-               x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0, filter: 'blur(12px)', 
-               duration: 0.55, ease: "power3.inOut", onComplete: () => {
-                 finishPreviewClose(restoreFocusEl);
-               }
-             });
-             return;
+          if (typeof modal.animate === 'function') {
+            previewOverlayAnimation = overlay.animate(
+              [{ opacity: 1 }, { opacity: 0 }],
+              {
+                duration: 240,
+                easing: 'cubic-bezier(0.36, 0, 0.4, 1)',
+                fill: 'both',
+              }
+            );
+
+            previewModalAnimation = modal.animate(
+              [
+                {
+                  transform: 'translate3d(0, 0, 0) scale(1, 1)',
+                  opacity: 1,
+                },
+                {
+                  transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
+                  opacity: 0,
+                },
+              ],
+              {
+                duration: 260,
+                easing: 'cubic-bezier(0.36, 0, 0.25, 1)',
+                fill: 'both',
+              }
+            );
+
+            previewOverlayAnimation.onfinish = () => {
+              overlay.style.opacity = '0';
+              releaseAnimation(previewOverlayAnimation);
+              previewOverlayAnimation = null;
+            };
+
+            previewOverlayAnimation.oncancel = () => {
+              previewOverlayAnimation = null;
+            };
+
+            previewModalAnimation.onfinish = () => {
+              finishPreviewClose(restoreFocusEl);
+            };
+
+            previewModalAnimation.oncancel = () => {
+              previewModalAnimation = null;
+            };
+            return;
           }
 
-          previewOverlayAnimation = overlay.animate(
-            [{ opacity: 1 }, { opacity: 0 }],
-            {
-              duration: 400,
-              easing: 'cubic-bezier(0.36, 0, 0.4, 1)',
-              fill: 'both',
-            }
-          );
-
-          previewModalAnimation = modal.animate(
-            [
-              {
-                transform: 'translate3d(0, 0, 0) scale(1, 1)',
-                opacity: 1,
-                filter: 'blur(0)',
-              },
-              {
-                transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScaleX}, ${startScaleY})`,
-                opacity: 0,
-                filter: 'blur(14px)',
-              },
-            ],
-            {
-              duration: 550,
-              easing: 'cubic-bezier(0.4, 0, 0.5, 1)',
-              fill: 'both',
-            }
-          );
-
-          previewOverlayAnimation.onfinish = () => {
-            overlay.style.opacity = '0';
-            releaseAnimation(previewOverlayAnimation);
-            previewOverlayAnimation = null;
-          };
-
-          previewOverlayAnimation.oncancel = () => {
-            previewOverlayAnimation = null;
-          };
-
-          previewModalAnimation.onfinish = () => {
-            finishPreviewClose(restoreFocusEl);
-          };
-
-          previewModalAnimation.oncancel = () => {
-            previewModalAnimation = null;
-          };
+          if (window.gsap) {
+            window.gsap.killTweensOf([overlay, modal]);
+            window.gsap.to(overlay, { opacity: 0, duration: 0.24, ease: "power2.inOut" });
+            window.gsap.to(modal, {
+              x: startX, y: startY, scaleX: startScaleX, scaleY: startScaleY, opacity: 0,
+              duration: 0.26, ease: "power3.inOut", onComplete: () => {
+                finishPreviewClose(restoreFocusEl);
+              }
+            });
+          }
         }
 
         document.addEventListener('click', (event) => {
@@ -3436,22 +3542,26 @@ const {
         cards.forEach((card) => {
           if ((card as any).__tiltActive) return;
           (card as any).__tiltActive = true;
-          card.style.transformStyle = 'preserve-3d';
 
-          let rect = card.getBoundingClientRect();
+          let rect = { left: 0, top: 0, width: 1, height: 1 } as DOMRect;
           let isInside = false;
-          const maxTilt = 8; // 温润微立体角度 (~8 degrees，杜绝文字图层穿模)
+          const maxTilt = 4.5; // 克制的纸面倾斜，避免文字与边框产生明显透视晃动
 
           const updateRect = () => {
             rect = card.getBoundingClientRect();
           };
 
+          const isCardInMotion = () =>
+            card.classList.contains('is-entering') || card.classList.contains('is-reflowing');
+
           const onPointerEnter = () => {
+            if (isCardInMotion()) return;
             isInside = true;
             updateRect();
           };
 
           const onPointerMove = (e: PointerEvent) => {
+            if (isCardInMotion()) return;
             if (!isInside) {
               isInside = true;
               updateRect();
@@ -3472,22 +3582,23 @@ const {
               rotateY: rotY,
               y: -3,
               transformPerspective: 1000,
-              duration: 0.22,
-              ease: 'power1.out',
+              duration: 0.38,
+              ease: 'card-enter',
               overwrite: 'auto',
             });
           };
 
           const onPointerLeave = () => {
             isInside = false;
+            if (isCardInMotion()) return;
 
             gsap.to(card, {
               rotateX: 0,
               rotateY: 0,
               y: 0,
               transformPerspective: 1000,
-              duration: 0.65,
-              ease: 'power2.out',
+              duration: 0.72,
+              ease: 'card-enter',
               overwrite: 'auto',
             });
           };

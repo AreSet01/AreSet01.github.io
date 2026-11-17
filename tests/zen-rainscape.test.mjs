@@ -82,7 +82,16 @@ describe('全站「烟雨濛濛」音画微气象系统与首页视觉纯净化�
     const baseLayoutPath = path.join(rootDir, 'src/layouts/BaseLayout.astro');
     const baseLayoutContent = fs.readFileSync(baseLayoutPath, 'utf8');
     assert.ok(baseLayoutContent.includes("kind === 'bloom'"), 'BaseLayout 应支持 kind === bloom 动效');
-    assert.ok(baseLayoutContent.includes('ENTER_ORDER = { left: 0, right: 0, top: 1, bottom: 1, scale: 2, stamp: 2, bloom: 2, ink: 3 }'), 'ENTER_ORDER 应包含 bloom');
+    assert.match(
+      baseLayoutContent,
+      /ENTER_ORDER = \{[^}]*\bbloom:\s*2[^}]*\}/,
+      'ENTER_ORDER 应包含 bloom'
+    );
+    assert.match(
+      baseLayoutContent,
+      /ENTER_ORDER = \{[^}]*\bcard:\s*2[^}]*\}/,
+      'ENTER_ORDER 应包含统一的 card 入场'
+    );
   });
 
   it('8. ZenRainscape: 彻底杜绝底部积水与雾斑积块，纯净自然湖面微澜荡漾', () => {

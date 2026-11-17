@@ -7,7 +7,7 @@ const rootDir = process.cwd();
 const postLayoutPath = path.join(rootDir, 'src/layouts/PostLayout.astro');
 const globalCssPath = path.join(rootDir, 'src/styles/global.css');
 
-test('Post Reveal Smooth Scroll, 900ms Transition & Guaranteed Replay Suite (Option B Dual-Hysteresis)', async (t) => {
+test('Post Reveal Smooth Scroll, Shared Easing & Guaranteed Replay Suite (Option B Dual-Hysteresis)', async (t) => {
   const postLayoutContent = fs.readFileSync(postLayoutPath, 'utf-8');
   const globalCssContent = fs.readFileSync(globalCssPath, 'utf-8');
 
@@ -100,30 +100,30 @@ test('Post Reveal Smooth Scroll, 900ms Transition & Guaranteed Replay Suite (Opt
     );
   });
 
-  await t.test('4. global.css 动效时长设定为 900ms 且仅在 is-in 进场生效 (离屏静默就绪)', () => {
-    // 验证通用段落过渡时长设定为 900ms
+  await t.test('4. global.css 正文和媒体使用统一曲线，过渡仅在 is-in 时生效', () => {
+    // 限定到当前 CSS 规则，避免跨越后面的选择器而误匹配。
     assert.match(
       globalCssContent,
-      /\.prose\s+\.pr\.is-in\s*\{[\s\S]*?transform\s+900ms[\s\S]*?\}/,
-      '.prose .pr.is-in 通用段落过渡时间必须设为 900ms'
+      /\.prose\s+\.pr\.is-in\s*\{[^}]*transform\s+1100ms\s+var\(--article-ease-reveal\)/,
+      '正文使用 1100ms 位移与共享阅读曲线'
     );
-    // 验证标题下划线设定为 900ms
+    // 分隔线与正文使用相同节拍。
     assert.match(
       globalCssContent,
-      /\.prose\s+\.pr\[data-pr="heading"\]\.is-in::before\s*\{[\s\S]*?transform\s+900ms[\s\S]*?\}/,
-      '标题划线入场过渡时间必须设为 900ms'
+      /\.prose\s+\.pr\[data-pr="heading"\]\.is-in::before\s*\{[^}]*transform\s+1100ms\s+var\(--article-ease-reveal\)/,
+      '标题分隔线与正文同步舒展'
     );
     // 验证代码块 GPU 纯合成入场动画 (transform + opacity)
     assert.match(
       globalCssContent,
-      /\.prose\s+\.pr\[data-pr="code"\]\.is-in[\s\S]*?transform\s+650ms[\s\S]*?\}/,
+      /\.prose\s+\.pr\[data-pr="code"\]\.is-in[^}]*transform\s+1000ms\s+var\(--article-ease-reveal\)/,
       '代码块入场过渡必须包含 GPU 加速 transform'
     );
-    // 验证图片 GPU 纯合成展开与缩放 (transform 900ms)
+    // 图片沿用原有缩放，节奏与代码块一致。
     assert.match(
       globalCssContent,
-      /\.prose\s+\.pr\[data-pr="image"\]\.is-in[\s\S]*?transform\s+900ms[\s\S]*?\}/,
-      '图片缓动缩放必须设为 900ms'
+      /\.prose\s+\.pr\[data-pr="image"\]\.is-in[^}]*transform\s+1000ms\s+var\(--article-ease-reveal\)/,
+      '图片和代码块使用相同阅读曲线'
     );
   });
 });

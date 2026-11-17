@@ -32,20 +32,27 @@ server {
         try_files $uri $uri/index.html $uri.html =404;
     }
 
-    # 带哈希的产物可以长期缓存，静态页面本身不缓存（重新发布后立刻生效）
+    # 带哈希的产物可以长期缓存；version.json 与静态页面彻底禁用缓存（重新发布后立刻生效）
     location /_astro/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
     }
+    location = /version.json {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        expires -1;
+    }
     location ~* \.(html|json|xml)$ {
-        add_header Cache-Control "no-cache";
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        expires -1;
     }
 
     gzip on;
     gzip_types text/css application/javascript application/json image/svg+xml text/plain;
     gzip_min_length 1024;
 
-    # ---------- 划词问答、控制台、账号与笔记同步接口 ----------
-    location ~ ^/api/(ask|settings(/.*)?|auth(/.*)?|notes(/.*)?)$ {
+    # ---------- 划词问答、控制台、账号与笔记/导图同步接口 ----------
+    location ~ ^/api/(ask|settings(/.*)?|auth(/.*)?|notes(/.*)?|mindmaps(/.*)?)$ {
         proxy_pass http://127.0.0.1:8787;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
