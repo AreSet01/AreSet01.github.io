@@ -375,34 +375,51 @@ MyComp->OnDamaged.AddDynamic(this, &AMyCharacter::OnTakeDamage);
 
 ### 2. 绑定期预置实参（Payload / Currying）
 
-虚幻委托支持在**绑定时刻（Bind/Add）预置附带实参**，而在触发时刻（Execute/Broadcast）只需传递剩余的动态参数。这在实现通用回调时具有极强的表现力：
+虚幻委托支持在**绑定时刻（Bind/Add）预置附带实参（Payload）**，而在触发时刻（Execute/Broadcast）只需传递剩余的动态参数。这在实现通用回调和函数柯里化（Currying）时具有极强的表现力：
 
 ```cpp
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnInventoryUpdated, int32 /* SlotIndex */);
+// 1. 委托声明：仅定义触发时需要动态广播的参数（例如背包变动时的物品数量）
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnInventoryUpdated, int32 /* NewItemCount */);
 
 class UUIInventoryBar : public UUserWidget
 {
+public:
     void BindSlots()
     {
         for (int32 SlotIdx = 0; SlotIdx < 8; ++SlotIdx)
         {
-            // 在绑定期将 SlotIdx 作为固定 Payload 传入！
-            // 目标函数甚至可以声明为接收两个参数：(int32 SlotIndex, FString SlotCategory)
+            // 2. 绑定时追加预置实参（Payload）：
+            // AddUObject 后续可跟任意数量的自定义参数，它们会被存入委托实例的 Tuple<Payload...> 中
             InventoryComp->OnUpdated.AddUObject(
                 this, 
                 &UUIInventoryBar::OnSlotRefreshed, 
-                SlotIdx,                // 预置 Payload 1
-                FString("Equip")        // 预置 Payload 2
+                SlotIdx,                 // 预置 Payload 1: 格子序号 (静态锁定)
+                FString(TEXT("Equip"))   // 预置 Payload 2: 槽位分类 (静态锁定)
             );
         }
     }
 
-    void OnSlotRefreshed(int32 SlotIndex, FString SlotCategory)
+    // 3. 回调函数形参规则：【动态广播形参在前】 + 【预置 Payload 在后】！
+    // - NewItemCount: 来自组件运行时 Broadcast(NewCount) 传入的动态参数
+    // - SlotIndex, SlotCategory: 来自绑定时 AddUObject 预先锁定的静态 Payload 参数
+    void OnSlotRefreshed(int32 NewItemCount, int32 SlotIndex, FString SlotCategory)
     {
-        // 动态广播时甚至不需要知道 SlotCategory，绑定时已注定！
+        UE_LOG(LogTemp, Log, TEXT("UI 槽位 [%s-%d] 刷新，当前物品新数量: %d"), *SlotCategory, SlotIndex, NewItemCount);
     }
 };
+
+// 4. 组件广播端：解耦彻底，调用方无需关心 UI 到底是哪个槽位、什么类型
+void UInventoryComponent::ChangeItemCount(int32 NewCount)
+{
+    OnUpdated.Broadcast(NewCount); // 仅传 1 个动态参数！
+}
 ```
+
+> [!IMPORTANT] 委托形参排布黄金法则（Dynamic Params vs Payload）
+> 虚幻引擎委托在调用目标函数时，形参排布严格遵循：**`TargetFunction(DynamicArgs..., PayloadArgs...)`**。
+> 1. **动态参数在前**：委托宏（如 `DECLARE_..._OneParam`）定义的形参必定位于回调函数签名的**最前端**；
+> 2. **预置 Payload 在后**：在 `Bind...` / `Add...` 阶段传入的额外预置参数，按传递顺序**紧随其后追加**；
+> 3. **形参总数匹配**：回调函数的入参总数量，必须严格等于“**动态参数个数 + 预置 Payload 参数个数**”。如果委托声明了 1 个动态参数，而绑定时又预置了 2 个 Payload，则回调函数**必须声明为 3 个形参**，否则 C++ 模板在解包 `Tuple<Payload...>` 时会因函数签名不匹配导致编译报错。
 
 ---
 

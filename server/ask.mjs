@@ -46,7 +46,7 @@ const config = {
   baseUrl: (process.env.AI_BASE_URL || '').trim().replace(/\/+$/, ''),
   apiKey: (process.env.AI_API_KEY || '').trim(),
   model: (process.env.AI_MODEL || '').trim(),
-  maxTokens: positive('AI_MAX_TOKENS', 2048),
+  maxTokens: positive('AI_MAX_TOKENS', 8192),
   temperature: process.env.AI_TEMPERATURE ? Number(process.env.AI_TEMPERATURE) : undefined,
   siteName: process.env.ASK_SITE_NAME || '梦付千秋',
   siteDir: path.resolve(HERE, process.env.ASK_SITE_DIR || '../dist'),
@@ -57,7 +57,7 @@ const config = {
   perDay: positive('ASK_RATE_PER_DAY', 60),
   dailyLimit: positive('ASK_DAILY_LIMIT', 800),
   maxConcurrent: positive('ASK_MAX_CONCURRENT', 12),
-  questionLimit: positive('ASK_QUESTION_LIMIT', 300),
+  questionLimit: positive('ASK_QUESTION_LIMIT', 2000),
   systemPrompt: (process.env.ASK_SYSTEM_PROMPT || '').trim() || DEFAULT_SYSTEM_PROMPT,
   contextLength: positive('ASK_CONTEXT_LENGTH', 700),
   idleTimeout: positive('ASK_IDLE_TIMEOUT', 60),
@@ -655,7 +655,7 @@ function sanitizeNote(raw) {
   };
 }
 
-const LIMITS = { selection: 400, question: 120, anchor: 64, body: 8 * 1024 };
+const LIMITS = { selection: 1200, question: 2000, anchor: 64, body: 128 * 1024 };
 const IDLE_TIMEOUT_MS = 60_000; // 思考型模型首字可能很慢，但一分钟没有任何字节就放弃
 const HEARTBEAT_MS = 15_000; // 让 nginx 和浏览器知道连接还活着
 
@@ -839,7 +839,7 @@ function contextForArticle(page) {
 
 // ---------- 提示词 ----------
 
-function buildMessages({ title, context, selection, question, previous, isArticleChat }) {
+function buildMessages({ title, context, selection, question, previous, isArticleChat, history }) {
   const base = isArticleChat
     ? [
         `文章：《${title}》`,
@@ -858,7 +858,23 @@ function buildMessages({ title, context, selection, question, previous, isArticl
 
   const messages = [{ role: 'system', content: config.systemPrompt || DEFAULT_SYSTEM_PROMPT }];
   const isDefault = !question || (selection && question.trim() === selection.trim());
-  if (isDefault) {
+
+  if (Array.isArray(history) && history.length >= 2) {
+    let firstUserInjected = false;
+    for (let i = 0; i < history.length; i++) {
+      const h = history[i];
+      if (h.role === 'user' && !firstUserInjected) {
+        messages.push({ role: 'user', content: `${base}\n读者的问题：${h.content}` });
+        firstUserInjected = true;
+      } else {
+        messages.push({ role: h.role, content: h.content });
+      }
+    }
+    if (!firstUserInjected) {
+      messages.splice(1, 0, { role: 'user', content: base });
+    }
+    messages.push({ role: 'user', content: `追问：${question}` });
+  } else if (isDefault) {
     messages.push({ role: 'user', content: `${base}\n${defaultPrompt}` });
   } else if (previous) {
     messages.push(
@@ -1097,8 +1113,21 @@ async function handleAsk(req, res) {
   const suffix = typeof input?.suffix === 'string' ? input.suffix.slice(0, LIMITS.anchor) : '';
   if (!isArticleChat && !selection) return sendJson(res, 400, { error: '没有选中内容' });
   if (selection && [...selection].length > LIMITS.selection) return sendJson(res, 400, { error: `选中的内容太长了，请缩短到 ${LIMITS.selection} 字以内` });
-  const maxQuestionLen = Math.max(1000, config.questionLimit || 300);
+  const maxQuestionLen = Math.max(2000, config.questionLimit || 2000);
   if ([...question].length > maxQuestionLen) return sendJson(res, 400, { error: `提问请控制在 ${maxQuestionLen} 字以内` });
+
+  let history = [];
+  if (Array.isArray(input?.history)) {
+    const rawHistory = input.history.slice(-6);
+    for (const h of rawHistory) {
+      if (h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string') {
+        const text = tidy(h.content).slice(0, 3000);
+        if (text) {
+          history.push({ role: h.role, content: text });
+        }
+      }
+    }
+  }
 
   const loaded = typeof input.path === 'string' ? await loadPage(input.path) : null;
   if (!loaded) return sendJson(res, 404, { error: '找不到这篇文章' });
@@ -1117,7 +1146,8 @@ async function handleAsk(req, res) {
     context = contextFor(loaded.page, loc, selection.length);
   }
 
-  const key = answerKey(loaded.key, loc ? loc.pos : 0, selectionNorm, question);
+  const historyKeyStr = history.length > 0 ? history.map((h) => `${h.role}:${h.content}`).join('\n') : '';
+  const key = answerKey(loaded.key, loc ? loc.pos : 0, selectionNorm, historyKeyStr ? `${historyKeyStr}\n${question}` : question);
   const cached = recall(key);
   if (cached === undefined) {
     const refusal = dailyRefusal(ip);
@@ -1174,6 +1204,7 @@ async function handleAsk(req, res) {
     question,
     previous,
     isArticleChat,
+    history,
   });
 
   let outcome;

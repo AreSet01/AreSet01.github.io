@@ -16,10 +16,11 @@ describe('墨问 AI 问答提问撤回与防误触机制验证 (InkAsk Recall & 
     assert.ok(content.includes('ICON_RECALL'), '必须定义专属撤回 (Undo) 矢量图标');
   });
 
-  it('2. 气泡交互: 用户提问气泡具备轻量淡雅的撤回操作按钮', () => {
+  it('2. 气泡交互: 用户提问气泡具备轻量淡雅的撤回操作按钮与独立头栏防文字挤压', () => {
     const content = fs.readFileSync(inkAskPath, 'utf8');
 
     assert.ok(content.includes('ink-ask-q-recall'), '提问气泡内必须包含撤回按钮');
+    assert.ok(content.includes('ink-ask-q-head'), '提问气泡必须具备独立的顶部头栏容器避免挤压文字');
     assert.ok(content.includes('dataset.question') || content.includes('data-question'), '每一轮 turn 必须挂载原问题文本以便精准撤回回填');
   });
 
