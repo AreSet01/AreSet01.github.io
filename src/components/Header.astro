@@ -181,7 +181,7 @@ const year = new Date().getFullYear();
             data-theme-toggle
           >
             <svg class="icon-sun" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
+              <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414-1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
             </svg>
             <svg class="icon-moon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
@@ -243,10 +243,11 @@ const year = new Date().getFullYear();
     </div>
 
     <nav class="mobile-drawer-nav" aria-label="移动端页面导航">
-      {navItems.map(item => (
+      {navItems.map((item, idx) => (
         <a
           href={item.href}
           class={`mobile-drawer-link ${isActive(item.href) ? 'is-active' : ''}`}
+          style={`--m-idx: ${idx}`}
           data-mobile-nav-link
         >
           <span class="mobile-link-dot" aria-hidden="true"></span>
@@ -270,7 +271,7 @@ const year = new Date().getFullYear();
             data-theme-toggle
           >
             <svg class="icon-sun" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
+              <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414-1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
             </svg>
             <svg class="icon-moon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
@@ -335,26 +336,40 @@ const year = new Date().getFullYear();
 
 <script>
 (function () {
-  // ── State (re-initialized on every page load) ────────────────────────────
+  // ── Cursor & Ink Brush Trail (rAF-coalesced, offscreen-hibernated, calligraphy taper) ──
   let canvas, ctx;
   let customCursorEl = null;
   let points   = [];
   let strokeId = 0;
   let isDrawing = false;
+  let cursorRafId = 0;
+  let cursorDomDirty = false;
   let isMobile  = false;
-  let cleanupFns = [];   // window-level listeners to remove on next init
+  let cleanupFns = [];
   let hasPointerPosition = false;
+  let lastFrameStamp = 0;
 
+  const MAX_TRAIL_POINTS = 52;
   const mouse = { x: 0, y: 0 };
   const brush = {
     x: 0, y: 0, vx: 0, vy: 0,
     radius: 6, isPressed: false, isVisible: false,
     outerRadius: 6, isHoveringInteractive: false, isOverControl: false,
   };
-  const springTension = 0.12;
-  const springDamping  = 0.65;
+  const springTension = 0.13;
+  const springDamping  = 0.64;
+
+  let cachedInkRgb = [26, 24, 20];
+  function refreshInkRgb() {
+    const theme = document.documentElement.getAttribute('data-theme') || 'light';
+    cachedInkRgb =
+      theme === 'dark' ? [255, 255, 255] :
+      theme === 'moss' ? [255, 241, 244] :
+      theme === 'rice' ? [43, 36, 28] : [26, 24, 20];
+  }
 
   function updateCursorDOM() {
+    cursorDomDirty = false;
     if (!customCursorEl) return;
     if (!brush.isVisible) {
       customCursorEl.classList.remove('is-visible');
@@ -366,28 +381,36 @@ const year = new Date().getFullYear();
     customCursorEl.classList.toggle('is-pressed', brush.isPressed);
   }
 
+  function scheduleCursorFrame() {
+    if (document.hidden) return;
+    if (!cursorRafId) {
+      isDrawing = true;
+      cursorRafId = requestAnimationFrame(updateAndDraw);
+    }
+  }
+
   // ── InkPoint ─────────────────────────────────────────────────────────────
   class InkPoint {
-    constructor(x, y, radius, color, opacity = 0.85, speed = 0) {
+    constructor(x, y, radius, opacity = 0.85, speed = 0) {
       this.x = x; this.y = y;
       this.baseRadius = radius; this.radius = radius;
-      this.color = color; this.opacity = opacity;
+      this.opacity = opacity;
       this.currentOpacity = opacity;
-      this.age = 0; this.maxAge = 45 + Math.random() * 15;
+      this.age = 0; this.maxAge = 42 + Math.random() * 14;
       this.speed = speed;
       this.nx = 0; this.ny = 0;
     }
-    update() {
-      this.age++;
-      const p = this.age / this.maxAge;
-      this.radius = this.baseRadius * (1 + p * 0.2);
+    update(dtScale = 1) {
+      this.age += dtScale;
+      const p = Math.min(1, this.age / this.maxAge);
+      this.radius = this.baseRadius * (1 + p * 0.22);
       this.currentOpacity = this.opacity * (1 - p);
     }
   }
 
   // ── Canvas resize ─────────────────────────────────────────────────────────
   function resize() {
-    const dpr = 1; // 1x DPR 渲染水墨流体，显存消耗从 20MB 降至 5MB，大幅减轻合成器带宽
+    const dpr = 1; // 1x DPR 渲染水墨流体，减轻合成器带宽
     if (canvas && ctx) {
       canvas.style.width = window.innerWidth + 'px';
       canvas.style.height = window.innerHeight + 'px';
@@ -397,44 +420,65 @@ const year = new Date().getFullYear();
     }
   }
 
-  // ── Drawing ───────────────────────────────────────────────────────────────
-  function updateAndDraw() {
-    if (!canvas || !ctx || !hasPointerPosition) {
+  // ── Coalesced rAF Frame: Cursor DOM + Ink Brush Simulation ────────────────
+  function updateAndDraw(stamp) {
+    cursorRafId = 0;
+    if (document.hidden) {
       isDrawing = false;
+      lastFrameStamp = 0;
       return;
     }
 
-    const trailDisabled = isCursorTrailDisabled();
-    if (trailDisabled || (points.length === 0 && !brush.isVisible)) {
-      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      points = [];
+    if (cursorDomDirty) {
+      updateCursorDOM();
+    }
+
+    if (!canvas || !ctx || !hasPointerPosition) {
       isDrawing = false;
+      lastFrameStamp = 0;
       return;
     }
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const trailDisabled = isCursorTrailDisabled() || reducedMotion;
+    if (trailDisabled || (points.length === 0 && !brush.isVisible)) {
+      if (points.length > 0) {
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+        points = [];
+      } else if (!brush.isVisible) {
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      }
+      isDrawing = false;
+      lastFrameStamp = 0;
+      return;
+    }
+
+    const now = typeof stamp === 'number' && stamp > 0 ? stamp : performance.now();
+    const dtScale = lastFrameStamp > 0 ? Math.min(2.2, Math.max(0.35, (now - lastFrameStamp) / 16.6667)) : 1;
+    lastFrameStamp = now;
 
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-    const theme = document.documentElement.getAttribute('data-theme') || 'light';
-    const color = theme === 'dark' ? '255,255,255' : theme === 'moss' ? '255,241,244' : theme === 'rice' ? '43,36,28' : '26,24,20';
-    const [baseR, baseG, baseB] = color.split(',').map(Number);
+    const [baseR, baseG, baseB] = cachedInkRgb;
 
     // Spring physics for ink flow
     const dx = mouse.x - brush.x;
     const dy = mouse.y - brush.y;
-    brush.vx = (brush.vx + dx * springTension) * springDamping;
-    brush.vy = (brush.vy + dy * springTension) * springDamping;
-    brush.x += brush.vx;
-    brush.y += brush.vy;
+    brush.vx = (brush.vx + dx * springTension * dtScale) * Math.pow(springDamping, dtScale);
+    brush.vy = (brush.vy + dy * springTension * dtScale) * Math.pow(springDamping, dtScale);
+    brush.x += brush.vx * dtScale;
+    brush.y += brush.vy * dtScale;
 
     const speed = Math.hypot(brush.vx, brush.vy);
 
     if (!trailDisabled && !brush.isOverControl) {
       if (brush.isVisible && speed > 0.15) {
-        let targetR = Math.max(3, 11 - speed * 0.2);
+        let targetR = Math.max(2.8, 10.5 - speed * 0.22);
         let opacity = 0.85;
-        if (brush.isPressed) { targetR = Math.max(7, 22 - speed * 0.3); opacity = 0.95; }
-        brush.radius = brush.radius * 0.85 + targetR * 0.15;
-        points.push(new InkPoint(brush.x, brush.y, brush.radius, color, opacity, speed));
+        if (brush.isPressed) { targetR = Math.max(6.5, 20 - speed * 0.28); opacity = 0.94; }
+        brush.radius = brush.radius * 0.82 + targetR * 0.18;
+        if (points.length >= MAX_TRAIL_POINTS) points.shift();
+        points.push(new InkPoint(brush.x, brush.y, brush.radius, opacity, speed));
       } else if (speed <= 0.15 && points.length > 0) {
         strokeId += 0.05;
       }
@@ -443,54 +487,67 @@ const year = new Date().getFullYear();
     }
 
     if (points.length > 0) {
-      points.forEach(p => p.update());
-      points = points.filter(p => p.age < p.maxAge);
+      let writeIdx = 0;
+      for (let i = 0; i < points.length; i++) {
+        const pt = points[i];
+        pt.update(dtScale);
+        if (pt.age < pt.maxAge) {
+          points[writeIdx++] = pt;
+        }
+      }
+      points.length = writeIdx;
     }
 
-    // ── Render Trail ────────────────────────────────────────────────────────
+    // ── Render Dual-Layer Calligraphy Trail (浓墨中锋 + 淡墨渗边) ──────────
     if (!trailDisabled && points.length >= 2) {
       const N = points.length;
 
-      // Compute smooth normals
       for (let i = 0; i < N; i++) {
         let ex, ey;
-        if (i === 0)     { ex = points[1].x - points[0].x; ey = points[1].y - points[0].y; }
-        else if (i===N-1){ ex = points[i].x - points[i-1].x; ey = points[i].y - points[i-1].y; }
-        else             { ex = points[i+1].x - points[i-1].x; ey = points[i+1].y - points[i-1].y; }
+        if (i === 0)      { ex = points[1].x - points[0].x; ey = points[1].y - points[0].y; }
+        else if (i===N-1) { ex = points[i].x - points[i-1].x; ey = points[i].y - points[i-1].y; }
+        else              { ex = points[i+1].x - points[i-1].x; ey = points[i+1].y - points[i-1].y; }
         const len = Math.hypot(ex, ey) || 0.001;
         points[i].nx = -ey / len;
         points[i].ny =  ex / len;
       }
 
-      ctx.beginPath();
-      // Right side
+      const haloPath = new Path2D();
+      const corePath = new Path2D();
+
       for (let i = 0; i < N; i++) {
         const p = points[i];
         const prog = i / (N - 1);
-        const spindle = Math.sin(prog * Math.PI) * 1.15;
-        const thickness = p.radius * Math.max(0.1, spindle);
-        const px = p.x + p.nx * thickness;
-        const py = p.y + p.ny * thickness;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
+        const spindle = Math.sin(prog * Math.PI) * (0.45 + prog * 0.72);
+        const coreThick = p.radius * Math.max(0.08, spindle * 0.86);
+        const haloThick = coreThick * 1.38;
+        const cxR = p.x + p.nx * coreThick, cyR = p.y + p.ny * coreThick;
+        const hxR = p.x + p.nx * haloThick, hyR = p.y + p.ny * haloThick;
+        if (i === 0) {
+          corePath.moveTo(cxR, cyR);
+          haloPath.moveTo(hxR, hyR);
+        } else {
+          corePath.lineTo(cxR, cyR);
+          haloPath.lineTo(hxR, hyR);
+        }
       }
-      // Left side
       for (let i = N - 1; i >= 0; i--) {
         const p = points[i];
         const prog = i / (N - 1);
-        const spindle = Math.sin(prog * Math.PI) * 1.15;
-        const thickness = p.radius * Math.max(0.1, spindle);
-        const px = p.x - p.nx * thickness;
-        const py = p.y - p.ny * thickness;
-        ctx.lineTo(px, py);
+        const spindle = Math.sin(prog * Math.PI) * (0.45 + prog * 0.72);
+        const coreThick = p.radius * Math.max(0.08, spindle * 0.86);
+        const haloThick = coreThick * 1.38;
+        corePath.lineTo(p.x - p.nx * coreThick, p.y - p.ny * coreThick);
+        haloPath.lineTo(p.x - p.nx * haloThick, p.y - p.ny * haloThick);
       }
-      ctx.closePath();
+      corePath.closePath();
+      haloPath.closePath();
 
       const head = points[N - 1];
-
-      // Solid smooth fill without expensive shadowBlur for 60fps compositor
-      ctx.fillStyle = `rgba(${baseR},${baseG},${baseB},${head.currentOpacity * 0.9})`;
-      ctx.fill();
+      ctx.fillStyle = `rgba(${baseR},${baseG},${baseB},${(head.currentOpacity * 0.24).toFixed(3)})`;
+      ctx.fill(haloPath);
+      ctx.fillStyle = `rgba(${baseR},${baseG},${baseB},${(head.currentOpacity * 0.86).toFixed(3)})`;
+      ctx.fill(corePath);
     }
 
     if (brush.isVisible && !brush.isOverControl && !customCursorEl) {
@@ -514,8 +571,9 @@ const year = new Date().getFullYear();
         ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
       }
       isDrawing = false;
+      lastFrameStamp = 0;
     } else if (isDrawing) {
-      requestAnimationFrame(updateAndDraw);
+      cursorRafId = requestAnimationFrame(updateAndDraw);
     }
   }
 
@@ -536,6 +594,11 @@ const year = new Date().getFullYear();
   function clearCursorTrail() {
     points = [];
     isDrawing = false;
+    lastFrameStamp = 0;
+    if (cursorRafId) {
+      cancelAnimationFrame(cursorRafId);
+      cursorRafId = 0;
+    }
     brush.isVisible = false;
     brush.isPressed = false;
     if (ctx && canvas) {
@@ -558,8 +621,7 @@ const year = new Date().getFullYear();
       document.documentElement.removeAttribute('data-cursor-trail');
       try { localStorage.removeItem('cursor-trail'); } catch (e) {}
       if (!isDrawing && points.length > 0) {
-        isDrawing = true;
-        requestAnimationFrame(updateAndDraw);
+        scheduleCursorFrame();
       }
     }
     syncToggleButtons();
@@ -569,15 +631,19 @@ const year = new Date().getFullYear();
 
   // ── Init (called on every Astro page-load) ────────────────────────────────
   function init() {
-    // Remove previous window listeners
     cleanupFns.forEach(fn => fn());
     cleanupFns = [];
+    if (cursorRafId) {
+      cancelAnimationFrame(cursorRafId);
+      cursorRafId = 0;
+    }
     isDrawing = false;
+    lastFrameStamp = 0;
     points    = [];
 
+    refreshInkRgb();
     syncToggleButtons();
 
-    // Re-acquire canvas and cursor elements (Astro swaps DOM on navigation)
     canvas = document.getElementById('inkCanvas');
     customCursorEl = document.getElementById('custom-cursor');
     const legacyCursorCanvas = document.getElementById('cursorCanvas');
@@ -609,9 +675,15 @@ const year = new Date().getFullYear();
     brush.vx = brush.vy = 0;
     hasPointerPosition = false;
 
+    const finePointerMedia = window.matchMedia('(pointer: fine)');
+    let isFinePointer = finePointerMedia.matches;
+    let lastCheckedTarget = null;
+    let cachedNativeCursorTarget = false;
+    let cachedInteractiveTarget = false;
+    let cachedControlTarget = false;
+
     resize();
 
-    // ── Event listeners ──────────────────────────────────────────────────
     function updateMouse(e) {
       mouse.x = e.clientX;
       mouse.y = e.clientY;
@@ -624,132 +696,142 @@ const year = new Date().getFullYear();
       }
     }
 
-    function onResize() { resize(); }
-
-    function onPointerEnter(e) {
-      if (e.pointerType === 'touch' || isMobile || !window.matchMedia('(pointer: fine)').matches) return;
-      brush.isVisible = true;
-      updateMouse(e);
-      brush.x = mouse.x;   brush.y = mouse.y;
-      brush.vx = brush.vy = 0;
-      hasPointerPosition = true;
-      strokeId++;
-      updateCursorDOM();
-      if (!isDrawing && !isCursorTrailDisabled()) {
-        isDrawing = true;
-        requestAnimationFrame(updateAndDraw);
-      }
-    }
-    function onPointerLeave() {
-      brush.isVisible = false;
-      brush.isPressed = false;
-      hasPointerPosition = false;
-      updateCursorDOM();
-      if (points.length > 0 && !isDrawing && !isCursorTrailDisabled()) {
-        isDrawing = true;
-        requestAnimationFrame(updateAndDraw);
-      } else if (ctx && canvas && points.length === 0) {
-        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      }
+    function onResize() {
+      isFinePointer = finePointerMedia.matches;
+      isMobile = !isFinePointer;
+      resize();
     }
 
     function isInteractive(el) {
       if (!el || typeof el.closest !== 'function') return false;
       if (el.closest(':disabled, [aria-disabled="true"]')) return false;
-      return !!el.closest('a, button, select, summary, label, [role="button"], [role="option"], [role="menuitem"], .btn-primary, .btn-secondary, .tag-chip, .nav-link, .timeline-link, [data-search-trigger], [data-search-result], [data-post-preview], .gallery-mat-card, .life-card, .notes-card, .mm-card, .mm-node, .mm-seg-btn, .mm-cselect-trigger, .mm-cselect-opt, .mm-pill-btn, .mm-node-cdot, .mm-zoom-btn, .mm-zoom-text-btn, .mm-collapse-btn, .mm-card-action-btn, .mm-wb-chip-btn, .mm-wb-icon-btn, .mm-wb-primary-btn, .mm-export-item, .mermaid-viewport, .theme-toggle, .font-toggle, .cursor-trail-toggle, .zen-sound-toggle, .sidebar-collapse-btn');
+      return !!el.closest('a, button, select, summary, label, [role="button"], [role="option"], [role="menuitem"], .btn-primary, .btn-secondary, .tag-chip, .nav-link, .timeline-link, [data-search-trigger], [data-search-result], [data-post-preview], .gallery-mat-card, .life-card, .notes-card, .mm-card, .mm-node, .mm-seg-btn, .mm-cselect-trigger, .mm-cselect-opt, .mm-pill-btn, .mm-node-cdot, .mm-zoom-btn, .mm-zoom-text-btn, .mm-collapse-btn, .mm-card-action-btn, .mm-wb-chip-btn, .mm-wb-icon-btn, .mm-wb-primary-btn, .mm-export-item, .mermaid-viewport, .theme-toggle, .font-toggle, .cursor-trail-toggle, .zen-sound-toggle, .sidebar-collapse-btn, .footer-cinnabar-seal');
     }
 
-    function onPointerMove(e) {
-      if (e.pointerType === 'touch' || isMobile || !window.matchMedia('(pointer: fine)').matches) return;
-      const t = e.target;
-      const isNativeCursorTarget =
+    function classifyTarget(t) {
+      if (t === lastCheckedTarget) return;
+      lastCheckedTarget = t;
+      cachedNativeCursorTarget =
         t instanceof Element &&
         Boolean(
           t.closest(
             'input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"], .search-input, #companion-splitter, .mm-split-resizer, .settings-viewport'
           )
         );
-      const isThemeOrFontToggle = t && typeof t.closest === 'function' && t.closest('[data-theme-toggle],[data-font-toggle]');
-      if (isNativeCursorTarget) {
-        brush.isVisible = false;
-        updateCursorDOM();
-        if (points.length > 0 && !isDrawing && !isCursorTrailDisabled()) {
-          isDrawing = true;
-          requestAnimationFrame(updateAndDraw);
-        } else if (ctx && canvas && points.length === 0) {
-          ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      if (cachedNativeCursorTarget) {
+        cachedInteractiveTarget = false;
+        cachedControlTarget = false;
+        return;
+      }
+      cachedControlTarget = Boolean(t && typeof t.closest === 'function' && t.closest('[data-theme-toggle],[data-font-toggle]'));
+      cachedInteractiveTarget = isInteractive(t);
+    }
+
+    function onPointerEnter(e) {
+      if (e.pointerType === 'touch' || isMobile || !isFinePointer) return;
+      brush.isVisible = true;
+      updateMouse(e);
+      brush.x = mouse.x; brush.y = mouse.y;
+      brush.vx = brush.vy = 0;
+      hasPointerPosition = true;
+      strokeId++;
+      cursorDomDirty = true;
+      scheduleCursorFrame();
+    }
+
+    function onPointerLeave() {
+      brush.isVisible = false;
+      brush.isPressed = false;
+      hasPointerPosition = false;
+      lastCheckedTarget = null;
+      updateCursorDOM();
+      if (points.length > 0 && !isCursorTrailDisabled()) {
+        scheduleCursorFrame();
+      } else if (ctx && canvas && points.length === 0) {
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      }
+    }
+
+    function onPointerMove(e) {
+      if (e.pointerType === 'touch' || isMobile || !isFinePointer) return;
+      classifyTarget(e.target);
+      if (cachedNativeCursorTarget) {
+        if (brush.isVisible) {
+          brush.isVisible = false;
+          cursorDomDirty = true;
+          scheduleCursorFrame();
+        } else if (points.length > 0 && !isCursorTrailDisabled()) {
+          scheduleCursorFrame();
         }
         return;
       }
-      brush.isHoveringInteractive = isInteractive(t);
-      brush.isOverControl = !!isThemeOrFontToggle;
+      brush.isHoveringInteractive = cachedInteractiveTarget;
+      brush.isOverControl = cachedControlTarget;
       updateMouse(e);
       brush.isVisible = true;
-      updateCursorDOM();
-      if (!isDrawing && !isCursorTrailDisabled()) {
-        isDrawing = true;
-        requestAnimationFrame(updateAndDraw);
-      }
+      cursorDomDirty = true;
+      scheduleCursorFrame();
     }
+
     function onPointerDown(e) {
-      if (e.pointerType === 'touch' || isMobile || !window.matchMedia('(pointer: fine)').matches) return;
+      if (e.pointerType === 'touch' || isMobile || !isFinePointer) return;
       const t = e.target;
       const isThemeOrFontToggle = t && typeof t.closest === 'function' && t.closest('[data-theme-toggle],[data-font-toggle]');
       if (e.button === 0) {
         updateMouse(e);
         brush.isPressed = true;
-        brush.isVisible = true;
+        brush.isVisible = !cachedNativeCursorTarget;
         brush.isOverControl = !!isThemeOrFontToggle;
         if (!isThemeOrFontToggle) {
           strokeId++;
         }
-        updateCursorDOM();
-        if (!isDrawing && !isCursorTrailDisabled()) {
-          isDrawing = true;
-          requestAnimationFrame(updateAndDraw);
-        }
+        cursorDomDirty = true;
+        scheduleCursorFrame();
       }
     }
+
     function onPointerUp() {
       brush.isPressed = false;
-      updateCursorDOM();
+      cursorDomDirty = true;
+      scheduleCursorFrame();
     }
+
     function onVisibilityChange() {
       if (document.hidden) {
         clearCursorTrail();
       }
     }
 
-    window.addEventListener('resize',       onResize);
-    window.addEventListener('pointerenter', onPointerEnter);
-    window.addEventListener('pointerleave', onPointerLeave);
-    window.addEventListener('pointermove',  onPointerMove);
-    window.addEventListener('pointerdown',  onPointerDown);
+    function onWindowBlur() {
+      clearCursorTrail();
+    }
+
+    isMobile = !isFinePointer;
+
+    window.addEventListener('resize',       onResize, { passive: true });
+    window.addEventListener('pointerenter', onPointerEnter, { passive: true });
+    window.addEventListener('pointerleave', onPointerLeave, { passive: true });
+    window.addEventListener('pointermove',  onPointerMove, { passive: true });
+    window.addEventListener('pointerdown',  onPointerDown, { passive: true });
     window.addEventListener('pointerup',    onPointerUp);
+    window.addEventListener('blur',         onWindowBlur);
+    window.addEventListener('theme-change', refreshInkRgb);
     document.addEventListener('visibilitychange', onVisibilityChange);
 
-    // Check mobile
-    const onMobileCheck = () => {
-      isMobile = !window.matchMedia('(pointer: fine)').matches;
-    };
-    onMobileCheck();
-    window.addEventListener('resize', onMobileCheck);
-
     cleanupFns.push(
-      () => window.removeEventListener('resize',       onMobileCheck),
       () => window.removeEventListener('resize',       onResize),
       () => window.removeEventListener('pointerenter', onPointerEnter),
       () => window.removeEventListener('pointerleave', onPointerLeave),
       () => window.removeEventListener('pointermove',  onPointerMove),
       () => window.removeEventListener('pointerdown',  onPointerDown),
       () => window.removeEventListener('pointerup',    onPointerUp),
+      () => window.removeEventListener('blur',         onWindowBlur),
+      () => window.removeEventListener('theme-change', refreshInkRgb),
       () => document.removeEventListener('visibilitychange', onVisibilityChange),
     );
   }
 
-  // ★ Re-run init on every Astro View Transition navigation
   document.addEventListener('astro:page-load', init);
-  // Also run immediately for the first (non-transition) page load
   init();
 
   const toggleKey = '__cursorTrailToggleBound__';
@@ -766,14 +848,16 @@ const year = new Date().getFullYear();
   }
 
   document.addEventListener('astro:before-swap', () => {
-     if (typeof ctx !== 'undefined' && ctx) {
-       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-     }
-     if (typeof cursorCtx !== 'undefined' && cursorCtx) {
-       cursorCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-     }
-     points = [];
-     isDrawing = false;
+    if (cursorRafId) {
+      cancelAnimationFrame(cursorRafId);
+      cursorRafId = 0;
+    }
+    if (typeof ctx !== 'undefined' && ctx) {
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    }
+    points = [];
+    isDrawing = false;
+    lastFrameStamp = 0;
   });
 })();
 </script>
@@ -882,33 +966,75 @@ import gsap from 'gsap';
     const items = Array.from(nav.querySelectorAll<HTMLElement>('[data-nav-link]'));
     if (items.length === 0) return;
 
-    const isDesktop = () => window.matchMedia('(min-width: 1024px)').matches;
-    const isReduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const desktopQuery = window.matchMedia('(min-width: 1024px)');
+    const reducedQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const isDesktop = () => desktopQuery.matches;
+    const isReduced = () => reducedQuery.matches;
+
+    interface CachedItemMetric {
+      centerX: number;
+      centerY: number;
+      gliderTop: number;
+    }
+
+    const metricMap = new WeakMap<HTMLElement, CachedItemMetric>();
+    let metricsDirty = true;
+    let lastGliderY = 0;
+    let stretchTimer = 0;
+
+    // 批量预缓存导航项几何坐标，彻底消除 pointermove 内 getBoundingClientRect 强制同步回流
+    function refreshMetrics() {
+      if (!isDesktop()) return;
+      const navRect = nav!.getBoundingClientRect();
+      const gliderH = glider!.offsetHeight || 18;
+      items.forEach((item) => {
+        const rect = item.getBoundingClientRect();
+        const curX = (gsap.getProperty(item, 'x') as number) || 0;
+        const curY = (gsap.getProperty(item, 'y') as number) || 0;
+        const originLeft = rect.left - curX;
+        const originTop = rect.top - curY;
+        metricMap.set(item, {
+          centerX: originLeft + rect.width / 2,
+          centerY: originTop + rect.height / 2,
+          gliderTop: (originTop - navRect.top) + (rect.height - gliderH) / 2,
+        });
+      });
+      metricsDirty = false;
+    }
 
     function getActiveItem() {
-      return nav.querySelector<HTMLElement>('.nav-link.is-active');
+      return nav!.querySelector<HTMLElement>('.nav-link.is-active');
     }
 
     function positionGlider(target: HTMLElement, immediate = false) {
       if (!isDesktop()) {
-        glider.style.opacity = '0';
+        glider!.style.opacity = '0';
         return;
       }
-      const navRect = nav.getBoundingClientRect();
-      const targetRect = target.getBoundingClientRect();
-      const currentTargetY = (gsap.getProperty(target, 'y') as number) || 0;
-      const gliderH = glider.offsetHeight || 18;
-      const targetTop = (targetRect.top - currentTargetY - navRect.top) + (targetRect.height - gliderH) / 2;
+      if (metricsDirty) refreshMetrics();
+      const metric = metricMap.get(target);
+      const targetTop = metric ? metric.gliderTop : 0;
+      const travel = Math.abs(targetTop - lastGliderY);
+      lastGliderY = targetTop;
 
-      if (immediate) {
-        glider.style.transition = 'none';
-        glider.style.transform = `translateY(${targetTop}px)`;
-        glider.style.opacity = '1';
-        void glider.offsetHeight;
-        glider.style.transition = '';
+      if (immediate || isReduced()) {
+        glider!.style.transition = 'none';
+        glider!.style.transform = `translate3d(0, ${targetTop}px, 0) scaleY(1)`;
+        glider!.style.opacity = '1';
+        requestAnimationFrame(() => {
+          if (glider) glider.style.transition = '';
+        });
       } else {
-        glider.style.opacity = '1';
-        glider.style.transform = `translateY(${targetTop}px)`;
+        // 毛笔行锋微拉伸：跨越多行时笔毫微伸展并回敛，模拟湿墨运笔手感
+        const stretch = travel > 28 ? Math.min(1.32, 1 + travel * 0.0022) : 1;
+        glider!.style.opacity = '1';
+        glider!.style.transform = `translate3d(0, ${targetTop}px, 0) scaleY(${stretch.toFixed(3)})`;
+        window.clearTimeout(stretchTimer);
+        if (stretch > 1.01) {
+          stretchTimer = window.setTimeout(() => {
+            if (glider) glider.style.transform = `translate3d(0, ${targetTop}px, 0) scaleY(1)`;
+          }, 185);
+        }
       }
     }
 
@@ -917,7 +1043,7 @@ import gsap from 'gsap';
       if (active) {
         positionGlider(active);
       } else {
-        glider.style.opacity = '0';
+        glider!.style.opacity = '0';
       }
 
       if (!isDesktop() || isReduced()) {
@@ -939,6 +1065,7 @@ import gsap from 'gsap';
 
     // Expose sync helper for layout transitions
     (window as any).__syncNavMagneticGlider = () => {
+      metricsDirty = true;
       const active = getActiveItem();
       if (active) {
         positionGlider(active, true);
@@ -946,14 +1073,14 @@ import gsap from 'gsap';
           gsap.set(active, { x: 4, y: 0 });
         }
       } else {
-        glider.style.opacity = '0';
+        glider!.style.opacity = '0';
       }
     };
 
-    // 初始状态：活跃项停驻 +4px，游标对齐
     const initialActive = getActiveItem();
     if (initialActive) {
       requestAnimationFrame(() => {
+        metricsDirty = true;
         positionGlider(initialActive, true);
         if (isDesktop() && !isReduced()) {
           gsap.set(initialActive, { x: 4, y: 0 });
@@ -967,7 +1094,12 @@ import gsap from 'gsap';
       if ((item as any).__gliderBound) return;
       (item as any).__gliderBound = true;
 
+      let moveRaf = 0;
+      let pendingClientX = 0;
+      let pendingClientY = 0;
+
       item.addEventListener('pointerenter', () => {
+        if (metricsDirty) refreshMetrics();
         positionGlider(item);
         if (!isDesktop() || isReduced()) return;
         gsap.to(item, {
@@ -981,42 +1113,46 @@ import gsap from 'gsap';
 
       item.addEventListener('pointermove', (e) => {
         if (!isDesktop() || isReduced()) return;
-        const rect = item.getBoundingClientRect();
-        const currentX = (gsap.getProperty(item, 'x') as number) || 0;
-        const currentY = (gsap.getProperty(item, 'y') as number) || 0;
-        const originLeft = rect.left - currentX;
-        const originTop = rect.top - currentY;
-        const centerX = originLeft + rect.width / 2;
-        const centerY = originTop + rect.height / 2;
+        pendingClientX = e.clientX;
+        pendingClientY = e.clientY;
+        if (moveRaf) return;
+        moveRaf = requestAnimationFrame(() => {
+          moveRaf = 0;
+          const metric = metricMap.get(item);
+          if (!metric) return;
+          const relX = (pendingClientX - metric.centerX) * 0.22;
+          const relY = (pendingClientY - metric.centerY) * 0.22;
+          const clampedRelX = Math.max(-4, Math.min(4, relX));
+          const clampedRelY = Math.max(-3, Math.min(3, relY));
 
-        // 计算鼠标相对文字中心的拉扯微距离，物理微浮范围限制：X: ±4px, Y: ±3px
-        const relX = (e.clientX - centerX) * 0.22;
-        const relY = (e.clientY - centerY) * 0.22;
-        const clampedRelX = Math.max(-4, Math.min(4, relX));
-        const clampedRelY = Math.max(-3, Math.min(3, relY));
-
-        gsap.to(item, {
-          x: 8 + clampedRelX,
-          y: clampedRelY,
-          duration: 0.28,
-          ease: 'power2.out',
-          overwrite: 'auto',
+          gsap.to(item, {
+            x: 8 + clampedRelX,
+            y: clampedRelY,
+            duration: 0.26,
+            ease: 'power2.out',
+            overwrite: 'auto',
+          });
         });
       });
 
       item.addEventListener('pointerleave', () => {
+        if (moveRaf) {
+          cancelAnimationFrame(moveRaf);
+          moveRaf = 0;
+        }
         if (!isDesktop() || isReduced()) return;
         const isActive = item.classList.contains('is-active');
         gsap.to(item, {
           x: isActive ? 4 : 0,
           y: 0,
           duration: 0.85,
-          ease: 'elastic.out(1, 0.45)', // 搜索栏同款果冻弹性回弹
+          ease: 'elastic.out(1, 0.45)',
           overwrite: 'auto',
         });
       });
 
       item.addEventListener('focus', () => {
+        if (metricsDirty) refreshMetrics();
         positionGlider(item);
         if (isDesktop() && !isReduced()) {
           gsap.to(item, { x: 8, y: 0, duration: 0.3, ease: 'power2.out', overwrite: 'auto' });
@@ -1031,21 +1167,33 @@ import gsap from 'gsap';
       });
 
       item.addEventListener('click', () => {
-        const rect = item.getBoundingClientRect();
-        (window as any).__inkSplash?.(rect.left + 4, rect.top + rect.height / 2, 6);
+        const metric = metricMap.get(item);
+        if (metric) {
+          (window as any).__inkSplash?.(metric.centerX - 18, metric.centerY, 6);
+        }
       });
     });
 
     if ((nav as any).__navGliderCleanup) {
       (nav as any).__navGliderCleanup();
     }
+    const sidebarHost = nav.closest('.glass-nav');
     const onNavLeave = () => resetToActive();
-    const onWinResize = () => resetToActive();
+    const onWinResize = () => {
+      metricsDirty = true;
+      resetToActive();
+    };
+    const onNavScroll = () => {
+      metricsDirty = true;
+    };
     nav.addEventListener('pointerleave', onNavLeave);
     window.addEventListener('resize', onWinResize, { passive: true });
+    sidebarHost?.addEventListener('scroll', onNavScroll, { passive: true });
     (nav as any).__navGliderCleanup = () => {
+      window.clearTimeout(stretchTimer);
       nav.removeEventListener('pointerleave', onNavLeave);
       window.removeEventListener('resize', onWinResize);
+      sidebarHost?.removeEventListener('scroll', onNavScroll);
     };
   }
 
@@ -1060,112 +1208,157 @@ import gsap from 'gsap';
 
 <script>
 (function setupMobileDrawerController() {
+  const CLEANUP_KEY = '__areSetMobileDrawerCleanup__';
+
   function setupDrawer() {
-    const toggleBtn = document.querySelector('[data-mobile-menu-toggle]');
-    const closeBtn = document.querySelector('[data-mobile-drawer-close]');
-    const overlay = document.querySelector('[data-mobile-drawer-overlay]');
-    const panel = document.querySelector('[data-mobile-drawer-panel]');
+    (window as any)[CLEANUP_KEY]?.();
+    const toggleBtn = document.querySelector<HTMLElement>('[data-mobile-menu-toggle]');
+    const closeBtn = document.querySelector<HTMLElement>('[data-mobile-drawer-close]');
+    const overlay = document.querySelector<HTMLElement>('[data-mobile-drawer-overlay]');
+    const panel = document.querySelector<HTMLElement>('[data-mobile-drawer-panel]');
     if (!panel || !toggleBtn) return;
 
+    const controller = new AbortController();
+    const { signal } = controller;
+    let swipeRaf = 0;
+
     function openDrawer() {
+      panel!.style.removeProperty('transform');
+      panel!.style.removeProperty('transition');
       document.documentElement.classList.add('mobile-menu-open');
       document.body.classList.add('mobile-menu-open');
-      panel.classList.add('is-open');
-      panel.setAttribute('aria-hidden', 'false');
-      toggleBtn.classList.add('is-active');
-      toggleBtn.setAttribute('aria-expanded', 'true');
+      panel!.classList.add('is-open');
+      panel!.setAttribute('aria-hidden', 'false');
+      toggleBtn!.classList.add('is-active');
+      toggleBtn!.setAttribute('aria-expanded', 'true');
       overlay?.classList.add('is-open');
       overlay?.setAttribute('aria-hidden', 'false');
     }
 
     function closeDrawer() {
+      panel!.style.removeProperty('transform');
+      panel!.style.removeProperty('transition');
       document.documentElement.classList.remove('mobile-menu-open');
       document.body.classList.remove('mobile-menu-open');
-      panel.classList.remove('is-open');
-      panel.setAttribute('aria-hidden', 'true');
-      toggleBtn.classList.remove('is-active');
-      toggleBtn.setAttribute('aria-expanded', 'false');
+      panel!.classList.remove('is-open');
+      panel!.setAttribute('aria-hidden', 'true');
+      toggleBtn!.classList.remove('is-active');
+      toggleBtn!.setAttribute('aria-expanded', 'false');
       overlay?.classList.remove('is-open');
       overlay?.setAttribute('aria-hidden', 'true');
     }
 
     function toggle() {
-      if (panel.classList.contains('is-open')) {
+      if (panel!.classList.contains('is-open')) {
         closeDrawer();
       } else {
         openDrawer();
       }
     }
 
-    if (toggleBtn.dataset.drawerBound === 'true') return;
-    toggleBtn.dataset.drawerBound = 'true';
-
     toggleBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       toggle();
-    });
+    }, { signal });
 
     closeBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
       closeDrawer();
-    });
+    }, { signal });
 
     overlay?.addEventListener('click', (e) => {
       e.stopPropagation();
       closeDrawer();
-    });
+    }, { signal });
 
-    // Close when clicking nav link so view-transition or navigation is instant
     panel.querySelectorAll('[data-mobile-nav-link]').forEach((link) => {
       link.addEventListener('click', () => {
         closeDrawer();
-      });
+      }, { signal });
     });
 
-    // ESC key to dismiss
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && panel.classList.contains('is-open')) {
         closeDrawer();
       }
-    });
+    }, { signal });
 
-    // Touch gesture: swipe right to dismiss
+    // Touch gesture: interactive GPU translate3d swipe-right to dismiss
     let touchStartX = 0;
     let touchStartY = 0;
+    let isHorizontalSwipe = false;
 
     panel.addEventListener('touchstart', (e) => {
       touchStartX = 0;
       touchStartY = 0;
+      isHorizontalSwipe = false;
       if (e.touches && e.touches.length > 0) {
-        // Avoid conflicting with Safari system back swipe at screen left edge
         if (e.touches[0].clientX < 30) return;
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
       }
-    }, { passive: true });
+    }, { passive: true, signal });
+
+    panel.addEventListener('touchmove', (e) => {
+      if (!touchStartX || !panel.classList.contains('is-open')) return;
+      if (!e.touches || e.touches.length === 0) return;
+      const dx = e.touches[0].clientX - touchStartX;
+      const dy = e.touches[0].clientY - touchStartY;
+      if (!isHorizontalSwipe) {
+        if (Math.abs(dy) > Math.abs(dx)) {
+          touchStartX = 0;
+          return;
+        }
+        if (dx > 10) isHorizontalSwipe = true;
+      }
+      if (isHorizontalSwipe && dx > 0) {
+        const clampedX = Math.round(dx * 0.92);
+        if (!swipeRaf) {
+          swipeRaf = requestAnimationFrame(() => {
+            swipeRaf = 0;
+            panel.style.transition = 'none';
+            panel.style.transform = `translate3d(${clampedX}px, 0, 0)`;
+          });
+        }
+      }
+    }, { passive: true, signal });
 
     panel.addEventListener('touchend', (e) => {
+      if (swipeRaf) {
+        cancelAnimationFrame(swipeRaf);
+        swipeRaf = 0;
+      }
       if (!touchStartX) return;
       if (e.changedTouches && e.changedTouches.length > 0) {
         const deltaX = e.changedTouches[0].clientX - touchStartX;
         const deltaY = e.changedTouches[0].clientY - touchStartY;
-        // Right swipe threshold: horizontal swipe of at least 48px, mostly horizontal
         if (deltaX > 48 && deltaX > Math.abs(deltaY) * 1.2) {
           closeDrawer();
+        } else if (isHorizontalSwipe) {
+          panel.style.removeProperty('transition');
+          panel.style.removeProperty('transform');
         }
       }
       touchStartX = 0;
       touchStartY = 0;
-    }, { passive: true });
+      isHorizontalSwipe = false;
+    }, { passive: true, signal });
+
+    (window as any)[CLEANUP_KEY] = () => {
+      if (swipeRaf) cancelAnimationFrame(swipeRaf);
+      controller.abort();
+    };
   }
 
-  // Safe cleanup across View Transitions
   document.addEventListener('astro:before-swap', () => {
+    (window as any)[CLEANUP_KEY]?.();
     document.documentElement.classList.remove('mobile-menu-open');
     document.body.classList.remove('mobile-menu-open');
-    const panel = document.querySelector('[data-mobile-drawer-panel]');
+    const panel = document.querySelector<HTMLElement>('[data-mobile-drawer-panel]');
     const toggleBtn = document.querySelector('[data-mobile-menu-toggle]');
     const overlay = document.querySelector('[data-mobile-drawer-overlay]');
+    panel?.style.removeProperty('transform');
+    panel?.style.removeProperty('transition');
     panel?.classList.remove('is-open');
     panel?.setAttribute('aria-hidden', 'true');
     toggleBtn?.classList.remove('is-active');
@@ -1184,6 +1377,62 @@ import gsap from 'gsap';
     display: none;
   }
 
+  /* 移动端抽屉：手卷折页错峰浮现与零回流合成器过渡 */
+  @media (max-width: 1023.98px) {
+    .mobile-drawer-overlay {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      background: rgba(16, 15, 13, 0.56) !important;
+      transition:
+        opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 300ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+    }
+
+    .mobile-drawer-panel {
+      transition:
+        transform 380ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 380ms ease !important;
+    }
+
+    .mobile-drawer-panel .mobile-drawer-link {
+      opacity: 0;
+      transform: translate3d(14px, 0, 0);
+      transition:
+        opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+        background-color 180ms ease,
+        border-color 180ms ease !important;
+      transition-delay: calc(var(--m-idx, 0) * 20ms + 45ms) !important;
+      box-shadow: none !important;
+    }
+
+    .mobile-drawer-panel.is-open .mobile-drawer-link {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+
+    .mobile-drawer-panel .mobile-drawer-close-btn {
+      transition:
+        transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        color 180ms ease,
+        border-color 180ms ease,
+        background-color 180ms ease !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .mobile-drawer-overlay,
+      .mobile-drawer-panel,
+      .mobile-drawer-panel .mobile-drawer-link {
+        transition: none !important;
+        opacity: 1 !important;
+        transform: none;
+      }
+      .mobile-drawer-panel:not(.is-open) {
+        transform: translateX(102%) !important;
+      }
+    }
+  }
+
   @media (min-width: 1024px) {
     .site-shell {
       --sidebar-width: clamp(14.5rem, 18vw, 17rem);
@@ -1194,9 +1443,6 @@ import gsap from 'gsap';
                   padding var(--article-duration-panel) var(--article-ease-layout);
     }
 
-    /* The reading column keeps the same flex basis in both states; only max-width, margins and
-       padding change — all explicit lengths, so they interpolate. (margin:auto never animates,
-       which is what made the old version snap.) */
     .site-shell > main,
     .site-shell > main.container-wide,
     .site-shell > main.container-medium,
@@ -1213,7 +1459,6 @@ import gsap from 'gsap';
                   padding var(--article-duration-panel) var(--article-ease-layout);
     }
 
-    /* Article drawers and the reading column move on the same clock. */
     .site-shell > main.container-medium:has([data-post-prose]) {
       transition: max-width var(--article-duration-panel) var(--article-ease-layout),
                   margin var(--article-duration-panel) var(--article-ease-layout),
@@ -1265,7 +1510,6 @@ import gsap from 'gsap';
       display: none !important;
     }
 
-    /* GSAP owns the subtle inner slide while CSS resizes the column. */
     .glass-nav-inner {
       width: var(--sidebar-width) !important;
       min-width: var(--sidebar-width) !important;
@@ -1276,7 +1520,6 @@ import gsap from 'gsap';
       transition: none !important;
     }
 
-    /* Shared insets align the brand, search and actions; navigation keeps room for its marker. */
     .glass-nav .nav-top-block {
       gap: clamp(1rem, 2.4vh, 1.6rem) !important;
     }
@@ -1297,36 +1540,68 @@ import gsap from 'gsap';
       margin-block: 0 !important;
     }
 
+    /* 毛笔飞白 · 朱砂起笔墨痕滑动指示器（纯合成器 transform + opacity，零 box-shadow 重绘） */
     .glass-nav .nav-magnetic-glider {
       position: absolute;
       left: 0;
       width: 2.5px;
-      height: 1.15rem;
+      height: 1.25rem;
       border-radius: 9999px;
-      background: var(--accent);
       background: linear-gradient(
         180deg,
-        var(--accent) 0%,
-        color-mix(in srgb, var(--accent) 75%, black 25%) 100%
+        #b83b28 0%,
+        var(--ink-strong, #18181b) 34%,
+        color-mix(in srgb, var(--ink-strong, #18181b) 32%, transparent) 100%
       );
-      box-shadow: 0 0 8px rgba(var(--accent-rgb, 194, 65, 12), 0.4);
+      box-shadow: none !important;
       pointer-events: none;
       opacity: 0;
-      transform: translateY(0);
+      transform: translate3d(0, 0, 0) scaleY(1);
+      transform-origin: center center;
       transition:
-        transform 0.34s cubic-bezier(0.18, 0.9, 0.2, 1.15),
+        transform 0.36s cubic-bezier(0.22, 1, 0.36, 1),
         opacity 0.24s var(--ease);
       z-index: 2;
       will-change: transform, opacity;
     }
 
+    .glass-nav .nav-magnetic-glider::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -0.75px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #b83b28;
+    }
+
     [data-theme="dark"] .glass-nav .nav-magnetic-glider {
       background: linear-gradient(
         180deg,
-        var(--accent) 0%,
-        #ff9466 100%
+        #e06350 0%,
+        #eae8e3 36%,
+        rgba(234, 232, 227, 0.22) 100%
       );
-      box-shadow: 0 0 10px rgba(var(--accent-rgb, 235, 94, 40), 0.55);
+      box-shadow: none !important;
+    }
+
+    [data-theme="dark"] .glass-nav .nav-magnetic-glider::before {
+      background: #e06350;
+    }
+
+    [data-theme="moss"] .glass-nav .nav-magnetic-glider {
+      background: linear-gradient(
+        180deg,
+        #ffd3de 0%,
+        #ffc2d1 45%,
+        rgba(255, 194, 209, 0.2) 100%
+      );
+      box-shadow: none !important;
+    }
+
+    [data-theme="moss"] .glass-nav .nav-magnetic-glider::before {
+      background: #fff1f4;
     }
 
     .glass-nav .nav-link {
@@ -1343,8 +1618,50 @@ import gsap from 'gsap';
       border-radius: 0 !important;
       border: 0 !important;
       color: var(--muted-strong) !important;
-      will-change: transform;
-      transition: color 240ms ease !important;
+      transition: color 220ms ease !important;
+    }
+
+    /* 悬停与激活项：宣纸水墨轻染笔触（纯 GPU scaleX + opacity，零边框零重排） */
+    .glass-nav .nav-link::before {
+      content: '';
+      position: absolute;
+      left: -0.35rem;
+      right: -0.15rem;
+      top: 0.15rem;
+      bottom: 0.15rem;
+      border-radius: 5px;
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--ink-strong, #000) 7%, transparent) 0%,
+        transparent 92%
+      );
+      opacity: 0;
+      transform: scaleX(0.45);
+      transform-origin: left center;
+      pointer-events: none;
+      z-index: -1;
+      transition:
+        transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    [data-theme="moss"] .glass-nav .nav-link::before {
+      background: linear-gradient(
+        90deg,
+        rgba(255, 241, 244, 0.16) 0%,
+        transparent 92%
+      );
+    }
+
+    .glass-nav .nav-link:hover::before,
+    .glass-nav .nav-link:focus-visible::before {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+
+    .glass-nav .nav-link.is-active::before {
+      opacity: 0.62;
+      transform: scaleX(0.88);
     }
 
     .glass-nav .nav-link::after {
@@ -1370,7 +1687,6 @@ import gsap from 'gsap';
       line-height: 1.45 !important;
     }
 
-    /* 中等高度视口（含 125% 缩放或 768px 笔记本屏，视口高度 641px ~ 760px） */
     @media (max-height: 760px) and (min-height: 641px) {
       .glass-nav {
         padding: clamp(0.6rem, 1.4vh, 1.1rem) 0 clamp(0.45rem, 1vh, 0.85rem) 0 !important;
@@ -1393,7 +1709,6 @@ import gsap from 'gsap';
       }
     }
 
-    /* 紧凑高度视口（含 150% 缩放及小窗口，视口高度 <= 640px）：微调紧凑间距，确保全员同屏完整展现 */
     @media (max-height: 640px) {
       .glass-nav {
         padding: clamp(0.35rem, 0.9vh, 0.65rem) 0 clamp(0.25rem, 0.6vh, 0.5rem) 0 !important;
@@ -1437,7 +1752,6 @@ import gsap from 'gsap';
       height: auto !important;
     }
 
-    /* Collapse button in sidebar */
     .sidebar-collapse-btn {
       display: inline-flex;
       align-items: center;
@@ -1451,7 +1765,7 @@ import gsap from 'gsap';
       cursor: pointer;
       opacity: 0.75;
       transition: color 200ms ease,
-                  background 200ms ease,
+                  background-color 200ms ease,
                   border-color 200ms ease,
                   opacity 200ms ease,
                   transform 260ms var(--article-ease-surface);
@@ -1466,8 +1780,6 @@ import gsap from 'gsap';
     }
 
     /* COLLAPSED STATE */
-    /* Only width / min-width / opacity change here — all three are in the transition list.
-       (max-width:0 and padding:0 used to snap on the same frame the fold started.) */
     html[data-sidebar-collapsed="true"] .glass-nav {
       width: 0 !important;
       min-width: 0 !important;
@@ -1477,7 +1789,6 @@ import gsap from 'gsap';
       overflow: hidden !important;
     }
 
-    /* While the column is animating in either direction the panel must not spill over the page */
     html[data-sidebar-folding="true"] .glass-nav {
       overflow: hidden !important;
     }
@@ -1493,7 +1804,6 @@ import gsap from 'gsap';
       width: 100% !important;
     }
 
-    /* Centered reading column: explicit symmetric margins do the centering, so the move animates */
     html[data-sidebar-collapsed="true"] .site-shell > main.container-wide,
     html[data-sidebar-collapsed="true"] .site-shell > .container-wide,
     html[data-sidebar-collapsed="true"] main.container-wide {
@@ -1514,7 +1824,6 @@ import gsap from 'gsap';
       padding-right: clamp(1.5rem, 3.5vw, 3rem) !important;
     }
 
-    /* Floating retro pixel expand button */
     html[data-sidebar-collapsed="true"] .sidebar-expand-btn {
       display: inline-flex;
       position: fixed;
@@ -1541,9 +1850,8 @@ import gsap from 'gsap';
       animation: sidebarExpandIn 360ms var(--article-ease-surface) 180ms both;
       transition: color 240ms ease,
                   border-color 240ms ease,
-                  background 240ms ease,
-                  transform 260ms var(--article-ease-surface),
-                  box-shadow 240ms ease;
+                  background-color 240ms ease,
+                  transform 260ms var(--article-ease-surface);
     }
 
     [data-theme="dark"] html[data-sidebar-collapsed="true"] .sidebar-expand-btn {
@@ -1558,9 +1866,6 @@ import gsap from 'gsap';
       color: var(--accent);
       border-color: var(--accent);
       transform: translateX(1px);
-      box-shadow:
-        0 10px 32px rgba(0, 0, 0, 0.12),
-        inset 0 1px 0 rgba(255, 255, 255, 0.6);
     }
 
     .expand-btn-icon {
@@ -1579,7 +1884,6 @@ import gsap from 'gsap';
     }
   }
 
-  /* The restore control follows the same quiet slide as the sidebar. */
   @keyframes sidebarExpandIn {
     0% {
       opacity: 0;
@@ -1592,7 +1896,7 @@ import gsap from 'gsap';
   }
 
   @media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
-    .glass-nav, .site-shell, .site-shell > main {
+    .glass-nav, .site-shell, .site-shell > main, .glass-nav .nav-link::before, .glass-nav .nav-magnetic-glider {
       transition: none !important;
     }
     html[data-sidebar-collapsed="true"] .sidebar-expand-btn {

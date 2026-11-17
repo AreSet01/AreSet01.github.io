@@ -78,10 +78,10 @@ test('Cursor Trail Toggle & Permanent Circle Pointer Suite', async (t) => {
   });
 
   await t.test('3. global.css 圆圈指针常驻与原生指针彻底隐藏: 桌面端绝不冒出系统箭头', () => {
-    // 验证桌面端 cursor: none 常驻隐藏原生箭头
+    // 验证桌面端 cursor: none 常驻隐藏原生箭头（允许排除 .settings-viewport 控制台视图）
     assert.match(
       globalCssContent,
-      /html,\s*html body\s*\{\s*cursor:\s*none\s*!important;\s*\}/,
+      /html(?::not\(:has\(\.settings-viewport\)\))?,\s*html(?::not\(:has\(\.settings-viewport\)\))?\s+body[\s\S]*?\{\s*cursor:\s*none\s*!important;\s*\}/,
       'global.css 必须在 pointer: fine 下常驻隐藏原生指针，保障圆圈指针独占'
     );
 

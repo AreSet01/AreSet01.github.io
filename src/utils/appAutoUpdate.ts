@@ -47,6 +47,141 @@ export const REOPEN_MINDMAP_KEY = 'areSet_reopen_mindmap_id';
 
 const BOUND_KEY = '__areSetAppAutoUpdateBound__';
 const CLEANUP_KEY = '__areSetAppAutoUpdateCleanup__';
+const AUTO_UPDATE_STYLE_ID = 'app-update-motion-styles';
+
+const APP_UPDATE_MOTION_CSS = `
+/* 飞鸽传书 · 朱砂小笺滑入与墨迹进度反馈（零 filter:blur、零逐帧 box-shadow 动画） */
+.app-update-pill {
+  overflow: hidden;
+  border-radius: 10px !important;
+  padding: 8px 10px 10px 12px !important;
+  gap: 9px !important;
+  opacity: 0;
+  transform: translate3d(-50%, -18px, 0) rotate(-1.2deg) scale(0.95);
+  will-change: transform, opacity;
+  transition:
+    opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+.app-update-pill.is-visible {
+  opacity: 1;
+  transform: translate3d(-50%, 0, 0) rotate(0deg) scale(1);
+}
+
+.app-update-pill.is-applying {
+  transform: translate3d(-50%, -2px, 0) scale(0.985);
+}
+
+/* 朱砂钤印小章与飞鸽意象 */
+.app-update-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: #b83b28;
+  color: #fcfaf7;
+  font-family: var(--font-hand-title, serif);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  transform: scale(1.28) rotate(-10deg);
+  opacity: 0;
+  transition:
+    transform 380ms cubic-bezier(0.22, 1, 0.36, 1) 80ms,
+    opacity 240ms ease 60ms;
+}
+
+.app-update-pill.is-visible .app-update-seal {
+  transform: scale(1) rotate(-2deg);
+  opacity: 1;
+}
+
+[data-theme="dark"] .app-update-seal {
+  background: #cf4a36;
+  color: #faf8f5;
+}
+
+[data-theme="moss"] .app-update-seal {
+  background: #ffc2d1;
+  color: #004d40;
+}
+
+.app-update-dove {
+  display: inline-flex;
+  align-items: center;
+  color: #b83b28;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .app-update-dove {
+  color: #e06350;
+}
+
+[data-theme="moss"] .app-update-dove {
+  color: #ffc2d1;
+}
+
+/* 底缘水墨进度线（待命微息 / 结算满墨） */
+.app-update-ink-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.06);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .app-update-ink-track {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="moss"] .app-update-ink-track {
+  background: rgba(255, 241, 244, 0.14);
+}
+
+.app-update-ink-bar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #b83b28 0%, var(--ink-strong, #18181b) 100%);
+  transform: scaleX(0.18);
+  transform-origin: left center;
+  opacity: 0.68;
+  will-change: transform, opacity;
+  transition:
+    transform var(--update-ink-ms, 360ms) cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 240ms ease;
+}
+
+[data-theme="dark"] .app-update-ink-bar {
+  background: linear-gradient(90deg, #e06350 0%, #f3f4f6 100%);
+}
+
+[data-theme="moss"] .app-update-ink-bar {
+  background: linear-gradient(90deg, #ffc2d1 0%, #fff1f4 100%);
+}
+
+.app-update-pill.is-settling .app-update-ink-bar,
+.app-update-pill.is-applying .app-update-ink-bar {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-update-pill,
+  .app-update-seal,
+  .app-update-ink-bar {
+    transition: none !important;
+  }
+}
+`;
 
 interface GuardRecord {
   fromVersion: string;
@@ -287,7 +422,7 @@ function dispatchFlushDrafts(doc: Document, win: Window): void {
 }
 
 /**
- * Mount build-version update watcher, ViewTransition guard, and deferred-update pill.
+ * Mount build-version update watcher, ViewTransition guard, and cinnabar messenger note pill.
  */
 export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAutoUpdateApi {
   const win = options.win || window;
@@ -358,6 +493,7 @@ export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAut
   let pollTimer = 0;
   let settleTimer = 0;
   let pillEl: HTMLElement | null = null;
+  let styleEl: HTMLStyleElement | null = null;
   let busyObserver: MutationObserver | null = null;
 
   const AbortCtrl =
@@ -365,16 +501,35 @@ export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAut
   const controller = new AbortCtrl();
   const { signal } = controller;
 
+  function ensureUpdateStyles(): void {
+    if (styleEl && styleEl.isConnected) return;
+    const found = doc.getElementById(AUTO_UPDATE_STYLE_ID) as HTMLStyleElement | null;
+    if (found) {
+      styleEl = found;
+      return;
+    }
+    const s = doc.createElement('style');
+    s.id = AUTO_UPDATE_STYLE_ID;
+    s.setAttribute('data-app-update-motion', 'true');
+    s.textContent = APP_UPDATE_MOTION_CSS;
+    (doc.head || doc.documentElement).appendChild(s);
+    styleEl = s;
+  }
+
   function removePill(): void {
-    pillEl?.classList.remove('is-visible');
+    pillEl?.classList.remove('is-visible', 'is-settling', 'is-applying');
     const ref = pillEl;
     pillEl = null;
     if (ref) {
-      win.setTimeout(() => ref.remove(), 220);
+      win.setTimeout(() => ref.remove(), 260);
     }
   }
 
   function executeReload(targetVer: string, targetHref = win.location.href, preserveMindMap = true): void {
+    if (pillEl) {
+      pillEl.style.setProperty('--update-ink-ms', '180ms');
+      pillEl.classList.add('is-applying');
+    }
     dispatchFlushDrafts(doc, win);
     saveReloadRestoreState(win, doc, storage, preserveMindMap);
     recordAutoReloadAttempt({
@@ -389,6 +544,7 @@ export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAut
 
   function showUpdatePill(manualOnly: boolean, reasonLabel: string): void {
     if (userDismissed && !manualOnly) return;
+    ensureUpdateStyles();
     if (!pillEl || !pillEl.isConnected) {
       const stale = doc.getElementById('app-update-pill');
       stale?.remove();
@@ -397,6 +553,17 @@ export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAut
       pillEl.className = 'app-update-pill';
       pillEl.setAttribute('role', 'status');
       pillEl.setAttribute('aria-live', 'polite');
+
+      const seal = doc.createElement('span');
+      seal.className = 'app-update-seal';
+      seal.dataset.updateSeal = 'true';
+      seal.setAttribute('aria-hidden', 'true');
+      seal.textContent = '新';
+
+      const dove = doc.createElement('span');
+      dove.className = 'app-update-dove';
+      dove.setAttribute('aria-hidden', 'true');
+      dove.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2L7.5 8.5"/><path d="M14 2l-4.2 11.5-2.3-5-5-2.3L14 2z"/></svg>';
 
       const msg = doc.createElement('span');
       msg.className = 'app-update-pill-text';
@@ -423,23 +590,41 @@ export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAut
         removePill();
       });
 
-      pillEl.append(msg, applyBtn, dismissBtn);
+      const inkTrack = doc.createElement('span');
+      inkTrack.className = 'app-update-ink-track';
+      inkTrack.setAttribute('aria-hidden', 'true');
+      const inkBar = doc.createElement('i');
+      inkBar.className = 'app-update-ink-bar';
+      inkBar.dataset.updateInkBar = 'true';
+      inkTrack.appendChild(inkBar);
+
+      pillEl.append(seal, dove, msg, applyBtn, dismissBtn, inkTrack);
       doc.body.appendChild(pillEl);
     }
 
     const msgEl = pillEl.querySelector('.app-update-pill-text');
     if (msgEl) {
-      msgEl.textContent = manualOnly ? '已发布新版本，点击应用' : reasonLabel;
+      msgEl.textContent = manualOnly ? '飞鸿新笺已至，轻点展卷更新' : reasonLabel;
     }
+    pillEl.classList.remove('is-settling');
     scheduleFrame(() => pillEl?.classList.add('is-visible'));
   }
 
   function scheduleSettleCheck(): void {
     if (!pendingVersion || userDismissed) return;
     win.clearTimeout(settleTimer);
+    if (pillEl && !detectBusyEditingState(doc).busy) {
+      pillEl.style.setProperty('--update-ink-ms', `${Math.max(180, settleDelayMs)}ms`);
+      pillEl.classList.add('is-settling');
+    } else if (pillEl) {
+      pillEl.classList.remove('is-settling');
+    }
     settleTimer = win.setTimeout(() => {
       if (!pendingVersion || userDismissed) return;
-      if (detectBusyEditingState(doc).busy) return;
+      if (detectBusyEditingState(doc).busy) {
+        pillEl?.classList.remove('is-settling');
+        return;
+      }
       const decision = canTriggerAutoReload({
         currentVersion,
         targetVersion: pendingVersion,
@@ -463,6 +648,8 @@ export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAut
       if (!pendingVersion) return;
       if (!detectBusyEditingState(doc).busy) {
         scheduleSettleCheck();
+      } else {
+        pillEl?.classList.remove('is-settling');
       }
     });
     const observedIds = ['mm-workbench-modal', 'ink-ask-panel', 'article-notes-drawer', 'site-search', 'mm-cat-modal', 'mm-gen-modal'];
@@ -504,8 +691,8 @@ export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAut
 
     const label =
       busyState.reason.startsWith('mindmap')
-        ? '发现新版本，退出导图后自动更新'
-        : '发现新版本，操作完成后自动更新';
+        ? '新卷已至 · 退出导图后墨迹自动更替'
+        : '新卷已至 · 搁笔后自动无感更替';
     ensureBusyWatchers();
     showUpdatePill(false, label);
   }
@@ -595,7 +782,7 @@ export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAut
     { signal },
   );
 
-  // 2. ClientRouter SPA navigation interception (upgrade seamlessly on cross-version navigation)
+  // 2. ClientRouter SPA navigation interception
   doc.addEventListener(
     'astro:before-preparation',
     (event: Event & { to?: URL | string }) => {
@@ -680,7 +867,9 @@ export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAut
     busyObserver?.disconnect();
     busyObserver = null;
     pillEl?.remove();
+    styleEl?.remove();
     pillEl = null;
+    styleEl = null;
     delete winRecord[BOUND_KEY];
     delete winRecord[CLEANUP_KEY];
     delete winRecord.__appAutoUpdate;

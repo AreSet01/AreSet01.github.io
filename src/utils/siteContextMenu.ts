@@ -52,6 +52,204 @@ const ACTION_ICONS: Record<ContextMenuAction, string> = {
   cut: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="4.5" cy="11.75" r="1.75"/><circle cx="11.5" cy="11.75" r="1.75"/><path d="M5.75 10.35L11.75 2.75"/><path d="M10.25 10.35L4.25 2.75"/></svg>',
 };
 
+const CONTEXT_MENU_MOTION_CSS = `
+/* 竹简 · 宣纸笺条展开动效（零 filter:blur、零逐帧 box-shadow 动画） */
+.site-ctx-menu {
+  overflow: hidden;
+  border-radius: 10px;
+  padding: 6px 5px 5px;
+  opacity: 0;
+  transform: translate3d(0, -4px, 0) scaleY(0.92);
+  clip-path: inset(0 0 100% 0 round 10px);
+  will-change: transform, opacity, clip-path;
+  transition:
+    opacity 190ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 230ms cubic-bezier(0.22, 1, 0.36, 1),
+    clip-path 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.site-ctx-menu[data-flip-y="true"] {
+  transform: translate3d(0, 4px, 0) scaleY(0.92);
+  clip-path: inset(100% 0 0 0 round 10px);
+}
+
+.site-ctx-menu.is-open {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scaleY(1);
+  clip-path: inset(0 0 0 0 round 10px);
+}
+
+.site-ctx-menu.is-closing {
+  opacity: 0;
+  transform: translate3d(0, -3px, 0) scaleY(0.96);
+  clip-path: inset(0 0 35% 0 round 10px);
+  pointer-events: none;
+  transition:
+    opacity 140ms cubic-bezier(0.32, 0, 0.2, 1),
+    transform 150ms cubic-bezier(0.32, 0, 0.2, 1),
+    clip-path 150ms cubic-bezier(0.32, 0, 0.2, 1);
+}
+
+/* 顶缘起笔墨线（起笔锋芒 + 朱砂钤点） */
+.site-ctx-brush-head {
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 1.5px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    #b83b28 0%,
+    var(--ink-strong, #18181b) 22%,
+    transparent 100%
+  );
+  transform: scaleX(0);
+  transform-origin: left center;
+  opacity: 0.82;
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1) 35ms;
+}
+
+.site-ctx-menu[data-flip-x="true"] .site-ctx-brush-head {
+  transform-origin: right center;
+  background: linear-gradient(
+    270deg,
+    #b83b28 0%,
+    var(--ink-strong, #18181b) 22%,
+    transparent 100%
+  );
+}
+
+.site-ctx-menu.is-open .site-ctx-brush-head {
+  transform: scaleX(1);
+}
+
+[data-theme="dark"] .site-ctx-brush-head {
+  background: linear-gradient(90deg, #d9533f 0%, rgba(255, 255, 255, 0.72) 26%, transparent 100%);
+}
+
+[data-theme="moss"] .site-ctx-brush-head {
+  background: linear-gradient(90deg, #ffc2d1 0%, rgba(255, 241, 244, 0.65) 28%, transparent 100%);
+}
+
+.site-ctx-list {
+  position: relative;
+}
+
+/* 悬停游走墨色底衬 Pill（纯合成器 translate3d + opacity，零回流） */
+.site-ctx-hover-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  border-radius: 7px;
+  background: rgba(24, 22, 18, 0.065);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scaleX(0.97);
+  will-change: transform, opacity;
+  transition:
+    transform 190ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.site-ctx-hover-pill::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 999px;
+  background: #b83b28;
+}
+
+.site-ctx-hover-pill.is-active {
+  opacity: 1;
+  transform: translate3d(0, var(--ctx-pill-y, 0px), 0) scaleX(1);
+}
+
+[data-theme="dark"] .site-ctx-hover-pill {
+  background: rgba(255, 255, 255, 0.085);
+}
+
+[data-theme="dark"] .site-ctx-hover-pill::before {
+  background: #e06350;
+}
+
+[data-theme="moss"] .site-ctx-hover-pill {
+  background: rgba(255, 194, 209, 0.16);
+}
+
+[data-theme="moss"] .site-ctx-hover-pill::before {
+  background: #ffc2d1;
+}
+
+[data-theme="rice"] .site-ctx-hover-pill {
+  background: rgba(107, 91, 69, 0.11);
+}
+
+/* 子项错峰舒展与点击微缩回弹 */
+.site-ctx-menu .site-ctx-item {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+  opacity: 0;
+  transform: translate3d(-5px, 0, 0);
+  transition:
+    opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 150ms ease;
+  transition-delay: calc(var(--ctx-idx, 0) * 22ms);
+}
+
+.site-ctx-menu.is-open .site-ctx-item {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.site-ctx-menu.is-open .site-ctx-item.is-disabled,
+.site-ctx-menu.is-open .site-ctx-item:disabled {
+  opacity: 0.44;
+}
+
+.site-ctx-menu.is-open .site-ctx-item:not(:disabled):hover,
+.site-ctx-menu.is-open .site-ctx-item:not(:disabled):focus-visible {
+  transform: translate3d(2px, 0, 0);
+  transition-delay: 0ms;
+}
+
+.site-ctx-menu.is-open .site-ctx-item:not(:disabled):active,
+.site-ctx-menu.is-open .site-ctx-item.is-pressing {
+  transform: translate3d(1px, 0, 0) scale(0.965);
+  transition-duration: 90ms;
+  transition-delay: 0ms;
+}
+
+.site-ctx-toast {
+  border: 1px solid rgba(184, 59, 40, 0.35);
+  transition:
+    opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-ctx-menu,
+  .site-ctx-brush-head,
+  .site-ctx-hover-pill,
+  .site-ctx-menu .site-ctx-item,
+  .site-ctx-toast {
+    transition: none !important;
+    clip-path: none !important;
+  }
+  .site-ctx-menu .site-ctx-item {
+    opacity: 1;
+    transform: none;
+  }
+}
+`;
+
 function isTextEditableInput(el: Element): el is HTMLInputElement {
   if (el.tagName !== 'INPUT') return false;
   const input = el as HTMLInputElement;
@@ -272,6 +470,7 @@ async function writeClipboard(doc: Document, win: Window, text: string): Promise
 }
 
 const CONTEXT_MENU_BOUND_KEY = '__areSetSiteContextMenuBound__';
+const CONTEXT_MENU_STYLE_ID = 'site-ctx-motion-styles';
 
 /**
  * Mount the site-wide 5-item custom right-click menu cleanly across View Transitions.
@@ -283,11 +482,63 @@ export function mountSiteContextMenu(win: Window = window, doc: Document = docum
   }
 
   let menuEl: HTMLElement | null = null;
+  let hoverPillEl: HTMLElement | null = null;
+  let styleEl: HTMLStyleElement | null = null;
   let toastEl: HTMLElement | null = null;
   let toastTimer = 0;
   let closeTimer = 0;
   let activeSnapshot: ContextMenuSnapshot | null = null;
   const buttonMap = new Map<ContextMenuAction, HTMLButtonElement>();
+  const cachedRowMetrics = new Map<ContextMenuAction, { top: number; height: number }>();
+
+  function ensureMotionStyles() {
+    if (styleEl && styleEl.isConnected) return;
+    const found = doc.getElementById(CONTEXT_MENU_STYLE_ID) as HTMLStyleElement | null;
+    if (found) {
+      styleEl = found;
+      return;
+    }
+    const s = doc.createElement('style');
+    s.id = CONTEXT_MENU_STYLE_ID;
+    s.setAttribute('data-site-ctx-motion', 'true');
+    s.textContent = CONTEXT_MENU_MOTION_CSS;
+    (doc.head || doc.documentElement).appendChild(s);
+    styleEl = s;
+  }
+
+  function moveHoverPill(action: ContextMenuAction | null) {
+    if (!hoverPillEl) return;
+    if (!action) {
+      hoverPillEl.classList.remove('is-active');
+      return;
+    }
+    const btn = buttonMap.get(action);
+    if (!btn || btn.disabled) {
+      hoverPillEl.classList.remove('is-active');
+      return;
+    }
+    const metric = cachedRowMetrics.get(action);
+    const y = metric ? metric.top : 0;
+    if (metric && metric.height > 0) {
+      hoverPillEl.style.height = `${metric.height}px`;
+    }
+    hoverPillEl.style.setProperty('--ctx-pill-y', `${y}px`);
+    hoverPillEl.style.transform = `translate3d(0, ${y}px, 0) scaleX(1)`;
+    hoverPillEl.classList.add('is-active');
+  }
+
+  function cacheMenuRowMetrics() {
+    cachedRowMetrics.clear();
+    let fallbackTop = 0;
+    for (const def of SITE_CONTEXT_MENU_ITEMS) {
+      const btn = buttonMap.get(def.action);
+      if (!btn) continue;
+      const h = btn.offsetHeight || 30;
+      const top = btn.offsetTop || fallbackTop;
+      cachedRowMetrics.set(def.action, { top, height: h });
+      fallbackTop += h + 2;
+    }
+  }
 
   function showMenuToast(message: string) {
     if (!toastEl || !toastEl.isConnected) {
@@ -310,6 +561,7 @@ export function mountSiteContextMenu(win: Window = window, doc: Document = docum
   }
 
   function ensureMenuElement(): HTMLElement {
+    ensureMotionStyles();
     if (menuEl && menuEl.isConnected) return menuEl;
 
     const stale = doc.getElementById('site-context-menu');
@@ -323,14 +575,32 @@ export function mountSiteContextMenu(win: Window = window, doc: Document = docum
     el.setAttribute('aria-hidden', 'true');
     el.hidden = true;
 
+    const brushHead = doc.createElement('span');
+    brushHead.className = 'site-ctx-brush-head';
+    brushHead.dataset.ctxBrushHead = 'true';
+    brushHead.setAttribute('aria-hidden', 'true');
+    el.appendChild(brushHead);
+
     const list = doc.createElement('div');
     list.className = 'site-ctx-list';
 
+    const pill = doc.createElement('span');
+    pill.className = 'site-ctx-hover-pill';
+    pill.dataset.ctxHoverPill = 'true';
+    pill.setAttribute('aria-hidden', 'true');
+    list.appendChild(pill);
+    hoverPillEl = pill;
+
+    list.addEventListener('pointerleave', () => {
+      moveHoverPill(null);
+    });
+
     buttonMap.clear();
-    for (const def of SITE_CONTEXT_MENU_ITEMS) {
+    SITE_CONTEXT_MENU_ITEMS.forEach((def, idx) => {
       const btn = doc.createElement('button');
       btn.type = 'button';
       btn.className = 'site-ctx-item';
+      btn.style.setProperty('--ctx-idx', String(idx));
       btn.setAttribute('role', 'menuitem');
       btn.dataset.ctxAction = def.action;
       btn.innerHTML = `<span class="site-ctx-icon">${ACTION_ICONS[def.action]}</span><span class="site-ctx-label">${def.label}</span><span class="site-ctx-hint">${def.hint}</span>`;
@@ -339,18 +609,36 @@ export function mountSiteContextMenu(win: Window = window, doc: Document = docum
       btn.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (!btn.disabled) btn.classList.add('is-pressing');
+      });
+
+      btn.addEventListener('pointerup', () => btn.classList.remove('is-pressing'));
+      btn.addEventListener('pointercancel', () => btn.classList.remove('is-pressing'));
+
+      btn.addEventListener('pointerenter', () => {
+        if (!btn.disabled) moveHoverPill(def.action);
+        else moveHoverPill(null);
+      });
+
+      btn.addEventListener('focus', () => {
+        if (!btn.disabled) moveHoverPill(def.action);
+      });
+
+      btn.addEventListener('blur', () => {
+        btn.classList.remove('is-pressing');
       });
 
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        btn.classList.remove('is-pressing');
         if (btn.disabled || btn.getAttribute('aria-disabled') === 'true') return;
         void runAction(def.action);
       });
 
       list.appendChild(btn);
       buttonMap.set(def.action, btn);
-    }
+    });
 
     el.appendChild(list);
     doc.body.appendChild(el);
@@ -369,11 +657,13 @@ export function mountSiteContextMenu(win: Window = window, doc: Document = docum
   function hideMenu(immediate = false) {
     if (!menuEl || menuEl.hidden) return;
     win.clearTimeout(closeTimer);
+    moveHoverPill(null);
     menuEl.classList.remove('is-open');
     menuEl.setAttribute('aria-hidden', 'true');
     activeSnapshot = null;
 
     if (immediate || win.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      menuEl.classList.remove('is-closing');
       menuEl.hidden = true;
       return;
     }
@@ -383,7 +673,7 @@ export function mountSiteContextMenu(win: Window = window, doc: Document = docum
       if (!menuEl) return;
       menuEl.classList.remove('is-closing');
       menuEl.hidden = true;
-    }, 130);
+    }, 155);
   }
 
   function restoreEditableSelection(snap: ContextMenuSnapshot) {
@@ -526,6 +816,7 @@ export function mountSiteContextMenu(win: Window = window, doc: Document = docum
     setItemEnabled('reload', snap.canReload);
     setItemEnabled('paste', snap.canPaste);
     setItemEnabled('cut', snap.canCut);
+    moveHoverPill(null);
 
     el.hidden = false;
     el.classList.remove('is-closing');
@@ -540,7 +831,10 @@ export function mountSiteContextMenu(win: Window = window, doc: Document = docum
       win.innerWidth,
       win.innerHeight,
     );
+    cacheMenuRowMetrics();
 
+    el.dataset.flipY = pos.origin.startsWith('bottom') ? 'true' : 'false';
+    el.dataset.flipX = pos.origin.endsWith('right') ? 'true' : 'false';
     el.style.left = `${pos.left}px`;
     el.style.top = `${pos.top}px`;
     el.style.transformOrigin = pos.origin;
@@ -673,8 +967,12 @@ export function mountSiteContextMenu(win: Window = window, doc: Document = docum
     win.clearTimeout(toastTimer);
     menuEl?.remove();
     toastEl?.remove();
+    styleEl?.remove();
     menuEl = null;
+    hoverPillEl = null;
+    styleEl = null;
     toastEl = null;
+    cachedRowMetrics.clear();
     delete (win as unknown as Record<string, unknown>)[CONTEXT_MENU_BOUND_KEY];
   };
 
