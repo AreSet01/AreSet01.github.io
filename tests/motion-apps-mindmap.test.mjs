@@ -148,9 +148,17 @@ test('3. notes.astro: Xuan-paper annotation slip, 3D folded-slip modal unfurl & 
     'editor/reader modal cards unfurl like folded Xuan-paper slips in 3D'
   );
   assert.ok(
-    page.includes('circle(0% at 12% 16%)') && page.includes(':global(.notes-card.is-deleting)'),
-    'deleted notes absorb inward via ink-drying circular clip-path exit'
+    page.includes('@keyframes notesCardInkDry') &&
+      page.includes('circle(0% at 12% 16%)') &&
+      page.includes(':global(.notes-card.is-deleting)'),
+    'deleted notes absorb inward via ink-drying circular clip-path keyframe exit'
   );
+  // Ensure resting :global(.notes-card) blocks do NOT carry permanent clip-path (preserves 3D preserve-3d & avoids alpha mask layers)
+  const restingNotesCardBlocks = [...page.matchAll(/:global\(\.notes-card\)\s*\{([^}]+)\}/g)];
+  assert.ok(restingNotesCardBlocks.length >= 1, 'resting :global(.notes-card) CSS rule exists');
+  for (const [, decls] of restingNotesCardBlocks) {
+    assert.ok(!/clip-path\s*:/.test(decls), 'resting :global(.notes-card) must not declare permanent clip-path');
+  }
   assert.ok(
     page.includes('[data-theme="moss"]') && page.includes('[data-theme="rice"]') && page.includes('[data-theme="dark"]'),
     'notes-card adapts across Light, Dark, Moss, and Rice themes'
@@ -228,9 +236,57 @@ test('6. settings.astro, account.astro & mindmapSync.ts: ink-jade switches, them
       settings.includes('specimen-shimmer'),
     'settings typography controls provide live Xuan-paper specimen scaling and ink shimmer feedback'
   );
-  assert.ok(settings.includes('__areSetSettingsCleanup__'), 'settings registers AbortController cleanup');
+  // Protocol parity with BaseLayout.astro & Header.astro ('cursor-trail': 'disabled', 'site-font': 'pixel' | 'kai', __applyTheme)
+  assert.ok(
+    settings.includes("__setCursorTrailDisabled") &&
+      settings.includes("setItem('cursor-trail', 'disabled')") &&
+      settings.includes("removeItem('cursor-trail')") &&
+      settings.includes("removeAttribute('data-cursor-trail')") &&
+      !settings.includes("on ? 'on' : 'off'"),
+    'settings cursor-trail switch strictly matches Header/BaseLayout disabled/removed protocol'
+  );
+  assert.ok(
+    settings.includes('data-font-choice="kai"') &&
+      settings.includes('[data-specimen-font="kai"]') &&
+      settings.includes("localStorage.getItem('site-font')") &&
+      settings.includes("localStorage.setItem('site-font'") &&
+      settings.includes('window.__applyFont') &&
+      !settings.includes('font-style') &&
+      !settings.includes('calligraphy'),
+    'settings font switch strictly matches BaseLayout site-font pixel/kai protocol'
+  );
+  assert.ok(
+    settings.includes('window.__applyTheme') && settings.includes("removeAttribute('data-moss-shade')"),
+    'settings theme preview cards delegate to window.__applyTheme and clean up data-moss-shade on non-moss fallback'
+  );
+  assert.ok(
+    settings.includes('if (!lockSection && !workbenchSection) return;') && settings.includes('__areSetSettingsCleanup__'),
+    'settings guards non-settings routes and registers AbortController cleanup'
+  );
+  // Balanced-parentheses check: 100% of addEventListener calls in settings.astro pass { signal } or { once: true }
+  const listenerStarts = [...settings.matchAll(/\.addEventListener\s*\(/g)].map((m) => m.index);
+  assert.ok(listenerStarts.length >= 18, 'settings.astro binds interactive listeners');
+  for (const start of listenerStarts) {
+    let depth = 0;
+    let idx = settings.indexOf('(', start);
+    for (; idx < settings.length; idx++) {
+      if (settings[idx] === '(') depth++;
+      else if (settings[idx] === ')' && --depth === 0) break;
+    }
+    const callText = settings.slice(start, idx + 1);
+    assert.ok(
+      /\{\s*(signal\b|once\s*:\s*true)/.test(callText),
+      `every addEventListener in settings.astro must pass { signal }: ${callText.slice(0, 90)}`
+    );
+  }
 
-  // Account: Cinnabar seal verification ritual & Cloud-Ink conduit
+  // Account: Cinnabar seal verification ritual, pure scaleX glider & Cloud-Ink conduit
+  assert.ok(
+    !account.includes('accountTabGlider.style.width') &&
+      account.includes('--pill-rx') &&
+      account.includes('.account-card:not([hidden])'),
+    'account tab glider uses pure compositor scaleX (--pill-rx) and reduced-motion keeps visible account-card opaque'
+  );
   assert.ok(
     account.includes('id="accountSealStamp"') &&
       account.includes('@keyframes cinnabarSealStamp') &&

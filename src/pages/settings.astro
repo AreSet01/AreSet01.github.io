@@ -364,7 +364,7 @@ const MOSS_SHADES = [
                 <div class="settings-font-seg" id="settingsFontSeg" role="group" aria-label="全站主书体切换">
                   <span class="settings-font-glider" id="settingsFontGlider" aria-hidden="true"></span>
                   <button type="button" class="settings-font-btn is-active" data-font-choice="pixel">像素碑刻</button>
-                  <button type="button" class="settings-font-btn" data-font-choice="calligraphy">行云手书</button>
+                  <button type="button" class="settings-font-btn" data-font-choice="kai">行云手书</button>
                 </div>
               </div>
 
@@ -941,6 +941,7 @@ const MOSS_SHADES = [
 
       const lockSection = document.getElementById('lockSection');
       const workbenchSection = document.getElementById('workbenchSection');
+      if (!lockSection && !workbenchSection) return;
       const logoutBtn = document.getElementById('logoutBtn');
       const headerStatusGroup = document.getElementById('headerStatusGroup');
       const serviceStatusBadge = document.getElementById('serviceStatusBadge');
@@ -1062,6 +1063,8 @@ const MOSS_SHADES = [
 
         updateShadeUi(getActiveShade());
 
+        const mossSig = typeof signal !== 'undefined' ? signal : undefined;
+
         shadeCards.forEach((card) => {
           card.addEventListener('click', (e) => {
             const shade = card.getAttribute('data-moss-shade-card');
@@ -1070,16 +1073,16 @@ const MOSS_SHADES = [
               window.__spawnSettingsInkRipple(card, e, card.getAttribute('data-shade-hex') || `#${shade}`);
             }
             if (shade) applyShade(shade, name);
-          });
+          }, { signal: mossSig });
         });
 
         resetBtn?.addEventListener('click', () => {
           applyShade('00796B', 'Teal 700 (翡翠青玉 · 推荐)');
-        });
+        }, { signal: mossSig });
 
         window.addEventListener('theme-change', () => {
           updateShadeUi(getActiveShade());
-        });
+        }, { signal: mossSig });
       }
 
       initMossShadeSelector();
@@ -1124,14 +1127,27 @@ const MOSS_SHADES = [
             const nextTheme = card.getAttribute('data-theme-preview-card') || 'light';
             const rippleHex = card.getAttribute('data-ripple-color') || '#c84b31';
             spawnSettingsInkRipple(card, e, rippleHex);
-            try { localStorage.setItem('theme', nextTheme); } catch {}
-            document.documentElement.setAttribute('data-theme', nextTheme);
-            document.documentElement.classList.toggle('dark', nextTheme === 'dark');
-            if (nextTheme === 'moss') {
-              const shade = (localStorage.getItem('moss-shade') || '00796B').replace(/^#/, '');
-              document.documentElement.setAttribute('data-moss-shade', shade);
+            if (typeof window.__applyTheme === 'function') {
+              window.__applyTheme(nextTheme);
+            } else {
+              try { localStorage.setItem('theme', nextTheme); } catch {}
+              document.documentElement.setAttribute('data-theme', nextTheme);
+              if (nextTheme === 'moss') {
+                const shade = (localStorage.getItem('moss-shade') || '00796B').replace(/^#/, '');
+                document.documentElement.setAttribute('data-moss-shade', shade);
+              } else {
+                document.documentElement.removeAttribute('data-moss-shade');
+              }
+              const meta = document.querySelector('meta[name="theme-color"]');
+              const mossShade = document.documentElement.getAttribute('data-moss-shade');
+              const barColor =
+                nextTheme === 'dark' ? '#0a0a0a' :
+                nextTheme === 'moss' ? (mossShade ? '#' + mossShade : '#00796B') :
+                nextTheme === 'rice' ? '#F2E9D8' : '#ffffff';
+              if (meta) meta.setAttribute('content', barColor);
+              document.documentElement.style.colorScheme = (nextTheme === 'light' || nextTheme === 'rice') ? 'light' : 'dark';
+              window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme: nextTheme } }));
             }
-            window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme: nextTheme } }));
             syncThemeCards();
             showToast(`已展开「${THEME_NAMES[nextTheme] || nextTheme}」纸境主题`);
           }, { signal });
@@ -1142,7 +1158,7 @@ const MOSS_SHADES = [
 
         // 墨玉弹性阻尼滑块绑定
         function bindInkJadeSwitch(btn, initialOn, onChange) {
-          if (!btn) return;
+          if (!btn) return () => {};
           const setVisual = (on) => {
             btn.classList.toggle('is-on', on);
             btn.setAttribute('aria-checked', String(on));
@@ -1153,20 +1169,37 @@ const MOSS_SHADES = [
             setVisual(next);
             onChange(next);
           }, { signal });
+          return setVisual;
         }
 
-        let trailOn = true;
+        const readTrailEnabled = () => {
+          if (typeof window.__isCursorTrailDisabled === 'function') {
+            return !window.__isCursorTrailDisabled();
+          }
+          try {
+            if (localStorage.getItem('cursor-trail') === 'disabled') return false;
+          } catch {}
+          return document.documentElement.getAttribute('data-cursor-trail') !== 'disabled';
+        };
+
+        let trailOn = readTrailEnabled();
         let rippleOn = true;
         try {
-          trailOn = localStorage.getItem('cursor-trail') !== 'off' && localStorage.getItem('cursor-trail') !== 'false';
           rippleOn = localStorage.getItem('settings-ink-ripple') !== '0';
           autoPingOnSelect = localStorage.getItem('settings-auto-ping') === '1';
         } catch {}
 
-        bindInkJadeSwitch(switchTrail, trailOn, (on) => {
-          try { localStorage.setItem('cursor-trail', on ? 'on' : 'off'); } catch {}
-          document.documentElement.dataset.cursorTrail = on ? 'on' : 'off';
-          if (!on && typeof window.__clearCursorTrail === 'function') window.__clearCursorTrail();
+        const setSwitchTrailVisual = bindInkJadeSwitch(switchTrail, trailOn, (on) => {
+          if (typeof window.__setCursorTrailDisabled === 'function') {
+            window.__setCursorTrailDisabled(!on);
+          } else if (on) {
+            try { localStorage.removeItem('cursor-trail'); } catch {}
+            document.documentElement.removeAttribute('data-cursor-trail');
+          } else {
+            try { localStorage.setItem('cursor-trail', 'disabled'); } catch {}
+            document.documentElement.setAttribute('data-cursor-trail', 'disabled');
+            if (typeof window.__clearCursorTrail === 'function') window.__clearCursorTrail();
+          }
           window.dispatchEvent(new CustomEvent('cursor-trail-change', { detail: { enabled: on } }));
           showToast(on ? '已开启水墨游丝笔迹拖尾' : '已收敛水墨笔迹拖尾');
         });
@@ -1182,12 +1215,16 @@ const MOSS_SHADES = [
           showToast(on ? '已开启选取模型后即刻测活' : '已关闭自动模型测活');
         });
 
-        // 书体分段游标 + 阅读字号平滑预览
+        // 书体分段游标 + 阅读字号平滑预览（严格对齐 BaseLayout 'site-font': 'pixel' | 'kai' 与 html[data-font="kai"]）
         let currentFont = 'pixel';
         let currentScale = 100;
         try {
-          const savedFont = localStorage.getItem('font-style') || document.documentElement.getAttribute('data-font');
-          if (savedFont === 'calligraphy' || savedFont === 'pixel') currentFont = savedFont;
+          const savedFont = localStorage.getItem('site-font');
+          if (savedFont === 'kai' || savedFont === 'pixel') {
+            currentFont = savedFont;
+          } else if (document.documentElement.getAttribute('data-font') === 'kai') {
+            currentFont = 'kai';
+          }
           const savedScale = Number(localStorage.getItem('blog-reading-scale'));
           if (savedScale >= 92 && savedScale <= 116) currentScale = savedScale;
         } catch {}
@@ -1235,7 +1272,7 @@ const MOSS_SHADES = [
             specimenBox.style.setProperty('--specimen-scale', (currentScale / 100).toFixed(3));
           }
           if (specimenMeta) {
-            specimenMeta.textContent = `${currentFont === 'calligraphy' ? '行云手书' : '像素碑刻'} · ${currentScale}%`;
+            specimenMeta.textContent = `${currentFont === 'kai' ? '行云手书' : '像素碑刻'} · ${currentScale}%`;
           }
           if (animateFeedback) {
             triggerSpecimenShimmer();
@@ -1253,16 +1290,49 @@ const MOSS_SHADES = [
 
         fontBtns.forEach((btn) => {
           btn.addEventListener('click', () => {
-            const chosen = btn.getAttribute('data-font-choice') || 'pixel';
+            const chosen = btn.getAttribute('data-font-choice') === 'kai' ? 'kai' : 'pixel';
             if (chosen === currentFont) return;
             currentFont = chosen;
-            try { localStorage.setItem('font-style', currentFont); } catch {}
-            document.documentElement.setAttribute('data-font', currentFont);
-            window.dispatchEvent(new CustomEvent('font-change', { detail: { font: currentFont } }));
+            try { localStorage.setItem('site-font', currentFont); } catch {}
+            if (typeof window.__transitionFont === 'function') {
+              window.__transitionFont(currentFont, btn);
+            } else if (typeof window.__applyFont === 'function') {
+              window.__applyFont(currentFont);
+            } else if (currentFont === 'kai') {
+              document.documentElement.setAttribute('data-font', 'kai');
+              window.dispatchEvent(new CustomEvent('font-change', { detail: { font: 'kai' } }));
+            } else {
+              document.documentElement.removeAttribute('data-font');
+              window.dispatchEvent(new CustomEvent('font-change', { detail: { font: 'pixel' } }));
+            }
             applyTypographyState(true);
-            showToast(`已切换书体为「${currentFont === 'calligraphy' ? '行云手书' : '像素碑刻'}」`);
+            showToast(`已切换书体为「${currentFont === 'kai' ? '行云手书' : '像素碑刻'}」`);
           }, { signal });
         });
+
+        window.addEventListener('font-change', (e) => {
+          const next = e?.detail?.font === 'kai' || document.documentElement.getAttribute('data-font') === 'kai' ? 'kai' : 'pixel';
+          if (next !== currentFont) {
+            currentFont = next;
+            applyTypographyState(false);
+          }
+        }, { signal });
+
+        if (typeof MutationObserver !== 'undefined') {
+          const rootAttrMO = new MutationObserver(() => {
+            setSwitchTrailVisual(readTrailEnabled());
+            const domFont = document.documentElement.getAttribute('data-font') === 'kai' ? 'kai' : 'pixel';
+            if (domFont !== currentFont) {
+              currentFont = domFont;
+              applyTypographyState(false);
+            }
+          });
+          rootAttrMO.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-cursor-trail', 'data-font'],
+          });
+          signal.addEventListener('abort', () => rootAttrMO.disconnect(), { once: true });
+        }
 
         fontScaleRange?.addEventListener('input', (e) => {
           currentScale = Number(e.target.value) || 100;
@@ -1341,7 +1411,7 @@ const MOSS_SHADES = [
       if (togglePwBtn && adminPasswordInput) {
         togglePwBtn.addEventListener('click', () => {
           adminPasswordInput.type = adminPasswordInput.type === 'password' ? 'text' : 'password';
-        });
+        }, { signal });
       }
 
       const toggleApiKeyBtn = document.getElementById('toggleApiKeyVisibility');
@@ -1349,7 +1419,7 @@ const MOSS_SHADES = [
       if (toggleApiKeyBtn && aiApiKeyInput) {
         toggleApiKeyBtn.addEventListener('click', () => {
           aiApiKeyInput.type = aiApiKeyInput.type === 'password' ? 'text' : 'password';
-        });
+        }, { signal });
       }
 
       // 登录表单
@@ -1395,13 +1465,13 @@ const MOSS_SHADES = [
           loginSpinner.classList.add('hidden');
           loginBtnText.textContent = '验证密码并解锁';
         }
-      });
+      }, { signal });
 
       // 退出登录
       logoutBtn?.addEventListener('click', () => {
         setAuthedState(false);
         showToast('已安全退出控制台');
-      });
+      }, { signal });
 
       // 加载配置数据
       async function loadConfig() {
@@ -1468,11 +1538,11 @@ const MOSS_SHADES = [
       tempRange?.addEventListener('input', (e) => {
         tempNum.value = e.target.value;
         tempDisplay.textContent = e.target.value;
-      });
+      }, { signal });
       tempNum?.addEventListener('input', (e) => {
         tempRange.value = e.target.value;
         tempDisplay.textContent = e.target.value;
-      });
+      }, { signal });
 
       // 拉取模型列表
       const fetchModelsBtn = document.getElementById('fetchModelsBtn');
@@ -1529,20 +1599,20 @@ const MOSS_SHADES = [
             if (autoPingOnSelect && m) {
               testSpecificModel(m, null);
             }
-          });
+          }, { signal });
         });
 
         modelsListContainer.querySelectorAll('[data-test-model]').forEach((btn) => {
           btn.addEventListener('click', () => {
             const m = btn.getAttribute('data-test-model');
             testSpecificModel(m, btn);
-          });
+          }, { signal });
         });
       }
 
       modelFilterInput?.addEventListener('input', (e) => {
         renderModels(e.target.value);
-      });
+      }, { signal });
 
       // ---------- 邀请码与账号 ----------
       const inviteListEl = document.getElementById('inviteList');
@@ -1668,7 +1738,7 @@ const MOSS_SHADES = [
         } finally {
           generateInviteBtn.disabled = false;
         }
-      });
+      }, { signal });
 
       inviteListEl?.addEventListener('click', async (event) => {
         const target = event.target;
@@ -1693,7 +1763,7 @@ const MOSS_SHADES = [
           else showToast(`已作废 ${revokeCode}`);
           await loadInvites();
         }
-      });
+      }, { signal });
 
       accountListEl?.addEventListener('click', async (event) => {
         const target = event.target;
@@ -1720,7 +1790,7 @@ const MOSS_SHADES = [
         } catch {
           showToast(`临时密码：${data.temporaryPassword}`);
         }
-      });
+      }, { signal });
 
       fetchModelsBtn?.addEventListener('click', async () => {
         fetchModelsBtn.disabled = true;
@@ -1750,7 +1820,7 @@ const MOSS_SHADES = [
           fetchModelsBtn.disabled = false;
           fetchModelsIcon.classList.remove('animate-spin');
         }
-      });
+      }, { signal });
 
       // 模型测活核心
       async function testSpecificModel(targetModel, triggerBtn) {
@@ -1811,7 +1881,7 @@ const MOSS_SHADES = [
       testModelBtn?.addEventListener('click', () => {
         const currentModel = document.getElementById('aiModel').value.trim();
         testSpecificModel(currentModel, testModelBtn);
-      });
+      }, { signal });
 
       // 清空缓存
       const quickClearCacheBtn = document.getElementById('quickClearCacheBtn');
@@ -1832,7 +1902,7 @@ const MOSS_SHADES = [
         } finally {
           quickClearCacheBtn.disabled = false;
         }
-      });
+      }, { signal });
 
       // 伴读提示词恢复默认
       let defaultPromptCached = '';
@@ -1842,7 +1912,7 @@ const MOSS_SHADES = [
           document.getElementById('askSystemPrompt').value = defaultPromptCached;
           showToast('已载入默认人设提示词');
         }
-      });
+      }, { signal });
 
       // 保存设置
       const settingsForm = document.getElementById('settingsForm');
@@ -1892,7 +1962,7 @@ const MOSS_SHADES = [
           saveSpinner.classList.add('hidden');
           saveBtnText.textContent = '保存并应用配置';
         }
-      });
+      }, { signal });
 
       // 初始化：若已有 token，尝试自动加载
       if (currentToken) {
@@ -2234,8 +2304,8 @@ const MOSS_SHADES = [
     [data-theme="dark"] .specimen-body {
       color: #ebe8e1;
     }
-    .settings-specimen-box[data-specimen-font="calligraphy"] .specimen-body {
-      font-family: var(--font-hand, var(--font-serif, serif));
+    .settings-specimen-box[data-specimen-font="kai"] .specimen-body {
+      font-family: var(--font-kai, var(--font-hand, var(--font-serif, serif)));
       letter-spacing: 0.04em;
     }
 

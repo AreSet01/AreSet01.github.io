@@ -224,15 +224,17 @@ import Header from '../components/Header.astro';
       if (!accountTabs || !accountTabGlider) return;
       const activeBtn = accountTabs.querySelector<HTMLElement>('.account-tab.is-active');
       if (!activeBtn || !activeBtn.offsetWidth) return;
+      const sx = Math.max(0.05, activeBtn.offsetWidth / 100);
+      accountTabGlider.style.setProperty('--pill-rx', `${(7 / sx).toFixed(2)}px`);
+      const nextTransform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
       if (immediate || reduceMotion) {
-        const prev = accountTabGlider.style.transition;
         accountTabGlider.style.transition = 'none';
-        accountTabGlider.style.width = `${activeBtn.offsetWidth}px`;
-        accountTabGlider.style.transform = `translate3d(${activeBtn.offsetLeft}px, 0, 0)`;
-        accountTabGlider.style.transition = prev;
+        accountTabGlider.style.transform = nextTransform;
+        requestAnimationFrame(() => {
+          if (accountTabGlider) accountTabGlider.style.transition = '';
+        });
       } else {
-        accountTabGlider.style.width = `${activeBtn.offsetWidth}px`;
-        accountTabGlider.style.transform = `translate3d(${activeBtn.offsetLeft}px, 0, 0)`;
+        accountTabGlider.style.transform = nextTransform;
       }
       accountTabGlider.classList.add('is-ready');
     }
@@ -897,8 +899,10 @@ import Header from '../components/Header.astro';
     top: 4px;
     bottom: 4px;
     left: 0;
+    width: 100px;
+    transform-origin: 0 50%;
     z-index: 0;
-    border-radius: 7px;
+    border-radius: var(--pill-rx, 7px) / 7px;
     background: var(--bg-elev);
     border: 1px solid var(--rule);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -1750,6 +1754,7 @@ import Header from '../components/Header.astro';
   @media (prefers-reduced-motion: reduce) {
     .account-shell,
     .account-head,
+    .account-card:not([hidden]),
     .account-form:not([hidden]),
     .account-message.is-pop,
     #profileView:not([hidden]) {
@@ -1758,7 +1763,6 @@ import Header from '../components/Header.astro';
       opacity: 1 !important;
       transform: none !important;
     }
-    .account-card,
     .account-card::after,
     .account-tab-glider,
     .bridge-stream,
