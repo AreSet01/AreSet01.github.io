@@ -394,7 +394,7 @@ export function buildDefaultCommands(ctx: {
     {
       id: 'cmd:theme-light',
       title: '切换主题：浅色宣纸 (Light)',
-      summary: '清浅素宣底色，温润朱砂点缀',
+      summary: '清浅素宣底色，纯粹浓淡水墨',
       keywords: 'theme light 主题 浅色 宣纸 日间 亮色',
       badge: ctx.currentTheme === 'light' ? '当前主题' : '主题',
       section: '外观与排印',

@@ -4527,8 +4527,8 @@ mark.article-highlight-mark.is-code-mark,
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  padding: 0.12rem 0.44rem;
-  border-radius: 4px;
+  padding: 0.12rem 0.5rem;
+  border-radius: 9999px;
   border: 1px solid var(--rule-strong);
   font-family: var(--font-mono);
   font-size: 0.64rem;
@@ -4539,9 +4539,9 @@ mark.article-highlight-mark.is-code-mark,
 }
 
 .search-kind-badge[data-tone="vermilion"] {
-  border-color: color-mix(in srgb, var(--vermilion, #b83b28) 45%, transparent);
+  border-color: color-mix(in srgb, var(--vermilion, var(--accent)) 45%, transparent);
   color: var(--vermilion, var(--accent));
-  background: color-mix(in srgb, var(--vermilion, #b83b28) 8%, transparent);
+  background: color-mix(in srgb, var(--vermilion, var(--accent)) 8%, transparent);
 }
 
 .search-kind-badge[data-tone="ink"] {

@@ -86,7 +86,7 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
     opacity: 0.42;
   }
 
-  /* 悬停点亮专属「水墨星座连线脉冲」：朱砂墨流自焦点标签向共现伴星游走 */
+  /* 悬停点亮专属「水墨星座连线脉冲」：浓淡墨流自焦点标签向共现伴星游走 */
   :global(.tag-link-pulse) {
     fill: none;
     stroke: var(--vermilion);
@@ -112,7 +112,7 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
     }
   }
 
-  /* 朱砂星芒光晕（零 blur、纯 transform + opacity 四芒印环） */
+  /* 水墨星芒光晕（零 blur、纯 transform + opacity 同心水纹环） */
   .tag-node {
     position: relative;
     isolation: isolate;
@@ -129,13 +129,13 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
     pointer-events: none;
     z-index: -1;
     opacity: 0;
-    transform: scale(0.55) rotate(0deg);
+    transform: scale(0.55);
     transition:
       opacity 280ms var(--ease),
       transform 480ms cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
-  /* 外环水墨微晕 + 内嵌朱砂四芒菱印 */
+  /* 外环水墨微晕 + 内嵌同心水纹墨环 */
   .tag-node-halo::before,
   .tag-node-halo::after {
     content: '';
@@ -155,21 +155,21 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
   }
 
   .tag-node-halo::after {
-    inset: 26%;
-    border: 1px solid color-mix(in srgb, var(--vermilion) 58%, transparent);
-    transform: rotate(45deg);
+    inset: 24%;
+    border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--vermilion) 52%, transparent);
   }
 
   .tag-node:hover .tag-node-halo,
   .tag-node:focus-visible .tag-node-halo,
   .tag-node:global(.is-origin) .tag-node-halo {
     opacity: 1;
-    transform: scale(1.08) rotate(45deg);
+    transform: scale(1.08);
   }
 
   .tag-node:global(.is-lit):not(:global(.is-origin)) .tag-node-halo {
     opacity: 0.52;
-    transform: scale(0.82) rotate(22deg);
+    transform: scale(0.82);
   }
 
   .tag-node:global(.is-origin) {
