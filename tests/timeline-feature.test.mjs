@@ -101,3 +101,37 @@ test('Timeline Styles: Global CSS supports both desktop horizontal and mobile ve
     'Mobile card must reveal smoothly when is-revealed'
   );
 });
+
+test('Timeline Regressions: Unclipped desktop cards, max-content track, tilt transition isolation, card drag & breakpoint sync', () => {
+  const timelineContent = fs.readFileSync(path.join(rootDir, 'src/pages/timeline.astro'), 'utf-8');
+  const globalCss = fs.readFileSync(path.join(rootDir, 'src/styles/global.css'), 'utf-8');
+
+  const trackMatch = globalCss.match(/\.timeline-track\s*\{[\s\S]*?\}/);
+  assert.ok(trackMatch && trackMatch[0].includes('width: max-content;'), 'Desktop .timeline-track must use width: max-content so end padding contributes to scrollWidth');
+
+  assert.ok(
+    globalCss.includes('max-height: calc(50% - clamp(') && globalCss.includes('max-height: none;'),
+    'Desktop cards must constrain max-height within stage half and reset max-height on mobile'
+  );
+
+  const mobileMatch = globalCss.match(/@media\s*\(max-width:\s*1023px\)\s*\{\s*\.timeline-stage[\s\S]*?\.timeline-progress\s*\{\s*display:\s*none;\s*\}\s*\}/);
+  assert.ok(mobileMatch, 'Must find mobile timeline media block');
+  assert.ok(!mobileMatch[0].includes('box-shadow '), 'Mobile timeline cards/dots must not animate or glow box-shadow');
+
+  assert.ok(
+    timelineContent.includes(':global(.is-paper-hovered)') && timelineContent.includes(':global(.timeline-stage.is-dragging)'),
+    'Timeline card must suspend CSS 720ms transform transition while JS tilt spring or drag is active'
+  );
+  assert.ok(
+    timelineContent.includes('.timeline-entry:not(:global(.is-near)) .timeline-card[data-timeline-bookmark]'),
+    'Unrevealed timeline cards must not intercept pointer events'
+  );
+  assert.ok(
+    timelineContent.includes("viewport.addEventListener('dragstart'") && timelineContent.includes('dragDistance < 6') && timelineContent.includes('stopImmediatePropagation()'),
+    'Timeline drag must work over cards using 6px threshold and window-capture click suppression'
+  );
+  assert.ok(
+    timelineContent.includes("desktopMql.addEventListener('change', handleViewportModeChange, { signal })"),
+    'Timeline must re-initialize when crossing the 1024px desktop/mobile breakpoint'
+  );
+});
