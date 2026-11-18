@@ -29,10 +29,10 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
 
 <BaseLayout title="Timeline" description="按时间展开的一卷手稿">
   <Header />
-  <main id="main-content" tabindex="-1" class="container-wide flex-1 timeline-main pt-6 pb-20 lg:pt-8 outline-none">
+  <main id="main-content" tabindex="-1" class="container-wide flex-1 timeline-main pt-4 pb-12 lg:pt-6 outline-none">
     <section class="timeline-head">
       <p class="eyebrow" data-enter="top">Timeline · 岁月手卷</p>
-      <h1 class="section-title mt-4" data-enter="left">Timeline</h1>
+      <h1 class="section-title mt-3" data-enter="left">Timeline</h1>
       <p class="timeline-hint" data-enter="left">
         这里是时间线！好叭就是做来看的压根用不上~
       </p>
@@ -276,17 +276,29 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
   }
 
   @media (min-width: 1024px) {
+    .timeline-entry:not(:global(.is-near)) .timeline-card[data-timeline-bookmark] {
+      pointer-events: none;
+    }
+
     .timeline-entry.is-above .timeline-card[data-timeline-bookmark] {
-      transform: perspective(920px) translate3d(0, 18px, 0) rotateX(15deg) rotateZ(-1.15deg) scale(0.955);
+      transform: perspective(920px) translate3d(0, 14px, 0) rotateX(14deg) rotateZ(-1deg) scale(0.955);
     }
 
     .timeline-entry.is-below .timeline-card[data-timeline-bookmark] {
-      transform: perspective(920px) translate3d(0, -18px, 0) rotateX(-15deg) rotateZ(1.15deg) scale(0.955);
+      transform: perspective(920px) translate3d(0, -14px, 0) rotateX(-14deg) rotateZ(1deg) scale(0.955);
     }
 
     .timeline-entry:global(.is-near) .timeline-card[data-timeline-bookmark] {
       opacity: 1;
       transform: perspective(920px) translate3d(0, 0, 0) rotateX(0deg) rotateZ(0deg) scale(1);
+    }
+
+    .timeline-card[data-timeline-bookmark]:global(.is-paper-hovered),
+    :global(.timeline-stage.is-dragging) .timeline-card[data-timeline-bookmark] {
+      transition:
+        opacity 280ms var(--ease-card),
+        border-color 240ms var(--ease-card),
+        background-color 240ms var(--ease-card) !important;
     }
   }
 
@@ -415,8 +427,14 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
       if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
     });
 
+    const desktopMql = window.matchMedia('(min-width: 1024px)');
+    const motionMql = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handleViewportModeChange = () => initTimeline();
+    desktopMql.addEventListener('change', handleViewportModeChange, { signal });
+    motionMql.addEventListener('change', handleViewportModeChange, { signal });
+
     // Narrow screens read the scroll as a rich vertical chronicle with mobile ScrollTrigger interactions
-    const horizontal = window.matchMedia('(min-width: 1024px)').matches && !reduceMotion;
+    const horizontal = desktopMql.matches && !reduceMotion;
     if (!horizontal) {
       if (reduceMotion) {
         entries.forEach((entry) => entry.classList.add('is-near', 'is-revealed'));
@@ -509,6 +527,10 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
         ScrollTrigger.getAll().forEach((trigger) => {
           if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
         });
+        entries.forEach((entry) => entry.classList.remove('is-near', 'is-revealed'));
+        endEl?.classList.remove('is-near');
+        if (baselineFill) baselineFill.style.transform = '';
+        if (yearEl) gsap.set(yearEl, { clearProps: 'transform,opacity' });
         (window as any)[CLEANUP_KEY] = undefined;
       };
       return;
@@ -531,7 +553,7 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
       scrollTrigger: {
         id: `${TRIGGER_PREFIX}unroll`,
         trigger: stage,
-        start: 'top top+=24',
+        start: 'top top+=12',
         end: () => `+=${distance()}`,
         pin: true,
         anticipatePin: 1,
@@ -583,8 +605,8 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
         id: `${TRIGGER_PREFIX}end-marker`,
         trigger: endMarker,
         containerAnimation: unroll,
-        start: 'left 88%',
-        end: 'right 5%',
+        start: 'left 94%',
+        end: 'right -100%',
         toggleClass: { targets: endMarker, className: 'is-near' },
       });
     }
@@ -632,62 +654,109 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
 
     // Drag to unroll — EWMA smoothed velocity + inertia fallback when Lenis is absent
     let dragging = false;
+    let dragMoved = false;
+    let dragDistance = 0;
+    let activePointerId: number | null = null;
+    let suppressClickUntil = 0;
     let lastX = 0;
+    let lastY = 0;
     let lastT = 0;
     let velocity = 0;
     let inertiaTween: gsap.core.Tween | null = null;
     const fallbackScrollState = { y: 0 };
 
+    const getMaxScrollY = () => Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const scrollWindowY = (nextY: number, duration = 0) => {
+      const clampedY = gsap.utils.clamp(0, getMaxScrollY(), nextY);
+      if ((window as any).lenis) {
+        (window as any).lenis.scrollTo(clampedY, duration > 0 ? { duration } : { immediate: true });
+      } else if (duration > 0) {
+        fallbackScrollState.y = window.scrollY;
+        inertiaTween = gsap.to(fallbackScrollState, {
+          y: clampedY,
+          duration,
+          ease: 'expo.out',
+          onUpdate: () => window.scrollTo(0, fallbackScrollState.y),
+        });
+      } else {
+        window.scrollTo(0, clampedY);
+      }
+    };
+
+    viewport.addEventListener('dragstart', (event) => {
+      event.preventDefault();
+    }, { signal });
+
+    // Capture on window before document-level [data-post-preview] / router click handlers fire.
+    window.addEventListener('click', (event) => {
+      if (!(event.target instanceof Node) || !viewport.contains(event.target)) return;
+      if (dragMoved || performance.now() < suppressClickUntil) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        event.stopPropagation();
+      }
+    }, { capture: true, signal });
+
     viewport.addEventListener('pointerdown', (event) => {
       if (event.button !== 0) return;
-      if ((event.target as Element).closest('a')) return;
       inertiaTween?.kill();
       inertiaTween = null;
       dragging = true;
+      dragMoved = false;
+      dragDistance = 0;
+      activePointerId = event.pointerId;
       lastX = event.clientX;
+      lastY = event.clientY;
       lastT = performance.now();
       velocity = 0;
-      stage.classList.add('is-dragging');
-      try { viewport.setPointerCapture(event.pointerId); } catch {}
     }, { signal });
 
-    viewport.addEventListener('pointermove', (event) => {
-      if (!dragging) return;
+    window.addEventListener('pointermove', (event) => {
+      if (!dragging || event.pointerId !== activePointerId) return;
       const dx = event.clientX - lastX;
+      const dy = event.clientY - lastY;
+      dragDistance += Math.hypot(dx, dy);
+      lastY = event.clientY;
+
+      if (!dragMoved) {
+        if (dragDistance < 6) return;
+        dragMoved = true;
+        suppressClickUntil = performance.now() + 300;
+        stage.classList.add('is-dragging');
+        try { viewport.setPointerCapture(event.pointerId); } catch {}
+      }
+
       const now = performance.now();
       const dtMs = Math.max(4, now - lastT);
       const instVel = dx / dtMs;
       velocity = velocity * 0.35 + instVel * 0.65;
       lastX = event.clientX;
       lastT = now;
-      const target = Math.max(0, window.scrollY - dx);
-      if ((window as any).lenis) (window as any).lenis.scrollTo(target, { immediate: true });
-      else window.scrollTo(0, target);
+      scrollWindowY(window.scrollY - dx);
     }, { signal });
 
-    const endDrag = () => {
-      if (!dragging) return;
+    const endDrag = (event: PointerEvent) => {
+      if (!dragging || event.pointerId !== activePointerId) return;
+      const didMove = dragMoved;
       dragging = false;
+      dragMoved = false;
+      activePointerId = null;
       stage.classList.remove('is-dragging');
+      try {
+        if (viewport.hasPointerCapture(event.pointerId)) {
+          viewport.releasePointerCapture(event.pointerId);
+        }
+      } catch {}
+      if (!didMove) return;
+      suppressClickUntil = performance.now() + 220;
       // 若松手前已静置超过 85ms 则抑制余速，避免停顿后误甩
       if (performance.now() - lastT > 85) return;
       const flick = gsap.utils.clamp(-1400, 1400, -velocity * 260);
       if (Math.abs(flick) <= 20) return;
-      const destY = Math.max(0, window.scrollY + flick);
-      if ((window as any).lenis) {
-        (window as any).lenis.scrollTo(destY, { duration: 1.1 });
-      } else {
-        fallbackScrollState.y = window.scrollY;
-        inertiaTween = gsap.to(fallbackScrollState, {
-          y: destY,
-          duration: 0.95,
-          ease: 'expo.out',
-          onUpdate: () => window.scrollTo(0, fallbackScrollState.y),
-        });
-      }
+      scrollWindowY(window.scrollY + flick, (window as any).lenis ? 1.1 : 0.95);
     };
-    viewport.addEventListener('pointerup', endDrag, { signal });
-    viewport.addEventListener('pointercancel', endDrag, { signal });
+    window.addEventListener('pointerup', endDrag, { signal });
+    window.addEventListener('pointercancel', endDrag, { signal });
 
     // Support natural horizontal two-finger trackpad swipe while stage is pinned
     viewport.addEventListener(
@@ -697,9 +766,7 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
         if (!st || !st.isActive) return;
         if (Math.abs(event.deltaX) <= Math.abs(event.deltaY) * 1.15) return;
         event.preventDefault();
-        const nextY = Math.max(0, window.scrollY + event.deltaX);
-        if ((window as any).lenis) (window as any).lenis.scrollTo(nextY, { immediate: true });
-        else window.scrollTo(0, nextY);
+        scrollWindowY(window.scrollY + event.deltaX);
       },
       { passive: false, signal },
     );
@@ -719,6 +786,12 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
       }, 160);
     });
     ro.observe(track);
+    document.fonts?.ready?.then(() => {
+      if (!signal.aborted && !dragging) {
+        cachePositions();
+        ScrollTrigger.refresh();
+      }
+    });
     signal.addEventListener('abort', () => {
       ro.disconnect();
       window.clearTimeout(refreshTimer);
@@ -728,10 +801,15 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
       controller.abort();
       inertiaTween?.kill();
       inertiaTween = null;
+      stage.classList.remove('is-dragging');
       ScrollTrigger.getAll().forEach((trigger) => {
         if (String(trigger.vars.id || '').startsWith(TRIGGER_PREFIX)) trigger.kill();
       });
+      entries.forEach((entry) => entry.classList.remove('is-near'));
+      endMarker?.classList.remove('is-near');
       gsap.set(track, { clearProps: 'transform' });
+      if (yearEl) gsap.set(yearEl, { clearProps: 'transform,opacity' });
+      if (progressEl) progressEl.style.transform = '';
       if (mountains) mountains.style.transform = '';
       if (baselineFill) baselineFill.style.transform = '';
       if (brushNib) brushNib.style.opacity = '0';
