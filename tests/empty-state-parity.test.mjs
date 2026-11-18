@@ -82,7 +82,19 @@ test('gallery / notes / life / mindmap：塌缩期间禁止强制钳制滚动，
     assert.match(
       src,
       /container\.style\.minHeight = '0px';\s*\n\s*container\.classList\.add\('is-empty'\);/,
-      `${name}.astro 必须先等塌缩到 0，再挂 is-empty（否则 display:none 会把 0.55s 塌缩变成单帧瞬塌）`
+      `${name}.astro 必须先等塌缩到 0，再挂 is-empty`
+    );
+
+    // 根除落定后单帧 34px 顿变：.is-empty 严禁使用 display:none 破坏相邻兄弟外边距边界，且塌缩需同步归零上下 padding
+    const isEmptyBlock = src.match(/\.(?:notes-masonry-board|gallery-grid|life-grid)\.is-empty\s*\{([^}]+)\}/)?.[1] || '';
+    assert.ok(isEmptyBlock, `${name}.astro 必须声明容器 .is-empty 样式`);
+    assert.doesNotMatch(isEmptyBlock, /display\s*:\s*none/, `${name}.astro 的 .is-empty 严禁使用 display:none 触发相邻外边距折叠瞬跳`);
+    assert.match(isEmptyBlock, /height\s*:\s*0\s*!important/, `${name}.astro 的 .is-empty 必须锁死 0 高度盒模型`);
+    assert.match(isEmptyBlock, /padding-top\s*:\s*0\s*!important/, `${name}.astro 的 .is-empty 必须锁死 0 上内边距`);
+    assert.match(
+      src,
+      /paddingTop:\s*0,\s*\n\s*paddingBottom:\s*0,\s*\n\s*minHeight:\s*0,\s*\n\s*duration:\s*0\.55,\s*\n\s*ease:\s*'power3\.out'/,
+      `${name}.astro 塌缩动画必须同步收拢 paddingTop/paddingBottom 并采用连续减速曲线避免二次顿变`
     );
 
     // 空面板浮现统一传 { replay: true } (0.44s)，空态退回卡片统一 0.22s 淡出

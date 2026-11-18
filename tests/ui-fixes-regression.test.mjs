@@ -284,4 +284,31 @@ test('8. BaseLayout.astro & mindmap.astro: single flash-free entrance, in-place 
   assert.ok(mindmap.includes('function getMindmapsFingerprint('), 'mindmap guards mindmaps:synced with visual fingerprint to avoid killing entrance animations');
   assert.ok(mindmap.includes('@keyframes mmCardInkDry'), 'mindmap card deletion plays smooth circular ink-drying exit');
   assert.ok(mindmap.includes('cardEl.style.maxHeight = `${initialHeight}px`'), 'mindmap pins initial maxHeight before .is-deleting so collapse transitions smoothly');
+
+  // Anti-twitch guarantees across ClientRouter & Vite dev module waterfall
+  assert.ok(
+    baseLayout.includes('window.clearTimeout(jsEnterSafetyTimer)') &&
+      baseLayout.includes('pageEnterTl.kill()') &&
+      baseLayout.includes("e.newDocument.documentElement.classList.add('js-enter')"),
+    'BaseLayout cleans up previous pageEnterTl & jsEnterSafetyTimer on swap so html.js-enter never strips mid-navigation'
+  );
+  assert.match(
+    mindmap,
+    /id="mm-subtabs-cluster"[\s\S]*?data-mm-cat="all"[\s\S]*?data-mm-cat="架构拆解"/,
+    'mindmap SSR-renders default subtab buttons so toolbar height never jumps 10.5px -> 50.58px on hydration'
+  );
+  assert.ok(
+    mindmap.includes('let subtabGliderPlacedOnce = false;') &&
+      mindmap.includes("subtabsGlider.style.transition = 'none'"),
+    'mindmap places #mm-subtabs-glider with transition:none on initial mount/resize'
+  );
+  assert.doesNotMatch(
+    mindmap.match(/:global\(\.mm-card\)\s*\{([^}]+)\}/)?.[1] || '',
+    /transition:[^;]*\btransform(?!-)/,
+    ':global(.mm-card) CSS transition must not include transform (avoids fighting WAAPI entrance)'
+  );
+  assert.ok(
+    mindmap.includes('canvasViewport.clientWidth || rawVp.width'),
+    'mindmap refreshViewportMetrics uses unscaled clientWidth/clientHeight so modal open scale never mis-centers canvas'
+  );
 });

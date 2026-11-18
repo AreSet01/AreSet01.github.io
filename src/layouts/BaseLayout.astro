@@ -457,6 +457,7 @@ const {
               if (localStorage.getItem('sidebar-collapsed') === 'true') {
                 e.newDocument.documentElement.setAttribute('data-sidebar-collapsed', 'true');
               }
+              e.newDocument.documentElement.classList.add('js-enter');
             }
           } catch (err) {}
         });
@@ -1297,17 +1298,27 @@ const {
             }
           });
 
+          if (pageEnterTl) {
+            pageEnterTl.kill();
+            pageEnterTl = null;
+          }
           const tl = gsap.timeline({
             delay: fromPostTitleHold ? 0.02 : (hasNavigated ? 0.12 : 0.05),
             onComplete: () => {
+              if (pageEnterTl === tl) pageEnterTl = null;
               document.documentElement.classList.remove('js-enter');
             },
           });
+          pageEnterTl = tl;
           tl.timeScale(timeScale);
           immediate.forEach(({ el, at, cardIdx, knownPanel }) =>
             scheduleEnter(tl, el, at, null, cardIdx, knownPanel, preMetaMap.get(el))
           );
         } else {
+          if (pageEnterTl) {
+            pageEnterTl.kill();
+            pageEnterTl = null;
+          }
           document.documentElement.classList.remove('js-enter');
         }
 
@@ -1381,6 +1392,8 @@ const {
       let enteredThisDocument = false;
       let holdRelease = null;
       let holdTimer = 0;
+      let jsEnterSafetyTimer = 0;
+      let pageEnterTl: gsap.core.Timeline | null = null;
       let releasedEarly = false;
       window.__releasePageEnter = (options) => {
         options = options || {};
@@ -1446,7 +1459,8 @@ const {
             }
           }, maxWait);
           // Global safety: guarantee js-enter is never stuck indefinitely
-          window.setTimeout(() => {
+          window.clearTimeout(jsEnterSafetyTimer);
+          jsEnterSafetyTimer = window.setTimeout(() => {
             document.documentElement.classList.remove('js-enter');
           }, maxWait + 500);
           return;
@@ -1454,7 +1468,8 @@ const {
         releasedEarly = false;
         initPageEnter();
         // Fallback safety: guarantee js-enter is cleared
-        window.setTimeout(() => {
+        window.clearTimeout(jsEnterSafetyTimer);
+        jsEnterSafetyTimer = window.setTimeout(() => {
           document.documentElement.classList.remove('js-enter');
         }, 1200);
       }
@@ -1488,6 +1503,12 @@ const {
           pendingScrollReplayRaf = 0;
         }
         pendingScrollReplays = [];
+        if (pageEnterTl) {
+          pageEnterTl.kill();
+          pageEnterTl = null;
+        }
+        window.clearTimeout(holdTimer);
+        window.clearTimeout(jsEnterSafetyTimer);
         try {
           if (typeof (window as any).__areSetPostRevealCleanup__ === 'function') {
             (window as any).__areSetPostRevealCleanup__();
@@ -1503,6 +1524,7 @@ const {
         enteredThisDocument = false;
         holdRelease = null;
         window.clearTimeout(holdTimer);
+        window.clearTimeout(jsEnterSafetyTimer);
         releasedEarly = false;
         // Astro resets <html> attributes on swap — re-arm the pre-paint hide
         document.documentElement.classList.add('js-enter');

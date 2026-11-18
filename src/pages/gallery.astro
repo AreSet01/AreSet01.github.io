@@ -508,10 +508,19 @@ const countByCategory = {
   }
 
   .gallery-grid.is-empty {
-    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    border-width: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
   }
 
   .gallery-empty-state {
+    margin-top: 0.5rem;
     min-height: 380px;
     display: flex;
     flex-direction: column;
@@ -1417,6 +1426,8 @@ const countByCategory = {
       }
       const currentH = container.offsetHeight;
       container.style.minHeight = '';
+      container.style.paddingTop = '';
+      container.style.paddingBottom = '';
       cards.forEach((card) => {
         clearCardMotion(card);
         card.classList.remove('is-reflowing', 'is-entering');
@@ -1561,13 +1572,18 @@ const countByCategory = {
 
         // 阶段 4：钉住的空白网格高度在 0.55s 内徐收至 0
         tl.to(container, {
+          paddingTop: 0,
+          paddingBottom: 0,
           minHeight: 0,
           duration: 0.55,
-          ease: 'power2.inOut',
+          ease: 'power3.out',
+          autoRound: false,
           onUpdate: () => refreshScroll({ clamp: false }),
           onComplete: () => {
             container.style.minHeight = '0px';
             container.classList.add('is-empty');
+            container.style.paddingTop = '';
+            container.style.paddingBottom = '';
             refreshScroll();
           },
         }, switchTime);

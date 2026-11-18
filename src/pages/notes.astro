@@ -639,6 +639,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   /* 卡片多列看板：使用 CSS Multi-Column 瀑布流，搭配 break-inside: avoid 杜绝跨列撕裂与垂直空洞 */
   /* 空状态面板 */
   .notes-empty-state {
+    margin-top: 0.5rem;
     min-height: 380px;
     display: flex;
     flex-direction: column;
@@ -667,7 +668,15 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     width: 100%;
   }
   .notes-masonry-board.is-empty {
-    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    border-width: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
   }
 
   :global(.masonry-col) {
@@ -2317,6 +2326,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       // 先量再清：若上一次空态塌缩被打断，offsetHeight 里还带着那一帧的钉住高度
       const currentH = container.offsetHeight;
       container.style.minHeight = '';
+      container.style.paddingTop = '';
+      container.style.paddingBottom = '';
       emptyState.style.minHeight = '';
 
       const filtered = getFilteredNotes();
@@ -2448,13 +2459,18 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
         // 阶段 4：钉住的空白网格高度在 0.55s 内徐收至 0，空面板随之上浮到位
         tl.to(container, {
+          paddingTop: 0,
+          paddingBottom: 0,
           minHeight: 0,
           duration: 0.55,
-          ease: 'power2.inOut',
+          ease: 'power3.out',
+          autoRound: false,
           onUpdate: () => refreshScroll({ clamp: false }),
           onComplete: () => {
             container.style.minHeight = '0px';
             container.classList.add('is-empty');
+            container.style.paddingTop = '';
+            container.style.paddingBottom = '';
             refreshScroll();
           },
         }, switchTime);

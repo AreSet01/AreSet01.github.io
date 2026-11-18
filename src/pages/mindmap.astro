@@ -103,7 +103,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         <div class="flex items-center gap-2 max-w-full min-w-0">
           <div class="subtabs-cluster self-start" id="mm-subtabs-cluster" role="tablist" aria-label="思维导图分类切换">
             <span class="subtabs-glider" id="mm-subtabs-glider" aria-hidden="true"></span>
-            <!-- JS 动态渲染 全部导图 + 各分类胶囊 -->
+            <button type="button" class="sub-tab-btn active" data-mm-cat="all" aria-pressed="true">全部导图</button>
+            <button type="button" class="sub-tab-btn" data-mm-cat="架构拆解" aria-pressed="false">架构拆解</button>
+            <button type="button" class="sub-tab-btn" data-mm-cat="源码研读" aria-pressed="false">源码研读</button>
+            <button type="button" class="sub-tab-btn" data-mm-cat="知识体系" aria-pressed="false">知识体系</button>
+            <button type="button" class="sub-tab-btn" data-mm-cat="灵感随想" aria-pressed="false">灵感随想</button>
           </div>
           <button
             id="mm-cat-manager-btn"
@@ -771,10 +775,19 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     opacity: 1;
   }
   .modal-card {
-    transition: transform 340ms var(--ease-elastic), opacity 280ms var(--ease);
+    transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms var(--ease);
   }
   .modal-overlay.is-open .modal-card { transform: scale(1) translateY(0); opacity: 1; }
-  .modal-overlay.is-closed .modal-card { transform: scale(0.95) translateY(12px); opacity: 0; }
+  .modal-overlay.is-closed .modal-card { transform: scale(0.985) translateY(8px); opacity: 0; }
+
+  #mm-stats-glider {
+    width: 100px;
+    transform-origin: 0 50%;
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px);
+    transition:
+      transform 340ms cubic-bezier(0.2, 0.9, 0.2, 1),
+      opacity 200ms var(--ease);
+  }
 
   .notes-stats-strip {
     position: relative;
@@ -828,6 +841,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     bottom: 4px;
     left: 0;
     width: 100px;
+    opacity: 0;
     transform-origin: 0 50%;
     border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px);
     background: var(--ink-strong);
@@ -866,6 +880,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   }
 
   .notes-empty-state {
+    margin-top: 0.5rem;
     min-height: 380px;
     display: flex;
     flex-direction: column;
@@ -882,7 +897,17 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     gap: 1.35rem;
     width: 100%;
   }
-  .notes-masonry-board.is-empty { display: none !important; }
+  .notes-masonry-board.is-empty {
+    height: 0 !important;
+    min-height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    border-width: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+  }
 
   :global(.masonry-col) {
     flex: 1;
@@ -906,7 +931,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     cursor: pointer;
     position: relative;
     isolation: isolate;
-    transition: border-color 260ms var(--ease), transform 280ms var(--ease-card), background-color 260ms var(--ease);
+    transform-style: flat !important;
+    transition: border-color 260ms var(--ease), background-color 260ms var(--ease);
   }
   :global(.mm-card)::before {
     content: '';
@@ -934,6 +960,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     transition: opacity 340ms var(--ease-card);
   }
   :global(.mm-card:hover) {
+    transform-style: flat !important;
     border-color: var(--rule-strong);
   }
   :global(.mm-card:hover)::before,
@@ -2755,7 +2782,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       closeOverlay(confirmModal, () => res?.(true));
     }, { signal });
 
-    // ---------- Stats Glider ----------
+    // ---------- Stats Glider (与 /notes 对齐：静息态隐藏，仅悬浮/聚焦时以纯合成器 scaleX 显现，杜绝入场期间宽度跳变) ----------
     const statsStrip = document.getElementById('mm-stats-strip');
     const statsGlider = document.getElementById('mm-stats-glider');
     const statsItems = statsStrip
@@ -2765,13 +2792,20 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     function syncStatsGliderToEl(targetEl: HTMLElement | null) {
       if (!statsStrip || !statsGlider) return;
       if (!targetEl || !targetEl.offsetWidth) {
-        statsGlider.classList.remove('is-visible');
+        statsGlider.style.opacity = '0';
+        statsItems.forEach((it) => it.classList.remove('is-hovered'));
         return;
       }
-      statsGlider.style.width = `${targetEl.offsetWidth.toFixed(1)}px`;
-      statsGlider.style.height = `${targetEl.offsetHeight.toFixed(1)}px`;
-      statsGlider.style.transform = `translate3d(${targetEl.offsetLeft.toFixed(1)}px, ${targetEl.offsetTop.toFixed(1)}px, 0)`;
-      statsGlider.classList.add('is-visible');
+      const w = targetEl.offsetWidth;
+      const h = statsGlider.offsetHeight || targetEl.offsetHeight;
+      const sx = Math.max(0.05, w / 100);
+      const halfR = Math.min(w, h) * 0.5;
+      statsGlider.style.opacity = '1';
+      statsGlider.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
+      statsGlider.style.setProperty('--pill-ry', `${halfR.toFixed(2)}px`);
+      statsGlider.style.transform = `translate3d(${targetEl.offsetLeft.toFixed(1)}px, 0, 0) scaleX(${sx.toFixed(4)})`;
+      statsItems.forEach((it) => it.classList.remove('is-hovered'));
+      targetEl.classList.add('is-hovered');
     }
 
     function updateStatsStripActive() {
@@ -2779,13 +2813,12 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       statsItems.forEach((item) => {
         item.classList.toggle('is-active', item.dataset.mmStat === activeKey);
       });
-      const activeEl = statsStrip?.querySelector<HTMLElement>('.notes-stat-item.is-active') || statsItems[0] || null;
-      requestAnimationFrame(() => syncStatsGliderToEl(activeEl));
     }
 
     if (statsStrip) {
       statsItems.forEach((item) => {
         item.addEventListener('pointerenter', () => syncStatsGliderToEl(item), { signal });
+        item.addEventListener('focus', () => syncStatsGliderToEl(item), { signal });
         item.addEventListener('click', () => {
           const mode = item.dataset.mmStat;
           if (mode === 'cats') {
@@ -2808,17 +2841,21 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         }, { signal });
       });
       statsStrip.addEventListener('pointerleave', () => {
-        const activeEl = statsStrip.querySelector<HTMLElement>('.notes-stat-item.is-active') || null;
-        syncStatsGliderToEl(activeEl);
+        syncStatsGliderToEl(null);
       }, { signal });
     }
 
     // ---------- Subtabs Glider & Dynamic Categories ----------
-    function updateSubtabsGlider() {
+    let subtabGliderPlacedOnce = false;
+    function updateSubtabsGlider(instant = false) {
       const activeBtn = subtabsCluster.querySelector<HTMLElement>('.sub-tab-btn.active');
       if (!activeBtn || !activeBtn.offsetWidth) {
         subtabsGlider.style.opacity = '0';
         return;
+      }
+      const snapNow = instant || !subtabGliderPlacedOnce;
+      if (snapNow) {
+        subtabsGlider.style.transition = 'none';
       }
       const w = activeBtn.offsetWidth;
       const h = subtabsGlider.offsetHeight || activeBtn.offsetHeight;
@@ -2828,9 +2865,27 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       subtabsGlider.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
       subtabsGlider.style.setProperty('--pill-ry', `${halfR.toFixed(2)}px`);
       subtabsGlider.style.transform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
+      subtabGliderPlacedOnce = true;
+      if (snapNow) {
+        requestAnimationFrame(() => {
+          subtabsGlider.style.transition = '';
+        });
+      }
     }
 
-    function renderSubtabs() {
+    function bindSubtabBtnClick(btn: HTMLButtonElement) {
+      if (btn.dataset.mmBound === '1') return;
+      btn.dataset.mmBound = '1';
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.mmCat || 'all';
+        if (filterCategory === key) return;
+        filterCategory = key;
+        renderSubtabs(false);
+        renderCards(true);
+      }, { signal });
+    }
+
+    function renderSubtabs(instantGlider = false) {
       const list = [{ key: 'all', label: '全部导图' }, ...categories.map((c) => ({ key: c, label: c }))];
       if (filterCategory !== 'all' && !categories.includes(filterCategory)) {
         filterCategory = 'all';
@@ -2843,15 +2898,16 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
       if (sameKeys) {
         existingBtns.forEach((b) => {
+          bindSubtabBtnClick(b);
           const isActive = b.dataset.mmCat === filterCategory;
           b.classList.toggle('active', isActive);
           b.setAttribute('aria-pressed', String(isActive));
         });
-        updateSubtabsGlider();
+        updateSubtabsGlider(instantGlider);
         return;
       }
 
-      // 仅在分类增删/重命名/初始化时重建按钮 DOM，避免切页签时销毁节点引发抽搐
+      // 仅在自定义分类变化时更新按钮 DOM，并以瞬时定位更新滑块避免初始化/重绘抽搐
       existingBtns.forEach((b) => b.remove());
       for (const item of list) {
         const btn = document.createElement('button');
@@ -2861,15 +2917,17 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         btn.dataset.mmCat = item.key;
         btn.setAttribute('aria-pressed', String(isActive));
         btn.textContent = item.label;
-        btn.addEventListener('click', () => {
-          if (filterCategory === item.key) return;
-          filterCategory = item.key;
-          renderSubtabs();
-          renderCards(true);
-        }, { signal });
+        bindSubtabBtnClick(btn);
         subtabsCluster.appendChild(btn);
       }
-      requestAnimationFrame(updateSubtabsGlider);
+      updateSubtabsGlider(true);
+    }
+
+    document.fonts?.ready?.then(() => updateSubtabsGlider(true)).catch(() => {});
+    if (typeof ResizeObserver !== 'undefined') {
+      const subtabsRO = new ResizeObserver(() => updateSubtabsGlider(true));
+      subtabsRO.observe(subtabsCluster);
+      signal.addEventListener('abort', () => subtabsRO.disconnect(), { once: true });
     }
 
     // ---------- Custom Frosted Popover Selects + Glider Helpers ----------
@@ -3507,6 +3565,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     function refreshScroll(options: boolean | { clamp?: boolean } = true) {
       const clamp = typeof options === 'boolean' ? options : options.clamp !== false;
       if (typeof ScrollTrigger !== 'undefined') {
+        ScrollTrigger.getAll().forEach((st) => {
+          if (st.trigger instanceof Element && !st.trigger.isConnected) {
+            st.kill();
+          }
+        });
         ScrollTrigger.refresh();
       }
       try {
@@ -3683,6 +3746,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       gsap.killTweensOf(emptyState);
       const currentH = container.offsetHeight;
       container.style.minHeight = '';
+      container.style.paddingTop = '';
+      container.style.paddingBottom = '';
       emptyState.style.minHeight = '';
 
       const filtered = getFilteredMaps();
@@ -3807,13 +3872,18 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
         // 阶段 4：钉住的空白网格高度在 0.55s 内徐收至 0
         tl.to(container, {
+          paddingTop: 0,
+          paddingBottom: 0,
           minHeight: 0,
           duration: 0.55,
-          ease: 'power2.inOut',
+          ease: 'power3.out',
+          autoRound: false,
           onUpdate: () => refreshScroll({ clamp: false }),
           onComplete: () => {
             container.style.minHeight = '0px';
             container.classList.add('is-empty');
+            container.style.paddingTop = '';
+            container.style.paddingBottom = '';
             refreshScroll();
           },
         }, switchTime);
@@ -4261,8 +4331,14 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
     function refreshViewportMetrics() {
       if (wbModal.classList.contains('hidden')) return;
-      cachedVpRect = canvasViewport.getBoundingClientRect();
-      cachedPaneRect = canvasPane.getBoundingClientRect();
+      const rawVp = canvasViewport.getBoundingClientRect();
+      const rawPane = canvasPane.getBoundingClientRect();
+      const vpW = canvasViewport.clientWidth || rawVp.width;
+      const vpH = canvasViewport.clientHeight || rawVp.height;
+      const paneW = canvasPane.clientWidth || rawPane.width;
+      const paneH = canvasPane.clientHeight || rawPane.height;
+      cachedVpRect = new DOMRect(rawVp.left, rawVp.top, vpW, vpH);
+      cachedPaneRect = new DOMRect(rawPane.left, rawPane.top, paneW, paneH);
     }
 
     const vpResizeObserver = typeof ResizeObserver !== 'undefined'
@@ -7068,7 +7144,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
     let lastCols = getColumnCount();
     window.addEventListener('resize', () => {
-      updateSubtabsGlider();
+      updateSubtabsGlider(true);
       updateStatsStripActive();
       const nextCols = getColumnCount();
       if (nextCols !== lastCols) {
