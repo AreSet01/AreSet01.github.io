@@ -64,7 +64,12 @@ const timeline = [
 
         <div class="about-nameplate mt-6 max-w-2xl" data-enter="left">
           <div class="about-courtesy-row">
-            <span class="about-courtesy-seal" aria-hidden="true">字</span>
+            <span class="about-courtesy-pill" aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path>
+                <line x1="16" y1="8" x2="2" y2="22"></line>
+              </svg>
+            </span>
             <span class="about-courtesy-text">AreSet · 梦付千秋主人</span>
           </div>
           <h1 class="section-title mt-2">
@@ -227,16 +232,14 @@ const timeline = [
               <span class="font-mono text-[0.84rem] text-[var(--text-strong)]">1909616051@qq.com</span>
             </div>
           </div>
-          <div class="mt-10 flex items-end justify-end gap-4">
-            <span class="about-stamp-caption" data-about-stamp-caption aria-live="polite">轻点钤印回礼</span>
-            <span
-              class="about-stamp about-interactive-seal"
-              data-about-stamp
-              role="button"
-              tabindex="0"
-              aria-label="个人朱砂印章：谢谢来访，点击可钤印切换印文"
-              title="轻点钤印回礼"
-            >谢谢来访</span>
+          <div class="mt-8 flex items-center justify-end">
+            <span class="about-colophon-pill">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="8"></circle>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <span>一期一会 · 清风徐来</span>
+            </span>
           </div>
         </section>
       </aside>
@@ -245,26 +248,24 @@ const timeline = [
 </BaseLayout>
 
 <style>
-  /* 字号铭牌眉栏 */
+  /* 字号铭牌眉栏（单色细线圆润胶囊） */
   .about-courtesy-row {
     display: inline-flex;
     align-items: center;
-    gap: 0.55rem;
+    gap: 0.5rem;
   }
 
-  .about-courtesy-seal {
+  .about-courtesy-pill {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.28rem;
-    height: 1.28rem;
-    border: 1.5px solid var(--vermilion);
-    border-radius: 3px;
-    color: var(--vermilion);
-    font-family: var(--font-hand-title);
-    font-size: 0.72rem;
-    line-height: 1;
-    transform: rotate(-4deg);
+    width: 1.4rem;
+    height: 1.4rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 9999px;
+    background: var(--accent-soft);
+    color: var(--text-strong);
+    flex-shrink: 0;
   }
 
   .about-courtesy-text {
@@ -413,7 +414,7 @@ const timeline = [
     opacity: 1;
   }
 
-  /* 足迹节点朱砂微澜 */
+  /* 足迹节点水墨微澜 */
   .about-footprint-node {
     transition: transform 280ms var(--ease);
   }
@@ -422,57 +423,26 @@ const timeline = [
     transform: translateX(3px);
   }
 
-  /* 个人朱砂印章：支持悬停微倾与点击「钤印回礼」墨环冲击波 */
-  .about-stamp-caption {
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
-    letter-spacing: 0.1em;
-    color: var(--muted);
-    opacity: 0.72;
-    padding-bottom: 0.3rem;
-    transition: color 240ms var(--ease), opacity 240ms var(--ease);
+  /* 尾声圆润胶囊题识 */
+  .about-colophon-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    padding: 0.34rem 0.82rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    background: var(--accent-soft);
+    color: var(--muted-strong);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    transition: border-color 240ms var(--ease), color 240ms var(--ease);
   }
 
-  .about-interactive-seal {
-    position: relative;
-    cursor: pointer;
-    transition:
-      transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1),
-      background-color 260ms var(--ease);
-  }
-
-  .about-interactive-seal::after {
-    content: '';
-    position: absolute;
-    inset: -4px;
-    border-radius: 6px;
-    border: 1.5px solid var(--vermilion);
-    opacity: 0;
-    transform: scale(0.85);
-    pointer-events: none;
-  }
-
-  .about-interactive-seal:global(.is-stamped)::after {
-    animation: aboutSealWave 680ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  .about-interactive-seal:global(.is-pressing)::after {
-    animation: aboutSealWave 560ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  .about-interactive-seal:hover {
-    background: color-mix(in srgb, var(--vermilion) 7%, transparent);
-  }
-
-  @keyframes aboutSealWave {
-    0% {
-      opacity: 0.82;
-      transform: scale(0.92);
-    }
-    100% {
-      opacity: 0;
-      transform: scale(1.42);
-    }
+  .about-colophon-pill:hover {
+    border-color: var(--border-strong);
+    color: var(--text-strong);
   }
 
   .about-zen-replay-btn .replay-icon {
@@ -491,7 +461,7 @@ const timeline = [
     .about-stack-row,
     .about-stack-row::after,
     .about-footprint-node,
-    .about-interactive-seal,
+    .about-colophon-pill,
     .about-zen-replay-btn .replay-icon {
       transition: none !important;
       animation: none !important;
@@ -512,7 +482,6 @@ const timeline = [
   const CLEANUP_KEY = '__areSetAboutCleanup__';
   const LISTENER_KEY = '__areSetAboutPageLoadBound__';
   const TRIGGER_PREFIX = 'about:';
-  const SEAL_INSCRIPTIONS = ['谢谢来访', '一见如故', '清风明月', '梦付千秋'] as const;
 
   function initAbout() {
     const previousCleanup = (window as any)[CLEANUP_KEY];
@@ -691,59 +660,6 @@ const timeline = [
       window.addEventListener('scroll', onScroll, { passive: true, signal });
       window.addEventListener('resize', measure, { passive: true, signal });
       renderMarquee();
-    }
-
-    // ---------- Interactive Vermilion Seal ("钤印回礼") ----------
-    const stamp = document.querySelector<HTMLElement>('[data-about-stamp]');
-    const stampCaption = document.querySelector<HTMLElement>('[data-about-stamp-caption]');
-    if (stamp) {
-      let sealIndex = 0;
-      let pressCount = 0;
-
-      if (reduceMotion) {
-        stamp.classList.add('is-stamped');
-      } else {
-        ScrollTrigger.create({
-          id: `${TRIGGER_PREFIX}stamp`,
-          trigger: stamp,
-          start: 'top 92%',
-          once: true,
-          onEnter: () => {
-            timers.push(window.setTimeout(() => stamp.classList.add('is-stamped'), 360));
-          },
-        });
-      }
-
-      const pressSeal = () => {
-        sealIndex = (sealIndex + 1) % SEAL_INSCRIPTIONS.length;
-        pressCount += 1;
-        const nextText = SEAL_INSCRIPTIONS[sealIndex];
-        stamp.textContent = nextText;
-        if (stampCaption) {
-          stampCaption.textContent = `已钤印 ×${pressCount} · ${nextText}`;
-        }
-
-        const r = stamp.getBoundingClientRect();
-        (window as any).__inkSplash?.(r.left + r.width / 2, r.top + r.height / 2, 12);
-
-        if (reduceMotion) return;
-        stamp.classList.remove('is-pressing');
-        void stamp.offsetWidth;
-        stamp.classList.add('is-pressing');
-        gsap.fromTo(
-          stamp,
-          { scale: 1.28, rotation: -12 + (pressCount % 2 === 0 ? 4 : -2) },
-          { scale: 1, rotation: -6, duration: 0.48, ease: 'elastic.out(1.1, 0.45)', overwrite: true },
-        );
-      };
-
-      stamp.addEventListener('click', pressSeal, { signal });
-      stamp.addEventListener('keydown', (e: KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          pressSeal();
-        }
-      }, { signal });
     }
 
     // ---------- Replay button for Zen intro ----------

@@ -13,10 +13,15 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
   data-lenis-prevent
 >
   <div class="zen-capsule-inner">
-    <!-- 头部栏：朱砂「雨」印、标题、水墨声波律动谱与关闭按钮 -->
+    <!-- 头部栏：细线水纹圆章徽标、标题、7 柱单色水墨声波谱与关闭按钮 -->
     <div class="zen-capsule-header" data-zen-stagger>
       <div class="zen-capsule-brand">
-        <span class="zen-seal" data-zen-seal aria-hidden="true">雨</span>
+        <span class="zen-brand-pill" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3.5l4.6 4.8a6.5 6.5 0 1 1-9.2 0L12 3.5z"></path>
+            <path d="M8.5 19.5c1.1.6 2.3.9 3.5.9s2.4-.3 3.5-.9" opacity="0.55"></path>
+          </svg>
+        </span>
         <div class="zen-title-group">
           <div class="zen-title-row">
             <h2 class="zen-title">墨池听雨</h2>
@@ -466,17 +471,14 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
       positionCapsule();
 
       const staggerRows = capsule.querySelectorAll('[data-zen-stagger]');
-      const sealEl = capsule.querySelector('[data-zen-seal]');
       gsap.killTweensOf(capsule);
       gsap.killTweensOf(staggerRows);
-      if (sealEl) gsap.killTweensOf(sealEl);
 
       if (isReducedMotion()) {
         gsap.set(capsule, { opacity: 1, scale: 1, y: 0, clearProps: 'clipPath' });
         gsap.set(staggerRows, { clearProps: 'transform,opacity' });
-        if (sealEl) gsap.set(sealEl, { clearProps: 'transform,opacity' });
       } else {
-        // 宣纸小笺舒展：自左上角起笔垂落展开 + 内部四段墨韵错峰浮现 + 朱砂「雨」印落定
+        // 宣纸小笺舒展：自左上角起笔垂落展开 + 内部四段墨韵错峰浮现
         gsap.fromTo(
           capsule,
           {
@@ -509,22 +511,6 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
             clearProps: 'transform,opacity',
           }
         );
-
-        if (sealEl) {
-          gsap.fromTo(
-            sealEl,
-            { scale: 1.38, rotation: -12, opacity: 0.3 },
-            {
-              scale: 1,
-              rotation: 0,
-              opacity: 1,
-              duration: 0.42,
-              delay: 0.06,
-              ease: 'back.out(1.7)',
-              clearProps: 'transform,opacity',
-            }
-          );
-        }
 
         const toggleBtn = document.querySelector('[data-zen-sound-toggle]');
         if (toggleBtn) {
@@ -848,24 +834,24 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
     gap: 0.48rem;
   }
 
-  /* 朱砂钤印风韵微调（适配浅/深/青苔三套主题） */
-  .zen-sound-capsule .zen-seal {
-    background: #b83b28;
-    color: #fcfaf7;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    box-shadow: none;
-    position: relative;
+  /* 单色细线水滴圆润胶囊徽标（适配浅/深/青苔三套主题） */
+  .zen-sound-capsule .zen-brand-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 9999px;
+    background: var(--accent-soft, rgba(0, 0, 0, 0.06));
+    color: var(--ink-strong, var(--text-strong));
+    border: 1px solid var(--border, rgba(0, 0, 0, 0.14));
+    flex-shrink: 0;
   }
 
-  [data-theme="dark"] .zen-sound-capsule .zen-seal {
-    background: #c94735;
-    color: #faf8f5;
-  }
-
-  [data-theme="moss"] .zen-sound-capsule .zen-seal {
-    background: #ffc2d1;
-    color: #004d40;
-    border-color: rgba(0, 77, 64, 0.2);
+  [data-theme="moss"] .zen-sound-capsule .zen-brand-pill {
+    background: rgba(255, 194, 209, 0.14);
+    color: #ffc2d1;
+    border-color: rgba(255, 194, 209, 0.36);
   }
 
   /* 水墨声波律动谱：7 根竖毫，纯 GPU scaleY + opacity 合成器驱动 */
@@ -896,11 +882,7 @@ import { SOUNDSCAPES } from '../utils/zenAudioEngine';
   }
 
   .zen-wave-bar:nth-child(4) {
-    background: #b83b28;
-  }
-
-  [data-theme="dark"] .zen-wave-bar:nth-child(4) {
-    background: #e06350;
+    background: var(--ink-strong, #000000);
   }
 
   [data-theme="moss"] .zen-wave-bar:nth-child(4) {

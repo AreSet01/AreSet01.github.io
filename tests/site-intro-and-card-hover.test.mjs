@@ -112,11 +112,16 @@ describe('SiteIntro 首页限定与文章冷启动卡死消除 & 宣纸微浮墨
     assert.strictEqual(subpathPostIndexResult.siteIntroActive, false, '子路径 baseUrl 下文章 index.html 绝不能激活');
   });
 
-  it('2. PostCard.astro 包含 .arrow-indicator 与 [data-card-arrow] 独立交互标记', () => {
+  it('2. PostCard.astro 包含 .arrow-indicator 与 [data-card-arrow] 独立交互标记且无方章角印', () => {
     assert.match(
       postCardContent,
       /<span[^>]*class="[^"]*arrow-indicator[^"]*"[^>]*data-card-arrow/,
       'PostCard.astro 必须为卡片右箭头包裹具备 arrow-indicator 类与 data-card-arrow 属性的独立 span'
+    );
+    assert.doesNotMatch(
+      postCardContent,
+      /paper-card-seal/,
+      'PostCard.astro 不得包含 .paper-card-seal 角印结构或样式'
     );
   });
 

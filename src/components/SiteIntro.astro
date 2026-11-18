@@ -1,8 +1,8 @@
 ---
-// Site-entry curtain: 「墨化为像素 · 朱砂落印」.
+// Site-entry curtain: 「墨化为像素 · 水纹定版」.
 // Stray pixels gather into a drop of ink; it falls and bursts with 8-lobe splash-ink force into
 // thousands of pixel squares; a calligraphic vortex sweeps them up, releasing glyph by glyph to
-// form 「梦付千秋」; a carved cinnabar seal slams down beside the title as a scanline turns the
+// form 「梦付千秋」; a monochrome water-ink ripple expands across the paper as a scanline turns the
 // pixel mass into crisp type; and at the end the type dissolves back into pixels that fly home to
 // the sidebar brand mark and every first-screen element.
 const tagline = '日常记录 · 技术分享';
@@ -12,13 +12,6 @@ const tagline = '日常记录 · 技术分享';
   <canvas class="site-intro-canvas" data-intro-canvas></canvas>
   <div class="site-intro-stage" data-intro-stage>
     <div class="site-intro-ring" data-intro-ring aria-hidden="true"></div>
-    <div class="site-intro-seal" data-intro-seal aria-hidden="true">
-      <svg viewBox="0 0 64 64" role="presentation">
-        <rect class="seal-plate" x="2" y="2" width="60" height="60" rx="5" />
-        <path class="seal-frame" d="M7 7h50v50H7z" stroke-dasharray="44 3 38 2 52 3" />
-        <text class="seal-glyph" x="32" y="47">印</text>
-      </svg>
-    </div>
     <p class="site-intro-tagline" data-intro-tagline data-text={tagline}>
       <span data-intro-typed></span><i class="site-intro-caret" aria-hidden="true"></i>
     </p>
@@ -31,32 +24,12 @@ const tagline = '日常记录 · 技术分享';
 </div>
 
 <style>
-  .site-intro-seal .seal-plate {
-    fill: #b83b28 !important;
-  }
-
-  :global([data-theme="dark"]) .site-intro-seal .seal-plate {
-    fill: #cf4a36 !important;
-  }
-
-  :global([data-theme="moss"]) .site-intro-seal .seal-plate {
-    fill: #ffc2d1 !important;
-  }
-
-  :global([data-theme="moss"]) .site-intro-seal .seal-frame {
-    stroke: #004d40 !important;
-  }
-
-  :global([data-theme="moss"]) .site-intro-seal .seal-glyph {
-    fill: #004d40 !important;
-  }
-
   .site-intro-ring {
-    border-color: rgba(184, 59, 40, 0.42);
+    border-color: var(--border-strong, rgba(0, 0, 0, 0.34));
   }
 
   :global([data-theme="dark"]) .site-intro-ring {
-    border-color: rgba(217, 83, 63, 0.46);
+    border-color: rgba(234, 232, 227, 0.38);
   }
 
   :global([data-theme="moss"]) .site-intro-ring {
@@ -66,10 +39,6 @@ const tagline = '日常记录 · 技术分享';
 
 <script>
   import gsap from 'gsap';
-  import CustomEase from 'gsap/CustomEase';
-
-  gsap.registerPlugin(CustomEase);
-  CustomEase.create('intro-seal-press', 'M0,0 C0.14,0.92 0.26,1.04 0.52,0.985 0.76,0.995 1,1 1,1');
 
   const TITLE = '梦付千秋';
 
@@ -81,7 +50,7 @@ const tagline = '日常记录 · 技术分享';
     vortex: 3.2,      // the spray is swept into a spiral
     form: 4.6,        // first pixels leave the vortex for their glyph cells
     formEnd: 5.75,    // 秋 completes
-    seal: 5.88,       // carved cinnabar seal slams down beside 秋
+    ripple: 5.88,     // monochrome ink ripple ring expands as glyphs settle
     scan1: 6.4,       // pixels → type
     scan1End: 6.95,
     tagline: 7.0,
@@ -182,7 +151,6 @@ const tagline = '日常记录 · 技术分享';
 
     const canvas = intro.querySelector<HTMLCanvasElement>('[data-intro-canvas]')!;
     const stage = intro.querySelector<HTMLElement>('[data-intro-stage]')!;
-    const sealEl = intro.querySelector<HTMLElement>('[data-intro-seal]');
     const ringEl = intro.querySelector<HTMLElement>('[data-intro-ring]');
     const taglineEl = intro.querySelector<HTMLElement>('[data-intro-tagline]')!;
     const typed = intro.querySelector<HTMLElement>('[data-intro-typed]')!;
@@ -233,7 +201,6 @@ const tagline = '日常记录 · 技术分享';
 
     const ink = cssVar('--ink-strong', '#000');
     const theme = document.documentElement.getAttribute('data-theme');
-    const sealColor = theme === 'moss' ? '#ffc2d1' : theme === 'dark' ? '#d9533f' : '#b83b28';
     const grainAlpha = theme === null || theme === 'light' ? 0.058 : 0.082;
     const cx = W / 2;
     const cy = Math.round(H * 0.46);
@@ -289,8 +256,6 @@ const tagline = '日常记录 · 技术分享';
     let alive = 0;
     let bx0 = 0, by0 = 0, bx1 = 0, by1 = 0;
     let charX: number[] = [];
-    let sealLandX = cx + 140;
-    let sealLandY = cy;
 
     function drawTitle(c: CanvasRenderingContext2D, dx = 0, dy = 0) {
       c.font = font;
@@ -370,17 +335,9 @@ const tagline = '日常记录 · 技术分享';
 
     function placeStage() {
       taglineEl.style.top = `${Math.round(by1 + fontSize * 0.24)}px`;
-      if (sealEl) {
-        const sealSize = Math.max(32, Math.min(52, Math.round(fontSize * 0.34)));
-        sealEl.style.width = `${sealSize}px`;
-        sealLandX = Math.min(W - sealSize - 16, Math.round(bx1 + Math.max(12, fontSize * 0.12)));
-        sealLandY = Math.round(by1 - sealSize * 0.92);
-        sealEl.style.left = `${sealLandX}px`;
-        sealEl.style.top = `${sealLandY}px`;
-        if (ringEl) {
-          ringEl.style.left = `${Math.round(sealLandX + sealSize / 2)}px`;
-          ringEl.style.top = `${Math.round(sealLandY + sealSize / 2)}px`;
-        }
+      if (ringEl) {
+        ringEl.style.left = `${Math.round(cx)}px`;
+        ringEl.style.top = `${Math.round(cy)}px`;
       }
     }
 
@@ -784,13 +741,13 @@ const tagline = '日常记录 · 技术分享';
 
       if (!spawned) { if (!skipping) drawDrop(ctx!, t); return; }
 
-      // Multi-ring splash-ink shockwaves + warm cinnabar inner pulse
+      // Multi-ring monochrome splash-ink shockwaves
       if (impactAt >= 0) {
         for (let k = 0; k < 3; k += 1) {
           const q = clamp01((t - impactAt - k * 0.11) / (k === 2 ? 0.85 : 1.15));
           if (q <= 0 || q >= 1) continue;
-          ctx!.strokeStyle = k === 2 ? sealColor : ink;
-          ctx!.globalAlpha = (1 - q) * (k === 0 ? 0.58 : k === 1 ? 0.36 : 0.32);
+          ctx!.strokeStyle = ink;
+          ctx!.globalAlpha = (1 - q) * (k === 0 ? 0.58 : k === 1 ? 0.36 : 0.22);
           ctx!.lineWidth = (1.6 - k * 0.35) * (1 - q) + 0.4;
           ctx!.beginPath();
           ctx!.arc(cx, cy, easeOutExpo(q) * minWH * (k === 0 ? 0.56 : k === 1 ? 0.38 : 0.24), 0, Math.PI * 2);
@@ -1009,7 +966,6 @@ const tagline = '日常记录 · 技术分享';
     // ---------- DOM timeline ----------
     gsap.set(taglineEl, { opacity: 0 });
     gsap.set(foot, { opacity: 0, y: 10 });
-    if (sealEl) gsap.set(sealEl, { opacity: 0, scale: 2.15, rotation: -16, transformOrigin: '50% 50%' });
     if (ringEl) gsap.set(ringEl, { opacity: 0, scale: 0.08 });
     typed.textContent = '';
 
@@ -1033,27 +989,21 @@ const tagline = '日常记录 · 技术分享';
     // The burst kicks the whole sheet
     tl.to(intro, { keyframes: { x: [0, 3, -3, 2, -1, 0], y: [0, -2, 2, -1, 1, 0], easeEach: 'none' }, duration: 0.32, ease: 'none' }, T.impact);
 
-    // 朱砂落印 (Cinnabar Seal Impression) right after 秋 completes
-    if (sealEl) {
-      tl.to(sealEl, {
-        opacity: 1,
-        scale: 1,
-        rotation: -4,
-        duration: 0.46,
-        ease: 'intro-seal-press',
-        onStart: () => {
-          gsap.delayedCall(0.14, () => {
-            if (!finished && !skipping) splash(sealLandX + 18, sealLandY + 18, 12);
-          });
-        },
-      }, T.seal);
-    }
+    // Pure monochrome water-ink ripple ring expands as 秋 settles before scanline crispens glyphs
     if (ringEl) {
       tl.fromTo(
         ringEl,
-        { opacity: 0.68, scale: 0.08 },
-        { opacity: 0, scale: 1, duration: 0.95, ease: 'power3.out' },
-        T.seal + 0.12
+        { opacity: 0.62, scale: 0.08 },
+        {
+          opacity: 0,
+          scale: 1,
+          duration: 0.95,
+          ease: 'power3.out',
+          onStart: () => {
+            if (!finished && !skipping) splash(cx, cy, 10);
+          },
+        },
+        T.ripple
       );
     }
 
@@ -1069,7 +1019,6 @@ const tagline = '日常记录 · 技术分享';
     }, T.tagline);
     tl.call(() => { lifted = true; intro.classList.add('is-lifting'); }, undefined, T.lift);
     tl.to(taglineEl, { opacity: 0, duration: 0.35, ease: 'power2.in' }, T.lift);
-    if (sealEl) tl.to(sealEl, { opacity: 0, scale: 0.92, duration: 0.32, ease: 'power2.in' }, T.lift);
     tl.to(foot, { opacity: 0, duration: 0.3, ease: 'power2.in' }, T.lift);
     tl.call(() => { assignHomes(now(), false); releasePage({ timeScale: homeTimeScale }); }, undefined, T.release);
     tl.call(finish, undefined, T.end);
@@ -1093,7 +1042,7 @@ const tagline = '日常记录 · 技术分享';
       gsap.set(intro, { clearProps: 'transform' });
       lifted = true;
       intro.classList.add('is-lifting');
-      const fadeTargets = [taglineEl, foot, sealEl, ringEl].filter(Boolean);
+      const fadeTargets = [taglineEl, foot, ringEl].filter(Boolean);
       gsap.to(fadeTargets, { opacity: 0, duration: 0.2, ease: 'power2.in', overwrite: 'auto' });
       textMode = 0;
 
@@ -1125,7 +1074,7 @@ const tagline = '日常记录 · 技术分享';
       controller.abort();
       timeline?.kill();
       timeline = null;
-      gsap.killTweensOf([intro, taglineEl, foot, sealEl, ringEl].filter(Boolean));
+      gsap.killTweensOf([intro, taglineEl, foot, ringEl].filter(Boolean));
       document.documentElement.classList.remove('site-intro-active');
       document.documentElement.classList.remove('js-enter');
       (window as any).__siteIntroPending = false;

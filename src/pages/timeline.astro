@@ -107,7 +107,13 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
             </article>
           ))}
           <div class="timeline-end" aria-hidden="true">
-            <span class="timeline-end-seal">卷尾</span>
+            <span class="timeline-end-pill">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="8"></circle>
+                <circle cx="12" cy="12" r="2.5"></circle>
+              </svg>
+              <span>卷尾</span>
+            </span>
             <span class="timeline-end-count">{entries.length} 篇 · 未完待续</span>
           </div>
         </div>
@@ -181,8 +187,8 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
         90deg,
         transparent 0%,
         var(--ink-light) 12%,
-        var(--ink-strong) 76%,
-        var(--vermilion) 100%
+        var(--ink-mid) 68%,
+        var(--ink-strong) 100%
       );
       will-change: transform;
     }
@@ -196,7 +202,7 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
       margin-left: -5px;
       margin-top: -5px;
       border-radius: 50%;
-      background: radial-gradient(circle, var(--vermilion) 0%, transparent 72%);
+      background: radial-gradient(circle, var(--ink-strong) 0%, transparent 72%);
       opacity: 0;
       transform: translate3d(0, 0, 0) scale(1);
       pointer-events: none;
@@ -211,11 +217,11 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
     }
   }
 
-  /* 文章墨点：靠近时朱砂充盈并向外荡开双层水墨涟漪 */
+  /* 文章墨点：靠近时浓墨充盈并向外荡开双层水墨涟漪 */
   .timeline-dot-ripple {
     position: absolute;
     inset: -2px;
-    border: 1.5px solid var(--vermilion);
+    border: 1.5px solid var(--ink-strong);
     opacity: 0;
     transform: scale(0.5);
     pointer-events: none;
@@ -265,7 +271,7 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
   :global([data-theme="rice"]) .timeline-card[data-timeline-bookmark] {
     background: rgba(247, 240, 226, 0.94);
     border-color: var(--rule);
-    border-left-color: var(--vermilion);
+    border-left-color: var(--ink-strong);
     box-shadow: 0 4px 18px -3px rgba(92, 70, 44, 0.1) !important;
   }
 
@@ -311,7 +317,7 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
     background: linear-gradient(
       112deg,
       transparent 20%,
-      color-mix(in srgb, var(--vermilion) 7%, transparent) 48%,
+      color-mix(in srgb, var(--ink) 7%, transparent) 48%,
       transparent 76%
     );
     transform: translate3d(-110%, 0, 0);
@@ -330,20 +336,33 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
   }
 
   .timeline-card-index {
-    font-family: var(--font-hand-title);
+    font-family: var(--font-mono);
     font-size: 0.72rem;
     letter-spacing: 0.1em;
-    color: var(--vermilion);
-    opacity: 0.72;
+    color: var(--muted-strong);
+    opacity: 0.78;
   }
 
-  /* 卷尾朱砂大印微交互 */
-  .timeline-end-seal {
-    transition: transform 460ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 320ms var(--ease);
+  /* 卷尾圆润胶囊标识微交互 */
+  .timeline-end-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    padding: 0.32rem 0.88rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border-strong);
+    background: var(--accent-soft);
+    color: var(--text-strong);
+    font-family: var(--font-serif);
+    font-size: 0.82rem;
+    letter-spacing: 0.16em;
+    opacity: 0.82;
+    transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1), opacity 280ms var(--ease);
   }
 
-  .timeline-end:global(.is-near) .timeline-end-seal {
-    transform: rotate(-3deg) scale(1.06);
+  .timeline-end:global(.is-near) .timeline-end-pill {
+    opacity: 1;
+    transform: scale(1.04);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -464,7 +483,7 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
         });
       });
 
-      // 3. Rollup end seal reveal
+      // 3. Rollup end marker reveal
       const endEl = track.querySelector<HTMLElement>('.timeline-end');
       if (endEl) {
         ScrollTrigger.create({
@@ -558,15 +577,15 @@ const firstYear = entries[0]?.year ?? new Date().getFullYear();
       });
     });
 
-    const endSeal = track.querySelector<HTMLElement>('.timeline-end');
-    if (endSeal) {
+    const endMarker = track.querySelector<HTMLElement>('.timeline-end');
+    if (endMarker) {
       ScrollTrigger.create({
-        id: `${TRIGGER_PREFIX}end-seal`,
-        trigger: endSeal,
+        id: `${TRIGGER_PREFIX}end-marker`,
+        trigger: endMarker,
         containerAnimation: unroll,
         start: 'left 88%',
         end: 'right 5%',
-        toggleClass: { targets: endSeal, className: 'is-near' },
+        toggleClass: { targets: endMarker, className: 'is-near' },
       });
     }
 

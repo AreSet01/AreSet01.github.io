@@ -138,14 +138,14 @@ test('1. Paper Card 3D Physics: caches geometry on pointerenter, 0 getBoundingCl
   }
 });
 
-test('2. PostCard.astro & TagList.astro: pre-rendered opacity shadow, diffuse paper sheen, brush inkframe, vermilion seal & a11y', () => {
+test('2. PostCard.astro & TagList.astro: pre-rendered opacity shadow, diffuse paper sheen, brush inkframe, zero corner seal & a11y', () => {
   const postCard = readSrc('src/components/PostCard.astro');
   const tagList = readSrc('src/components/TagList.astro');
 
   assert.ok(postCard.includes('class="paper-card-elevation"'), 'PostCard uses pre-rendered elevation shadow layer');
   assert.ok(postCard.includes('class="paper-card-sheen"'), 'PostCard includes diffuse Xuan-paper fiber sheen');
   assert.ok(postCard.includes('class="paper-card-inkframe"'), 'PostCard includes calligraphy edge ink lines');
-  assert.ok(postCard.includes('class="paper-card-seal"'), 'PostCard includes vermilion corner seal');
+  assert.ok(!postCard.includes('paper-card-seal'), 'PostCard removes corner seal mark completely');
   assert.ok(postCard.includes('data-card-arrow'), 'Preserves [data-card-arrow] contract');
   // Ensure PostCard transition never animates box-shadow
   const transitionBlock = postCard.match(/\.note-card\.paper-card\s*\{([\s\S]*?)\}/)?.[1] || '';
@@ -155,7 +155,7 @@ test('2. PostCard.astro & TagList.astro: pre-rendered opacity shadow, diffuse pa
   assert.ok(tagList.includes('tag-chip-ink'), 'TagList provides brush underline sweep micro-interaction');
 });
 
-test('3. HomeTicker.astro & index.astro: pure GPU translate3d ticker, 2D glyph collision physics, seal resonance & Konami CRT ritual', () => {
+test('3. HomeTicker.astro & index.astro: pure GPU translate3d ticker, 2D glyph collision physics, monochrome ink ripples & Konami CRT ritual', () => {
   const ticker = readSrc('src/components/HomeTicker.astro');
   const home = readSrc('src/pages/index.astro');
 
@@ -170,7 +170,9 @@ test('3. HomeTicker.astro & index.astro: pure GPU translate3d ticker, 2D glyph c
   assert.doesNotMatch(home, /glider\.style\.width\s*=/, 'Home stats glider must use GPU scaleX instead of layout width');
   assert.ok(home.includes('const STEP = 1 / 120;'), 'Title glyph drop uses fixed 120Hz physics step');
   assert.ok(home.includes('b.restitution'), 'Title glyphs bounce with restitution & squash-stretch on ticker rail');
-  assert.ok(home.includes('seal-resonance-ring'), 'Triple-tap seal emits escalating vermilion resonance rings');
+  assert.ok(home.includes('ink-ripple-ring'), 'Triple-tap concentric emblem emits monochrome water-ink ripple rings');
+  assert.ok(home.includes('home-rant-badge') && home.includes('egg-toast-icon'), 'Uses hairline SVG + rounded capsule badges');
+  assert.doesNotMatch(home, /home-rant-seal|egg-toast-seal|seal-resonance-ring/, 'Removes square seal badges on home page');
   assert.ok(home.includes('crt-ritual-veil'), 'Konami code triggers pure-compositor CRT scanline ritual');
   assert.match(home, /\.home-feature\.home-feature-scroll::after\s*\{[\s\S]*?filter:\s*none\s*!important/, 'Eliminates filter:blur on .home-feature::after');
 });
@@ -303,11 +305,13 @@ test('5. timeline.astro & tags/*: handscroll brush spine, ripples, bookmark fold
   assert.ok(tagSkySrc.includes('const STEP = 1 / 60;'), 'Tag constellation uses fixed 60Hz physics timestep');
   assert.ok(tagSkySrc.includes('alpha <= 0.02 || (alpha < 0.36 && maxDisp < 0.04)'), 'Tag constellation auto-sleeps rAF on kinetic convergence');
   assert.ok(tagSkySrc.includes('tag-link-pulse') && tagSkySrc.includes('constellationInkFlow'), 'Hovered tag lights outward-flowing constellation ink pulses');
-  assert.ok(tagSkySrc.includes('tag-node-halo'), 'Tag nodes render vermilion starburst halo');
+  assert.ok(tagSkySrc.includes('tag-node-halo'), 'Tag nodes render halo');
   assert.ok(tagDetailSrc.includes('tag-cascade-list') && tagDetailSrc.includes('tag-sibling-ink'), 'Tag detail page upgrades ink cascade list and sibling ink chips');
+  assert.match(tagDetailSrc, /\.tag-count-pill\s*\{[\s\S]*?border-radius:\s*9999px;/, 'Tag detail count uses rounded capsule pill');
+  assert.match(timelineSrc, /\.timeline-end-pill\s*\{[\s\S]*?border-radius:\s*9999px;/, 'Timeline end marker uses rounded capsule pill instead of square stamp');
 });
 
-test('6. stats.astro, about.astro & AboutIntro.astro: brush charts, paper note glide, zero-reflow details, interactive seal & batched canvas', () => {
+test('6. stats.astro, about.astro & AboutIntro.astro: brush charts, paper note glide, zero-reflow details, capsule colophon & batched canvas', () => {
   const statsSrc = readSrc('src/pages/stats.astro');
   const aboutSrc = readSrc('src/pages/about.astro');
   const aboutIntroSrc = readSrc('src/components/AboutIntro.astro');
@@ -315,16 +319,20 @@ test('6. stats.astro, about.astro & AboutIntro.astro: brush charts, paper note g
   // stats.astro
   assert.ok(statsSrc.includes('stats-mountain-wash') && statsSrc.includes('chart-line-feibai'), 'Cumulative chart renders mountain ink-wash gradient and feibai companion stroke');
   assert.ok(statsSrc.includes('stats-paper-note') && statsSrc.includes('gsap.quickTo(tipPos'), 'Stats tooltip is a Xuan-paper note gliding via GPU quickTo');
+  assert.ok(statsSrc.includes('stats-tip-dot') && !statsSrc.includes('stats-tip-seal'), 'Stats tooltip uses minimalist monochrome ink dot without square seal');
   assert.ok(statsSrc.includes('contain: layout style paint'), 'Stats <details> table clip isolates layout during open/close');
   // Verify lenis.resize() is NOT called inside onUpdate of table collapse
   const tableCollapseBlock = statsSrc.match(/height:\s*0,\s*duration:\s*0\.52,[\s\S]*?onComplete:/)?.[0] || '';
   assert.doesNotMatch(tableCollapseBlock, /lenis\?\.resize\(\)/, 'Stats table collapse must not call lenis.resize() on every frame');
 
   // about.astro & AboutIntro.astro
-  assert.ok(aboutSrc.includes('SEAL_INSCRIPTIONS') && aboutSrc.includes('about-interactive-seal'), 'About stamp supports interactive seal pressing and inscription cycling');
+  assert.doesNotMatch(aboutSrc, /about-stamp|about-interactive-seal|about-courtesy-seal|SEAL_INSCRIPTIONS|谢谢来访|钤印/, 'About page completely removes square stamps and seal pressing');
+  assert.match(aboutSrc, /\.about-courtesy-pill[\s\S]*?border-radius:\s*9999px/, 'About nameplate uses rounded monochrome capsule badge');
+  assert.match(aboutSrc, /\.about-colophon-pill[\s\S]*?border-radius:\s*9999px/, 'About colophon uses rounded monochrome capsule');
   assert.ok(aboutSrc.includes('about-letter-scroll') && aboutSrc.includes('is-echoed'), 'About page unfurls self-intro letter scroll and echoes stack badges');
   assert.ok(aboutSrc.includes('scrub: 0.42'), 'About timeline spine uses scrub instead of per-scroll gsap.to allocation');
   assert.ok(aboutIntroSrc.includes('__areSetAboutIntroCleanup__') && aboutIntroSrc.includes('__areSetAboutIntroBound__'), 'AboutIntro registers idempotent cleanup and listener guard');
+  assert.doesNotMatch(aboutIntroSrc, /vermilion/, 'AboutIntro shockwaves use pure monochrome ink');
   assert.match(aboutIntroSrc, /ctx!\.beginPath\(\);\s*for\s*\(let\s+i\s*=\s*0;\s*i\s*<\s*N;\s*i\+\+\)[\s\S]*?ctx!\.rect\([\s\S]*?ctx!\.fill\(\);/, 'AboutIntro batches all 1,600+ particles into a single Canvas path fill');
 });
 

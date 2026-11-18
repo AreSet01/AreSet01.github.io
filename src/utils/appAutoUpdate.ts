@@ -50,89 +50,61 @@ const CLEANUP_KEY = '__areSetAppAutoUpdateCleanup__';
 const AUTO_UPDATE_STYLE_ID = 'app-update-motion-styles';
 
 const APP_UPDATE_MOTION_CSS = `
-/* 飞鸽传书 · 朱砂小笺滑入与墨迹进度反馈（零 filter:blur、零逐帧 box-shadow 动画） */
+/* 飞鸽传书 · 圆润胶囊滑入与单色水墨进度反馈（零 filter:blur、零逐帧 box-shadow 动画） */
 .app-update-pill {
   overflow: hidden;
-  border-radius: 10px !important;
-  padding: 8px 10px 10px 12px !important;
+  border-radius: 9999px !important;
+  padding: 8px 12px 10px 14px !important;
   gap: 9px !important;
   opacity: 0;
-  transform: translate3d(-50%, -18px, 0) rotate(-1.2deg) scale(0.95);
+  transform: translate3d(-50%, -14px, 0) scale(0.96);
   will-change: transform, opacity;
   transition:
     opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 420ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+    transform 400ms cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 
 .app-update-pill.is-visible {
   opacity: 1;
-  transform: translate3d(-50%, 0, 0) rotate(0deg) scale(1);
+  transform: translate3d(-50%, 0, 0) scale(1);
 }
 
 .app-update-pill.is-applying {
   transform: translate3d(-50%, -2px, 0) scale(0.985);
 }
 
-/* 朱砂钤印小章与飞鸽意象 */
-.app-update-seal {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  background: #b83b28;
-  color: #fcfaf7;
-  font-family: var(--font-hand-title, serif);
-  font-size: 0.68rem;
-  font-weight: 700;
-  line-height: 1;
-  flex-shrink: 0;
-  transform: scale(1.28) rotate(-10deg);
-  opacity: 0;
-  transition:
-    transform 380ms cubic-bezier(0.22, 1, 0.36, 1) 80ms,
-    opacity 240ms ease 60ms;
-}
-
-.app-update-pill.is-visible .app-update-seal {
-  transform: scale(1) rotate(-2deg);
-  opacity: 1;
-}
-
-[data-theme="dark"] .app-update-seal {
-  background: #cf4a36;
-  color: #faf8f5;
-}
-
-[data-theme="moss"] .app-update-seal {
-  background: #ffc2d1;
-  color: #004d40;
-}
-
+/* 精致单色细线飞鸽 SVG 图标 */
 .app-update-dove {
   display: inline-flex;
   align-items: center;
-  color: #b83b28;
-  opacity: 0.85;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--accent-soft, rgba(0, 0, 0, 0.06));
+  color: var(--ink-strong, #18181b);
+  opacity: 0.92;
   flex-shrink: 0;
 }
 
 [data-theme="dark"] .app-update-dove {
-  color: #e06350;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ink-strong, #f3f4f6);
 }
 
 [data-theme="moss"] .app-update-dove {
+  background: rgba(255, 194, 209, 0.16);
   color: #ffc2d1;
 }
 
-/* 底缘水墨进度线（待命微息 / 结算满墨） */
+/* 底缘单色水墨浸染进度线（待命微息 / 结算满墨） */
 .app-update-ink-track {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 12px;
+  right: 12px;
   bottom: 0;
-  height: 2px;
+  height: 1.5px;
+  border-radius: 9999px;
   background: rgba(0, 0, 0, 0.06);
   pointer-events: none;
   overflow: hidden;
@@ -150,7 +122,7 @@ const APP_UPDATE_MOTION_CSS = `
   display: block;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #b83b28 0%, var(--ink-strong, #18181b) 100%);
+  background: linear-gradient(90deg, var(--ink-mid, #555555) 0%, var(--ink-strong, #000000) 100%);
   transform: scaleX(0.18);
   transform-origin: left center;
   opacity: 0.68;
@@ -161,7 +133,7 @@ const APP_UPDATE_MOTION_CSS = `
 }
 
 [data-theme="dark"] .app-update-ink-bar {
-  background: linear-gradient(90deg, #e06350 0%, #f3f4f6 100%);
+  background: linear-gradient(90deg, rgba(234, 232, 227, 0.45) 0%, #f3f4f6 100%);
 }
 
 [data-theme="moss"] .app-update-ink-bar {
@@ -176,7 +148,6 @@ const APP_UPDATE_MOTION_CSS = `
 
 @media (prefers-reduced-motion: reduce) {
   .app-update-pill,
-  .app-update-seal,
   .app-update-ink-bar {
     transition: none !important;
   }
@@ -422,7 +393,7 @@ function dispatchFlushDrafts(doc: Document, win: Window): void {
 }
 
 /**
- * Mount build-version update watcher, ViewTransition guard, and cinnabar messenger note pill.
+ * Mount build-version update watcher, ViewTransition guard, and monochrome capsule messenger pill.
  */
 export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAutoUpdateApi {
   const win = options.win || window;
@@ -554,12 +525,6 @@ export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAut
       pillEl.setAttribute('role', 'status');
       pillEl.setAttribute('aria-live', 'polite');
 
-      const seal = doc.createElement('span');
-      seal.className = 'app-update-seal';
-      seal.dataset.updateSeal = 'true';
-      seal.setAttribute('aria-hidden', 'true');
-      seal.textContent = '新';
-
       const dove = doc.createElement('span');
       dove.className = 'app-update-dove';
       dove.setAttribute('aria-hidden', 'true');
@@ -598,7 +563,7 @@ export function mountAppAutoUpdate(options: MountAutoUpdateOptions = {}): AppAut
       inkBar.dataset.updateInkBar = 'true';
       inkTrack.appendChild(inkBar);
 
-      pillEl.append(seal, dove, msg, applyBtn, dismissBtn, inkTrack);
+      pillEl.append(dove, msg, applyBtn, dismissBtn, inkTrack);
       doc.body.appendChild(pillEl);
     }
 
