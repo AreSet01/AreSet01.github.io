@@ -1,4 +1,5 @@
 import { defineConfig } from 'astro/config';
+import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import { visit } from 'unist-util-visit';
 import remarkCjkFriendly from 'remark-cjk-friendly';
@@ -203,7 +204,7 @@ function remarkMermaid() {  return (tree) => {
 
 export default defineConfig({
   site: 'https://AreSet01.github.io',
-  integrations: [versionManifestIntegration()],
+  integrations: [react(), versionManifestIntegration()],
   markdown: {
     // 让 **…** 在中文全角标点旁也能正确解析（CommonMark 的 flanking 规则在 CJK 下会失效）；
     // 必须放在 remarkMermaid 之前，确保解析阶段就挂上 micromark 扩展。

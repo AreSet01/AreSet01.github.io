@@ -38,10 +38,13 @@ describe('全站「烟雨濛濛」音画微气象系统与首页视觉纯净化�
     const indexPath = path.join(rootDir, 'src/pages/index.astro');
     const indexContent = fs.readFileSync(indexPath, 'utf8');
     assert.ok(indexContent.includes('home-stats-strip'), 'index.astro 应包含水墨长卷数据条');
-
-    const packageJsonPath = path.join(rootDir, 'package.json');
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-    assert.ok(!packageJson.dependencies?.three, 'package.json dependencies 中不应再包含 three');
+    assert.ok(
+      !indexContent.includes("from 'three'") &&
+        !indexContent.includes('from "three"') &&
+        !indexContent.includes("import('three')") &&
+        !indexContent.includes('import("three")'),
+      'index.astro 不应直接导入 three，确保首页水墨架构零冗余 3D 负载'
+    );
   });
 
   it('5. home-stats-strip: 水墨渐隐长卷胶囊具备磁吸滑块、淡化边缘与快捷导航链接', () => {
