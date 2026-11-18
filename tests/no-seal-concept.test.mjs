@@ -12,7 +12,7 @@ function collectSourceFiles(dir, acc = []) {
     if (entry.isDirectory()) {
       if (entry.name === 'content') continue;
       collectSourceFiles(fullPath, acc);
-    } else if (/\.(astro|ts|js|mjs|css)$/.test(entry.name)) {
+    } else if (/\.(astro|tsx?|jsx?|mjs|css)$/.test(entry.name)) {
       acc.push(fullPath);
     }
   }

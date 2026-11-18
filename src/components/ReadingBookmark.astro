@@ -525,7 +525,7 @@
 
   .rbm-list :global(.rbm-item-del:hover) {
     opacity: 1;
-    color: var(--vermilion, #ef4444);
+    color: var(--ink-strong, var(--text-strong));
   }
 
   /* 夹签成功轻提示 */
@@ -570,7 +570,7 @@
   }
 
   @keyframes rbmBlockFlash {
-    0% { background-color: rgba(184, 59, 40, 0.14); }
+    0% { background-color: color-mix(in srgb, var(--ink-strong, #18181b) 10%, transparent); }
     100% { background-color: transparent; }
   }
 
@@ -613,33 +613,36 @@
 </style>
 
 <script>
+  import { animate, spring } from 'motion';
   import {
-    addManualBookmark,
-    dismissReadingResume,
     formatProgressPercent,
     getArticleBookmarks,
     getArticleReadingProgress,
     normalizeReadingSlug,
-    removeManualBookmark,
-    shouldPromptResume,
-    upsertReadingProgress,
     type ManualBookmarkRecord,
   } from '../utils/readingBookmarkEngine';
   import { initReadingSync } from '../utils/readingSync';
+  import {
+    addArticleBookmark,
+    clearReadingToast,
+    dismissArticleResumeSlip,
+    hideResumeSlipState,
+    hydrateReadingStoreForPost,
+    promptResumeSlipIfEligible,
+    readingStore,
+    recordArticleProgress,
+    refreshReadingStoreFromStorage,
+    removeArticleBookmark,
+    setBookmarkPopoverOpen,
+    triggerReadingToast,
+    updateLiveReadingPosition,
+  } from '../stores/readingStore';
+  import { mountBookmarkPopoverIsland, type BookmarkIslandHandle } from '../components/islands/BookmarkPopoverList';
 
   initReadingSync();
 
   const CLEANUP_KEY = '__areSetReadingBookmarkCleanup__';
   const LISTENER_KEY = '__areSetReadingBookmarkBound__';
-
-  function escapeHtml(raw: string): string {
-    return String(raw ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
 
   function initReadingBookmark() {
     (window as any)[CLEANUP_KEY]?.();
@@ -676,7 +679,27 @@
 
     const isPostLocked = () => article.getAttribute('data-locked-post') === 'true';
     const prefersReducedMotion = () =>
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+      Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+
+    // Track active Motion animations so cleanup cancels them cleanly without dangling rAFs
+    const activeAnimations = new Set<{ stop?: () => void }>();
+    const trackMotion = <T extends { stop?: () => void; finished?: Promise<unknown> }>(ctrl: T): T => {
+      activeAnimations.add(ctrl);
+      ctrl.finished?.finally?.(() => activeAnimations.delete(ctrl)).catch?.(() => {});
+      return ctrl;
+    };
+    const stopAllMotions = () => {
+      activeAnimations.forEach((ctrl) => {
+        try {
+          ctrl.stop?.();
+        } catch {}
+      });
+      activeAnimations.clear();
+    };
+
+    // Hydrate reactive Nanostores state for this post
+    const { savedProgress: savedOnEnter } = hydrateReadingStoreForPost(postSlug, getPostTitle());
+    (window as any).__readingStore = readingStore;
 
     // ---------- 预缓存几何坐标（零 scroll 同步回流） ----------
     interface CachedHeading {
@@ -735,34 +758,81 @@
       return { progress, headingId, headingText };
     }
 
-    // ---------- 轻提示与角标同步 ----------
+    // ---------- 轻提示与角标同步 (Nanostores + Motion Spring) ----------
     let toastHideTimer = 0;
     let toastHiddenTimer = 0;
+    let toastAnimCtrl: { stop?: () => void } | null = null;
+
     function showToast(msg: string) {
+      triggerReadingToast(msg);
+    }
+
+    const unsubscribeToast = readingStore.toast.listen((state) => {
       if (!toast || !toastText) return;
       window.clearTimeout(toastHideTimer);
       window.clearTimeout(toastHiddenTimer);
-      toastText.textContent = msg;
-      toast.hidden = false;
-      requestAnimationFrame(() => {
-        toast.classList.add('is-visible');
-      });
-      toastHideTimer = window.setTimeout(() => {
-        toast.classList.remove('is-visible');
-        toastHiddenTimer = window.setTimeout(() => {
-          toast.hidden = true;
-        }, 230);
-      }, 1850);
-    }
+      toastAnimCtrl?.stop?.();
 
-    function updateBookmarkBadges() {
-      const list = getArticleBookmarks(postSlug);
+      if (!state.visible) {
+        toast.classList.remove('is-visible');
+        if (prefersReducedMotion()) {
+          toast.hidden = true;
+        } else {
+          toastAnimCtrl = trackMotion(
+            animate(
+              toast,
+              {
+                opacity: 0,
+                transform: 'translate3d(-50%, 8px, 0) scale(0.96)',
+              },
+              { duration: 0.18, ease: [0.32, 0, 0.2, 1] }
+            )
+          );
+          toastHiddenTimer = window.setTimeout(() => {
+            if (toast) toast.hidden = true;
+          }, 200);
+        }
+        return;
+      }
+
+      toastText.textContent = state.message;
+      toast.hidden = false;
+      toast.classList.add('is-visible');
+
+      if (!prefersReducedMotion()) {
+        toast.style.transition = 'none';
+        toastAnimCtrl = trackMotion(
+          animate(
+            toast,
+            {
+              opacity: [0, 1],
+              transform: [
+                'translate3d(-50%, 10px, 0) scale(0.95)',
+                'translate3d(-50%, 0px, 0) scale(1)',
+              ],
+            },
+            { type: spring, stiffness: 460, damping: 32, mass: 0.7 }
+          )
+        );
+      } else {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translate3d(-50%, 0px, 0) scale(1)';
+      }
+
+      toastHideTimer = window.setTimeout(() => {
+        clearReadingToast();
+      }, 1850);
+    });
+
+    // Synchronously update all `[data-bookmarks-count]` badges from `readingStore.bookmarks`
+    const unsubscribeBookmarks = readingStore.bookmarks.subscribe((list) => {
       document.querySelectorAll<HTMLElement>('[data-bookmarks-count]').forEach((el) => {
         el.textContent = String(list.length);
       });
-      if (popover && !popover.hidden) {
-        renderPopoverList(list);
-      }
+    });
+
+    function updateBookmarkBadges() {
+      refreshReadingStoreFromStorage();
     }
 
     // ---------- 平滑定位到进度 / 书签 ----------
@@ -829,19 +899,88 @@
       }
     }
 
-    // ---------- 「竹签续读」浮条控制 ----------
+    // ---------- 「竹签续读」浮条控制 (Nanostores + Motion Spring) ----------
     let slipAutoHideTimer = 0;
     let slipCloseTimer = 0;
-    const savedOnEnter = getArticleReadingProgress(postSlug);
+    let slipAnimCtrl: { stop?: () => void } | null = null;
+
+    const unsubscribeResumeSlip = readingStore.resumeSlip.listen((slipState) => {
+      if (!slip) return;
+      window.clearTimeout(slipAutoHideTimer);
+      window.clearTimeout(slipCloseTimer);
+      slipAnimCtrl?.stop?.();
+
+      if (!slipState.visible || !slipState.record) {
+        if (slip.hidden) return;
+        slip.classList.remove('is-visible');
+        if (prefersReducedMotion()) {
+          slip.hidden = true;
+          return;
+        }
+        slip.style.transition = 'none';
+        slipAnimCtrl = trackMotion(
+          animate(
+            slip,
+            {
+              opacity: 0,
+              transform: 'translate3d(0, 12px, 0) scale(0.98)',
+            },
+            { duration: 0.22, ease: [0.32, 0, 0.2, 1] }
+          )
+        );
+        slipCloseTimer = window.setTimeout(() => {
+          if (slip) slip.hidden = true;
+        }, 230);
+        return;
+      }
+
+      if (slipPctEl) slipPctEl.textContent = `${slipState.percent}%`;
+      if (slipHeadingEl) slipHeadingEl.textContent = slipState.label;
+      const ratioScale = Math.max(0.04, Math.min(1, slipState.record.progress));
+
+      slip.hidden = false;
+      slip.classList.add('is-visible');
+
+      if (!prefersReducedMotion()) {
+        slip.style.transition = 'none';
+        slipAnimCtrl = trackMotion(
+          animate(
+            slip,
+            {
+              opacity: [0, 1],
+              transform: [
+                'translate3d(0, 14px, 0) scale(0.975)',
+                'translate3d(0, 0px, 0) scale(1)',
+              ],
+            },
+            { type: spring, stiffness: 420, damping: 32, mass: 0.78 }
+          )
+        );
+        if (slipBarEl) {
+          slipBarEl.style.transition = 'none';
+          trackMotion(
+            animate(
+              slipBarEl,
+              { transform: ['scaleX(0)', `scaleX(${ratioScale.toFixed(3)})`] },
+              { type: spring, stiffness: 320, damping: 30 }
+            )
+          );
+        }
+      } else {
+        slip.style.opacity = '1';
+        slip.style.transform = 'translate3d(0, 0px, 0) scale(1)';
+        if (slipBarEl) {
+          slipBarEl.style.transform = `scaleX(${ratioScale.toFixed(3)})`;
+        }
+      }
+
+      slipAutoHideTimer = window.setTimeout(() => {
+        hideResumeSlipState();
+      }, 9500);
+    });
 
     function hideResumeSlip() {
-      if (!slip || slip.hidden) return;
-      window.clearTimeout(slipAutoHideTimer);
-      slip.classList.remove('is-visible');
-      window.clearTimeout(slipCloseTimer);
-      slipCloseTimer = window.setTimeout(() => {
-        if (slip) slip.hidden = true;
-      }, prefersReducedMotion() ? 0 : 280);
+      hideResumeSlipState();
     }
 
     function showResumeSlipIfEligible() {
@@ -852,7 +991,8 @@
       // 若通过 ?bm=xxx 指定跳转到某枚手动夹签
       const bmId = urlParams.get('bm');
       if (bmId) {
-        const bm = getArticleBookmarks(postSlug).find((b) => b.id === bmId);
+        const bm = readingStore.bookmarks.get().find((b) => b.id === bmId) ||
+          getArticleBookmarks(postSlug).find((b) => b.id === bmId);
         if (bm) {
           window.setTimeout(() => scrollToTarget(bm), 280);
         }
@@ -871,43 +1011,26 @@
         return;
       }
 
-      // 已有锚点或笔记深链时不叠加续读浮条
-      if (hash || urlParams.get('noteId')) return;
-      if (!shouldPromptResume(savedOnEnter) || !savedOnEnter) return;
-
-      const pct = formatProgressPercent(savedOnEnter.progress);
-      if (slipPctEl) slipPctEl.textContent = `${pct}%`;
-      if (slipHeadingEl) {
-        slipHeadingEl.textContent = savedOnEnter.headingText
-          ? `上次读至《${savedOnEnter.headingText}》`
-          : `上次读至全文 ${pct}% 处`;
-      }
-      if (slipBarEl) {
-        slipBarEl.style.transform = `scaleX(${Math.max(0.04, Math.min(1, savedOnEnter.progress)).toFixed(3)})`;
-      }
-
-      slip.hidden = false;
-      requestAnimationFrame(() => {
-        slip.classList.add('is-visible');
+      const hasDeepLink = Boolean(hash || urlParams.get('noteId'));
+      promptResumeSlipIfEligible({
+        record: savedOnEnter,
+        hasDeepLink,
+        isLocked: isPostLocked(),
       });
-
-      slipAutoHideTimer = window.setTimeout(() => {
-        hideResumeSlip();
-      }, 9500);
     }
 
     slipJumpBtn?.addEventListener('click', () => {
-      if (!savedOnEnter) return;
+      const targetRec = readingStore.resumeSlip.get().record ?? savedOnEnter;
+      if (!targetRec) return;
       hideResumeSlip();
       scrollToTarget({
-        progress: savedOnEnter.progress,
-        headingId: savedOnEnter.headingId,
+        progress: targetRec.progress,
+        headingId: targetRec.headingId,
       });
     }, { signal });
 
     slipDismissBtn?.addEventListener('click', () => {
-      dismissReadingResume(postSlug);
-      hideResumeSlip();
+      dismissArticleResumeSlip(postSlug);
     }, { signal });
 
     // ---------- 自动阅读进度采样与节流落盘 ----------
@@ -922,11 +1045,7 @@
     function persistCurrentProgress() {
       if (!armedForTracking || isPostLocked()) return;
       const { progress, headingId, headingText } = computeCurrentPosition();
-      // 读者主动深入滚动超过已存位置或刚超过 4% 时，自动收起未点的续读条
-      if (slip && !slip.hidden && savedOnEnter && progress > savedOnEnter.progress + 0.06) {
-        hideResumeSlip();
-      }
-      upsertReadingProgress({
+      recordArticleProgress({
         postSlug,
         postTitle: getPostTitle(),
         progress,
@@ -940,6 +1059,7 @@
       if (!scrollRaf) {
         scrollRaf = window.requestAnimationFrame(() => {
           scrollRaf = 0;
+          updateLiveReadingPosition(computeCurrentPosition());
           window.clearTimeout(saveDebounceTimer);
           saveDebounceTimer = window.setTimeout(persistCurrentProgress, 900);
         });
@@ -980,8 +1100,12 @@
       if (isPostLocked()) return null;
       measureLayout();
       const pos = computeCurrentPosition();
-      const excerpt = (custom?.excerpt || '').trim() || captureViewportParagraphExcerpt() || pos.headingText || '正文书签';
-      const record = addManualBookmark({
+      const excerpt =
+        (custom?.excerpt || '').trim() ||
+        captureViewportParagraphExcerpt() ||
+        pos.headingText ||
+        '正文书签';
+      const record = addArticleBookmark({
         postSlug,
         postTitle: getPostTitle(),
         progress: pos.progress,
@@ -992,52 +1116,22 @@
         suffix: custom?.suffix,
       });
       if (record) {
-        updateBookmarkBadges();
         showToast(`已夹入书签 · ${formatProgressPercent(record.progress)}%`);
       }
       return record;
     }
 
-    // ---------- 夹签管理浮笺列表渲染 ----------
+    // ---------- 夹签管理浮笺 (React 19 + Motion Island) ----------
     let popoverCloseTimer = 0;
-    function renderPopoverList(items = getArticleBookmarks(postSlug)) {
-      if (!popoverList) return;
-      if (items.length === 0) {
-        popoverList.innerHTML = `
-          <div class="rbm-empty">
-            本文暂未夹签。<br/>阅读时按 <kbd>B</kbd> 或划词点击「夹签」，即可在此留存多处书签。
-          </div>
-        `;
-        return;
-      }
-
-      popoverList.innerHTML = items.map((bm) => {
-        const pct = formatProgressPercent(bm.progress);
-        const sec = bm.headingText ? `§ ${escapeHtml(bm.headingText)}` : '正文段落';
-        return `
-          <div class="rbm-item" data-rbm-id="${escapeHtml(bm.id)}">
-            <button type="button" class="rbm-item-main" data-rbm-jump="${escapeHtml(bm.id)}">
-              <span class="rbm-item-meta">
-                <span class="rbm-item-pct">${pct}%</span>
-                <span class="rbm-item-heading">${sec}</span>
-              </span>
-              <p class="rbm-item-excerpt">${escapeHtml(bm.excerpt)}</p>
-            </button>
-            <button type="button" class="rbm-item-del" data-rbm-del="${escapeHtml(bm.id)}" aria-label="移除此书签" title="移除书签">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          </div>
-        `;
-      }).join('');
-    }
+    let popoverAnimCtrl: { stop?: () => void } | null = null;
+    let popoverIsland: BookmarkIslandHandle | null = null;
 
     function openBookmarksPopover(anchorEl?: HTMLElement | null) {
       if (!popover) return;
       window.clearTimeout(popoverCloseTimer);
-      renderPopoverList();
+      popoverAnimCtrl?.stop?.();
+      refreshReadingStoreFromStorage();
+
       if (anchorEl && window.innerWidth >= 640) {
         const r = anchorEl.getBoundingClientRect();
         if (r.width > 0 && r.height > 0) {
@@ -1047,19 +1141,60 @@
           popover.style.right = `${Math.round(right)}px`;
         }
       }
+
       popover.hidden = false;
-      requestAnimationFrame(() => {
-        popover.classList.add('is-open');
-      });
+      popover.classList.add('is-open');
+      setBookmarkPopoverOpen(true);
+
+      if (!prefersReducedMotion()) {
+        popover.style.transition = 'none';
+        popover.style.clipPath = 'inset(0 0 0 0 round 12px)';
+        popoverAnimCtrl = trackMotion(
+          animate(
+            popover,
+            {
+              opacity: [0, 1],
+              transform: [
+                'translate3d(0, -8px, 0) scale(0.965)',
+                'translate3d(0, 0px, 0) scale(1)',
+              ],
+            },
+            { type: spring, stiffness: 460, damping: 34, mass: 0.72 }
+          )
+        );
+      } else {
+        popover.style.opacity = '1';
+        popover.style.transform = 'translate3d(0, 0px, 0) scale(1)';
+        popover.style.clipPath = 'inset(0 0 0 0 round 12px)';
+      }
     }
 
     function closeBookmarksPopover() {
       if (!popover || popover.hidden) return;
       popover.classList.remove('is-open');
+      setBookmarkPopoverOpen(false);
       window.clearTimeout(popoverCloseTimer);
+      popoverAnimCtrl?.stop?.();
+
+      if (prefersReducedMotion()) {
+        popover.hidden = true;
+        return;
+      }
+
+      popover.style.transition = 'none';
+      popoverAnimCtrl = trackMotion(
+        animate(
+          popover,
+          {
+            opacity: 0,
+            transform: 'translate3d(0, -6px, 0) scale(0.97)',
+          },
+          { duration: 0.18, ease: [0.32, 0, 0.2, 1] }
+        )
+      );
       popoverCloseTimer = window.setTimeout(() => {
         if (popover) popover.hidden = true;
-      }, prefersReducedMotion() ? 0 : 220);
+      }, 190);
     }
 
     function toggleBookmarksPopover(anchorEl?: HTMLElement | null) {
@@ -1069,6 +1204,25 @@
       } else {
         openBookmarksPopover(anchorEl);
       }
+    }
+
+    if (popoverList) {
+      popoverIsland = mountBookmarkPopoverIsland(popoverList, {
+        onJumpBookmark: (id: string) => {
+          const bm =
+            readingStore.bookmarks.get().find((b) => b.id === id) ||
+            getArticleBookmarks(postSlug).find((b) => b.id === id);
+          if (bm) {
+            closeBookmarksPopover();
+            scrollToTarget(bm);
+          }
+        },
+        onDeleteBookmark: (id: string) => {
+          if (removeArticleBookmark(id)) {
+            showToast('已移除书签');
+          }
+        },
+      });
     }
 
     document.querySelectorAll<HTMLElement>('[data-article-bookmarks-trigger]').forEach((btn) => {
@@ -1085,30 +1239,6 @@
 
     popoverCloseBtn?.addEventListener('click', () => {
       closeBookmarksPopover();
-    }, { signal });
-
-    popoverList?.addEventListener('click', (e) => {
-      const target = e.target instanceof Element ? e.target : null;
-      if (!target) return;
-      const delBtn = target.closest<HTMLElement>('[data-rbm-del]');
-      if (delBtn) {
-        e.stopPropagation();
-        const id = delBtn.dataset.rbmDel || '';
-        if (removeManualBookmark(id)) {
-          updateBookmarkBadges();
-          showToast('已移除书签');
-        }
-        return;
-      }
-      const jumpBtn = target.closest<HTMLElement>('[data-rbm-jump]');
-      if (jumpBtn) {
-        const id = jumpBtn.dataset.rbmJump || '';
-        const bm = getArticleBookmarks(postSlug).find((b) => b.id === id);
-        if (bm) {
-          closeBookmarksPopover();
-          scrollToTarget(bm);
-        }
-      }
     }, { signal });
 
     document.addEventListener('pointerdown', (e) => {
@@ -1153,7 +1283,7 @@
       }
     }, { signal });
 
-    // 云端同步或外部修改后刷新角标
+    // 云端同步或外部修改后刷新响应式 Store 与角标
     window.addEventListener('reading:synced', updateBookmarkBadges, { signal });
     window.addEventListener('reading:changed', updateBookmarkBadges, { signal });
     window.addEventListener('post-unlocked', () => {
@@ -1170,20 +1300,23 @@
         prefix?: string;
         suffix?: string;
       }) => addBookmarkAtSelectionOrViewport(payload),
-      openPopover: () => openBookmarksPopover(document.querySelector<HTMLElement>('[data-article-bookmarks-trigger]')),
+      openPopover: () =>
+        openBookmarksPopover(document.querySelector<HTMLElement>('[data-article-bookmarks-trigger]')),
       jumpToBookmark: (id: string) => {
-        const bm = getArticleBookmarks(postSlug).find((b) => b.id === id);
+        const bm =
+          readingStore.bookmarks.get().find((b) => b.id === id) ||
+          getArticleBookmarks(postSlug).find((b) => b.id === id);
         if (bm) scrollToTarget(bm);
       },
       resumeProgress: () => {
-        const prog = getArticleReadingProgress(postSlug);
+        const prog = readingStore.currentProgress.get() ?? getArticleReadingProgress(postSlug);
         if (prog) scrollToTarget({ progress: prog.progress, headingId: prog.headingId });
       },
       getBookmarks: () => getArticleBookmarks(postSlug),
+      store: readingStore,
     };
 
     measureLayout();
-    updateBookmarkBadges();
 
     // 等待标题书法入场释放后再温和呈现续读条
     const startSlipTimer = window.setTimeout(() => {
@@ -1195,6 +1328,12 @@
       persistCurrentProgress();
       controller.abort();
       ro?.disconnect();
+      unsubscribeBookmarks();
+      unsubscribeResumeSlip();
+      unsubscribeToast();
+      stopAllMotions();
+      popoverIsland?.unmount();
+      popoverIsland = null;
       if (scrollRaf) window.cancelAnimationFrame(scrollRaf);
       window.clearTimeout(armTimer);
       window.clearTimeout(startSlipTimer);
