@@ -1,7 +1,7 @@
 # 梦付千秋 · 个人博客 (AreSet's Blog)
 
 > **落墨成格 · 像素推演 · 技术记录**  
-> 基于 **Astro v5** + **Tailwind CSS v4** + **GSAP** + **Lenis** 构建的高性能个人技术博客，深度融合东方水墨意境与复古像素美学。
+> 基于 **Astro v6** + **React 19 Islands** + **Motion** + **Three.js** + **Nanostores** + **Tailwind CSS v4** + **GSAP** + **Lenis** 构建的高性能个人技术博客与知识工作台，深度融合清浅纸境单色水墨意境与复古像素美学。
 
 ---
 
@@ -20,19 +20,21 @@
 
 ## 一、项目特色
 
-* **水墨像素美学**：独创「墨化为像素」全站开屏（`SiteIntro`）与关于页「落墨成格」推演（`AboutIntro`），搭配宣纸微噪底纹、朱砂印章与 Zpix 像素字体。
-* **高帧率丝滑交互**：基于 Lenis 平滑滚动驱动，深度集成 GSAP ScrollTrigger，全站视差滚动与入场动效严格运行于合成器图层。
-* **全屏水墨扩散转场**：进入文章时呈现自研全屏 Canvas 墨晕绽放（`PostTransition`），告别生硬白屏与切页闪烁。
-* **Mermaid 流程图无级缩放**：原生支持 Mermaid 流程图与时序图渲染，配备 500% 无级滚轮缩放、双指手势平移及全屏模态框。
-* **AI 划词伴读（feat/ink-ask）**：在文章中划选任意文字，即可钤出朱砂墨圈，由服务端大模型（如 Gemini / OpenAI 兼容接口）进行流式解析与多轮追问。
-* **笔记 × 墨问 同屏共存**：选区小窗只认 `×` 关闭（点正文/点笔记不再消失）；笔记与墨问可浮岛并排、也可全屏左右各半屏，中间分隔条可拖拽；笔记抽屉里正在写的草稿在重绘时不会丢失。
+* **清浅纸境水墨 × 像素美学**：独创「墨化为像素」全站开屏（`SiteIntro`），支持浅宣、徽墨、青苔、米笺四套主题与 Zpix 像素 / 行云手书双字形无缝切换，统一采用单色细线 SVG 与圆润水墨胶囊视觉语言。
+* **60–120fps 纯合成器动效体系**：基于 **Motion** 物理弹簧编排（`motion/react` + `workbenchMotion.ts` 反向圆角胶囊游标与 3D 宣纸折笺开合）与 **Lenis + GSAP ScrollTrigger** 协同驱动，严格规避逐帧 `filter: blur` 与同步布局回流。
+* **按需分包的 `Three.js` WebGL 水墨三维能力**：
+  * **`/tags` 2D/3D 双模标签星云**：支持「平面星图（2D SVG 力导向）」与「三维星云（3D WebGL 空间力导向 + 曲面水墨游丝 + 阻尼旋览调焦）」实时切换，三维坐标实时投影驱动无障碍链接节点。
+  * **`ThreeDemoStage` RenderDoc 3D 渲染管线检视台**：在图形学文章（如 `renderdoc_Use`）中按需懒加载水合，支持 `Xuan-Ink Shading` / `World Normals` / `Linear Depth` / `UV Checker` / `Wireframe` 五通道实时切换与 `DrawCalls / Triangles / Vertices` 帧指标检视，普通页面零 `three` 脚本负担。
+* **`Nanostores` 跨岛屿响应式状态层**：通过 `src/stores/*` 统一管理全局 `⌘K` 跨库混合命令面板（`CommandPaletteResults.tsx`）、一文多签「夹签续读」（`BookmarkPopoverList.tsx`）、禅意烟雨音景、思维导图工作台（`/mindmap`）、案头便签中心（`/notes`）以及多设备云墨增量同步（`/account`）。
+* **全屏水墨飞白转场与无级缩放图表**：进入文章时呈现自研 Canvas 浓淡飞白破墨转场（`PostTransition`）；原生支持 Mermaid 图表单 `rAF` 阻尼惯性漫游、滚轮缩放与全屏检视。
+* **AI 划词伴读与双卷同屏协同（`InkAsk` × `CompanionLayout`）**：在正文中划选任意文字即可勾勒书法飞白水墨笔圈，流式解析与多轮追问；由 `companionStore` 协调右侧单浮岛互切、留白画框全屏与「左墨问 · 右笔记」可拖拽并排分屏，锁定阅读列宽不重排且自动保护未存草稿。
 
 ---
 
 ## 二、本地运行与开发
 
 ### 2.1 环境要求
-* **Node.js**：`>= 18.17.1`（推荐 Node 20 LTS 或更高版本）
+* **Node.js**：`>= 22.6.0`（测试套件使用原生 `--experimental-strip-types` 直接运行 TypeScript 模块）
 * **包管理器**：`npm` / `pnpm`
 
 ### 2.2 快速启动
@@ -43,10 +45,13 @@ npm install
 # 2. 启动本地开发服务器（默认端口 http://localhost:4321）
 npm run dev
 
-# 3. 生产环境构建打包
+# 3. 运行全量单元与 JSDOM 动效/契约回归测试
+npm test
+
+# 4. 生产环境构建打包
 npm run build
 
-# 4. 本地预览生产构建产物
+# 5. 本地预览生产构建产物
 npm run preview
 ```
 
@@ -283,23 +288,30 @@ systemctl status blog-ask
 ## 五、项目结构一览
 
 ```text
-├── public/                 # 纯静态公开资源（Favicon、Robots、图片等）
+├── docs/                   # 动效架构、页面交互契约与审查文档（animations-and-pages.md）
+├── public/                 # 纯静态公开资源（Favicon、Robots、字体与图片等）
 ├── src/
-│   ├── components/         # 核心可复用组件
-│   │   ├── SiteIntro.astro # 全站「墨化为像素」开屏帘
-│   │   ├── AboutIntro.astro# 关于页「落墨成格」推演动效
-│   │   ├── Header.astro    # 顶部导航、水墨笔刷与夜间模式切换
-│   │   ├── PostTransition  # 文章全屏墨晕过渡转场
-│   │   ├── MermaidRenderer # Mermaid 图表渲染与无级缩放
-│   │   ├── CompanionLayout # 笔记 × 墨问 同屏共存布局协调（浮岛 / 全屏 / 并排）
-│   │   └── InkAsk.astro    # 划词 AI 伴读交互面板（feat/ink-ask）
-│   ├── content/posts/      # 博客 Markdown / MDX 文章源文件
+│   ├── components/         # 核心可复用 Astro 组件与 React Islands
+│   │   ├── islands/        # React 19 + Motion / Three.js 交互岛屿
+│   │   │   ├── CommandPaletteResults.tsx # ⌘K 跨库混合检索弹簧结果列表
+│   │   │   ├── BookmarkPopoverList.tsx   # 一文多签「本文夹签」弹簧浮笺
+│   │   │   └── ThreeDemoStage.tsx        # RenderDoc 3D 渲染管线 5 通道检视台
+│   │   ├── SiteIntro.astro # 全站「墨化为像素」开屏幕
+│   │   ├── Header.astro    # 侧栏磁吸毛笔游标、主题水墨晕环与禅意音景开关
+│   │   ├── PostTransition  # 文章全屏双层飞白破墨转场
+│   │   ├── ThreeInkCanvas  # 宣纸毛细渗化与水墨涟漪 WebGL 画布组件
+│   │   ├── MermaidRenderer # Mermaid 图表渲染、阻尼惯性漫游与无级缩放
+│   │   ├── CompanionLayout # 墨问 × 笔记 空间协调器（单浮岛 / 全屏 / 双卷并排）
+│   │   └── InkAsk.astro    # 书法飞白墨圈 AI 伴读面板（feat/ink-ask）
+│   ├── stores/             # Nanostores 跨组件响应式状态层（shell / palette / reading / zen / sync / notes / mindmap / collection / companion）
+│   ├── content/posts/      # 博客 Markdown 文章源文件
 │   ├── layouts/            # 页面骨架布局（BaseLayout、PostLayout）
-│   ├── pages/              # 路由视图（首页、归档、关于、统计、时空轴）
-│   ├── utils/              # 高亮引擎、Markdown、同步与并排布局数学等纯逻辑
-│   └── styles/global.css   # 全局样式系统与东方水墨配色规范
+│   ├── pages/              # 路由视图（首页、归档、2D/3D 标签星云、导图、便签、画廊、生活、设置、账户等）
+│   ├── utils/              # 纯逻辑与动效引擎（workbenchMotion、threeInkStage、tagConstellationThree、mindmapEngine 等）
+│   └── styles/global.css   # 全局样式系统与四套单色水墨纸境主题令牌
+├── tests/                  # 全站自动化单元、JSDOM 交互与单色水墨/合成器性能守门测试套件
 ├── scripts/                # 构建、散列与自动化部署脚本
-├── server/                 # 独立伴读后端与运维配置模板（feat/ink-ask）
-├── astro.config.mjs        # Astro 框架核心配置
+├── server/                 # 独立伴读与多端同步后端及运维配置模板
+├── astro.config.mjs        # Astro v6 + React 集成与构建清单配置
 └── package.json            # 项目依赖与指令定义
 ```
