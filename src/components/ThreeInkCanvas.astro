@@ -1,0 +1,136 @@
+---
+interface Props {
+  id?: string;
+  class?: string;
+  ambient?: boolean;
+  interactive?: boolean;
+  intensity?: number;
+}
+
+const {
+  id,
+  class: className = '',
+  ambient = true,
+  interactive = true,
+  intensity = 0.62,
+} = Astro.props;
+---
+
+<div
+  id={id}
+  class:list={['three-ink-stage', className]}
+  data-three-ink-canvas
+  data-ambient={String(ambient)}
+  data-interactive={String(interactive)}
+  data-intensity={String(intensity)}
+  aria-hidden="true"
+>
+  <canvas class="three-ink-webgl" data-three-ink-webgl></canvas>
+</div>
+
+<script>
+  import { createXuanInkStage } from '../utils/threeInkStage';
+  import type { XuanInkStageHandle } from '../utils/threeInkStage';
+
+  const CLEANUP_KEY = '__areSetThreeInkCanvasCleanup__';
+  const LISTENER_KEY = '__areSetThreeInkCanvasBound__';
+
+  function initThreeInkCanvases() {
+    const prev = (window as any)[CLEANUP_KEY];
+    if (typeof prev === 'function') prev();
+
+    const stages = Array.from(document.querySelectorAll<HTMLElement>('[data-three-ink-canvas]'));
+    if (stages.length === 0) return;
+
+    let cancelled = false;
+    const handles: XuanInkStageHandle[] = [];
+
+    stages.forEach((container) => {
+      const canvas = container.querySelector<HTMLCanvasElement>('[data-three-ink-webgl]');
+      const ambient = container.dataset.ambient !== 'false';
+      const interactive = container.dataset.interactive !== 'false';
+      const intensity = Number.parseFloat(container.dataset.intensity || '0.62') || 0.62;
+
+      createXuanInkStage({
+        container,
+        canvas,
+        ambient,
+        interactive,
+        intensity,
+      }).then((handle) => {
+        if (cancelled) {
+          handle.dispose();
+          return;
+        }
+        handles.push(handle);
+      });
+    });
+
+    (window as any)[CLEANUP_KEY] = () => {
+      cancelled = true;
+      while (handles.length > 0) {
+        handles.pop()?.dispose();
+      }
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+  }
+
+  initThreeInkCanvases();
+
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', initThreeInkCanvases);
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+    });
+    (window as any)[LISTENER_KEY] = true;
+  }
+</script>
+
+<style>
+  .three-ink-stage {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background: radial-gradient(
+      ellipse 72% 62% at 50% 48%,
+      color-mix(in srgb, var(--bg-soft) 62%, transparent) 0%,
+      transparent 100%
+    );
+  }
+
+  .three-ink-webgl {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+    opacity: 0.92;
+    transition: opacity 320ms var(--ease);
+  }
+
+  .three-ink-stage[data-fallback="true"] .three-ink-webgl {
+    opacity: 0;
+  }
+
+  .three-ink-stage[data-fallback="true"] {
+    background:
+      radial-gradient(
+        ellipse 66% 54% at 38% 42%,
+        color-mix(in srgb, var(--ink-mist, rgba(0, 0, 0, 0.12)) 38%, transparent) 0%,
+        transparent 74%
+      ),
+      radial-gradient(
+        ellipse 58% 48% at 68% 58%,
+        color-mix(in srgb, var(--bg-soft) 68%, transparent) 0%,
+        transparent 80%
+      );
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .three-ink-webgl {
+      transition: none !important;
+      opacity: 0;
+    }
+  }
+</style>

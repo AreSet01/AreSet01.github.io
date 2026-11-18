@@ -2322,6 +2322,78 @@ const hasToc = tocHeadings.length > 1;
     })();
   </script>
 
+  <script>
+    import type { MeshPresetId, RenderPassId } from '../components/islands/ThreeDemoStage';
+
+    const DEMO_CLEANUP_KEY = '__areSetThreeDemoCleanup__';
+    const DEMO_BOUND_KEY = '__areSetThreeDemoBound__';
+
+    function initPostThreeDemos() {
+      const prev = (window as any)[DEMO_CLEANUP_KEY];
+      if (typeof prev === 'function') prev();
+
+      const hosts = Array.from(document.querySelectorAll<HTMLElement>('[data-three-demo]'));
+      if (hosts.length === 0) return;
+
+      const lockedWrap = hosts[0].closest<HTMLElement>('[data-locked-content="true"]');
+      if (lockedWrap?.hidden) return;
+
+      let cancelled = false;
+      const mountedRoots: Array<{ unmount: () => void; host: HTMLElement }> = [];
+
+      Promise.all([
+        import('react'),
+        import('react-dom/client'),
+        import('../components/islands/ThreeDemoStage'),
+      ])
+        .then(([ReactMod, ReactDOMClient, DemoMod]) => {
+          if (cancelled) return;
+          const ThreeDemoStage = DemoMod.default;
+          hosts.forEach((host) => {
+            if (!host.isConnected) return;
+            const title = host.dataset.demoTitle || undefined;
+            const subtitle = host.dataset.demoSubtitle || undefined;
+            const initialPass = (host.dataset.demoPass as RenderPassId | undefined) || undefined;
+            const initialPreset = (host.dataset.demoPreset as MeshPresetId | undefined) || undefined;
+
+            const root = ReactDOMClient.createRoot(host);
+            root.render(
+              ReactMod.createElement(ThreeDemoStage, {
+                title,
+                subtitle,
+                initialPass,
+                initialPreset,
+              }),
+            );
+            mountedRoots.push({ unmount: () => root.unmount(), host });
+          });
+        })
+        .catch(() => {});
+
+      (window as any)[DEMO_CLEANUP_KEY] = () => {
+        cancelled = true;
+        while (mountedRoots.length > 0) {
+          const item = mountedRoots.pop();
+          try {
+            item?.unmount();
+          } catch {}
+        }
+        (window as any)[DEMO_CLEANUP_KEY] = undefined;
+      };
+    }
+
+    initPostThreeDemos();
+
+    if (!(window as any)[DEMO_BOUND_KEY]) {
+      document.addEventListener('astro:page-load', initPostThreeDemos);
+      window.addEventListener('post-unlocked', initPostThreeDemos);
+      document.addEventListener('astro:before-swap', () => {
+        (window as any)[DEMO_CLEANUP_KEY]?.();
+      });
+      (window as any)[DEMO_BOUND_KEY] = true;
+    }
+  </script>
+
   <style is:global>
     html[data-sidebar-collapsed="true"] [data-post-header] h1,
     html[data-sidebar-collapsed="true"] [data-post-header] p {
@@ -2926,6 +2998,365 @@ const hasToc = tocHeadings.length > 1;
       border-color: var(--vermilion);
       color: var(--vermilion);
       background: var(--vermilion-soft);
+    }
+
+    /* ================= 5. RenderDoc / UE5 3D 渲染管线检视工作台 (ThreeDemoStage Island) ================= */
+    [data-three-demo] {
+      margin: 2.2rem 0;
+      min-height: 440px;
+    }
+
+    .three-demo-shell {
+      border-radius: 18px;
+      border: 1px solid var(--rule);
+      background: color-mix(in srgb, var(--bg-soft) 72%, var(--bg-base));
+      overflow: hidden;
+      font-family: var(--font-body);
+    }
+
+    .three-demo-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.9rem 1.25rem;
+      padding: 1.15rem 1.35rem 0.95rem;
+      border-bottom: 1px dashed var(--rule);
+    }
+
+    .three-demo-heading {
+      min-width: 0;
+      flex: 1 1 18rem;
+    }
+
+    .three-demo-kicker-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.42rem;
+    }
+
+    .three-demo-pill-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.14rem 0.62rem;
+      border-radius: 9999px;
+      border: 1px solid var(--rule-strong);
+      background: var(--bg-base);
+      color: var(--text-strong);
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+    }
+
+    .three-demo-stage-code {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    .prose .three-demo-title,
+    .three-demo-title {
+      margin: 0 !important;
+      font-family: var(--font-hand-title, var(--font-body)) !important;
+      font-size: 1.16rem !important;
+      font-weight: 700 !important;
+      line-height: 1.35 !important;
+      color: var(--text-strong) !important;
+    }
+
+    .prose .three-demo-subtitle,
+    .three-demo-subtitle {
+      margin: 0.26rem 0 0 !important;
+      font-size: 0.8rem !important;
+      line-height: 1.55 !important;
+      color: var(--muted-strong) !important;
+    }
+
+    .three-demo-eid-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.42rem;
+    }
+
+    .three-demo-eid-btn {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1px;
+      padding: 0.34rem 0.68rem;
+      border-radius: 11px;
+      border: 1px solid var(--rule);
+      background: var(--bg-base);
+      color: var(--muted-strong);
+      cursor: pointer;
+      transition:
+        transform 180ms var(--ease),
+        border-color 180ms var(--ease),
+        background-color 180ms var(--ease),
+        color 180ms var(--ease);
+    }
+
+    .three-demo-eid-btn:hover {
+      border-color: var(--rule-strong);
+      color: var(--text-strong);
+      transform: translateY(-1px);
+    }
+
+    .three-demo-eid-btn.is-selected {
+      border-color: var(--ink-strong);
+      background: color-mix(in srgb, var(--ink-strong) 8%, var(--bg-base));
+      color: var(--text-strong);
+    }
+
+    .three-demo-eid-tag {
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.04em;
+      opacity: 0.78;
+    }
+
+    .three-demo-eid-name {
+      font-size: 0.74rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .three-demo-pass-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.65rem 1.35rem;
+      border-bottom: 1px solid var(--rule);
+      background: color-mix(in srgb, var(--bg-base) 65%, transparent);
+    }
+
+    .three-demo-pass-btn {
+      position: relative;
+      isolation: isolate;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.32rem;
+      padding: 0.36rem 0.78rem;
+      border-radius: 9999px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted-strong);
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 200ms var(--ease);
+    }
+
+    .three-demo-pass-btn:hover {
+      color: var(--text-strong);
+    }
+
+    .three-demo-pass-btn.is-active {
+      color: var(--bg-base);
+    }
+
+    [data-theme="moss"] .three-demo-pass-btn.is-active {
+      color: #002b24;
+    }
+
+    [data-theme="moss"][data-moss-shade="4DB6AC"] .three-demo-pass-btn.is-active {
+      color: #f2fbf9;
+    }
+
+    .three-demo-pass-glider {
+      position: absolute;
+      inset: 0;
+      border-radius: 9999px;
+      background: var(--ink-strong);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    [data-theme="moss"] .three-demo-pass-glider {
+      background: var(--accent);
+    }
+
+    .three-demo-pass-en {
+      font-family: var(--font-mono);
+      font-size: 0.63rem;
+      opacity: 0.75;
+    }
+
+    .three-demo-viewport {
+      position: relative;
+      height: 360px;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      background:
+        radial-gradient(
+          ellipse 68% 58% at 50% 48%,
+          color-mix(in srgb, var(--bg-elev) 82%, transparent) 0%,
+          color-mix(in srgb, var(--bg-soft) 92%, var(--bg-base)) 100%
+        );
+    }
+
+    .three-demo-viewport.is-dragging {
+      cursor: grabbing;
+    }
+
+    @media (max-width: 640px) {
+      .three-demo-viewport {
+        height: 280px;
+      }
+      .three-demo-pass-en {
+        display: none;
+      }
+    }
+
+    .three-demo-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .three-demo-fallback {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      padding: 1.2rem;
+      color: var(--text-strong);
+      text-align: center;
+    }
+
+    .three-demo-blueprint-svg {
+      width: min(260px, 72%);
+      height: auto;
+    }
+
+    .prose .three-demo-fallback-note,
+    .three-demo-fallback-note {
+      margin: 0 !important;
+      font-family: var(--font-mono);
+      font-size: 0.72rem !important;
+      color: var(--muted-strong) !important;
+    }
+
+    .three-demo-hud {
+      position: absolute;
+      left: 0.9rem;
+      bottom: 0.85rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.75rem;
+      padding: 0.38rem 0.75rem;
+      border-radius: 9999px;
+      border: 1px solid var(--rule);
+      background: color-mix(in srgb, var(--bg-base) 88%, transparent);
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      pointer-events: none;
+    }
+
+    .three-demo-hud-metric {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.3rem;
+    }
+
+    .three-demo-hud-key {
+      color: var(--muted);
+    }
+
+    .three-demo-hud-metric strong {
+      color: var(--text-strong);
+      font-weight: 600;
+    }
+
+    .three-demo-footer {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem 1.2rem;
+      padding: 0.85rem 1.35rem 1rem;
+      border-top: 1px solid var(--rule);
+      background: color-mix(in srgb, var(--bg-base) 55%, transparent);
+    }
+
+    .prose .three-demo-pass-desc,
+    .three-demo-pass-desc {
+      margin: 0 !important;
+      flex: 1 1 16rem;
+      font-size: 0.78rem !important;
+      line-height: 1.55 !important;
+      color: var(--muted-strong) !important;
+    }
+
+    .three-demo-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .three-demo-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.3rem 0.74rem;
+      border-radius: 9999px;
+      border: 1px solid var(--rule);
+      background: var(--bg-base);
+      color: var(--muted-strong);
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition:
+        transform 170ms var(--ease),
+        border-color 170ms var(--ease),
+        background-color 170ms var(--ease),
+        color 170ms var(--ease);
+    }
+
+    .three-demo-toggle-btn:hover:not(:disabled) {
+      border-color: var(--rule-strong);
+      color: var(--text-strong);
+      transform: translateY(-1px);
+    }
+
+    .three-demo-toggle-btn.is-on {
+      border-color: var(--ink-strong);
+      background: var(--ink-strong);
+      color: var(--bg-base);
+    }
+
+    [data-theme="moss"] .three-demo-toggle-btn.is-on {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #002b24;
+    }
+
+    [data-theme="moss"][data-moss-shade="4DB6AC"] .three-demo-toggle-btn.is-on {
+      color: #f2fbf9;
+    }
+
+    .three-demo-toggle-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .three-demo-eid-btn,
+      .three-demo-pass-btn,
+      .three-demo-toggle-btn {
+        transition: none !important;
+      }
     }
   </style>
 </BaseLayout>
