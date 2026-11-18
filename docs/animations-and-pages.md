@@ -1,6 +1,7 @@
 # 动效系统与页面说明
 
 > 记录全站「梦付千秋 · 清浅纸境水墨」60–120fps 动效架构、页面交互契约与可调参数。
+> 技术底座：**Astro 6** + **React 19 Islands** + **Motion** + **Three.js (按需分包 WebGL)** + **Nanostores** + **Tailwind CSS v4** + **GSAP** + **Lenis**。
 > 最后更新：2026-11-18
 
 ---
@@ -11,18 +12,18 @@
 
 | 路由 | 说明 |
 |---|---|
-| `/` | 首页。3D 宣纸弹性文章卡片、EWMA 速度滤波跑马灯、水墨长卷统计胶囊与三枚隐藏彩蛋 |
+| `/` | 首页。3D 宣纸弹性文章卡片、EWMA 速度滤波跑马灯、水墨长卷统计胶囊与三枚隐藏彩蛋（零首屏 `three` 同步加载） |
 | `/archive` | 全部分类归档。顶部纯合成器水墨胶囊游标（反向圆角几何补偿），切换时按墨迹收干/渗开与年份块高度联动重排 |
 | `/timeline` | 年轮。竖向滚动被 pin 住转成横向手卷，支持惯性拖拽、毛笔笔锋进度与墨滴涟漪节点 |
-| `/tags` / `/tags/[tag]` | 标签星图（固定步长力导向星座，悬停点亮共现脉络）与标签详情（列表逐条渗墨刷出） |
+| `/tags` / `/tags/[tag]` | 标签星图支持 **「平面星图 2D / 三维星云 3D」** 双模切换：2D 为固定步长 SVG 力导向星座，3D 为按需懒加载 `Three.js` WebGL 空间力导向星云（曲面水墨游丝、单色星晕 Shader、阻尼旋览与滚轮调焦，三维投影驱动无障碍 `<a>` 标签节点）；标签详情页列表逐条渗墨刷出 |
 | `/stats` | 写作统计。Hero 数字 + KPI + 四张挥毫统计图 + 平滑开合的 `<details>` 数据表 |
 | `/about` | 关于页。宣纸名刺排版、单色细墨线与圆润胶囊微标 |
-| `/posts/[slug]` | 文章阅读与伴读。单次温润正文显现、阻尼阅读脊线、湿墨连续划线、书法飞白「墨问」、锁定正文宽度的分屏/全屏伴读、飞墨对照台、文内搜索与单 rAF 惯性 Mermaid 画布 |
-| `/mindmap` | 思维导图工作台。单 rAF 惯性平移与焦点阻尼滚轮缩放、层级收锋非对称贝塞尔水墨枝蔓（`stroke-dashoffset` 生长/收拢）与实时小地图 |
-| `/notes` | 案头便签中心。3D 宣纸笺悬停、多维筛选锚点预滚动与删除时按需触发的墨迹收干（`@keyframes notesCardInkDry`） |
-| `/gallery` | 暗房画廊。底片水墨显影（`data-developed="1"`）、五段式空态平滑收放与画廊灯箱 |
-| `/life` | 线装生活志。毛笔笔触分类游标、手账卡片抽签与 3D 册页翻转详笺（`openCardFolio`） |
-| `/settings` / `/account` | 偏好设置与账户中心。墨玉阻尼滑块（实时联动四套主题、行云手书/像素字体、水墨指针拖尾）、纯合成器 `scaleX` 页签游标、圆润胶囊状态徽标与云墨同步脉动 |
+| `/posts/[slug]` | 文章阅读与伴读。单次温润正文显现、阻尼阅读脊线、湿墨连续划线、书法飞白「墨问」、`Nanostores` + `Motion` 驱动的分屏/全屏伴读（`CompanionLayout`）、飞墨对照台、文内搜索、单 rAF 惯性 Mermaid 画布，以及带 `[data-three-demo]` 文章按需水合的 **`ThreeDemoStage` RenderDoc 3D 渲染管线检视台** |
+| `/mindmap` | 思维导图工作台。`mindmapWorkbenchStore` 响应式状态 + `workbenchMotion` 弹簧胶囊游标/计数/浮层、单 rAF 惯性平移与焦点阻尼滚轮缩放、层级收锋非对称贝塞尔水墨枝蔓（`stroke-dashoffset` 生长/收拢）与实时小地图 |
+| `/notes` | 案头便签中心。`notesWorkbenchStore` 多维筛选与统计联动、3D 宣纸折笺弹窗舒展（`animatePaperModal`）、3D 宣纸笺悬停、锚点预滚动与删除时按需触发的墨迹收干（`@keyframes notesCardInkDry`） |
+| `/gallery` | 暗房画廊。`collectionFilterStore` 响应式过滤、底片水墨显影（`data-developed="1"`）、五段式空态平滑收放与画廊灯箱 |
+| `/life` | 线装生活志。`collectionFilterStore` 联动毛笔笔触弹簧分类游标、手账卡片抽签与 3D 册页翻转详笺（`openCardFolio`） |
+| `/settings` / `/account` | 偏好设置与账户中心。`shellStore` 与 `syncStore` 响应式同源状态、墨玉阻尼滑块（实时联动四套主题、行云手书/像素字体、水墨指针拖尾）、纯合成器 `scaleX` 页签弹簧游标、圆润胶囊状态徽标与三域（便签 + 导图 + 夹签）云墨同步脉动 |
 
 ### 全局特性
 
@@ -38,7 +39,12 @@
 
 **统一湿墨划线、墨问、夹签续读与伴读工作台** —— 正文划词可触发湿墨浸润连续高亮与批注、书法飞白墨圈「墨问」（`InkAsk.astro`，对接 `server/ask.mjs`，无后端时自动静默隐藏）、跨设备阅读进度记忆与一文多签「夹签续读」（`ReadingBookmark.astro` + `readingSync.ts`，支持 `B` 快捷键与重返竹签提示）、锁定阅读列宽的分屏/全屏伴读面板（`CompanionLayout.astro`）以及抛物线飞白入驻的对照工作台（`PinWorkbench.astro`）。
 
-**全局 `⌘K` 命令面板与跨库混合检索** —— 顶部反向椭圆圆角补偿水墨胶囊游标覆盖「全部 / 文章 / 笔记 / 导图 / 指令」（支持 `Tab` 键循环切换与 `>` 指令前缀直达），空态置顶「最近在读 · 继续展卷」，支持直达深层思维导图节点与文内划线/夹签，并对 `locked` 加密文章静态索引严格脱敏。
+**全局 `⌘K` 命令面板与跨库混合检索** —— 由 `commandPaletteStore.ts` + React 19 Island `CommandPaletteResults.tsx`（`motion/react` `AnimatePresence` 弹簧列表与活跃墨脊游标）驱动；顶部反向椭圆圆角补偿水墨胶囊游标覆盖「全部 / 文章 / 笔记 / 导图 / 指令」（支持 `Tab` 键循环切换与 `>` 指令前缀直达），空态置顶「最近在读 · 继续展卷」，支持直达深层思维导图节点与文内划线/夹签，并对 `locked` 加密文章静态索引严格脱敏。
+
+**分层技术架构（Astro 6 + React 19 Islands + `Motion` + `Three.js` + `Nanostores`）** —— 全站坚持静态优先与渐进增强：
+- **状态层（`src/stores/*`）**：以轻量无框架绑定的 `Nanostores` 统一跨岛屿与原生 `<script>` 状态同步（壳层主题字形、命令面板、阅读夹签、禅意音景、多端同步、便签/导图/画廊/生活工作台及阅读伴读分屏协调）。
+- **交互岛屿与弹簧编排（React 19 + `Motion`）**：高频动态列表（`CommandPaletteResults.tsx`、`BookmarkPopoverList.tsx`、`ThreeDemoStage.tsx`）采用 React 19 Islands + `motion/react` 弹簧编排；Astro 原生工作台共享 `src/utils/workbenchMotion.ts`（`animatePillGlider` 反向圆角弹簧胶囊、`animatePaperModal` 3D 宣纸折笺/册页开合、`animateInkPopover` 浮笺显隐、`animateCountValue` 数字跳动），全程仅驱动合成器属性（零动态 `filter: blur`）。
+- **GPU 三维水墨层（`Three.js` 懒加载分包）**：`three` 严禁打入首屏或普通文章同步包，仅在 `/tags` 切换「三维星云」或阅读含 `[data-three-demo]` 的图形学文章时通过 `await import('three')` 异步加载，并在离屏、模态框打开或 `astro:before-swap` 时自动挂起 `rAF` 与递归释放 GPU 显存（`.dispose()`）。
 
 ---
 
@@ -253,18 +259,46 @@ if (!window[LISTENER_KEY]) {
 
 ### 2.9 思维导图与应用工作台（`/mindmap`、`/notes`、`/gallery`、`/life`、`/settings`、`/account`）
 
-- **思维导图工作台（`src/pages/mindmap.astro` + `src/utils/mindmapEngine.ts`）**：
+- **工作台共享弹簧编排工具箱（`src/utils/workbenchMotion.ts`）**：
+  - 基于原生 `motion`（`animate`、`spring`）封装 120fps 纯合成器动效原语：`computeInversePillRadius` / `animatePillGlider`（固定 `width: 100px` 底衬层上逐帧同步插值 `translate3d(...) scaleX(...)` 与 `--pill-rx` / `--pill-ry` 反向椭圆圆角，支持中途打断重定目标）、`animatePaperModal`（`slip` 折笺 `rotateX` 与 `folio` 线装册页 `rotateY` 3D 舒展/收合）、`animateInkPopover`（浮层 `transform` + `opacity` + 瞬态 `clipPath` 揭开，落定即清空）与 `animateCountValue`（统计数值平滑过渡）。
+- **思维导图工作台（`src/pages/mindmap.astro` + `src/stores/mindmapWorkbenchStore.ts` + `src/utils/mindmapEngine.ts`）**：
+  - 状态由 `mindmapWorkbenchStore.ts`（`$mmFilter`、`$mmStats`、`$mmActiveState`、`$filteredMindMaps`）集中托管，联动顶部 `#mm-stats-glider`、`#mm-subtabs-glider`、工作台双段 `.mm-seg-glider`（`canvas` / `split` / `outline` 视图与三种布局切换）、统计数字 `animateCountValue` 以及关联文章/导出/自定义下拉浮层 `animateInkPopover`。
   - 单 `rAF` 视口物理（`tickViewportPhysics`）统一合并拖拽平移、指数摩擦惯性（`Math.exp(-5.6 * dt)`）与焦点阻尼滚轮缩放（`1 - Math.exp(-20 * dt)`）；视口几何由 `ResizeObserver` 预缓存（`cachedVpRect`），`pointermove` / `wheel` 零同步回流。
   - 连线采用按深度单调收锋（`computeInkBranchStrokeWidth` / `computeInkBranchOpacity`）的非对称三次贝塞尔书法枝蔓（`buildInkBranchPath`），展开与折叠节点时通过 `stroke-dashoffset` 演绎水墨枝蔓生长与收拢，并同步更新 `#mm-minimap`。
 - **便签 / 画廊 / 生活志**：
-  - `/notes` 静息卡片不挂常驻 `clip-path` 以完整保留 3D `preserve-3d` 纸面倾角，仅在 `.is-deleting` 期间触发 `@keyframes notesCardInkDry` 墨迹收干。
-  - `/gallery` 图片加载完成后写入 `data-developed="1"` 演绎暗房水墨显影。
-  - `/life` 卡片支持点击「展卷」以 3D 线装册页翻转（`rotateY` + `transformOrigin: left center`）打开手账详笺。
+  - `/notes` 由 `notesWorkbenchStore.ts` 驱动多维过滤与统计；静息卡片不挂常驻 `clip-path` 以完整保留 3D `preserve-3d` 纸面倾角，仅在 `.is-deleting` 期间触发 `@keyframes notesCardInkDry` 墨迹收干。
+  - `/gallery` 与 `/life` 接入 `collectionFilterStore.ts`；`/gallery` 图片加载完成后写入 `data-developed="1"` 演绎暗房水墨显影；`/life` 卡片支持点击「展卷」以 3D 线装册页翻转（`rotateY` + `transformOrigin: left center`）打开手账详笺。
 - **偏好设置与账户同步（`/settings`、`/account`）**：
   - `/settings` 墨玉滑块采用弹性阻尼位移，严格对齐全站状态协议（`html[data-cursor-trail="disabled"]` + `localStorage('cursor-trail')`、`html[data-font="kai"]` + `localStorage('site-font')`、`window.__applyTheme`）。
-  - `/account` 采用纯合成器 `scaleX` 页签游标（`.account-tab-glider`），登录核验与导图云端同步（`mindmapSync.ts`）配备圆润单色胶囊徽标、双圈水纹涟漪与云墨流转脉冲。
+  - `/account` 订阅 `syncStore.ts` 统一汇聚 `notes` + `mindmaps` + `reading` 三域版本快照与流向状态（`SyncFlowMode`），采用纯合成器 `scaleX` 页签游标（`.account-tab-glider`），登录核验与云端同步配备圆润单色胶囊徽标、双圈水纹涟漪与 `#syncInkBridge` 云墨流转脉冲。
 
-### 2.10 性能约定（60–120fps 零掉帧硬指标）
+### 2.10 WebGL 水墨画境、标签三维星云与 3D 渲染管线检视台（`Three.js`）
+
+- **宣纸毛细渗墨基础舞台（`src/utils/threeInkStage.ts` + `src/components/ThreeInkCanvas.astro`）**：
+  - 通过 `loadThree()` 实现动态 `import('three')` 懒加载，内置 `canUseWebGL()` 能力探测、JSDOM 与 `prefers-reduced-motion: reduce` 无感静态降级。
+  - 自定义 GLSL **宣纸纤维毛细水墨渗化与涟漪着色器**，实时读取四套主题单色水墨调色板（`light` / `dark` / `moss` / `rice`，纯单色墨韵阶调）；联动 `IntersectionObserver`、`visibilitychange` 与 `app:modal-enter` / `app:modal-leave` 自动挂起后台帧循环，并在 `astro:before-swap` 递归执行 `disposeThreeHierarchy` + `disposeWebGLRenderer` 零显存泄漏。
+- **`/tags` 平面星图 2D / 三维星云 3D 双模引擎（`src/pages/tags/index.astro` + `src/utils/tagConstellationThree.ts`）**：
+  - 顶部单色胶囊切换器（`[data-tag-view-bar]`）支持在保留完整 2D SVG 力导向星座（`STEP = 1 / 60`）的同时一键切入 **WebGL 三维力导向星云**。
+  - 3D 模式下以 GPU 曲面水墨细丝与单色呼吸星晕渲染共现拓扑，支持阻尼球面拖拽旋览与焦点滚轮调焦；每帧将三维球体坐标投影回 DOM `<a class="tag-node">` 的 `translate3d(...) scale(...)`，兼顾空间纵深感、键盘可访问性与直接点击跳转。
+- **`ThreeDemoStage` RenderDoc 3D 渲染管线检视台（`src/components/islands/ThreeDemoStage.tsx`）**：
+  - 在 `PostLayout.astro` 中仅当正文存在 `[data-three-demo]` 容器（如 `src/content/posts/renderdoc_Use.md`）时按需动态挂载 React 19 + `motion/react` + `Three.js` 检视岛屿，普通文章零 `three` 体积负担。
+  - 支持 **5 种实时 GPU 渲染通道切换**（`Xuan-Ink Shading` 宣纸水墨光照 / `World Normals` 世界法线 / `Linear Depth` 线性深度 / `UV Checker` 棋盘格纹理坐标 / `Wireframe` 拓扑线框）与多组几何预设（EID 帧事件对照），顶部 HUD 实时统计 `DrawCalls / Triangles / Vertices`，支持指针轨道检视与一键视角复位。
+
+### 2.11 `Nanostores` 响应式状态层（`src/stores/*`）
+
+| Store 模块 | 职责与核心信号 | 消费端 |
+|---|---|---|
+| `shellStore.ts` | 全站主题（`light`/`dark`/`moss`/`rice`）、青苔色阶、字形（`pixel`/`kai`）、指针拖尾开关与全局活跃模态框计数 | `BaseLayout.astro`、`Header.astro`、`settings.astro` |
+| `commandPaletteStore.ts` | `⌘K` 命令面板开闭、原始查询词、`>` 指令前缀解析、分类切换、活跃索引与混合检索结果流 | `BaseLayout.astro`、`CommandPaletteResults.tsx` |
+| `readingStore.ts` | 当前文章阅读进度采样、「竹签续读」浮条、一文多签列表（`bookmarks`）与最近在读队列 | `ReadingBookmark.astro`、`BookmarkPopoverList.tsx` |
+| `zenStore.ts` | 禅意音景曲目、播放态、音量、烟雨微气象联动开关与睡眠倒计时状态 | `ZenSoundscape.astro`、`ZenRainscape.astro` |
+| `syncStore.ts` | 便签 + 思维导图 + 阅读夹签三域云端同步版本比对、待推/待拉计数与双向流转状态机（`$syncConfluence`） | `account.astro` |
+| `notesWorkbenchStore.ts` | `/notes` 便签集合、多维筛选（类型/来源文章/色标/关键词）、聚合计数（`$notesStats`）与读写弹窗态 | `notes.astro` |
+| `mindmapWorkbenchStore.ts` | `/mindmap` 导图集合、动态分类、筛选条件（`$mmFilter`）、全局统计（`$mmStats`）与工作台视图/节点选中态（`$mmActiveState`） | `mindmap.astro` |
+| `collectionFilterStore.ts` | `/life` 与 `/gallery` 分类、标签、搜索词、可见计数与空态/灯箱状态控制器 | `life.astro`、`gallery.astro` |
+| `companionStore.ts` | 阅读伴读空间模式（`rail`/`notes-full`/`ask-full`/`split`）、`notesOpen`/`askOpen`、最大化态与分屏比例（`$companionState`） | `CompanionLayout.astro` |
+
+### 2.12 性能约定（60–120fps 零掉帧硬指标）
 
 - **纯合成器属性**：所有进出场、游标、抽屉、弹窗与卡片悬浮只过渡 `transform` / `opacity` / `clip-path`，严禁逐帧 `filter: blur(...)`、`backdrop-filter` 或 `box-shadow` 直接过渡（阴影统一拆至伪元素仅过渡 `opacity`）。
 - **零高频同步回流**：`pointermove`、`wheel`、`scroll` 热路径严禁读取 `getBoundingClientRect` / `offsetWidth` / `offsetHeight`；一律在 `pointerenter`、拖拽起点或 `ResizeObserver` 中预缓存尺寸并由单 `rAF` 合帧消费。
@@ -285,7 +319,10 @@ if (!window[LISTENER_KEY]) {
 | 湿墨划线浸润时长 | `src/utils/unifiedHighlightGeometry.ts` 的 `computeWetInkStrokeDuration()` |
 | 跑马灯 | `HomeTicker.astro` 顶部：`BASE_SPEED` / `HOVER_FACTOR` / `MAX_BOOST` / `MAX_SKEW` |
 | 时间轴手卷 | `timeline.astro`：`scrub: 0.55`、甩动系数 `velocity * 260` |
-| 标签星图 | `tags/index.astro`：斥力 `3200`、弹簧 `140 / weight`、衰减 `alpha *= 0.985`、`STEP = 1/60` |
+| 标签星图 2D / 3D 星云 | `tags/index.astro`（2D 斥力 `3200`、`STEP = 1/60`）与 `tagConstellationThree.ts`（3D 轨道阻尼、焦距边界、水墨游丝透明度） |
+| RenderDoc 3D 渲染检视台 | `src/components/islands/ThreeDemoStage.tsx` 的 `RENDER_PASSES`、`MESH_PRESETS` 与宣纸水墨 GLSL 光照参数 |
+| 工作台弹簧胶囊与折笺弹窗 | `src/utils/workbenchMotion.ts` 的 `animatePillGlider`（刚度/阻尼/`--pill-rx`）、`animatePaperModal`、`animateInkPopover` |
+| 伴读分屏比例与协调状态 | `src/utils/companionSplit.ts`（`26%–74%` 钳制）与 `src/stores/companionStore.ts`（`$companionState`） |
 | 侧边栏折叠与磁吸游标 | `Header.astro`：`readArticleMotion().panelMs`、`setupNavMagneticGliderController` |
 | 归档分类切换与胶囊游标 | `archive.astro`：`EXIT_CLIP` / `EXIT_COLLAPSE` / `ARRIVE_AT` / `ARRIVE_CLIP` / `--pill-rx` |
 | 筛选为空的空状态节奏 | `gallery.astro` / `notes.astro` / `life.astro` 共享常量：卷收 `0.28`、浮现 `0.42`、塌缩 `0.55`、回滚 `offset -90` / `0.65s` |

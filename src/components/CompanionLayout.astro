@@ -29,9 +29,33 @@
   <span class="companion-splitter-ratio" data-companion-ratio hidden>50%</span>
 </div>
 
+<style>
+  :global(.companion-seg .companion-seg-glider) {
+    width: 100px;
+    transform-origin: 0 50%;
+    border-radius: var(--pill-rx, 7px) / var(--pill-ry, 7px);
+    will-change: transform, opacity;
+    transition: opacity 160ms ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :global(.companion-seg .companion-seg-glider) {
+      transition: none !important;
+    }
+  }
+</style>
+
 <script>
   import { readArticleMotion } from '../utils/articleMotion';
   import { createCompanionLayoutMotion } from '../utils/companionLayoutMotion';
+  import {
+    $companionState,
+    hydrateCompanionSplitRatio,
+    resetCompanionStore,
+    setCompanionResizing,
+    setCompanionSplitRatio,
+    syncCompanionSnapshot,
+  } from '../stores/companionStore';
+  import { animatePillGlider, stopPillGlider } from '../utils/workbenchMotion';
   import {
     clampSplitRatio,
     ratioFromPointer,
@@ -111,9 +135,9 @@
 
     function readRatio(): number {
       try {
-        return clampToViewport(parseStoredRatio(localStorage.getItem(RATIO_KEY)) ?? 0.5);
+        return hydrateCompanionSplitRatio(localStorage.getItem(RATIO_KEY), window.innerWidth);
       } catch {
-        return clampToViewport(0.5);
+        return hydrateCompanionSplitRatio(null, window.innerWidth);
       }
     }
 
@@ -121,6 +145,24 @@
       try {
         localStorage.setItem(RATIO_KEY, String(ratio));
       } catch {}
+    }
+
+    function syncStoreState() {
+      const notesOpen = Boolean(panels.notes?.api.isOpen());
+      const askOpen = Boolean(panels.ask?.api.isOpen());
+      const notesMaximized = Boolean(panels.notes?.api.isFull()) || mode === 'notes-full';
+      const askMaximized = Boolean(panels.ask?.api.isFull()) || mode === 'ask-full';
+      syncCompanionSnapshot({
+        mode,
+        lastActiveKind,
+        notesOpen,
+        askOpen,
+        notesMaximized,
+        askMaximized,
+        splitActive: mode === 'split',
+        splitRatio: ratio,
+        resizing: dragging,
+      });
     }
 
     function cancelPanelAnim(el?: HTMLElement | null) {
@@ -238,20 +280,28 @@
       const activeBtn = seg?.querySelector<HTMLElement>('.companion-seg-btn.is-active');
       if (!seg || !glider || !activeBtn) return;
       const w = activeBtn.offsetWidth;
+      const h = glider.offsetHeight || activeBtn.offsetHeight || 30;
       const x = activeBtn.offsetLeft;
       if (w <= 0) return;
       seg.classList.add('has-glider');
       if (fromOffset && fromOffset.w > 0 && !reduceMotion()) {
-        glider.style.transition = 'none';
-        glider.style.width = `${fromOffset.w}px`;
-        glider.style.transform = `translate3d(${Math.round(fromOffset.x)}px, 0, 0)`;
-        glider.style.opacity = '1';
-        void glider.offsetWidth;
-        glider.style.transition = '';
+        animatePillGlider(
+          glider,
+          { x: fromOffset.x, y: 0, width: fromOffset.w, height: h },
+          { container: seg, immediate: true, fixedRadius: 7, opacity: 1 }
+        );
+        animatePillGlider(
+          glider,
+          { x, y: 0, width: w, height: h },
+          { container: seg, immediate: false, fixedRadius: 7, opacity: 1 }
+        );
+        return;
       }
-      glider.style.width = `${w}px`;
-      glider.style.transform = `translate3d(${Math.round(x)}px, 0, 0)`;
-      glider.style.opacity = '1';
+      animatePillGlider(
+        glider,
+        { x, y: 0, width: w, height: h },
+        { container: seg, immediate: reduceMotion(), fixedRadius: 7, opacity: 1 }
+      );
     }
 
     function updateButtons() {
@@ -299,6 +349,7 @@
           syncSegGlider(panel);
         }
       });
+      syncStoreState();
     }
 
     function ensureMounted(kind: Kind) {
@@ -505,6 +556,8 @@
             (Object.keys(panels) as Kind[]).forEach((k) => panels[k]?.api.setFull(false, { silent: true }));
           });
           apply();
+        } else {
+          syncStoreState();
         }
         return;
       }
@@ -516,6 +569,7 @@
       if (mode === 'notes-full' || mode === 'ask-full') {
         const fullKind: Kind = mode === 'notes-full' ? 'notes' : 'ask';
         if (kind !== fullKind) openFull(kind);
+        else syncStoreState();
         return;
       }
 
@@ -572,6 +626,7 @@
       root.style.setProperty('--companion-split', splitRatioCssValue(ratio));
       if (ratioLabel) ratioLabel.textContent = `${Math.round(ratio * 100)}%`;
       splitter!.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
+      setCompanionSplitRatio(ratio, window.innerWidth);
     }
 
     function commitSplitterPointer(clientX: number) {
@@ -612,6 +667,7 @@
         if (mode !== 'split') return;
         dragging = true;
         pendingClientX = null;
+        setCompanionResizing(true);
         document.body.classList.add('companion-resizing');
         root.setAttribute('data-companion-resizing', 'true');
         try {
@@ -639,6 +695,7 @@
         pendingClientX = null;
       }
       dragging = false;
+      setCompanionResizing(false);
       document.body.classList.remove('companion-resizing');
       root.removeAttribute('data-companion-resizing');
       saveRatio();
@@ -829,6 +886,8 @@
       },
       mode: () => mode,
       ratio: () => ratio,
+      store: $companionState,
+      state: () => $companionState.get(),
     };
 
     window.addEventListener(
@@ -853,8 +912,12 @@
       if (splitDragRaf) cancelAnimationFrame(splitDragRaf);
       cancelAnimationFrame(ratioResetFrame);
       window.clearTimeout(resizeTimer);
+      (Object.keys(panels) as Kind[]).forEach((k) => {
+        stopPillGlider(panels[k]?.el.querySelector<HTMLElement>('.companion-seg-glider'));
+      });
       layoutMotion.cancel();
       controller.abort();
+      resetCompanionStore();
       delete (window as any).__companion;
       (window as any).__companionOverlayEl__ = undefined;
       (window as any)[CLEANUP_KEY] = undefined;

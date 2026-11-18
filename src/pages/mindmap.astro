@@ -781,12 +781,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   .modal-overlay.is-closed .modal-card { transform: scale(0.985) translateY(8px); opacity: 0; }
 
   #mm-stats-glider {
+    left: 0;
     width: 100px;
     transform-origin: 0 50%;
     border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px);
-    transition:
-      transform 340ms cubic-bezier(0.2, 0.9, 0.2, 1),
-      opacity 200ms var(--ease);
+    transition: opacity 200ms var(--ease);
   }
 
   .notes-stats-strip {
@@ -809,6 +808,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   .notes-stat-item .stats-value,
   .notes-stat-item .stats-subnote {
     white-space: nowrap;
+  }
+  .notes-stat-item .stats-value {
+    display: inline-block;
+    min-width: 2ch;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    contain: layout style;
   }
   .notes-stat-item.is-hovered { color: var(--text-strong) !important; }
   .notes-stat-item.is-active .stats-label,
@@ -2511,6 +2517,40 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   import { initMindmapSync, syncMindMapsNow } from '../utils/mindmapSync';
   import { renderMarkdown } from '../utils/inkAskMarkdown';
   import { createMarkdownToolbar, handleMarkdownKeydown } from '../utils/markdownShortcuts';
+  import {
+    $filteredMindMaps,
+    $hasActiveMmFilters,
+    $mmActiveState,
+    $mmFilter,
+    $mmStats,
+    closeMmWorkbenchState,
+    openMmWorkbenchState,
+    resetMindMapWorkbenchStore,
+    resetMmFilters,
+    setMindMapItems,
+    setMmActiveModal,
+    setMmArticlePopoverOpen,
+    setMmArticleSearchQuery,
+    setMmCategory,
+    setMmColor,
+    setMmDirtyState,
+    setMmExportMenuOpen,
+    setMmLayoutMode,
+    setMmLinkedOnly,
+    setMmPostSlug,
+    setMmSearchQuery,
+    setMmSelectionState,
+    setMmViewMode,
+    type MindMapModalKind,
+  } from '../stores/mindmapWorkbenchStore';
+  import {
+    animateCountValue,
+    animateInkPopover,
+    animatePaperModal,
+    animatePillGlider,
+    computeInversePillRadius,
+    stopPillGlider,
+  } from '../utils/workbenchMotion';
 
   initMindmapSync();
 
@@ -2741,22 +2781,42 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       }
     }
 
+    const overlayCardMap = new Map<HTMLElement, { card: HTMLElement; kind: MindMapModalKind }>([
+      [catModal, { card: catCard, kind: 'categories' }],
+      [genModal, { card: genCard, kind: 'generator' }],
+      [confirmModal, { card: confirmCard, kind: 'confirm' }],
+      [wbModal, { card: wbDialog, kind: 'workbench' }],
+    ]);
+
+    function syncActiveModalStore() {
+      if (!confirmModal.classList.contains('hidden')) setMmActiveModal('confirm');
+      else if (!catModal.classList.contains('hidden')) setMmActiveModal('categories');
+      else if (!genModal.classList.contains('hidden')) setMmActiveModal('generator');
+      else if (!wbModal.classList.contains('hidden')) setMmActiveModal('workbench');
+      else setMmActiveModal('none');
+    }
+
     function openOverlay(overlay: HTMLElement, focusTarget?: HTMLElement | null) {
-      overlay.classList.remove('hidden');
+      const meta = overlayCardMap.get(overlay);
+      if (meta) setMmActiveModal(meta.kind);
+      overlay.classList.remove('hidden', 'is-closed');
+      overlay.classList.add('is-open');
       stopLenis();
+      animatePaperModal(overlay, meta?.card || null, 'open', { variant: 'slip' });
       requestAnimationFrame(() => {
-        overlay.classList.remove('is-closed');
-        overlay.classList.add('is-open');
         focusTarget?.focus({ preventScroll: true });
       });
     }
 
     function closeOverlay(overlay: HTMLElement, cb?: () => void) {
+      const meta = overlayCardMap.get(overlay);
       overlay.classList.remove('is-open');
       overlay.classList.add('is-closed');
+      animatePaperModal(overlay, meta?.card || null, 'close', { variant: 'slip', closeDurationSec: 0.2 });
       const tid = window.setTimeout(() => {
         overlay.classList.add('hidden');
         startLenisIfNoModal();
+        syncActiveModalStore();
         cb?.();
       }, 220);
       modalCloseTimers.push(tid);
@@ -2792,24 +2852,30 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     function syncStatsGliderToEl(targetEl: HTMLElement | null) {
       if (!statsStrip || !statsGlider) return;
       if (!targetEl || !targetEl.offsetWidth) {
+        stopPillGlider(statsGlider);
+        statsGlider.style.transition = 'opacity 200ms var(--ease)';
         statsGlider.style.opacity = '0';
         statsItems.forEach((it) => it.classList.remove('is-hovered'));
         return;
       }
+      const wasHidden = statsGlider.style.opacity !== '1';
       const w = targetEl.offsetWidth;
-      const h = statsGlider.offsetHeight || targetEl.offsetHeight;
-      const sx = Math.max(0.05, w / 100);
-      const halfR = Math.min(w, h) * 0.5;
+      const h = statsGlider.offsetHeight || targetEl.offsetHeight || 36;
+      const metrics = computeInversePillRadius(w, h, targetEl.offsetLeft, 0);
       statsGlider.style.opacity = '1';
-      statsGlider.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
-      statsGlider.style.setProperty('--pill-ry', `${halfR.toFixed(2)}px`);
-      statsGlider.style.transform = `translate3d(${targetEl.offsetLeft.toFixed(1)}px, 0, 0) scaleX(${sx.toFixed(4)})`;
+      statsGlider.style.setProperty('--pill-rx', `${metrics.rx.toFixed(2)}px`);
+      statsGlider.style.setProperty('--pill-ry', `${metrics.ry.toFixed(2)}px`);
+      animatePillGlider(
+        statsGlider,
+        { x: targetEl.offsetLeft, y: 0, width: w, height: h },
+        { container: statsStrip, immediate: wasHidden, opacity: 1 }
+      );
       statsItems.forEach((it) => it.classList.remove('is-hovered'));
       targetEl.classList.add('is-hovered');
     }
 
     function updateStatsStripActive() {
-      const activeKey = filterLinkedOnly ? 'linked' : 'all';
+      const activeKey = $mmFilter.get().linkedOnly ? 'linked' : 'all';
       statsItems.forEach((item) => {
         item.classList.toggle('is-active', item.dataset.mmStat === activeKey);
       });
@@ -2825,6 +2891,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             openCategoryManager();
           } else if (mode === 'linked') {
             filterLinkedOnly = !filterLinkedOnly;
+            setMmLinkedOnly(filterLinkedOnly);
             updateStatsStripActive();
             renderCards(true);
           } else if (mode === 'all') {
@@ -2832,6 +2899,12 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             filterCategory = 'all';
             filterColor = 'all';
             filterPostSlug = 'all';
+            resetMmFilters();
+            if (searchInput.value) {
+              searchInput.value = '';
+              searchQuery = '';
+              searchClearBtn.classList.add('hidden');
+            }
             renderSubtabs();
             syncColorButtons();
             renderArticleDropdown();
@@ -2850,6 +2923,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     function updateSubtabsGlider(instant = false) {
       const activeBtn = subtabsCluster.querySelector<HTMLElement>('.sub-tab-btn.active');
       if (!activeBtn || !activeBtn.offsetWidth) {
+        stopPillGlider(subtabsGlider);
         subtabsGlider.style.opacity = '0';
         return;
       }
@@ -2858,19 +2932,17 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         subtabsGlider.style.transition = 'none';
       }
       const w = activeBtn.offsetWidth;
-      const h = subtabsGlider.offsetHeight || activeBtn.offsetHeight;
-      const sx = Math.max(0.05, w / 100);
-      const halfR = Math.min(w, h) * 0.5;
+      const h = subtabsGlider.offsetHeight || activeBtn.offsetHeight || 34;
+      const metrics = computeInversePillRadius(w, h, activeBtn.offsetLeft, 0);
       subtabsGlider.style.opacity = '1';
-      subtabsGlider.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
-      subtabsGlider.style.setProperty('--pill-ry', `${halfR.toFixed(2)}px`);
-      subtabsGlider.style.transform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
+      subtabsGlider.style.setProperty('--pill-rx', `${metrics.rx.toFixed(2)}px`);
+      subtabsGlider.style.setProperty('--pill-ry', `${metrics.ry.toFixed(2)}px`);
+      animatePillGlider(
+        subtabsGlider,
+        { x: activeBtn.offsetLeft, y: 0, width: w, height: h },
+        { container: subtabsCluster, immediate: snapNow, opacity: 1 }
+      );
       subtabGliderPlacedOnce = true;
-      if (snapNow) {
-        requestAnimationFrame(() => {
-          subtabsGlider.style.transition = '';
-        });
-      }
     }
 
     function bindSubtabBtnClick(btn: HTMLButtonElement) {
@@ -2880,6 +2952,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         const key = btn.dataset.mmCat || 'all';
         if (filterCategory === key) return;
         filterCategory = key;
+        setMmCategory(key);
         renderSubtabs(false);
         renderCards(true);
       }, { signal });
@@ -2889,6 +2962,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const list = [{ key: 'all', label: '全部导图' }, ...categories.map((c) => ({ key: c, label: c }))];
       if (filterCategory !== 'all' && !categories.includes(filterCategory)) {
         filterCategory = 'all';
+        setMmCategory('all');
       }
 
       const existingBtns = Array.from(subtabsCluster.querySelectorAll<HTMLButtonElement>('.sub-tab-btn'));
@@ -2969,17 +3043,25 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     }
 
     function setExportMenuOpen(open: boolean) {
+      const wasOpen = exportMenu.classList.contains('is-open');
       if (open) closeAllDropdowns(exportWrap);
       exportTrigger.setAttribute('aria-expanded', String(open));
       exportMenu.setAttribute('aria-hidden', String(!open));
+      setMmExportMenuOpen(open);
       if (open) {
         exportMenu.removeAttribute('inert');
         exportMenu.classList.remove('is-closed');
         exportMenu.classList.add('is-open');
+        if (!wasOpen) {
+          animateInkPopover(exportMenu, 'open', { radiusPx: 14, offsetY: -8 });
+        }
       } else {
         exportMenu.setAttribute('inert', '');
         exportMenu.classList.remove('is-open');
         exportMenu.classList.add('is-closed');
+        if (wasOpen) {
+          animateInkPopover(exportMenu, 'close', { useClipPath: false, offsetY: -8 });
+        }
       }
     }
 
@@ -3087,6 +3169,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const isOpen = () => panel.classList.contains('is-open');
 
       const setOpen = (open: boolean) => {
+        const wasOpen = isOpen();
         if (open) closeAllDropdowns(wrap);
         trigger.setAttribute('aria-expanded', String(open));
         panel.setAttribute('aria-hidden', String(!open));
@@ -3094,6 +3177,9 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           panel.removeAttribute('inert');
           panel.classList.remove('is-closed');
           panel.classList.add('is-open');
+          if (!wasOpen) {
+            animateInkPopover(panel, 'open', { radiusPx: 14, offsetY: -6 });
+          }
           if (searchInput) searchInput.value = '';
           const activePos = options.findIndex((o) => o.value === currentValue);
           focusedIdx = activePos >= 0 ? activePos : 0;
@@ -3107,6 +3193,9 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           panel.setAttribute('inert', '');
           panel.classList.remove('is-open');
           panel.classList.add('is-closed');
+          if (wasOpen) {
+            animateInkPopover(panel, 'close', { useClipPath: false, offsetY: -6 });
+          }
         }
       };
 
@@ -3194,21 +3283,15 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const activeBtn = container.querySelector<HTMLElement>('.mm-seg-btn.is-active');
       if (!glider || !activeBtn || !activeBtn.offsetWidth) return;
       const w = activeBtn.offsetWidth;
-      const h = glider.offsetHeight || activeBtn.offsetHeight;
-      const sx = Math.max(0.05, w / 100);
-      const halfR = Math.min(w, h) * 0.5;
-      glider.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
-      glider.style.setProperty('--pill-ry', `${halfR.toFixed(2)}px`);
-      const nextTransform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
-      if (immediate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        glider.style.transition = 'none';
-        glider.style.transform = nextTransform;
-        requestAnimationFrame(() => {
-          glider.style.transition = '';
-        });
-      } else {
-        glider.style.transform = nextTransform;
-      }
+      const h = glider.offsetHeight || activeBtn.offsetHeight || 28;
+      const metrics = computeInversePillRadius(w, h, activeBtn.offsetLeft, 0);
+      glider.style.setProperty('--pill-rx', `${metrics.rx.toFixed(2)}px`);
+      glider.style.setProperty('--pill-ry', `${metrics.ry.toFixed(2)}px`);
+      animatePillGlider(
+        glider,
+        { x: activeBtn.offsetLeft, y: 0, width: w, height: h },
+        { container, immediate }
+      );
     }
 
     function syncAllSegGliders(immediate = false) {
@@ -3289,26 +3372,29 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     }
 
     // ---------- Data Refresh & Stats ----------
-    function refreshDataFromStorage() {
+    function refreshDataFromStorage(animateStats = false) {
       mapsList = loadActiveMindMaps();
       categories = loadMindMapCategoryState().categories;
+      setMindMapItems(mapsList, categories);
+      filterCategory = $mmFilter.get().category;
       renderSubtabs();
       syncWorkbenchSelects();
-      updateStats();
+      updateStats(animateStats);
       renderArticleDropdown();
     }
 
-    function updateStats() {
-      let totalNodes = 0;
-      let linkedCount = 0;
-      for (const m of mapsList) {
-        totalNodes += countNodes(m.root).total;
-        if (m.postSlug) linkedCount += 1;
-      }
-      document.getElementById('mm-stat-total')!.textContent = String(mapsList.length);
-      document.getElementById('mm-stat-nodes')!.textContent = String(totalNodes);
-      document.getElementById('mm-stat-cats')!.textContent = String(categories.length);
-      document.getElementById('mm-stat-linked')!.textContent = String(linkedCount);
+    function updateStats(animate = false) {
+      const { totalMaps, totalNodes, categoryCount, linkedCount } = $mmStats.get();
+      const elTotal = document.getElementById('mm-stat-total');
+      const elNodes = document.getElementById('mm-stat-nodes');
+      const elCats = document.getElementById('mm-stat-cats');
+      const elLinked = document.getElementById('mm-stat-linked');
+      const immediate = !animate || Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+
+      animateCountValue(elTotal, totalMaps, { immediate, durationSec: 0.42 });
+      animateCountValue(elNodes, totalNodes, { immediate, durationSec: 0.46 });
+      animateCountValue(elCats, categoryCount, { immediate, durationSec: 0.4 });
+      animateCountValue(elLinked, linkedCount, { immediate, durationSec: 0.44 });
       updateStatsStripActive();
     }
 
@@ -3318,15 +3404,22 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const next = forceOpen !== undefined ? forceOpen : !isOpen;
       articleTrigger.setAttribute('aria-expanded', String(next));
       articlePanel.setAttribute('aria-hidden', String(!next));
+      setMmArticlePopoverOpen(next);
       if (next) {
         articlePanel.removeAttribute('inert');
         articlePanel.classList.remove('is-closed');
         articlePanel.classList.add('is-open');
+        if (!isOpen) {
+          animateInkPopover(articlePanel, 'open', { radiusPx: 14, offsetY: -8 });
+        }
         requestAnimationFrame(() => articleFilterInput.focus());
       } else {
         articlePanel.setAttribute('inert', '');
         articlePanel.classList.remove('is-open');
         articlePanel.classList.add('is-closed');
+        if (isOpen) {
+          animateInkPopover(articlePanel, 'close', { useClipPath: false, offsetY: -8 });
+        }
       }
     }
 
@@ -3358,6 +3451,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       }
 
       const q = articleFilterInput.value.trim().toLowerCase();
+      setMmArticleSearchQuery(articleFilterInput.value);
       const rows: Array<{ slug: string; label: string; count: number }> = [
         { slug: 'all', label: '全部来源', count: mapsList.length },
       ];
@@ -3386,6 +3480,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       articleFilterList.querySelectorAll<HTMLButtonElement>('[data-mm-art]').forEach((btn) => {
         btn.addEventListener('click', () => {
           filterPostSlug = btn.dataset.mmArt || 'all';
+          setMmPostSlug(filterPostSlug);
           toggleArticlePopover(false);
           renderArticleDropdown();
           renderCards(true);
@@ -3401,6 +3496,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     articleQuickClear.addEventListener('click', (e) => {
       e.stopPropagation();
       filterPostSlug = 'all';
+      setMmPostSlug('all');
       renderArticleDropdown();
       renderCards(true);
     }, { signal });
@@ -3424,6 +3520,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       btn.addEventListener('click', () => {
         const next = btn.dataset.mmColor || 'all';
         filterColor = filterColor === next && next !== 'all' ? 'all' : next;
+        setMmColor(filterColor);
         syncColorButtons();
         renderCards(true);
       }, { signal });
@@ -3433,6 +3530,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     let searchDebounce: number | null = null;
     searchInput.addEventListener('input', () => {
       searchQuery = searchInput.value.trim().toLowerCase();
+      setMmSearchQuery(searchInput.value);
       searchClearBtn.classList.toggle('hidden', !searchQuery);
       if (searchDebounce) window.clearTimeout(searchDebounce);
       searchDebounce = window.setTimeout(() => renderCards(true), 120);
@@ -3440,37 +3538,14 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     searchClearBtn.addEventListener('click', () => {
       searchInput.value = '';
       searchQuery = '';
+      setMmSearchQuery('');
       searchClearBtn.classList.add('hidden');
       renderCards(true);
     }, { signal });
 
     // ---------- Filtering & Masonry Cards Rendering ----------
-    function nodeTreeContains(node: MindMapNode, q: string): boolean {
-      if (node.text.toLowerCase().includes(q) || (node.note && node.note.toLowerCase().includes(q))) {
-        return true;
-      }
-      return (node.children || []).some((c) => nodeTreeContains(c, q));
-    }
-
     function getFilteredMaps(): MindMapRecord[] {
-      return mapsList.filter((m) => {
-        if (filterCategory !== 'all' && m.category !== filterCategory) return false;
-        if (filterColor !== 'all' && (m.color || 'blue') !== filterColor) return false;
-        if (filterLinkedOnly && !m.postSlug) return false;
-        if (filterPostSlug === '__standalone__' && m.postSlug) return false;
-        if (filterPostSlug !== 'all' && filterPostSlug !== '__standalone__' && m.postSlug !== filterPostSlug) {
-          return false;
-        }
-        if (searchQuery) {
-          const hitMeta =
-            m.title.toLowerCase().includes(searchQuery) ||
-            m.category.toLowerCase().includes(searchQuery) ||
-            (m.postTitle || '').toLowerCase().includes(searchQuery) ||
-            (m.tags || []).some((t) => t.toLowerCase().includes(searchQuery));
-          if (!hitMeta && !nodeTreeContains(m.root, searchQuery)) return false;
-        }
-        return true;
-      });
+      return $filteredMindMaps.get();
     }
 
     function getColumnCount(): number {
@@ -3685,7 +3760,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const tid = window.setTimeout(() => {
         deleteTimers.delete(tid);
         if (cardEl) cardEl.remove();
-        refreshDataFromStorage();
+        refreshDataFromStorage(true);
         if (getFilteredMaps().length === 0) {
           renderCards(true);
         } else {
@@ -3699,12 +3774,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     }
 
     function syncMmEmptyStateCopy() {
-      const hasFilters =
-        filterCategory !== 'all' ||
-        filterColor !== 'all' ||
-        filterPostSlug !== 'all' ||
-        filterLinkedOnly ||
-        Boolean(searchQuery);
+      const hasFilters = $hasActiveMmFilters.get();
       if (mapsList.length === 0 && !hasFilters) {
         emptyTitle.textContent = '尚未创建思维导图';
         emptyDesc.textContent =
@@ -4025,6 +4095,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       filterLinkedOnly = false;
       searchInput.value = '';
       searchQuery = '';
+      resetMmFilters();
       searchClearBtn.classList.add('hidden');
       renderSubtabs();
       syncColorButtons();
@@ -4066,8 +4137,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             return;
           }
           renameMindMapCategory(cat, nextName);
-          if (filterCategory === cat) filterCategory = nextName;
-          refreshDataFromStorage();
+          if (filterCategory === cat) {
+            filterCategory = nextName;
+            setMmCategory(nextName);
+          }
+          refreshDataFromStorage(true);
           renderCards(false);
           renderCategoryManagerList();
           showToast(`已重命名为「${nextName}」`);
@@ -4096,8 +4170,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         row.querySelector('[data-cat-del]')?.addEventListener('click', () => {
           if (categories.length <= 1) return;
           deleteMindMapCategory(cat);
-          if (filterCategory === cat) filterCategory = 'all';
-          refreshDataFromStorage();
+          if (filterCategory === cat) {
+            filterCategory = 'all';
+            setMmCategory('all');
+          }
+          refreshDataFromStorage(true);
           renderCards(false);
           renderCategoryManagerList();
           showToast(`已删除分类「${cat}」`);
@@ -4125,7 +4202,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       }
       addMindMapCategory(name);
       catNewInput.value = '';
-      refreshDataFromStorage();
+      refreshDataFromStorage(true);
       renderCategoryManagerList();
       showToast(`已新增分类「${name}」`);
     }, { signal });
@@ -4198,7 +4275,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
             }
           );
           const saved = upsertMindMap(created, true);
-          refreshDataFromStorage();
+          refreshDataFromStorage(true);
           renderCards(false);
           closeOverlay(genModal, () => {
             openWorkbench(saved.id, true);
@@ -4225,7 +4302,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const targetCat = filterCategory !== 'all' ? filterCategory : categories[0];
       const blank = createBlankMindMap(targetCat, '新建思维导图');
       const saved = upsertMindMap(blank, true);
-      refreshDataFromStorage();
+      refreshDataFromStorage(true);
       renderCards(false);
       openWorkbench(saved.id, true);
     }
@@ -4257,6 +4334,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     function markSaveState(dirty: boolean) {
       wbSaveState.textContent = dirty ? '编辑中（自动保存）…' : '本地已保存';
       wbSaveState.classList.toggle('is-dirty', dirty);
+      setMmDirtyState(dirty);
     }
 
     function scheduleWorkbenchSave(immediate = false) {
@@ -4269,7 +4347,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         activeMap = saved;
         markSaveState(false);
         mapsList = loadActiveMindMaps();
-        updateStats();
+        setMindMapItems(mapsList, categories);
+        updateStats(true);
         renderCards(false);
       };
       if (immediate) runSave();
@@ -4991,6 +5070,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       }
       selectedNodeIds = seen;
       selectedNodeId = primaryId && seen.has(primaryId) ? primaryId : validIds[0];
+      setMmSelectionState(seen.size, selectedNodeId);
 
       for (const [id, el] of nodeDomMap.entries()) {
         el.classList.toggle('is-selected', seen.has(id));
@@ -6678,10 +6758,10 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           rootIds: collectAllTreeIds(activeMap.root),
         };
       }
-      viewMode = mode;
-      wbBody.dataset.viewMode = mode;
+      viewMode = setMmViewMode(mode);
+      wbBody.dataset.viewMode = viewMode;
       document.querySelectorAll<HTMLElement>('[data-wb-mode]').forEach((btn) => {
-        btn.classList.toggle('is-active', btn.dataset.wbMode === mode);
+        btn.classList.toggle('is-active', btn.dataset.wbMode === viewMode);
       });
       syncSegGlider(viewModeSwitch, immediateGlider);
       if (mode !== 'canvas') {
@@ -6717,7 +6797,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     document.querySelectorAll<HTMLElement>('[data-wb-layout]').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (!activeMap) return;
-        const nextLayout = normalizeLayout(btn.dataset.wbLayout);
+        const nextLayout = setMmLayoutMode(btn.dataset.wbLayout || '');
         const snap = captureNodeRects();
         activeMap.layout = nextLayout;
         document.querySelectorAll<HTMLElement>('[data-wb-layout]').forEach((b) => {
@@ -6780,8 +6860,9 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       if (!ok) return;
       deleteMindMap(target.id);
       activeMap = null;
+      closeMmWorkbenchState();
       closeOverlay(wbModal, () => {
-        refreshDataFromStorage();
+        refreshDataFromStorage(true);
         renderCards(false);
         showToast('已删除思维导图');
       });
@@ -6909,6 +6990,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
       activeMap = { ...record, root: cloneNode(record.root), tags: [...(record.tags || [])] };
       wbModal.dataset.activeMapId = activeMap.id;
+      openMmWorkbenchState(activeMap, 'canvas');
       selectedNodeId = activeMap.root.id;
       selectedNodeIds = new Set([activeMap.root.id]);
       editingNodeId = null;
@@ -6957,8 +7039,9 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       minimapSvg.innerHTML = '';
       delete wbModal.dataset.activeMapId;
       activeMap = null;
+      closeMmWorkbenchState();
       closeOverlay(wbModal, () => {
-        refreshDataFromStorage();
+        refreshDataFromStorage(true);
         renderCards(false);
       });
     }
@@ -7088,7 +7171,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       try {
         const res = await syncMindMapsNow();
         if (res.ok) {
-          refreshDataFromStorage();
+          refreshDataFromStorage(true);
           renderCards(false);
           showToast(`同步成功（推 ${res.pushedCount} / 拉 ${res.pulledCount}）`);
         } else {
@@ -7161,6 +7244,14 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     }, { signal });
 
     // ---------- Initial Mount & Page Enter Coordination ----------
+    resetMindMapWorkbenchStore();
+    (window as any).__mindmapWorkbenchStore = {
+      $mmFilter,
+      $mmStats,
+      $mmActiveState,
+      $filteredMindMaps,
+      $hasActiveMmFilters,
+    };
     refreshDataFromStorage();
     renderCards(false, true);
     container.removeAttribute('data-enter-hold');
@@ -7258,6 +7349,12 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       if (autosaveTimer) window.clearTimeout(autosaveTimer);
       if (outlineSyncTimer) window.clearTimeout(outlineSyncTimer);
       if (splitResizeRaf) cancelAnimationFrame(splitResizeRaf);
+      stopPillGlider(statsGlider);
+      stopPillGlider(subtabsGlider);
+      stopPillGlider(viewModeSwitch?.querySelector<HTMLElement>('.mm-seg-glider'));
+      stopPillGlider(layoutSwitch?.querySelector<HTMLElement>('.mm-seg-glider'));
+      resetMindMapWorkbenchStore();
+      delete (window as any).__mindmapWorkbenchStore;
       document.body.classList.remove('notes-modal-open');
       (window as any).lenis?.start?.();
       delete container.dataset.mmInit;
