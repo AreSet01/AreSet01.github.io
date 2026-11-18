@@ -1217,6 +1217,8 @@ const countByCategory = {
   import { ScrollTrigger } from 'gsap/ScrollTrigger';
   import CustomEase from 'gsap/CustomEase';
   import { addCardEnter, addCardExit, cardExitDuration, clearCardMotion, setCardEnterState } from '../utils/cardMotion';
+  import { getCollectionFilterController } from '../stores/collectionFilterStore';
+  import { animatePillGlider, animatePaperModal, animateCountValue, stopPillGlider } from '../utils/workbenchMotion';
 
   gsap.registerPlugin(ScrollTrigger, CustomEase);
   CustomEase.create('ink', '0.25, 1, 0.5, 1');
@@ -1250,6 +1252,16 @@ const countByCategory = {
     let filterTimeline: gsap.core.Timeline | null = null;
 
     const cards = Array.from(container.querySelectorAll<HTMLElement>('.life-card'));
+    const filterCtrl = typeof getCollectionFilterController === 'function' ? getCollectionFilterController('life') : null;
+    filterCtrl?.resetFilters();
+    filterCtrl?.setCounts(cards.length, cards.length);
+
+    if (typeof animateCountValue === 'function' && !reduceMotion) {
+      document.querySelectorAll<HTMLElement>('.life-stat-pill b[data-count]').forEach((cntEl) => {
+        const target = Number(cntEl.dataset.count || 0);
+        if (target > 0) animateCountValue(cntEl, target, { from: 0, durationSec: 0.48 });
+      });
+    }
 
     /**
      * 把网格高度钉在「全部拾光」时的高度。
@@ -1307,20 +1319,34 @@ const countByCategory = {
       const halfH = tabRect.height * 0.5;
       tabBrushGlider.style.setProperty('--pill-rx', `${(halfH / sx).toFixed(2)}px`);
       tabBrushGlider.style.setProperty('--pill-ry', `${(halfH / sy).toFixed(2)}px`);
-      const nextTransform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
-      if (immediate || reduceMotion) {
-        tabBrushGlider.style.transition = 'none';
-        tabBrushGlider.style.transform = nextTransform;
-        if (gliderResetRaf) cancelFrame(gliderResetRaf);
-        gliderResetRaf = scheduleFrame(() => {
-          gliderResetRaf = 0;
-          if (tabBrushGlider) tabBrushGlider.style.transition = '';
-        });
+      if (typeof animatePillGlider === 'function') {
+        animatePillGlider(
+          tabBrushGlider,
+          { x, y, width: tabRect.width, height: tabRect.height },
+          {
+            immediate: immediate || reduceMotion,
+            scaleY: true,
+            baseWidth: 100,
+            baseHeight: 36,
+            readyClass: 'is-ready',
+          }
+        );
       } else {
-        tabBrushGlider.style.transform = nextTransform;
+        const nextTransform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
+        if (immediate || reduceMotion) {
+          tabBrushGlider.style.transition = 'none';
+          tabBrushGlider.style.transform = nextTransform;
+          if (gliderResetRaf) cancelFrame(gliderResetRaf);
+          gliderResetRaf = scheduleFrame(() => {
+            gliderResetRaf = 0;
+            if (tabBrushGlider) tabBrushGlider.style.transition = '';
+          });
+        } else {
+          tabBrushGlider.style.transform = nextTransform;
+        }
+        tabBrushGlider.classList.add('is-ready');
       }
       catTabsWrap.classList.add('has-brush-glider');
-      tabBrushGlider.classList.add('is-ready');
     }
 
     if (catTabsWrap && tabBrushGlider) {
@@ -1456,6 +1482,7 @@ const countByCategory = {
           toHide.push(card);
         }
       });
+      filterCtrl?.setCounts(cards.length, toShow.length);
 
       const currentlyVisible = cards.filter(
         (card) => !card.classList.contains('is-filtered-out') && !container.classList.contains('is-empty')
@@ -1752,6 +1779,7 @@ const countByCategory = {
         catTabs.forEach((t) => t.classList.remove('is-active'));
         tab.classList.add('is-active');
         currentCategory = newCat;
+        filterCtrl?.setCategory(newCat);
         syncLifeTabBrushGlider(false);
 
         const rect = tab.getBoundingClientRect();
@@ -1775,6 +1803,7 @@ const countByCategory = {
           if (searchInput) {
             searchInput.value = tag;
             searchQuery = tag;
+            filterCtrl?.selectTag(tag);
             if (searchClear) searchClear.classList.remove('hidden');
             applyFilters(true, true);
             searchInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1801,6 +1830,7 @@ const countByCategory = {
     if (searchInput) {
       searchInput.addEventListener('input', () => {
         searchQuery = searchInput.value;
+        filterCtrl?.setSearchQuery(searchQuery);
         if (searchClear) {
           if (searchQuery) {
             searchClear.classList.remove('hidden');
@@ -1821,6 +1851,7 @@ const countByCategory = {
         e.stopPropagation();
         searchInput.value = '';
         searchQuery = '';
+        filterCtrl?.setSearchQuery('');
         searchClear.classList.add('hidden');
         applyFilters(true, true);
         searchInput.focus();
@@ -1833,6 +1864,7 @@ const countByCategory = {
         e.stopPropagation();
         currentCategory = 'all';
         searchQuery = '';
+        filterCtrl?.resetFilters();
         if (searchInput) searchInput.value = '';
         if (searchClear) searchClear.classList.add('hidden');
 
@@ -1867,18 +1899,25 @@ const countByCategory = {
       if (!modal) return;
       isModalOpen = true;
       window.clearTimeout(modalHideTimer);
+      filterCtrl?.setActiveModal(isLottery ? 'lottery' : 'folio');
 
       // 避免 Lenis 与弹窗内滚动打架
       if ((window as any).lenis) {
         (window as any).lenis.stop();
       }
 
+      const modalDialog = modal.querySelector<HTMLElement>('.life-modal-dialog');
       modal.classList.remove('hidden');
-      if (modalOpenRaf) cancelFrame(modalOpenRaf);
-      modalOpenRaf = scheduleFrame(() => {
-        modalOpenRaf = 0;
+      if (typeof animatePaperModal === 'function') {
         modal.classList.add('is-open');
-      });
+        animatePaperModal(modal, modalDialog, 'open', { variant: 'folio' });
+      } else {
+        if (modalOpenRaf) cancelFrame(modalOpenRaf);
+        modalOpenRaf = scheduleFrame(() => {
+          modalOpenRaf = 0;
+          modal.classList.add('is-open');
+        });
+      }
       document.body.classList.add('life-modal-open');
 
       if (!reduceMotion) {
@@ -1904,6 +1943,7 @@ const countByCategory = {
     function closeModal() {
       if (!modal || !isModalOpen) return;
       isModalOpen = false;
+      filterCtrl?.setActiveModal(null);
 
       modal.classList.remove('is-open');
       document.body.classList.remove('life-modal-open');
@@ -1913,11 +1953,22 @@ const countByCategory = {
       }
 
       window.clearTimeout(modalHideTimer);
-      modalHideTimer = window.setTimeout(() => {
-        if (!isModalOpen) {
-          modal.classList.add('hidden');
-        }
-      }, 320);
+      const modalDialog = modal.querySelector<HTMLElement>('.life-modal-dialog');
+      if (typeof animatePaperModal === 'function') {
+        animatePaperModal(modal, modalDialog, 'close', {
+          variant: 'folio',
+          closeDurationSec: 0.24,
+          onComplete: () => {
+            if (!isModalOpen) modal.classList.add('hidden');
+          },
+        });
+      } else {
+        modalHideTimer = window.setTimeout(() => {
+          if (!isModalOpen) {
+            modal.classList.add('hidden');
+          }
+        }, 320);
+      }
     }
 
     function renderCardFolioContent(pickedCard: HTMLElement, mode: 'lottery' | 'folio') {
@@ -2051,6 +2102,7 @@ const countByCategory = {
         if (target.classList.contains('is-filtered-out')) {
           currentCategory = 'all';
           searchQuery = '';
+          filterCtrl?.resetFilters();
           if (searchInput) searchInput.value = '';
           if (searchClear) searchClear.classList.add('hidden');
           catTabs.forEach((t) => t.classList.remove('is-active'));
@@ -2092,6 +2144,8 @@ const countByCategory = {
       activeContainer = null;
       controller.abort();
       tabGliderRO?.disconnect();
+      if (typeof stopPillGlider === 'function') stopPillGlider(tabBrushGlider);
+      filterCtrl?.setActiveModal(null);
       if (gliderInitRaf) cancelFrame(gliderInitRaf);
       if (gliderResetRaf) cancelFrame(gliderResetRaf);
       if (modalOpenRaf) cancelFrame(modalOpenRaf);
