@@ -25,8 +25,8 @@ async function createTsStripper() {
 }
 const stripTs = await createTsStripper();
 
-describe('Reader & Companion Motion Upgrade Suite (宣纸批注 · 朱砂钤印 · 书法飞白)', () => {
-  it('1. PostLayout & global.css: H2/H3 完成态严格归零、单次显现零回滚闪烁、脊线运笔朱砂微芒与毛笔分割线', () => {
+describe('Reader & Companion Motion Upgrade Suite (宣纸批注 · 水墨微澜 · 书法飞白)', () => {
+  it('1. PostLayout & global.css: H2/H3 完成态严格归零、单次显现零回滚闪烁、脊线运笔水墨微澜与毛笔分割线', () => {
     const globalCss = readSrc('src/styles/global.css');
     const postLayout = readSrc('src/layouts/PostLayout.astro');
 
@@ -83,17 +83,17 @@ describe('Reader & Companion Motion Upgrade Suite (宣纸批注 · 朱砂钤印 
     assert.match(postLayout, /revealObserver\.unobserve\(el\)/, '已读段落显现后立即 unobserve，杜绝回滚闪烁');
     assert.doesNotMatch(postLayout, /resetObserver/, '不得保留剥离已读段落 .is-in 的 resetObserver');
 
-    // 左缘阅读脊线柔顺阻尼运笔 + 经过标题时墨点晕开朱砂微芒
+    // 左缘阅读脊线柔顺阻尼运笔 + 经过标题时墨点荡开单色水墨微澜
     assert.match(postLayout, /stepSpineBrush/, '阅读脊线须采用 rAF 柔顺阻尼运笔插值');
-    assert.match(globalCss, /\.post-spine-dot\.is-lit::after[\s\S]*?spineDotCinnabarBloom/, '经过章节标题时墨点须晕开朱砂微芒');
-    assert.match(globalCss, /\.prose\s+\.pr\[data-pr="heading"\]::before[\s\S]*?linear-gradient\([\s\S]*?var\(--vermilion/, 'H2 分割线须如毛笔朱墨起收笔延展');
+    assert.match(globalCss, /\.post-spine-dot\.is-lit::after[\s\S]*?spineDotInkBloom/, '经过章节标题时墨点须荡开单色水墨微澜');
+    assert.match(globalCss, /\.prose\s+\.pr\[data-pr="heading"\]::before[\s\S]*?linear-gradient\([\s\S]*?var\(--vermilion/, 'H2 分割线须如毛笔浓淡墨起收笔延展');
 
     // 引用块大引号去静态 blur 且无过冲
     const bqSlice = globalCss.slice(globalCss.indexOf('.prose blockquote::before'), globalCss.indexOf('[data-theme="dark"] .prose blockquote'));
     assert.doesNotMatch(bqSlice, /filter:\s*blur/i, '引用块大引号不得带静态或动态 blur 滤镜');
   });
 
-  it('2. PostLayout JSDOM 交互验证: 代码块按高度自适应时长折叠/展开、「钤印已录」复制反馈与章节跳转抵达「水墨底纹轻拂」', async () => {
+  it('2. PostLayout JSDOM 交互验证: 代码块按高度自适应时长折叠/展开、细线对勾「已复制」反馈与章节跳转抵达「水墨底纹轻拂」', async () => {
     const postLayout = readSrc('src/layouts/PostLayout.astro');
     const enhancementsScript = [...postLayout.matchAll(/<script is:inline>([\s\S]*?)<\/script>/g)]
       .map((m) => m[1])
@@ -161,12 +161,14 @@ describe('Reader & Companion Motion Upgrade Suite (宣纸批注 · 朱砂钤印 
       assert.ok(shortCollapseDuration >= 280 && shortCollapseDuration <= 360, `短代码块折叠应轻巧迅速 (${shortCollapseDuration}ms)`);
       assert.ok(tallExpandDuration > shortCollapseDuration && tallExpandDuration <= 580, `长代码块展开应按高度自适应拉长且有上限 (${tallExpandDuration}ms)`);
 
-      // 复制按钮「钤印已录」反馈
+      // 复制按钮细线对勾 +「已复制」单色水墨微澜反馈
       copyBtn.click();
       await new Promise((r) => setTimeout(r, 15));
       assert.ok(copiedText.includes('const ink = 1;'));
       assert.ok(copyBtn.classList.contains('is-copied'), '复制后必须挂载 is-copied 状态');
-      assert.ok(copyBtn.textContent.includes('钤印已录'), '复制按钮须呈现「钤印已录」反馈');
+      assert.ok(copyBtn.textContent.includes('已复制'), '复制按钮须呈现「已复制」清爽反馈');
+      assert.ok(copyBtn.querySelector('svg polyline'), '复制按钮须呈现细线对勾 SVG');
+      assert.ok(!postLayout.includes('SEAL_STAMP_SVG') && !postLayout.includes('钤印已录'), '不得残留方章复制图标或钤印文案');
 
       // 章节跳转：远处目标滚动未抵达前不抢跑，连点反向目标自动取消旧监听，抵达阅读带后触发 .is-anchor-target
       const nearH2 = window.document.getElementById('sec-near');
@@ -203,7 +205,7 @@ describe('Reader & Companion Motion Upgrade Suite (宣纸批注 · 朱砂钤印 
     }
   });
 
-  it('3. 加密文章「破封启卷」水墨解锁与错密轻震验证', async () => {
+  it('3. 加密文章「水墨启卷」单色晕墨解锁与错密轻震验证', async () => {
     const postLayout = readSrc('src/layouts/PostLayout.astro');
     const lockScriptMatch = postLayout.match(/\{isLocked && \(\s*<script is:inline data-astro-rerun>([\s\S]*?)<\/script>\s*\)\}/);
     assert.ok(lockScriptMatch, '必须找到加密文章解锁脚本');
@@ -241,20 +243,27 @@ describe('Reader & Companion Motion Upgrade Suite (宣纸批注 · 朱砂钤印 
       const panel = window.document.querySelector('[data-lock-panel]');
       const content = window.document.querySelector('[data-locked-content="true"]');
 
+      const waitFor = async (pred, timeoutMs = 600) => {
+        const deadline = Date.now() + timeoutMs;
+        while (!pred() && Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 10));
+        }
+      };
+
       // 1. 错密触发笔触轻震
       form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-      await new Promise((r) => setTimeout(r, 25));
+      await waitFor(() => input.classList.contains('is-error-shake'));
       assert.equal(input.classList.contains('is-error-shake'), true, '密码错误时输入框应触发错密轻震反馈');
       assert.equal(content.hidden, true);
 
-      // 2. 正确密码触发「破封启卷」水墨动效
+      // 2. 正确密码触发「水墨启卷」单色径向晕墨散开与卷轴舒展动效
       input.value = 'open-sesame';
       form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-      await new Promise((r) => setTimeout(r, 25));
-      assert.equal(panel.classList.contains('is-unsealing'), true, '密码正确后锁面板先进入破封态 is-unsealing');
+      await waitFor(() => panel.classList.contains('is-opening'));
+      assert.equal(panel.classList.contains('is-opening'), true, '密码正确后锁面板先进入水墨启卷态 is-opening');
 
       panel.dispatchEvent(new window.Event('animationend'));
-      assert.equal(panel.hidden, true, '破封动画结束后隐藏锁面板');
+      assert.equal(panel.hidden, true, '启卷动画结束后隐藏锁面板');
       assert.equal(content.hidden, false, '正文解除隐藏');
       assert.equal(content.classList.contains('is-unfurling'), true, '正文展卷呈现 is-unfurling 动效');
       assert.equal(unlockedEvents, 1, '派发 post-unlocked 通知目录与正文显现初始化');
@@ -304,19 +313,22 @@ describe('Reader & Companion Motion Upgrade Suite (宣纸批注 · 朱砂钤印 
     assert.doesNotMatch(dock, /(?<![a-z-])filter\s*:\s*[^;]*blur\(/i, 'ArticleSelectionDock 全文件不得残留任何动态 filter: blur');
   });
 
-  it('5. InkAsk: 「问」字朱砂印钤落墨环、双笔飞白墨圈、圆形墨晕渗开、呼吸墨滴收笔回墨与零 blur', () => {
+  it('5. InkAsk: 单色细线 ASK_BRAND_ICON 圆润圆钮、双层水纹墨环、双笔飞白墨圈、圆形晕墨开卡与零 blur', () => {
     const inkAsk = readSrc('src/components/InkAsk.astro');
 
-    assert.match(inkAsk, /ink-ask-seal-glyph[\s\S]*?>问</, '划词印章须呈现书法「问」字朱砂钤印');
-    assert.match(inkAsk, /\.ink-ask-seal\.is-popping::before[\s\S]*?\.ink-ask-seal\.is-popping::after/, '「问」字印章钤落时须荡开双层同心墨环');
+    assert.match(inkAsk, /seal\.innerHTML\s*=\s*ASK_BRAND_ICON/, '划词墨问圆钮须采用单色细线 SVG ASK_BRAND_ICON');
+    assert.doesNotMatch(inkAsk, /ink-ask-seal-glyph/, '严禁残留「问」字汉字方印结构');
+    assert.doesNotMatch(inkAsk, /194,\s*63,\s*44/, '严禁残留 194, 63, 44 硬编码朱砂红边框');
+    assert.match(inkAsk, /\.ink-ask-seal\s*\{[\s\S]*?border-radius:\s*9999px/, '墨问划词浮钮须为圆润胶囊/圆钮外观');
+    assert.match(inkAsk, /\.ink-ask-seal\.is-popping::before[\s\S]*?\.ink-ask-seal\.is-popping::after/, '圆钮弹出时须荡开双层同心水纹墨环');
     assert.match(inkAsk, /\.ink-ask-ring\.is-drawn\s+\.ink-ask-ring-echo[\s\S]*?stroke-dasharray:/, '墨圈副笔须呈现干擦断续的书法飞白笔意');
     assert.match(inkAsk, /\.ink-ask-ring\.is-drying\s+path[\s\S]*?stroke-dashoffset:\s*-1/, '关闭墨问时墨圈须顺势收笔回墨');
-    assert.match(inkAsk, /\.ink-ask-card\.is-opening[\s\S]*?clip-path\s+420ms\s+var\(--article-ease-surface\)/, '墨问卡片须自印章原点圆形墨晕渗开');
+    assert.match(inkAsk, /\.ink-ask-card\.is-opening[\s\S]*?clip-path\s+420ms\s+var\(--article-ease-surface\)/, '墨问卡片须自圆钮原点圆形晕墨渗开');
     assert.match(inkAsk, /function\s+settleCaret\(/, '流式回答结束时须执行呼吸墨滴收笔回墨');
     assert.doesNotMatch(inkAsk, /(?<![a-z-])filter\s*:\s*[^;]*blur\(/i, 'InkAsk 全文件不得残留任何动态 filter: blur');
   });
 
-  it('6. CompanionLayout & panelResize: 抽屉推挤零时差同步、去 blur 轻巧切换、全程 rAF 拖拽与朱砂墨丝指引', () => {
+  it('6. CompanionLayout & panelResize: 抽屉推挤零时差同步、去 blur 轻巧切换、全程 rAF 拖拽与水墨丝缕指引', () => {
     const globalCss = readSrc('src/styles/global.css');
     const companion = readSrc('src/components/CompanionLayout.astro');
 
@@ -329,7 +341,7 @@ describe('Reader & Companion Motion Upgrade Suite (宣纸批注 · 朱砂钤印 
     assert.match(
       globalCss,
       /#companion-splitter:hover::before,\s*\nhtml\[data-companion-resizing="true"\]\s+#companion-splitter::before/,
-      '分隔条悬停与拖拽时必须浮现朱砂墨丝指引'
+      '分隔条悬停与拖拽时必须浮现单色水墨丝缕指引'
     );
     assert.doesNotMatch(companion, /(?<![a-z-])filter\s*:\s*[^;]*blur\(/i, 'CompanionLayout 面板切换必须彻底清除动态 blur');
     assert.match(companion, /splitDragRaf\s*=\s*requestAnimationFrame\(flushSplitterFrame\)/, '并排分隔条拖拽必须全程 rAF 节流');
@@ -410,19 +422,21 @@ describe('Reader & Companion Motion Upgrade Suite (宣纸批注 · 朱砂钤印 
 
     // PinWorkbench 飞墨流光弧线 + 轻漾墨环 + 零 blur
     assert.match(workbench, /pin-fly-arc-svg/, '钉住段落飞入工作台须绘制二次贝塞尔飞墨流光弧线');
-    assert.match(workbench, /pin-ink-ripple/, '飞墨落点须轻漾单枚朱砂墨环');
+    assert.match(workbench, /pin-ink-ripple/, '飞墨落点须轻漾单枚单色水墨涟漪环');
     assert.doesNotMatch(workbench, /(?<![a-z-])filter\s*:\s*[^;]*blur\(/i, 'PinWorkbench 不得残留任何动态 filter: blur');
 
-    // ArticleSearch 去 blur 提速 + 朱砂墨框脉冲
+    // ArticleSearch 去 blur 提速 + 高对比单色墨框脉冲
     assert.match(search, /articleSearchHudEnter\s+260ms\s+var\(--article-ease-surface\)/, '文内搜索胶囊入场须提速至 ~260ms 轻巧展卷');
     assert.match(search, /articleSearchHudExit\s+190ms\s+var\(--article-ease-layout\)/, '文内搜索胶囊退场须提速至 ~190ms');
-    assert.match(search, /articleSearchRadarPulse\s+520ms\s+var\(--article-ease-surface\)/, '匹配项切换须采用克制醒目的朱砂墨框脉冲');
+    assert.match(search, /articleSearchRadarPulse\s+520ms\s+var\(--article-ease-surface\)/, '匹配项切换须采用克制醒目的单色墨框脉冲');
+    assert.doesNotMatch(search, /#d4733c|#ff7849|#c05c2a/i, 'ArticleSearch 不得硬编码橙红高亮框色');
     assert.doesNotMatch(search, /(?<![a-z-])filter\s*:\s*[^;]*blur\(/i, 'ArticleSearch 不得残留任何动态 filter: blur');
 
-    // MermaidRenderer 阻尼惯性漫游与「钤印已录」微交互 JSDOM 验证
+    // MermaidRenderer 阻尼惯性漫游与细线对勾「已复制」微交互 JSDOM 验证
     assert.match(mermaid, /stepModalInertia/, '全屏画布漫游须支持松手阻尼惯性');
     assert.match(mermaid, /stepStageInertia/, '内嵌图表漫游须支持松手阻尼惯性');
-    assert.match(mermaid, /钤印已录/, 'Mermaid 复制按钮须提供「钤印已录」微交互反馈');
+    assert.match(mermaid, /已复制/, 'Mermaid 复制按钮须提供「已复制」清爽微交互反馈');
+    assert.doesNotMatch(mermaid, /钤印已录/, 'Mermaid 复制按钮不得残留「钤印已录」印章文案');
 
     const markup = mermaid.slice(mermaid.indexOf('<div class="mermaid-modal-overlay"'), mermaid.indexOf('<script>'));
     const blockHtml = `<div class="mermaid-block"><button class="mermaid-btn-expand"></button><div class="mermaid-stage"><div class="mermaid-render"><svg></svg></div></div></div>`;

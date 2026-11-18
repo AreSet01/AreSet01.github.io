@@ -129,8 +129,8 @@ test('2. mindmap.astro: single-rAF viewport physics, momentum inertia, focal whe
   assert.ok(page.includes('strokeDashoffset') && page.includes('findSpawnOrigin'), 'expanded/added branches animate strokeDashoffset while child nodes sprout from ancestor origin');
   assert.ok(page.includes('linkMorphRafId') && page.includes('buildInkBranchPath'), 'FLIP node transitions morph connected Bezier link endpoints continuously per rAF');
 
-  // Cinnabar breathing selection seal + interactive minimap + lifecycle cleanup
-  assert.ok(page.includes('@keyframes mmInkSealBreathe'), 'selected node renders cinnabar/ink breathing aura');
+  // Monochrome ink breathing selection aura + interactive minimap + lifecycle cleanup
+  assert.ok(page.includes('@keyframes mmInkFocusBreathe') && !page.includes('--mm-cinnabar'), 'selected node renders monochrome/node-color breathing aura without hardcoded cinnabar red');
   assert.ok(page.includes('id="mm-minimap"') && page.includes('id="mm-minimap-svg"') && page.includes('id="mm-minimap-vp"'), 'interactive minimap topology & viewport indicator exist');
   assert.ok(page.includes('__areSetMindmapPageCleanup__'), 'standardized MindMap lifecycle cleanup key is registered');
 });
@@ -207,13 +207,13 @@ test('5. life.astro: GPU brush-stroke category glider, temporal ink-vein cascade
     'life cards render vertical ink-vein rule and staggered tip cascade'
   );
   assert.ok(
-    page.includes('data-open-life-folio') && page.includes('rotateY(-14deg)') && page.includes('modal-seal'),
-    'life cards and lottery modal open with 3D thread-bound book-page flip and cinnabar seal'
+    page.includes('data-open-life-folio') && page.includes('rotateY(-14deg)') && page.includes('modal-pill') && !page.includes('modal-seal'),
+    'life cards and lottery modal open with 3D thread-bound book-page flip and rounded monochrome capsule pill'
   );
   assert.ok(page.includes('__areSetLifePageCleanup__'), 'life page registers standardized cleanup');
 });
 
-test('6. settings.astro, account.astro & mindmapSync.ts: ink-jade switches, theme ripples, cinnabar seal & cloud-ink conduit', async () => {
+test('6. settings.astro, account.astro & mindmapSync.ts: ink-jade switches, theme ripples, rounded status capsule & cloud-ink conduit', async () => {
   const settings = readRepoFile('src/pages/settings.astro');
   const account = readRepoFile('src/pages/account.astro');
 
@@ -280,7 +280,17 @@ test('6. settings.astro, account.astro & mindmapSync.ts: ink-jade switches, them
     );
   }
 
-  // Account: Cinnabar seal verification ritual, pure scaleX glider & Cloud-Ink conduit
+  assert.ok(
+    settings.includes('swatch-dot') &&
+      settings.includes('specimen-pill') &&
+      settings.includes('验证密钥并启卷') &&
+      !settings.includes('swatch-seal') &&
+      !settings.includes('specimen-seal') &&
+      !settings.includes('钤印'),
+    'settings workbench replaces square seals and seal copy with rounded monochrome capsules and clean key-verification copy'
+  );
+
+  // Account: Rounded monochrome cloud-ready capsule + dual water-ink ripples, pure scaleX glider & Cloud-Ink conduit
   assert.ok(
     !account.includes('accountTabGlider.style.width') &&
       account.includes('--pill-rx') &&
@@ -288,12 +298,16 @@ test('6. settings.astro, account.astro & mindmapSync.ts: ink-jade switches, them
     'account tab glider uses pure compositor scaleX (--pill-rx) and reduced-motion keeps visible account-card opaque'
   );
   assert.ok(
-    account.includes('id="accountSealStamp"') &&
-      account.includes('@keyframes cinnabarSealStamp') &&
-      account.includes('seal-ink-ring') &&
-      account.includes('朱砂钤印') &&
-      account.includes('新印落籍'),
-    'account page performs cinnabar seal stamp verification on login, registration, and manual check'
+    account.includes('id="accountStatusBadge"') &&
+      account.includes('@keyframes accountInkRippleRing') &&
+      account.includes('account-ink-ripple') &&
+      account.includes('已登录 · 云端就绪') &&
+      account.includes('同步就绪') &&
+      account.includes('云墨同频') &&
+      !account.includes('id="accountSealStamp"') &&
+      !account.includes('朱砂钤印') &&
+      !account.includes('印信'),
+    'account page renders rounded monochrome cloud-ready capsule with dual water-ink ripple rings and zero square seal concepts'
   );
   assert.ok(
     account.includes('id="syncInkBridge"') &&

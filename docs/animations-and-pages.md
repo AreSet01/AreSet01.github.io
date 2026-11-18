@@ -16,25 +16,25 @@
 | `/timeline` | 年轮。竖向滚动被 pin 住转成横向手卷，支持惯性拖拽、毛笔笔锋进度与墨滴涟漪节点 |
 | `/tags` / `/tags/[tag]` | 标签星图（固定步长力导向星座，悬停点亮共现脉络）与标签详情（列表逐条渗墨刷出） |
 | `/stats` | 写作统计。Hero 数字 + KPI + 四张挥毫统计图 + 平滑开合的 `<details>` 数据表 |
-| `/about` | 关于页。宣纸名刺排印与可点击切换多组印文的朱砂石章 |
+| `/about` | 关于页。宣纸名刺排版、单色细墨线与圆润胶囊微标 |
 | `/posts/[slug]` | 文章阅读与伴读。单次温润正文显现、阻尼阅读脊线、湿墨连续划线、书法飞白「墨问」、锁定正文宽度的分屏/全屏伴读、飞墨对照台、文内搜索与单 rAF 惯性 Mermaid 画布 |
 | `/mindmap` | 思维导图工作台。单 rAF 惯性平移与焦点阻尼滚轮缩放、层级收锋非对称贝塞尔水墨枝蔓（`stroke-dashoffset` 生长/收拢）与实时小地图 |
 | `/notes` | 案头便签中心。3D 宣纸笺悬停、多维筛选锚点预滚动与删除时按需触发的墨迹收干（`@keyframes notesCardInkDry`） |
 | `/gallery` | 暗房画廊。底片水墨显影（`data-developed="1"`）、五段式空态平滑收放与画廊灯箱 |
 | `/life` | 线装生活志。毛笔笔触分类游标、手账卡片抽签与 3D 册页翻转详笺（`openCardFolio`） |
-| `/settings` / `/account` | 偏好设置与账户中心。墨玉阻尼滑块（实时联动四套主题、行云手书/像素字体、水墨指针拖尾）、纯合成器 `scaleX` 页签游标、朱砂验印与云墨同步脉动 |
+| `/settings` / `/account` | 偏好设置与账户中心。墨玉阻尼滑块（实时联动四套主题、行云手书/像素字体、水墨指针拖尾）、纯合成器 `scaleX` 页签游标、圆润胶囊状态徽标与云墨同步脉动 |
 
 ### 全局特性
 
 **四套主题与切换仪式** —— 支持 `light`（浅色宣纸）、`dark`（深色徽墨）、`moss`（绿粉青苔）、`rice`（古籍米笺），以及像素点阵 / 行云手书（`html[data-font="kai"]`）双字形切换；切换时激发柔和的水墨晕环（`spawnThemeInkRipple`），并在 View Transition 期间静默内层 CSS 过渡消除阴影重绘卡顿。
 
-**全局壳层微交互** —— 侧边栏导航采用 `WeakMap` 预缓存几何坐标与毛笔微拉伸磁吸游标；指针水墨拖尾与圆圈光标合入单一 `rAF` 调度（双层浓淡中锋，离屏与 `document.hidden` 自动休眠）；自定义右键菜单（`siteContextMenu.ts`）采用竹简笺条展开与游走墨衬 Pill；无感版本检测（`appAutoUpdate.ts`）以飞鸽朱砂小笺滑入提示；「烟雨濛濛」微气象（`ZenRainscape` / `ZenSoundscape`）通过三层 `Path2D` 批绘雨丝微澜并与程序化白噪音音景联动。
+**全局壳层微交互** —— 侧边栏导航采用 `WeakMap` 预缓存几何坐标与浓淡水墨毛笔磁吸游标；指针水墨拖尾与圆圈光标合入单一 `rAF` 调度（双层浓淡中锋，离屏与 `document.hidden` 自动休眠）；自定义右键菜单（`siteContextMenu.ts`）采用竹简笺条展开与游走墨衬 Pill；无感版本检测（`appAutoUpdate.ts`）以折纸飞鸽圆润水墨胶囊滑入提示；「烟雨濛濛」微气象（`ZenRainscape` / `ZenSoundscape`）通过三层 `Path2D` 批绘雨丝微澜并与程序化白噪音音景联动。
 
 **系列导航与分类筛选** —— frontmatter 加 `series` / `seriesOrder` 自动生成顶部墨点进度条与底部上下篇卡片；frontmatter 加 `category` 驱动 `/archive?category=xxx` 深链筛选。
 
 **站点进场幕** —— 每个浏览器会话首次打开任意页面时播放 10s「墨化为像素」（`src/components/SiteIntro.astro`），支持 `?intro=1` 强制重播与随时跳过放行。
 
-**代码块与加密文章** —— Shiki 解析 `title="..."`、`{3-5}` 行高亮与自动行号；运行时增强按高度自适应时长的平滑折叠/展开与「钤印已录」复制反馈；加密文章解锁时执行「破封启卷」动效。
+**代码块与加密文章** —— Shiki 解析 `title="..."`、`{3-5}` 行高亮与自动行号；运行时增强按高度自适应时长的平滑折叠/展开、单色细线对勾 SVG +「已复制」水墨微澜反馈；加密文章解锁时执行单色径向晕墨散开与卷轴舒展的「水墨启卷」动效。
 
 **统一湿墨划线、墨问与伴读工作台** —— 正文划词可触发湿墨浸润连续高亮与批注、书法飞白墨圈「墨问」（`InkAsk.astro`，对接 `server/ask.mjs`，无后端时自动静默隐藏）、锁定阅读列宽的分屏/全屏伴读面板（`CompanionLayout.astro`）以及抛物线飞白入驻的对照工作台（`PinWorkbench.astro`）。
 
@@ -44,7 +44,7 @@
 
 ### 2.1 全局壳层、页面进场、Lightbox FLIP 与路由转场（`BaseLayout` / `PostTransition` / `Header`）
 
-页面上任何带 `data-enter="<kind>"` 的元素都会被编排进场。`initPageEnter` 先统一预读几何坐标（`preMetaMap`）再批量写入初始态，注册 `paper-glide`（宣纸舒卷）、`ink-seep`（水墨毛细渗透）与 `cinnabar-seal`（朱砂石章钤印）三条专属缓动，并在 `finishEnter` 结束时通过 `clearProps` 及时释放 `willChange`。
+页面上任何带 `data-enter="<kind>"` 的元素都会被编排进场。`initPageEnter` 先统一预读几何坐标（`preMetaMap`）再批量写入初始态，注册 `paper-glide`（宣纸舒卷）与 `ink-seep`（水墨毛细渗透）等东方水墨专属缓动，并在 `finishEnter` 结束时通过 `clearProps` 及时释放 `willChange`。
 
 **kind 取值**
 
@@ -52,7 +52,7 @@
 |---|---|
 | `left` / `right` / `top` / `bottom` | 从对应方向沿 `paper-glide` 温润滑入 |
 | `scale` / `bloom` | 缩放或纯合成器 `clip-path: inset(...)` 宣纸绽放（严禁逐帧 `filter: blur`） |
-| `stamp` | 朱砂石章压纸钤落（`cinnabar-seal`），落点激发朱砂余韵光环（`spawnStampSealHalo`）与无阴影飞墨粒子，内部 `[data-count]` 数字同步 count-up |
+| `stamp` | 沉稳落纸入场，落点激发单色水墨涟漪光环与无阴影飞墨微粒，内部 `[data-count]` 数字同步 count-up |
 | `ink` | 从行首日期位置以圆形 `clip-path` 按 `ink-seep` 渗开整行 |
 
 **全局图片/图表查看器（Lightbox FLIP）**
@@ -100,17 +100,17 @@
 | kind | 动作 |
 |---|---|
 | `block` | 轻盈上浮淡入 |
-| `heading`（h2） | 顶部朱墨渐变分割线从左运笔延展；未入场 `:not(.is-in)` 偏移 `-10px`，`.pr.is-in` 完成态严格归零 `translate3d(0, 0, 0)` |
+| `heading`（h2） | 顶部浓淡墨渐变分割线从左运笔延展；未入场 `:not(.is-in)` 偏移 `-10px`，`.pr.is-in` 完成态严格归零 `translate3d(0, 0, 0)` |
 | `subheading`（h3） | 未入场 `:not(.is-in)` 偏移 `-8px`，`.pr.is-in` 完成态严格归零 `translate3d(0, 0, 0)` |
-| `code` | 自上而下 `clip-path` 擦出（外包 `.pr-wrap` 避免裁剪影响可见性判定）；支持按高度自适应时长的折叠/展开与「钤印已录」复制反馈 |
+| `code` | 自上而下 `clip-path` 擦出（外包 `.pr-wrap` 避免裁剪影响可见性判定）；支持按高度自适应时长的折叠/展开与细线对勾「已复制」水墨微澜反馈 |
 | `image` | 从中心圆形渗开，点击无缝衔接全局宣纸绫裱 Lightbox FLIP |
 | `table` / `list` | 行/项轻量级联（排队索引上限收敛为 `Math.min(i, 3)`，杜绝大表格慢动作排队） |
 | `quote` | 温润引号落定（无静态或动态 `blur` 滤镜） |
 
 阅读增强与伴读组件：
 
-- **左缘阅读脊线**：采用 `rAF` 柔顺阻尼运笔（`stepSpineBrush`），经过章节标题时墨点晕开朱砂微芒（`spineDotCinnabarBloom`）；点击目录跳转抵达目标标题时触发水墨底纹轻拂。
-- **破封启卷**：加密文章口令验证通过时播放朱砂启封与宣纸展卷过渡。
+- **左缘阅读脊线**：采用 `rAF` 柔顺阻尼运笔（`stepSpineBrush`），经过章节标题时墨点荡开单色水墨微澜（`spineDotInkBloom`）；点击目录跳转抵达目标标题时触发水墨底纹轻拂。
+- **水墨启卷**：加密文章口令验证通过时播放单色径向晕墨散开与宣纸展卷过渡。
 - **湿墨连续划线与选区托盘**：跨行/跨代码选区经 `classifyRectsToGeometry` 合并几何，按划词长度计算湿墨浸润时长（`computeWetInkStrokeDuration`），选区托盘（`ArticleSelectionDock`）纯合成器显隐零 `blur`。
 - **分屏/全屏协同与飞墨对照台**：`CompanionLayout` 在分屏与全屏切换时锁定背景正文阅读列宽，避免长文重排换行；`PinWorkbench` 支持选区抛物线飞白入驻与单 `rAF` 预缓存尺寸拖拽；`MermaidRenderer` 在内嵌与全屏下共用单帧 `rAF` 惯性平移与双指/滚轮缩放，并注册 `__areSetMermaidCleanup__`。
 
@@ -139,7 +139,7 @@
 
 ### 2.4 站点进场幕（`src/components/SiteIntro.astro`）
 
-「墨化为像素」，10s，每个浏览器会话首次打开任意页面时播一次，随时可跳过。全程只有一张 canvas 在动，DOM 只承担印章、副标题、页脚。
+「墨化为像素」，10s，每个浏览器会话首次打开任意页面时播一次，随时可跳过。全程只有一张 canvas 在动，DOM 只承担水墨涟漪环、副标题、页脚。
 
 | 时间 | 幕 | 画面 |
 |---|---|---|
@@ -148,7 +148,7 @@
 | 1.75–3.2 | 散 | 整幕震 3px；两圈细环荡开；墨滴炸成约 6000 颗像素喷溅（近快远慢、带阻力，部分大块中途裂开）；约 3% 落成墨渍 |
 | 3.2–4.6 | 旋 | 旋涡场：每颗像素被拉向各自的轨道半径，内圈快外圈慢；墨渍变淡 |
 | 4.6–5.75 | 聚 | 像素按从左到右的顺序脱离旋涡飞向「梦付千秋」的字格，到位后吸附到整数网格锁定，梦 → 付 → 千 → 秋 依次成形 |
-| 5.85–7.9 | 成 | 字面呼吸（偶发半像素抖动）；印章砸下、墨环荡开；扫描线从上扫过，线以上的像素换成真实字体（同一份 `fillText`，所以严丝合缝）——像素态每格留 1px 缝隙是点阵，字体态是实心，所以看得出"被填实"；伴随一次套印错位（两层灰色残影 ±2.6px 归位）；副标题打字 |
+| 5.85–7.9 | 成 | 字面呼吸（偶发半像素抖动）；单色水墨涟漪环自中心荡开；扫描线从上扫过，线以上的像素换成真实字体（同一份 `fillText`，所以严丝合缝）——像素态每格留 1px 缝隙是点阵，字体态是实心，所以看得出"被填实"；伴随一次浓淡墨影错位（两层灰色残影 ±2.6px 归位）；副标题打字 |
 | 7.9–8.35 | 归 | 扫描线再扫一次，字重新解体成像素；纸面转透明（`.is-lifting`，指针事件放开） |
 | 8.5–10.0 | 归 | 页面进场放行；像素飞回各自在页面里的家——约 12% 撒到侧边栏品牌字「梦付千秋」的字形上（每个字格最多 8 颗、±2.5px 抖动，是一层灰而不是一坨），其余按首屏 `[data-enter]` 元素的面积分配，**在该元素开始进场的那一刻抵达**；分不到家的像灰一样向上散去 |
 
@@ -190,18 +190,18 @@ if (!window[LISTENER_KEY]) {
 因为 Astro 的 ClientRouter 会换 DOM 但不重载页面，每个脚本必须能重复执行且不叠加副作用。已知的坑：
 
 - 模块脚本在硬加载时会先执行一次，`astro:page-load` 又执行一次。所以 `initXxx` 必须幂等。
-- **不要**把一次性状态放在 `initXxx` 内部的局部变量里（会被第二次初始化清零），要放模块级（三连印章的计数器就是这么修的）。
+- **不要**把一次性状态放在 `initXxx` 内部的局部变量里（会被第二次初始化清零），要放模块级（三连点击彩蛋计数器就是这么修的）。
 - 向 SVG 里 `appendChild` 这类操作要先 `replaceChildren()`（标签星图的连线曾因此翻倍）。
 
 ### 2.6 划词问答（`src/components/InkAsk.astro`）
 
 | 阶段 | 动作 |
 |---|---|
-| 出印 | 选区落定（`selectionchange` 静默 280ms）→ 正文里选满 2 个字 → 探测 `/api/ask` 可用 → 34px 的「问」印在选区末尾钤下（`scale 1.7 + rotate −16°` 过冲落定，`::after` 荡开一圈墨环） |
-| 圈字 | 点印：`getClientRects()` 取所有行盒 → 两笔手画的墨圈按 `pathLength=1` + `stroke-dashoffset` 从左上起笔画出（第二笔细而淡，是飞白）；高度 > 220px 的选区改画页边一道竖笔 |
-| 开卡 | 卡片用 `clip-path: circle(0 → r)` 从**印的位置**渗开，`r` 是到卡片最远角的距离 |
+| 浮现圆钮 | 选区落定（`selectionchange` 静默 280ms）→ 正文里选满 2 个字 → 探测 `/api/ask` 可用 → 34px 单色细线 SVG 圆润胶囊钮（`ASK_BRAND_ICON`）在选区末尾轻盈弹出（零动态 `blur`，`::before` / `::after` 荡开双层同心水纹墨环） |
+| 圈字 | 点击圆钮：`getClientRects()` 取所有行盒 → 两笔手画的墨圈按 `pathLength=1` + `stroke-dashoffset` 从左上起笔画出（第二笔细而淡，是飞白）；高度 > 220px 的选区改画页边一道竖笔 |
+| 开卡 | 卡片用 `clip-path: circle(0 → r)` 从**圆钮原点**径向晕墨渗开，`r` 是到卡片最远角的距离 |
 | 流式 | 回答按 `requestAnimationFrame` 合帧重渲染（每个片段都重排 markdown 会卡），末尾一粒呼吸的墨点；服务端发 `{t:1}` 时状态文字从「研墨中」变「思量中」 |
-| 收笔 | Esc / 点空白：墨圈淡去，卡片把墨收回落印处（`circle(r → 0)`，380ms） |
+| 收笔 | Esc / 点空白：墨圈顺势收笔回墨，卡片把墨晕收回原点（`circle(r → 0)`，380ms） |
 
 布局：桌面贴着选区下方（下方不够 300px 且上方更宽裕时翻到上方，`is-above` 用 `translateY(-100%)`）；`<768px` 变成底部抽屉（`is-sheet`，只改定位，不参与动画）。位置全部是文档坐标（`left/top + scrollX/Y`），所以滚动时不用跟随；`ResizeObserver` 只负责重画（图片、字体加载会让正文挪位）。
 
@@ -260,7 +260,7 @@ if (!window[LISTENER_KEY]) {
   - `/life` 卡片支持点击「展卷」以 3D 线装册页翻转（`rotateY` + `transformOrigin: left center`）打开手账详笺。
 - **偏好设置与账户同步（`/settings`、`/account`）**：
   - `/settings` 墨玉滑块采用弹性阻尼位移，严格对齐全站状态协议（`html[data-cursor-trail="disabled"]` + `localStorage('cursor-trail')`、`html[data-font="kai"]` + `localStorage('site-font')`、`window.__applyTheme`）。
-  - `/account` 采用纯合成器 `scaleX` 页签游标（`.account-tab-glider`），登录验印与导图云端同步（`mindmapSync.ts`）配备朱砂落印与云墨呼吸脉冲。
+  - `/account` 采用纯合成器 `scaleX` 页签游标（`.account-tab-glider`），登录核验与导图云端同步（`mindmapSync.ts`）配备圆润单色胶囊徽标、双圈水纹涟漪与云墨流转脉冲。
 
 ### 2.10 性能约定（60–120fps 零掉帧硬指标）
 
@@ -275,7 +275,7 @@ if (!window[LISTENER_KEY]) {
 
 | 想改什么 | 去哪 |
 |---|---|
-| 进场位移 / 东方水墨缓动 | `BaseLayout.astro` 的 `ENTER_OFFSET`、`paper-glide` / `ink-seep` / `cinnabar-seal` 曲线 |
+| 进场位移 / 东方水墨缓动 | `BaseLayout.astro` 的 `ENTER_OFFSET`、`paper-glide` / `ink-seep` 曲线 |
 | 全局 Lightbox FLIP 时长 | `BaseLayout.astro` 的 `VIEWER_OPEN_MS`（520ms）/ `VIEWER_CLOSE_MS`（360ms） |
 | 路由水墨飞白转场 | `PostTransition.astro`：`feibaiStreaks`、`COS_LUT` / `SIN_LUT`、放行阈值 `state.p >= 0.75 && progress >= 0.62` |
 | 3D 宣纸卡片弹簧物理 | `src/utils/cardMotion.ts` 的 `PAPER_TILT_CONFIG`（倾角上限、刚度、阻尼、光泽强度） |
@@ -305,14 +305,14 @@ if (!window[LISTENER_KEY]) {
    ```cpp title="MyActor.h" {2-4}
    ````
 
-2. **首页三连印章彩蛋**：文案位于 `src/pages/index.astro` 的 `.home-rant`，连续三次点击右下印章展开。
+2. **首页三连水纹彩蛋**：文案位于 `src/pages/index.astro` 的 `.home-rant`，连续三次点击右下同心水纹圆标展开。
 3. **系列与分类归属**：新文章归入系列需在 frontmatter 同时填写 `series` 与 `seriesOrder`；归档分类填写 `category`。
 
 ### 架构取舍与候选方向
 
 4. **About 页开场**：早先的独立像素开场已合并由全局 `SiteIntro.astro` 接管首次会话落地体验。
 5. **标签星图规模**：当前标签量级采用固定步长力导向；若未来标签涨至 60+ 可切换空间网格加速。
-6. **可选后续特性**：RSS 订阅、跨设备阅读位置记忆与独立印章工坊 `/seal`。
+6. **可选后续特性**：RSS 订阅与跨设备阅读位置记忆。
 
 ---
 

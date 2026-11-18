@@ -1449,23 +1449,28 @@
      ========================================================= */
 
   :root {
-    --search-vermilion: #d4733c;
-    --search-vermilion-rgb: 212, 115, 60;
+    --search-vermilion: #141413;
+    --search-vermilion-rgb: 20, 20, 19;
   }
 
   [data-theme="dark"] {
-    --search-vermilion: #ff7849;
-    --search-vermilion-rgb: 255, 120, 73;
+    --search-vermilion: #eae8e3;
+    --search-vermilion-rgb: 234, 232, 227;
   }
 
   [data-theme="moss"] {
-    --search-vermilion: #ff859d;
-    --search-vermilion-rgb: 255, 133, 157;
+    --search-vermilion: #ffc2d1;
+    --search-vermilion-rgb: 255, 194, 209;
+  }
+
+  [data-theme="moss"][data-moss-shade="4DB6AC"] {
+    --search-vermilion: #00362e;
+    --search-vermilion-rgb: 0, 54, 46;
   }
 
   [data-theme="rice"] {
-    --search-vermilion: #c05c2a;
-    --search-vermilion-rgb: 192, 92, 42;
+    --search-vermilion: #4e4132;
+    --search-vermilion-rgb: 78, 65, 50;
   }
 
   /* Positioning Wrapper: Houses Capsule & Dropdown Results */
@@ -2345,7 +2350,7 @@
     box-shadow: 0 0 0 1.75px var(--search-vermilion), 0 2px 10px rgba(var(--search-vermilion-rgb), 0.32);
   }
 
-  /* 醒目而不刺眼的朱砂墨框脉冲（无霓虹炫光散射，纯 GPU 缩放淡出） */
+  /* 醒目而不刺眼的高对比单色墨框脉冲（无霓虹炫光散射，纯 GPU 缩放淡出） */
   mark.article-search-mark.is-current.has-pulse::after {
     content: '';
     position: absolute;

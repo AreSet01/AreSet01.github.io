@@ -1493,10 +1493,17 @@
 
     let isDockInteracting = false;
     let dockExitCleanup: (() => void) | null = null;
+    let dockKeyPulseTimer: number | null = null;
 
     function hideDock() {
       if (!dock || !isDockVisible) return;
       isDockVisible = false;
+      if (dockKeyPulseTimer !== null) {
+        window.clearTimeout(dockKeyPulseTimer);
+        dockKeyPulseTimer = null;
+      }
+      dockCapsule?.classList.remove('has-key-press');
+      dockCapsule?.querySelectorAll('.is-key-pressed').forEach((el) => el.classList.remove('is-key-pressed'));
       document.body.classList.remove('has-selection-dock-open');
       if (dockExitCleanup) {
         dockExitCleanup();
@@ -2138,22 +2145,35 @@
     }
 
     // ---------- Dock 按钮事件绑定 ----------
-    document.getElementById('dock-act-highlight')?.addEventListener('click', () => triggerHighlight(), { signal });
-    document.getElementById('dock-act-pin')?.addEventListener('click', (e) => triggerPin(e.currentTarget as HTMLElement), { signal });
-    document.getElementById('dock-act-search')?.addEventListener('click', () => triggerSearch(), { signal });
-    document.getElementById('dock-act-ask')?.addEventListener('click', () => triggerAsk(), { signal });
-    document.getElementById('dock-act-copy')?.addEventListener('click', () => triggerCopy(), { signal });
+    const btnHighlight = document.getElementById('dock-act-highlight');
+    const btnPin = document.getElementById('dock-act-pin');
+    const btnSearch = document.getElementById('dock-act-search');
+    const btnAsk = document.getElementById('dock-act-ask');
+    const btnCopy = document.getElementById('dock-act-copy');
 
-    document.getElementById('dock-act-delete')?.addEventListener('click', () => triggerDeleteHighlight(), { signal });
-    document.getElementById('dock-act-manage-pin')?.addEventListener('click', (e) => triggerPin(e.currentTarget as HTMLElement), { signal });
-    document.getElementById('dock-act-manage-copy')?.addEventListener('click', () => triggerCopy(), { signal });
-    document.getElementById('dock-act-manage-close')?.addEventListener('click', () => hideDock(), { signal });
+    const btnManageDelete = document.getElementById('dock-act-delete');
+    const btnManagePin = document.getElementById('dock-act-manage-pin');
+    const btnManageCopy = document.getElementById('dock-act-manage-copy');
+    const btnManageClose = document.getElementById('dock-act-manage-close');
+    const btnManageSearch: HTMLElement | null = null;
+    const btnManageAsk: HTMLElement | null = null;
+
+    btnHighlight?.addEventListener('click', () => triggerHighlight(), { signal });
+    btnPin?.addEventListener('click', (e) => triggerPin(e.currentTarget as HTMLElement), { signal });
+    btnSearch?.addEventListener('click', () => triggerSearch(), { signal });
+    btnAsk?.addEventListener('click', () => triggerAsk(), { signal });
+    btnCopy?.addEventListener('click', () => triggerCopy(), { signal });
+
+    btnManageDelete?.addEventListener('click', () => triggerDeleteHighlight(), { signal });
+    btnManagePin?.addEventListener('click', (e) => triggerPin(e.currentTarget as HTMLElement), { signal });
+    btnManageCopy?.addEventListener('click', () => triggerCopy(), { signal });
+    btnManageClose?.addEventListener('click', () => hideDock(), { signal });
 
     // 全局快捷键监听 (H / P / F / A / C / Esc / Delete)
     window.addEventListener('keydown', (e) => {
       // 避免输入框内冲突
       const activeEl = document.activeElement;
-      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable)) {
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT' || (activeEl as HTMLElement).isContentEditable)) {
         return;
       }
 
@@ -2177,15 +2197,17 @@
         }
       }
 
-      if (isDockVisible) {
+      if (isDockVisible && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat) {
         const pulseKeyBtn = (btn: HTMLElement | null | undefined, action: () => void) => {
+          if (dockKeyPulseTimer !== null) return;
           if (btn && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             btn.classList.remove('is-key-pressed');
             dockCapsule?.classList.remove('has-key-press');
             void btn.offsetWidth;
             btn.classList.add('is-key-pressed');
             dockCapsule?.classList.add('has-key-press');
-            window.setTimeout(() => {
+            dockKeyPulseTimer = window.setTimeout(() => {
+              dockKeyPulseTimer = null;
               btn.classList.remove('is-key-pressed');
               dockCapsule?.classList.remove('has-key-press');
               action();
@@ -2195,7 +2217,10 @@
           }
         };
 
-        const key = e.key.toUpperCase();
+        let key = e.key.toUpperCase();
+        if ((key === 'PROCESS' || key === 'UNIDENTIFIED') && /^Key[A-Z]$/.test(e.code)) {
+          key = e.code.slice(3);
+        }
         if (key === 'H' && currentSelectedRange) {
           e.preventDefault();
           pulseKeyBtn(btnHighlight, () => triggerHighlight());
@@ -3831,6 +3856,7 @@
       highlightBackdrop.remove();
       selectionBackdrop.remove();
       controller.abort();
+      if (dockKeyPulseTimer !== null) window.clearTimeout(dockKeyPulseTimer);
       if (dockTimeoutId) window.clearTimeout(dockTimeoutId);
       if (stampTimeoutId) window.clearTimeout(stampTimeoutId);
       (window as any)[CLEANUP_KEY] = undefined;
@@ -4180,12 +4206,12 @@
   @keyframes article-highlight-pulse {
     0% {
       background-color: rgba(255, 197, 61, 0.62) !important;
-      outline: 1.5px solid var(--vermilion, #c23f2c);
+      outline: 1.5px solid var(--ink-strong);
       outline-offset: 1px;
     }
     55% {
       background-color: rgba(255, 197, 61, 0.32) !important;
-      outline: 1px solid rgba(194, 63, 44, 0.45);
+      outline: 1px solid var(--rule-strong);
       outline-offset: 3px;
     }
     100% {
@@ -4280,8 +4306,8 @@
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(215, 140, 10, 0.24) 68%,
-      rgba(194, 63, 44, 0.28) 92%,
+      rgba(215, 140, 10, 0.22) 68%,
+      rgba(var(--vermilion-rgb, 0, 0, 0), 0.18) 92%,
       transparent 100%
     );
     opacity: 0;
@@ -4414,12 +4440,12 @@
   @keyframes unifiedBlockPulse {
     0% {
       background: var(--hl-block-bg-hover);
-      outline: 2px solid var(--vermilion, #c23f2c);
+      outline: 2px solid var(--ink-strong);
       outline-offset: 1px;
     }
     55% {
       background: var(--hl-block-bg-hover);
-      outline: 1px solid rgba(194, 63, 44, 0.4);
+      outline: 1px solid var(--rule-strong);
       outline-offset: 4px;
     }
     100% {
@@ -6319,28 +6345,28 @@
   }
 
   .notes-btn-ask {
-    color: var(--vermilion, #c23f2c);
-    border-color: rgba(194, 63, 44, 0.28);
+    color: var(--vermilion);
+    border-color: var(--rule-strong);
   }
   .notes-btn-ask:hover {
-    color: var(--vermilion, #c23f2c);
-    background: var(--vermilion-soft, rgba(194, 63, 44, 0.1));
-    border-color: var(--vermilion, #c23f2c);
+    color: var(--vermilion);
+    background: var(--vermilion-soft);
+    border-color: var(--vermilion);
   }
 
   /* 快捷键按键按压微弹反馈 */
   .dock-action-btn.is-key-pressed {
     transform: translateY(1px) scale(0.92) !important;
-    background: rgba(194, 63, 44, 0.14) !important;
-    color: var(--vermilion, #c23f2c) !important;
+    background: var(--vermilion-soft) !important;
+    color: var(--vermilion) !important;
   }
   .dock-action-btn.is-key-pressed .dock-kbd {
-    background: var(--vermilion, #c23f2c);
-    color: #fff;
-    border-color: var(--vermilion, #c23f2c);
+    background: var(--vermilion);
+    color: var(--bg-base);
+    border-color: var(--vermilion);
   }
   .selection-dock-capsule.has-key-press {
-    box-shadow: 0 0 0 4px rgba(194, 63, 44, 0.18), 0 16px 40px rgba(0, 0, 0, 0.16);
+    box-shadow: 0 0 0 4px var(--vermilion-soft), 0 16px 40px rgba(0, 0, 0, 0.16);
   }
 
   /* 划词/追问飞入墨问幽灵胶囊 */
@@ -6350,7 +6376,7 @@
     max-width: 240px;
     padding: 4px 12px;
     border-radius: 999px;
-    border: 1px solid var(--vermilion, #c23f2c);
+    border: 1px solid var(--ink-strong);
     background: var(--glass-bg-strong, var(--bg-elev));
     color: var(--text-strong);
     font-family: var(--font-body);
@@ -6359,7 +6385,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    box-shadow: 0 10px 28px rgba(194, 63, 44, 0.24);
+    box-shadow: 0 10px 28px var(--ink-mist);
     pointer-events: none;
   }
 
@@ -6398,14 +6424,14 @@
     width: 20px;
     height: 20px;
     border-radius: 999px;
-    background: var(--vermilion-soft, rgba(194, 63, 44, 0.14));
-    color: var(--vermilion, #c23f2c);
+    background: var(--vermilion-soft);
+    color: var(--vermilion);
     flex-shrink: 0;
   }
   .notes-saved-toast-action {
     border: none;
     background: transparent;
-    color: var(--vermilion, #c23f2c);
+    color: var(--vermilion);
     font-family: var(--font-body);
     font-size: 0.78rem;
     font-weight: 700;
@@ -6415,7 +6441,7 @@
     transition: background 150ms ease, transform 150ms ease;
   }
   .notes-saved-toast-action:hover {
-    background: var(--vermilion-soft, rgba(194, 63, 44, 0.1));
+    background: var(--vermilion-soft);
     transform: translateX(1.5px);
   }
 
@@ -6441,8 +6467,8 @@
   .notes-item-card[data-note-kind="ai"].has-pulse::after {
     background: linear-gradient(
       90deg,
-      rgba(var(--vermilion-rgb, 194, 63, 44), 0.22) 0%,
-      rgba(var(--vermilion-rgb, 194, 63, 44), 0.08) 56%,
+      rgba(var(--vermilion-rgb, 0, 0, 0), 0.18) 0%,
+      rgba(var(--vermilion-rgb, 0, 0, 0), 0.06) 56%,
       transparent 100%
     );
   }
@@ -6571,7 +6597,7 @@
   [data-theme="rice"] .note-hover-tooltip-card {
     background: rgba(247, 240, 226, 0.97);
     border-color: rgba(107, 91, 69, 0.24);
-    border-left-color: var(--vermilion, #a83c28);
+    border-left-color: var(--vermilion, #7D5C42);
   }
 
   /* Header */

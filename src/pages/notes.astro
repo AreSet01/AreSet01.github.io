@@ -197,7 +197,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
                 id="article-search-input"
                 aria-label="过滤文章来源"
                 placeholder="过滤文章来源..."
-                class="w-full bg-[var(--bg-soft)] border border-[var(--rule)] text-xs rounded-full pl-7 pr-2.5 py-1.5 text-[var(--text-strong)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--ink-strong)]"
+                class="w-full bg-[var(--bg-soft)] border border-[var(--rule)] text-xs rounded-full pl-7 pr-2.5 py-1.5 text-[var(--text-strong)] placeholder-[var(--muted)] focus:outline-none focus-visible:outline-none focus:border-[var(--ink-strong)]"
               />
             </div>
 
@@ -591,7 +591,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     left: 0;
     width: 100px;
     transform-origin: 0 50%;
-    border-radius: var(--pill-rx, 9999px) / 9999px;
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px);
     background: var(--ink-strong);
     z-index: 1;
     pointer-events: none;
@@ -621,6 +621,10 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     .subtabs-cluster {
       padding: 0.2rem 0.25rem;
       gap: 0.15rem;
+    }
+    .subtabs-glider {
+      top: 0.2rem;
+      bottom: 0.2rem;
     }
     .sub-tab-btn {
       padding: 0.38rem 0.48rem;
@@ -699,7 +703,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       border-width 380ms 90ms var(--ease-card) !important;
   }
 
-  /* 案头宣纸批注笺：伪元素承载悬浮阴影与左侧书脊朱砂/墨色光韵，零 box-shadow 重绘 */
+  /* 案头宣纸批注笺：伪元素承载悬浮阴影与左侧书脊墨色光韵，零 box-shadow 重绘 */
   :global(.notes-card) {
     break-inside: avoid;
     -webkit-column-break-inside: avoid;
@@ -735,7 +739,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     box-shadow: 0 5px 18px -3px rgba(74, 53, 32, 0.07);
   }
 
-  /* 左侧朱砂/墨色书脊洇染光韵（完全内聚于圆角内，无直角切边） */
+  /* 左侧书脊水墨洇染光韵（完全内聚于圆角内，无直角切边） */
   :global(.notes-card)::before {
     content: '';
     position: absolute;
@@ -746,7 +750,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     background:
       radial-gradient(
         ellipse 42% 78% at 0% 48%,
-        color-mix(in srgb, var(--note-accent, #c84b31) 14%, transparent) 0%,
+        color-mix(in srgb, var(--note-accent, var(--ink-strong)) 14%, transparent) 0%,
         transparent 76%
       );
     opacity: 0.42;
@@ -770,7 +774,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   :global([data-theme="dark"] .notes-card)::after {
     box-shadow:
       0 18px 38px -10px rgba(0, 0, 0, 0.52),
-      0 0 24px -8px color-mix(in srgb, var(--note-accent, #e06d53) 26%, transparent);
+      0 0 24px -8px color-mix(in srgb, var(--note-accent, var(--ink-strong)) 22%, transparent);
   }
 
   :global(.notes-card):hover,
@@ -933,12 +937,49 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   .article-popover.is-open { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
   .article-popover.is-closed { transform: translate3d(0, -8px, 0) scale(0.95); opacity: 0; pointer-events: none; }
 
-  :global(.article-item-row) { transition: background-color 180ms var(--ease), color 180ms var(--ease); cursor: pointer; }
-  :global(.article-item-row):hover { background-color: var(--accent-soft); }
-  :global(.article-item-row.active) { background-color: var(--accent-soft); font-weight: 600; color: var(--text-strong); }
+  :global(#article-search-input:focus),
+  :global(#article-search-input:focus-visible) {
+    outline: none !important;
+  }
+
+  :global(.article-item-row) {
+    position: relative;
+    background: transparent;
+    color: var(--muted-strong);
+    transition: color 180ms var(--ease);
+    cursor: pointer;
+  }
+  :global(.article-item-row)::after {
+    content: '';
+    position: absolute;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0;
+    height: 1.5px;
+    background: linear-gradient(90deg, var(--vermilion) 0%, var(--accent) 48%, transparent 100%);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms var(--ease);
+  }
+  :global(.article-item-row):hover,
   :global(.article-item-row):focus-visible {
-    outline: 2px solid var(--ink-strong);
-    outline-offset: -2px;
+    color: var(--text-strong);
+    outline: none;
+  }
+  :global(.article-item-row):hover::after,
+  :global(.article-item-row):focus-visible::after {
+    transform: scaleX(1);
+    opacity: 0.68;
+  }
+  :global(.article-item-row.active) {
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+  :global(.article-item-row.active)::after {
+    transform: scaleX(1);
+    opacity: 0.95;
   }
 
   /* 模态弹层通用：折笺舒展 (Folded Xuan-Paper Slip Unfurl) */
@@ -963,19 +1004,19 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       transform 400ms cubic-bezier(0.22, 1, 0.36, 1),
       opacity 260ms var(--ease-card);
   }
-  /* 折笺卷首朱砂/水墨细线徐展 */
+  /* 折笺卷首单色水墨细线徐展 */
   .modal-card::before {
     content: '';
     position: absolute;
     top: 0;
     left: 1.25rem;
     right: 1.25rem;
-    height: 2px;
+    height: 1.5px;
     border-radius: 999px;
     background: linear-gradient(
       90deg,
       transparent 0%,
-      color-mix(in srgb, #c84b31 62%, var(--ink-strong)) 50%,
+      var(--rule-strong) 50%,
       transparent 100%
     );
     transform: scaleX(0.18);
@@ -1022,7 +1063,9 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       clip-path: none !important;
     }
     .subtabs-glider,
-    .stats-glider {
+    .stats-glider,
+    :global(.article-item-row),
+    :global(.article-item-row)::after {
       animation: none !important;
       transition: none !important;
     }
@@ -1616,13 +1659,14 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       function updateGlider() {
         const activeBtn = cluster.querySelector<HTMLElement>('.sub-tab-btn.active');
         if (!activeBtn) return;
-        const clusterRect = cluster.getBoundingClientRect();
-        const btnRect = activeBtn.getBoundingClientRect();
-        if (!btnRect.width) return;
-        const left = btnRect.left - clusterRect.left;
-        const sx = Math.max(0.05, btnRect.width / 100);
-        const halfH = Math.max(8, btnRect.height * 0.5);
-        glider.style.setProperty('--pill-rx', `${(halfH / sx).toFixed(2)}px`);
+        const w = activeBtn.offsetWidth;
+        const h = glider.offsetHeight || activeBtn.offsetHeight;
+        if (!w || !h) return;
+        const left = activeBtn.offsetLeft;
+        const sx = Math.max(0.05, w / 100);
+        const halfR = Math.min(w, h) * 0.5;
+        glider.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
+        glider.style.setProperty('--pill-ry', `${halfR.toFixed(2)}px`);
         glider.style.transform = `translate3d(${left.toFixed(1)}px, 0, 0) scaleX(${sx.toFixed(4)})`;
       }
       (window as any).__updateNotesSubtabsGlider = updateGlider;
@@ -1723,7 +1767,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
       const rowHtml = (slug: string, label: string, count: number | string, titleText: string, active: boolean) => `
         <div
-          class="article-item-row flex items-center justify-between px-3 py-2 rounded-lg ${active ? 'active' : ''}"
+          class="article-item-row flex items-center justify-between px-3 py-2 ${active ? 'active' : ''}"
           data-slug="${escapeHtml(slug)}"
           role="option"
           tabindex="0"

@@ -230,7 +230,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
                 id="mm-article-filter-input"
                 aria-label="过滤关联文章"
                 placeholder="过滤关联文章..."
-                class="w-full bg-[var(--bg-soft)] border border-[var(--rule)] text-xs rounded-full pl-7 pr-2.5 py-1.5 text-[var(--text-strong)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--ink-strong)]"
+                class="w-full bg-[var(--bg-soft)] border border-[var(--rule)] text-xs rounded-full pl-7 pr-2.5 py-1.5 text-[var(--text-strong)] placeholder-[var(--muted)] focus:outline-none focus-visible:outline-none focus:border-[var(--ink-strong)]"
               />
             </div>
             <div class="max-h-60 overflow-y-auto space-y-1 text-xs" id="mm-article-filter-list" role="listbox" aria-label="关联文章清单"></div>
@@ -708,6 +708,51 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   .article-popover.is-open { transform: scale(1) translateY(0); opacity: 1; }
   .article-popover.is-closed { transform: scale(0.94) translateY(-8px); opacity: 0; pointer-events: none; visibility: hidden; }
 
+  :global(#mm-article-filter-input:focus),
+  :global(#mm-article-filter-input:focus-visible) {
+    outline: none !important;
+  }
+
+  :global(.mm-article-item-row) {
+    position: relative;
+    background: transparent;
+    color: var(--muted-strong);
+    transition: color 180ms var(--ease);
+    cursor: pointer;
+  }
+  :global(.mm-article-item-row)::after {
+    content: '';
+    position: absolute;
+    left: 0.625rem;
+    right: 0.625rem;
+    bottom: 0;
+    height: 1.5px;
+    background: linear-gradient(90deg, var(--vermilion) 0%, var(--accent) 48%, transparent 100%);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms var(--ease);
+  }
+  :global(.mm-article-item-row):hover,
+  :global(.mm-article-item-row):focus-visible {
+    color: var(--text-strong);
+    outline: none;
+  }
+  :global(.mm-article-item-row):hover::after,
+  :global(.mm-article-item-row):focus-visible::after {
+    transform: scaleX(1);
+    opacity: 0.68;
+  }
+  :global(.mm-article-item-row.active) {
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+  :global(.mm-article-item-row.active)::after {
+    transform: scaleX(1);
+    opacity: 0.95;
+  }
+
   .modal-overlay {
     background: rgba(0, 0, 0, 0.48);
     backdrop-filter: blur(10px);
@@ -781,7 +826,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     left: 0;
     width: 100px;
     transform-origin: 0 50%;
-    border-radius: var(--pill-rx, 9999px) / 9999px;
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px);
     background: var(--ink-strong);
     z-index: 1;
     pointer-events: none;
@@ -1395,7 +1440,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     left: 0;
     width: 100px;
     transform-origin: 0 50%;
-    border-radius: var(--pill-rx, 9999px) / 9999px;
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px);
     background: var(--ink-strong);
     z-index: 1;
     pointer-events: none;
@@ -1744,20 +1789,20 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
   /* 交互视口与画布层：外层独立平移（不缩放置灰） + 内层 CSS zoom 矢量重绘，彻底解决高倍率文本发糊 */
   .mm-canvas-pane {
-    --mm-cinnabar: #b83b32;
-    --mm-cinnabar-soft: rgba(184, 59, 50, 0.14);
+    --mm-focus-ink: var(--ink-strong, #141413);
+    --mm-focus-soft: rgba(20, 20, 19, 0.1);
   }
   :global([data-theme="dark"]) .mm-canvas-pane {
-    --mm-cinnabar: #e06c60;
-    --mm-cinnabar-soft: rgba(224, 108, 96, 0.2);
+    --mm-focus-ink: var(--ink-strong, #eae8e3);
+    --mm-focus-soft: rgba(234, 232, 227, 0.15);
   }
   :global([data-theme="moss"]) .mm-canvas-pane {
-    --mm-cinnabar: #FFC2D1;
-    --mm-cinnabar-soft: rgba(255, 194, 209, 0.22);
+    --mm-focus-ink: #FFC2D1;
+    --mm-focus-soft: rgba(255, 194, 209, 0.22);
   }
   :global([data-theme="rice"]) .mm-canvas-pane {
-    --mm-cinnabar: #a63429;
-    --mm-cinnabar-soft: rgba(166, 52, 41, 0.14);
+    --mm-focus-ink: #4E4132;
+    --mm-focus-soft: rgba(78, 65, 50, 0.12);
   }
   .mm-canvas-viewport {
     position: absolute;
@@ -1823,8 +1868,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     top: 0;
     pointer-events: none;
     z-index: 28;
-    border: 1.5px dashed var(--mm-cinnabar, #b83b32);
-    background: var(--mm-cinnabar-soft, rgba(184, 59, 50, 0.1));
+    border: 1.5px dashed var(--mm-focus-ink);
+    background: var(--mm-focus-soft);
     border-radius: 8px;
   }
   .mm-marquee-box.hidden { display: none; }
@@ -1836,8 +1881,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     height: 38px;
     margin: -19px 0 0 -19px;
     border-radius: 9999px;
-    border: 2px solid var(--mm-cinnabar, #b83b32);
-    background: var(--mm-cinnabar-soft, rgba(184, 59, 50, 0.16));
+    border: 2px solid var(--mm-focus-ink);
+    background: var(--mm-focus-soft);
     pointer-events: none;
     z-index: 29;
     animation: mmHoldPulse 380ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
@@ -1848,7 +1893,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     to { opacity: 0; transform: scale(1.75); }
   }
 
-  /* 画布节点元素（JS 动态生成必须带 :global，零 box-shadow 重绘 + 温润朱砂水墨呼吸印框） */
+  /* 画布节点元素（JS 动态生成必须带 :global，零 box-shadow 重绘 + 温润水墨呼吸选框） */
   :global(.mm-node) {
     position: absolute;
     width: max-content;
@@ -1911,21 +1956,21 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     position: absolute;
     inset: -4.5px;
     border-radius: 14px;
-    border: 1.5px solid color-mix(in srgb, var(--node-color, var(--mm-cinnabar, #b83b32)) 58%, var(--mm-cinnabar, #b83b32));
+    border: 1.5px solid color-mix(in srgb, var(--node-color, var(--mm-focus-ink)) 78%, var(--mm-focus-ink));
     background: radial-gradient(
       circle at 50% 50%,
-      color-mix(in srgb, var(--mm-cinnabar, #b83b32) 12%, transparent) 0%,
+      color-mix(in srgb, var(--node-color, var(--mm-focus-ink)) 10%, transparent) 0%,
       transparent 72%
     );
     pointer-events: none;
-    animation: mmInkSealBreathe 2.8s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+    animation: mmInkFocusBreathe 2.8s cubic-bezier(0.37, 0, 0.63, 1) infinite;
   }
   :global(.mm-node.is-selected.is-root)::before {
     inset: -5px;
     border-radius: 17px;
-    border-color: var(--mm-cinnabar, #b83b32);
+    border-color: var(--mm-focus-ink);
   }
-  @keyframes mmInkSealBreathe {
+  @keyframes mmInkFocusBreathe {
     0%, 100% {
       opacity: 0.56;
       transform: scale3d(0.992, 0.992, 1);
@@ -1936,7 +1981,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     }
   }
   :global(.mm-node.is-selected:not(.is-root)) {
-    border-color: color-mix(in srgb, var(--node-color, var(--ink-strong)) 72%, var(--mm-cinnabar, #b83b32));
+    border-color: var(--node-color, var(--mm-focus-ink));
     z-index: 5;
   }
   :global(.mm-node.is-selected.is-root) {
@@ -1948,7 +1993,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     pointer-events: none;
   }
   :global(.mm-node.is-drop-target) {
-    border-color: var(--mm-cinnabar, #b83b32) !important;
+    border-color: var(--mm-focus-ink) !important;
     transform: scale(1.04);
     z-index: 8;
   }
@@ -1957,7 +2002,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     position: absolute;
     inset: -4px;
     border-radius: 14px;
-    border: 2px solid var(--mm-cinnabar, #b83b32);
+    border: 2px solid var(--mm-focus-ink);
     opacity: 0.85;
     pointer-events: none;
   }
@@ -2080,26 +2125,27 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   }
   .mm-drag-ghost.hidden { display: none; }
 
-  /* 置于拖拽浮影之上的落点方向标识胶囊（永不被浮影遮挡，朱砂印信配色） */
+  /* 置于拖拽浮影之上的落点方向标识胶囊（永不被浮影遮挡，单色浓墨高对比胶囊） */
   .mm-drop-pill {
     position: fixed;
     left: 0;
     top: 0;
     z-index: 126;
     pointer-events: none;
-    background: var(--mm-cinnabar, #b83b32);
-    color: #fff;
+    background: var(--ink-strong);
+    color: var(--bg-base);
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     padding: 0.18rem 0.58rem;
     border-radius: 9999px;
-    border: 1.5px solid rgba(255, 255, 255, 0.82);
+    border: 1.5px solid var(--bg-elev);
     white-space: nowrap;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
     will-change: transform;
   }
   :global([data-theme="moss"]) .mm-drop-pill {
+    background: #FFC2D1;
     color: #004D40;
   }
   .mm-drop-pill.hidden { display: none; }
@@ -2109,7 +2155,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     position: absolute;
     height: 3.5px;
     border-radius: 9999px;
-    background: var(--mm-cinnabar, #b83b32);
+    background: var(--mm-focus-ink);
     pointer-events: none;
     z-index: 35;
   }
@@ -2119,7 +2165,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   }
   .mm-reorder-indicator.hidden { display: none; }
 
-  /* 缩略舆图小地图（宣纸微缩印谱，单 rAF GPU 视口框跟手巡览） */
+  /* 缩略舆图小地图（宣纸微缩脉络图，单 rAF GPU 视口框跟手巡览） */
   .mm-minimap {
     position: absolute;
     right: 0.85rem;
@@ -2145,7 +2191,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   }
   .mm-minimap.is-dragging {
     cursor: grabbing;
-    border-color: var(--mm-cinnabar, #b83b32);
+    border-color: var(--mm-focus-ink);
   }
   .mm-minimap-svg {
     width: 100%;
@@ -2160,8 +2206,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     width: 48px;
     height: 32px;
     border-radius: 4px;
-    border: 1.4px solid var(--mm-cinnabar, #b83b32);
-    background: var(--mm-cinnabar-soft, rgba(184, 59, 50, 0.14));
+    border: 1.4px solid var(--mm-focus-ink);
+    background: var(--mm-focus-soft);
     pointer-events: none;
     transform-origin: 0 0;
   }
@@ -2337,6 +2383,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     .mm-minimap,
     .mm-hold-pulse,
     :global(.mm-cselect-opt),
+    :global(.mm-article-item-row),
+    :global(.mm-article-item-row)::after,
     :global(.mm-collapse-btn),
     :global(.mm-card-action-btn),
     :global(.mm-card),
@@ -2745,10 +2793,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         subtabsGlider.style.opacity = '0';
         return;
       }
-      const sx = Math.max(0.05, activeBtn.offsetWidth / 100);
-      const halfH = Math.max(8, activeBtn.offsetHeight * 0.5);
+      const w = activeBtn.offsetWidth;
+      const h = subtabsGlider.offsetHeight || activeBtn.offsetHeight;
+      const sx = Math.max(0.05, w / 100);
+      const halfR = Math.min(w, h) * 0.5;
       subtabsGlider.style.opacity = '1';
-      subtabsGlider.style.setProperty('--pill-rx', `${(halfH / sx).toFixed(2)}px`);
+      subtabsGlider.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
+      subtabsGlider.style.setProperty('--pill-ry', `${halfR.toFixed(2)}px`);
       subtabsGlider.style.transform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
     }
 
@@ -3041,9 +3092,12 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const glider = container.querySelector<HTMLElement>('.mm-seg-glider');
       const activeBtn = container.querySelector<HTMLElement>('.mm-seg-btn.is-active');
       if (!glider || !activeBtn || !activeBtn.offsetWidth) return;
-      const sx = Math.max(0.05, activeBtn.offsetWidth / 100);
-      const halfH = Math.max(8, activeBtn.offsetHeight * 0.5);
-      glider.style.setProperty('--pill-rx', `${(halfH / sx).toFixed(2)}px`);
+      const w = activeBtn.offsetWidth;
+      const h = glider.offsetHeight || activeBtn.offsetHeight;
+      const sx = Math.max(0.05, w / 100);
+      const halfR = Math.min(w, h) * 0.5;
+      glider.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
+      glider.style.setProperty('--pill-ry', `${halfR.toFixed(2)}px`);
       const nextTransform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
       if (immediate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         glider.style.transition = 'none';
@@ -3219,10 +3273,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         : matched
             .map(
               (r) => `
-              <button type="button" data-mm-art="${escapeHtml(r.slug)}" class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left transition cursor-pointer ${
-                filterPostSlug === r.slug
-                  ? 'bg-[var(--ink-strong)] text-[var(--bg-base)] font-semibold'
-                  : 'hover:bg-[var(--bg-soft)] text-[var(--text-strong)]'
+              <button type="button" data-mm-art="${escapeHtml(r.slug)}" class="mm-article-item-row w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-left ${
+                filterPostSlug === r.slug ? 'active' : ''
               }">
                 <span class="truncate">${escapeHtml(r.label)}</span>
                 <span class="text-[0.68rem] opacity-70 shrink-0">${r.count}</span>
@@ -5531,7 +5583,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           const ex = tBox.x + (tBox.side === 'left' ? tBox.w : 0);
           const ey = mode === 'before' ? tBox.y - 7 : tBox.y + tBox.h + 8;
           const mid = (sx + ex) / 2;
-          nextPreviewSvg = `<path d="M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ey}, ${ex} ${ey}" fill="none" stroke="var(--mm-cinnabar, #c84b31)" stroke-width="2" stroke-dasharray="5 4"/>`;
+          nextPreviewSvg = `<path d="M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ey}, ${ex} ${ey}" fill="none" stroke="var(--mm-focus-ink, var(--ink-strong))" stroke-width="2" stroke-dasharray="5 4"/>`;
         }
       }
 
