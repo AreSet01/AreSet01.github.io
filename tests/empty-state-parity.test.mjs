@@ -7,14 +7,16 @@ const rootDir = path.resolve(import.meta.dirname, '..');
 const readPage = (rel) => fs.readFileSync(path.join(rootDir, rel), 'utf-8');
 
 /**
- * 三页的「筛到 0 条」必须是同一条柔和时间线：
- *   ① 钉高 → ② 视口回流筛选栏 → ③ 卡片轻微下沉淡出 → ④ 换骨 + 空面板浮现 → ⑤ 高度塌缩收尾
- * 三页共用 src/utils/cardMotion.ts 的进退场参数，禁止任何一页单独回退到横向卷收。
+ * 四大一级空状态（notes / mindmap / gallery / life）统一向 /notes 靠拢：
+ *   ① 钉高 → ② 视口回流筛选栏 → ③ 卡片轻微下沉淡出 → ④ 换骨 + 空面板 replay(0.44s) 浮现 → ⑤ 0.55s 高度塌缩收尾
+ *   且「空切空」（已在空态下切换其他 0 条分类）保持原位静止，不播放闪烁动效；
+ *   空态 -> 有卡片 统一先执行 0.22s 空面板淡出再同帧换骨入场。
  */
 const PAGES = {
   gallery: readPage('src/pages/gallery.astro'),
   notes: readPage('src/pages/notes.astro'),
   life: readPage('src/pages/life.astro'),
+  mindmap: readPage('src/pages/mindmap.astro'),
 };
 
 const SHARED_CONSTANTS = [
@@ -49,9 +51,15 @@ test('空状态动效：gallery / notes / life 共用同一套柔和卡片时间
   }
 });
 
-test('notes / life：塌缩期间禁止强制钳制滚动，且 is-empty 只在高度归零后挂上', () => {
-  for (const name of ['notes', 'life']) {
+test('gallery / notes / life / mindmap：塌缩期间禁止强制钳制滚动，is-empty 在高度归零后挂上，且空面板统一走 replay 节奏', () => {
+  for (const name of ['gallery', 'notes', 'life', 'mindmap']) {
     const src = PAGES[name];
+
+    assert.ok(
+      src.includes('mt-8 text-center py-16 panel max-w-xl mx-auto') &&
+        src.includes('w-16 h-16 rounded-full bg-[var(--bg-soft)] border border-[var(--rule)]'),
+      `${name}.astro 的一级空态视觉必须向 /notes 靠拢（panel max-w-xl mx-auto + 圆形线性 SVG 图标徽标）`
+    );
 
     assert.ok(
       src.includes('{ clamp?: boolean }') && src.includes('options.clamp !== false'),
@@ -67,7 +75,7 @@ test('notes / life：塌缩期间禁止强制钳制滚动，且 is-empty 只在�
     );
     assert.ok(
       src.includes('returnToFilterBar()') && src.includes('function returnToFilterBar()'),
-      `${name}.astro 必须在空分支调用 returnToFilterBar()（对齐 gallery 的视口回流）`
+      `${name}.astro 必须在空分支调用 returnToFilterBar()（对齐视口回流）`
     );
 
     // is-empty 只能出现在塌缩 tween 的 onComplete 里，紧接着把 min-height 落成 0
@@ -76,11 +84,21 @@ test('notes / life：塌缩期间禁止强制钳制滚动，且 is-empty 只在�
       /container\.style\.minHeight = '0px';\s*\n\s*container\.classList\.add\('is-empty'\);/,
       `${name}.astro 必须先等塌缩到 0，再挂 is-empty（否则 display:none 会把 0.55s 塌缩变成单帧瞬塌）`
     );
+
+    // 空面板浮现统一传 { replay: true } (0.44s)，空态退回卡片统一 0.22s 淡出
+    assert.ok(
+      src.includes('addCardEnter(tl, emptyState, switchTime, { replay: true })'),
+      `${name}.astro 空面板浮现必须统一使用 { replay: true } 节奏`
+    );
+    assert.ok(
+      src.includes('duration: 0.22'),
+      `${name}.astro 空态切回有内容必须统一 0.22s 柔和淡出空面板`
+    );
   }
 });
 
-test('notes / life：空分支把淡出、空面板浮现、塌缩排在同一时间点并挂进 filterTimeline', () => {
-  for (const name of ['notes', 'life']) {
+test('gallery / notes / life / mindmap：空切空保持静止不闪烁，且空分支把淡出、空面板浮现、塌缩排在同一 switchTime', () => {
+  for (const name of ['gallery', 'notes', 'life', 'mindmap']) {
     const src = PAGES[name];
     assert.match(
       src,
@@ -96,5 +114,20 @@ test('notes / life：空分支把淡出、空面板浮现、塌缩排在同一�
       src.includes('onUpdate: () => refreshScroll({ clamp: false })'),
       `${name}.astro 的塌缩必须逐帧刷新滚动上限（但不钳制）`
     );
+  }
+
+  // gallery / life 空切空分支直接 clearCardMotion + refreshScroll + return，绝不调用 addCardEnter
+  for (const name of ['gallery', 'life']) {
+    const src = PAGES[name];
+    const a1Match = src.match(/if \(exitingCards\.length === 0\) \{([\s\S]*?)return;\s*\}/);
+    assert.ok(a1Match, `${name}.astro 必须有空切空早退分支`);
+    assert.ok(!a1Match[1].includes('addCardEnter'), `${name}.astro 空切空不得播放闪烁动画`);
+  }
+  // notes / mindmap 已在空态（wasAlreadyEmpty）时直接早退，不调用 addCardEnter
+  for (const name of ['notes', 'mindmap']) {
+    const src = PAGES[name];
+    const alreadyEmptyMatch = src.match(/if \(wasAlreadyEmpty\) \{([\s\S]*?)return;\s*\}/);
+    assert.ok(alreadyEmptyMatch, `${name}.astro 必须区分 wasAlreadyEmpty 早退分支`);
+    assert.ok(!alreadyEmptyMatch[1].includes('addCardEnter'), `${name}.astro 空切空不得播放闪烁动画`);
   }
 });

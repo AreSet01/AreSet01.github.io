@@ -271,7 +271,10 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       <div class="flex flex-wrap items-center justify-center gap-2.5 mt-6">
         <button type="button" id="mm-empty-create-btn" class="btn-primary text-xs py-2 px-4 cursor-pointer">+ 新建思维导图</button>
         <button type="button" id="mm-empty-article-btn" class="btn-secondary text-xs py-2 px-4 cursor-pointer">从文章生成</button>
-        <button type="button" id="mm-empty-reset-btn" class="btn-secondary hidden text-xs py-2 px-4 cursor-pointer">重置筛选</button>
+        <button type="button" id="mm-empty-reset-btn" class="btn-secondary hidden text-xs py-2 px-5 cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
+          <span>重置筛选与搜索</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        </button>
       </div>
     </div>
   </main>
@@ -863,13 +866,14 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   }
 
   .notes-empty-state {
-    min-height: 360px;
+    min-height: 380px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
   }
-  .notes-empty-state.hidden { display: none !important; }
+  .notes-empty-state.hidden,
+  .notes-empty-state .hidden { display: none !important; }
 
   .notes-masonry-board {
     display: flex;
@@ -940,21 +944,33 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   :global(.mm-card.is-reflowing) {
     transition: none !important;
   }
+  @keyframes mmCardInkDry {
+    0% {
+      opacity: 1;
+      clip-path: circle(145% at 12% 16%);
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      clip-path: circle(0% at 12% 16%);
+      transform: translate3d(0, -8px, 0) scale(0.96);
+    }
+  }
   :global(.mm-card.is-deleting) {
-    opacity: 0 !important;
-    transform: translateY(-8px) scale(0.988) !important;
+    animation: mmCardInkDry 340ms cubic-bezier(0.32, 0, 0.2, 1) forwards !important;
     max-height: 0 !important;
     margin-bottom: 0 !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
+    border-top-width: 0 !important;
+    border-bottom-width: 0 !important;
     overflow: hidden !important;
     pointer-events: none !important;
     transition:
-      opacity 240ms var(--ease-card),
-      transform 320ms var(--ease-card),
-      max-height 360ms var(--ease-card),
-      margin 360ms var(--ease-card),
-      padding 360ms var(--ease-card) !important;
+      max-height 380ms 90ms var(--ease-card),
+      margin 380ms 90ms var(--ease-card),
+      padding 380ms 90ms var(--ease-card),
+      border-width 380ms 90ms var(--ease-card) !important;
   }
   :global(.mm-card-head) {
     display: flex;
@@ -2390,19 +2406,33 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     :global(.mm-card),
     :global(.mm-card)::before,
     :global(.mm-card)::after,
+    :global(.mm-card.is-deleting),
     :global(.mm-node),
     :global(.mm-node)::after,
     :global(.mm-node.is-selected)::before {
       transition: none !important;
       animation: none !important;
     }
+    :global(.mm-card.is-deleting) {
+      opacity: 0 !important;
+      max-height: 0 !important;
+      clip-path: none !important;
+    }
   }
 </style>
 
 <script>
   import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
   import CustomEase from 'gsap/CustomEase';
-  import { addCardExit, animateCardEnter, cardExitDuration, clearCardMotion } from '../utils/cardMotion';
+  import {
+    addCardEnter,
+    addCardExit,
+    animateCardEnter,
+    cardExitDuration,
+    clearCardMotion,
+    setCardEnterState,
+  } from '../utils/cardMotion';
   import {
     MINDMAP_STORAGE_KEY,
     MINDMAP_CATEGORIES_KEY,
@@ -2494,7 +2524,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     if (typeof oldCleanup === 'function') oldCleanup();
     container.dataset.mmInit = '1';
 
-    gsap.registerPlugin(CustomEase);
+    gsap.registerPlugin(ScrollTrigger, CustomEase);
     try {
       CustomEase.create('enter', '0.16, 1, 0.3, 1');
     } catch {}
@@ -2734,16 +2764,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
     function syncStatsGliderToEl(targetEl: HTMLElement | null) {
       if (!statsStrip || !statsGlider) return;
-      if (!targetEl) {
+      if (!targetEl || !targetEl.offsetWidth) {
         statsGlider.classList.remove('is-visible');
         return;
       }
-      const stripRect = statsStrip.getBoundingClientRect();
-      const itemRect = targetEl.getBoundingClientRect();
-      if (!itemRect.width) return;
-      statsGlider.style.width = `${itemRect.width.toFixed(1)}px`;
-      statsGlider.style.height = `${itemRect.height.toFixed(1)}px`;
-      statsGlider.style.transform = `translate3d(${(itemRect.left - stripRect.left).toFixed(1)}px, ${(itemRect.top - stripRect.top).toFixed(1)}px, 0)`;
+      statsGlider.style.width = `${targetEl.offsetWidth.toFixed(1)}px`;
+      statsGlider.style.height = `${targetEl.offsetHeight.toFixed(1)}px`;
+      statsGlider.style.transform = `translate3d(${targetEl.offsetLeft.toFixed(1)}px, ${targetEl.offsetTop.toFixed(1)}px, 0)`;
       statsGlider.classList.add('is-visible');
     }
 
@@ -2804,12 +2831,28 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     }
 
     function renderSubtabs() {
-      // Remove existing buttons while preserving glider
-      subtabsCluster.querySelectorAll('.sub-tab-btn').forEach((b) => b.remove());
       const list = [{ key: 'all', label: '全部导图' }, ...categories.map((c) => ({ key: c, label: c }))];
       if (filterCategory !== 'all' && !categories.includes(filterCategory)) {
         filterCategory = 'all';
       }
+
+      const existingBtns = Array.from(subtabsCluster.querySelectorAll<HTMLButtonElement>('.sub-tab-btn'));
+      const sameKeys =
+        existingBtns.length === list.length &&
+        existingBtns.every((b, idx) => b.dataset.mmCat === list[idx].key);
+
+      if (sameKeys) {
+        existingBtns.forEach((b) => {
+          const isActive = b.dataset.mmCat === filterCategory;
+          b.classList.toggle('active', isActive);
+          b.setAttribute('aria-pressed', String(isActive));
+        });
+        updateSubtabsGlider();
+        return;
+      }
+
+      // 仅在分类增删/重命名/初始化时重建按钮 DOM，避免切页签时销毁节点引发抽搐
+      existingBtns.forEach((b) => b.remove());
       for (const item of list) {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -3452,6 +3495,107 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       return card;
     }
 
+    const deleteTimers = new Set<number>();
+
+    function settleMmCard(el: HTMLElement) {
+      clearCardMotion(el);
+      el.classList.remove('is-reflowing', 'is-entering');
+      el.classList.add('is-entered');
+      el.dataset.enterState = 'in';
+    }
+
+    function refreshScroll(options: boolean | { clamp?: boolean } = true) {
+      const clamp = typeof options === 'boolean' ? options : options.clamp !== false;
+      if (typeof ScrollTrigger !== 'undefined') {
+        ScrollTrigger.refresh();
+      }
+      try {
+        const lenis = (window as any).lenis;
+        lenis?.resize?.();
+        if (!clamp) return;
+        if (lenis && typeof lenis.limit === 'number' && (window.scrollY > lenis.limit || lenis.targetScroll > lenis.limit)) {
+          lenis.scrollTo(lenis.limit, { immediate: true });
+        }
+      } catch {}
+    }
+
+    function returnToFilterBar() {
+      if (window.scrollY <= 80) return;
+      const anchor =
+        document.getElementById('mm-subtabs-cluster') ||
+        document.getElementById('mm-search-input');
+      if (!anchor) return;
+
+      const lenis = (window as any).lenis;
+      if (lenis && typeof lenis.scrollTo === 'function') {
+        lenis.scrollTo(anchor, {
+          offset: -90,
+          duration: 0.65,
+          easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        });
+      } else {
+        anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    function getOrderedMmCards(): HTMLElement[] {
+      const cards = Array.from(container.querySelectorAll<HTMLElement>('.mm-card'));
+      cards.sort((a, b) => Number(a.dataset.cardIndex || 0) - Number(b.dataset.cardIndex || 0));
+      return cards;
+    }
+
+    function splitViewportMmCards(cards: HTMLElement[]): { visible: HTMLElement[]; offscreen: HTMLElement[] } {
+      const cullBottom = window.innerHeight + 180;
+      const visible: HTMLElement[] = [];
+      const offscreen: HTMLElement[] = [];
+      cards.forEach((c) => {
+        if (c.getBoundingClientRect().top < cullBottom) visible.push(c);
+        else offscreen.push(c);
+      });
+      return { visible, offscreen };
+    }
+
+    function launchMmFilterExit(tl: gsap.core.Timeline, cards: HTMLElement[]): number {
+      if (cards.length === 0) return 0;
+      const { visible, offscreen } = splitViewportMmCards(cards);
+      offscreen.forEach((c) => {
+        c.style.opacity = '0';
+      });
+      if (visible.length === 0) return 0.08;
+      visible.forEach((c) => {
+        c.classList.add('is-reflowing');
+        c.classList.remove('is-entered', 'is-entering');
+      });
+      addCardExit(tl, visible, 0);
+      return cardExitDuration(visible.length);
+    }
+
+    function launchMmFilterEnter(enteringCards: HTMLElement[]) {
+      const finishEnter = () => {
+        enteringCards.forEach((c) => settleMmCard(c));
+        (window as any).__initTiltCards?.();
+        refreshScroll();
+        cardFilterTimeline = null;
+      };
+
+      const { visible: visibleEntering, offscreen: offscreenEntering } = splitViewportMmCards(enteringCards);
+      offscreenEntering.forEach((c) => settleMmCard(c));
+
+      if (visibleEntering.length === 0) {
+        finishEnter();
+        return;
+      }
+
+      visibleEntering.forEach((c) => {
+        c.classList.add('is-reflowing');
+        c.classList.remove('is-entered', 'is-entering');
+      });
+
+      cardFilterTimeline = animateCardEnter(visibleEntering, {
+        onComplete: finishEnter,
+      });
+    }
+
     async function handleDeleteCard(record: MindMapRecord, cardEl?: HTMLElement | null) {
       const ok = await askConfirm(
         `确认删除导图「${record.title}」？`,
@@ -3459,21 +3603,75 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       );
       if (!ok) return;
       isSelfDeleting = true;
-      deleteMindMap(record.id);
-      if (cardEl) {
-        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (!reduceMotion) cardEl.classList.add('is-deleting');
-        window.setTimeout(() => {
-          isSelfDeleting = false;
-          refreshDataFromStorage();
-          renderCards(false);
-        }, reduceMotion ? 0 : 380);
-      } else {
-        isSelfDeleting = false;
-        refreshDataFromStorage();
-        renderCards(false);
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (cardEl && !reduceMotion) {
+        const rect = cardEl.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          (window as any).__inkSplash?.(rect.left + 22, rect.top + 22, 7);
+        }
+        const initialHeight = cardEl.offsetHeight;
+        cardEl.style.maxHeight = `${initialHeight}px`;
+        void cardEl.offsetHeight;
+        cardEl.style.animationDelay = '0ms';
+        cardEl.classList.add('is-deleting');
       }
+
+      deleteMindMap(record.id);
+
+      const tid = window.setTimeout(() => {
+        deleteTimers.delete(tid);
+        if (cardEl) cardEl.remove();
+        refreshDataFromStorage();
+        if (getFilteredMaps().length === 0) {
+          renderCards(true);
+        } else {
+          refreshScroll();
+        }
+        isSelfDeleting = false;
+      }, reduceMotion || !cardEl ? 0 : 440);
+      deleteTimers.add(tid);
+
       showToast('已删除思维导图');
+    }
+
+    function syncMmEmptyStateCopy() {
+      const hasFilters =
+        filterCategory !== 'all' ||
+        filterColor !== 'all' ||
+        filterPostSlug !== 'all' ||
+        filterLinkedOnly ||
+        Boolean(searchQuery);
+      if (mapsList.length === 0 && !hasFilters) {
+        emptyTitle.textContent = '尚未创建思维导图';
+        emptyDesc.textContent =
+          '可以从空白画布开启自由发散，或直接从博客文章的大纲与划线笔记中一键生成导图。';
+        emptyResetBtn.classList.add('hidden');
+      } else {
+        emptyTitle.textContent = '未找到匹配的思维导图';
+        emptyDesc.textContent = '当前分类、色标或检索条件没有命中任何导图。不妨清空搜索词，或切换至「全部导图」阅览。';
+        emptyResetBtn.classList.remove('hidden');
+      }
+    }
+
+    function mountMmCards(list: MindMapRecord[], initial: boolean): HTMLElement[] {
+      const cols = getColumnCount();
+      container.innerHTML = '';
+      const colEls: HTMLElement[] = [];
+      for (let i = 0; i < cols; i += 1) {
+        const col = document.createElement('div');
+        col.className = 'masonry-col';
+        container.appendChild(col);
+        colEls.push(col);
+      }
+      const mounted: HTMLElement[] = [];
+      list.forEach((rec, idx) => {
+        const card = createCardElement(rec, initial);
+        card.dataset.cardIndex = String(idx);
+        colEls[idx % cols].appendChild(card);
+        mounted.push(card);
+      });
+      return mounted;
     }
 
     function renderCards(animateTransition = false, isInitialEnter = false) {
@@ -3481,114 +3679,273 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         cardFilterTimeline.kill();
         cardFilterTimeline = null;
       }
+      gsap.killTweensOf(container);
+      gsap.killTweensOf(emptyState);
+      const currentH = container.offsetHeight;
+      container.style.minHeight = '';
+      emptyState.style.minHeight = '';
+
       const filtered = getFilteredMaps();
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const existingCards = Array.from(container.querySelectorAll<HTMLElement>('.mm-card'));
-      existingCards.forEach((c) => {
-        clearCardMotion(c);
-        c.classList.remove('is-reflowing', 'is-entering');
-      });
+      const existingCards = getOrderedMmCards();
+      existingCards.forEach((c) => settleMmCard(c));
 
-      const hasFilters =
-        filterCategory !== 'all' ||
-        filterColor !== 'all' ||
-        filterPostSlug !== 'all' ||
-        filterLinkedOnly ||
-        Boolean(searchQuery);
-
-      if (filtered.length === 0) {
-        const wasHidden = emptyState.classList.contains('hidden');
-        container.classList.add('is-empty');
-        container.innerHTML = '';
-        emptyState.classList.remove('hidden');
-        if (mapsList.length === 0) {
-          emptyTitle.textContent = '尚未创建思维导图';
-          emptyDesc.textContent = '可以从空白画布开启自由发散，或直接从博客文章的大纲与划线笔记中一键生成导图。';
-          emptyResetBtn.classList.add('hidden');
-        } else if (hasFilters) {
-          emptyTitle.textContent = '未找到匹配的思维导图';
-          emptyDesc.textContent = '当前分类、色标或检索条件没有命中任何导图。';
-          emptyResetBtn.classList.remove('hidden');
-        }
-        if (wasHidden && !reduceMotion) {
-          cardFilterTimeline = animateCardEnter(emptyState, {
-            replay: true,
-            onComplete: () => {
-              clearCardMotion(emptyState);
-              cardFilterTimeline = null;
-            },
-          });
-        }
-        return;
+      if (!isInitialEnter) {
+        emptyState.removeAttribute('data-enter');
+        emptyState.dataset.enterState = 'in';
       }
 
-      const mountFilteredCards = (initial: boolean): HTMLElement[] => {
-        emptyState.classList.add('hidden');
-        container.classList.remove('is-empty');
-        const cols = getColumnCount();
-        container.innerHTML = '';
-        const colEls: HTMLElement[] = [];
-        for (let i = 0; i < cols; i += 1) {
-          const col = document.createElement('div');
-          col.className = 'masonry-col';
-          container.appendChild(col);
-          colEls.push(col);
-        }
-        const mounted: HTMLElement[] = [];
-        filtered.forEach((rec, idx) => {
-          const card = createCardElement(rec, initial);
-          colEls[idx % cols].appendChild(card);
-          mounted.push(card);
-        });
-        return mounted;
-      };
-
-      if (animateTransition && !reduceMotion) {
-        if (existingCards.length > 0) {
-          existingCards.forEach((c) => {
-            c.classList.add('is-reflowing');
-            c.classList.remove('is-entered', 'is-entering');
-          });
-          const tl = gsap.timeline();
-          cardFilterTimeline = tl;
-          addCardExit(tl, existingCards, 0);
-          const switchAt = cardExitDuration(existingCards.length);
-          tl.add(() => {
-            const mountedCards = mountFilteredCards(false);
-            mountedCards.forEach((c) => c.classList.add('is-reflowing'));
-            cardFilterTimeline = animateCardEnter(mountedCards, {
-              onComplete: () => {
-                mountedCards.forEach((card) => {
-                  clearCardMotion(card);
-                  card.classList.remove('is-reflowing', 'is-entering');
-                  card.classList.add('is-entered');
-                });
-                (window as any).__initTiltCards?.();
-                cardFilterTimeline = null;
-              },
-            });
-          }, switchAt);
+      // ========================================================
+      // 场景 0：首次加载或无动画渲染
+      // ========================================================
+      if (!animateTransition || reduceMotion) {
+        if (filtered.length === 0) {
+          syncMmEmptyStateCopy();
+          container.innerHTML = '';
+          container.classList.add('is-empty');
+          emptyState.classList.remove('hidden');
+          clearCardMotion(emptyState);
+          if (isInitialEnter && !reduceMotion) {
+            emptyState.setAttribute('data-enter', 'card');
+            emptyState.setAttribute('data-no-replay', '');
+          }
+          refreshScroll();
           return;
         }
 
-        const mountedCards = mountFilteredCards(false);
-        mountedCards.forEach((c) => c.classList.add('is-reflowing'));
-        cardFilterTimeline = animateCardEnter(mountedCards, {
-          onComplete: () => {
-            mountedCards.forEach((card) => {
-              clearCardMotion(card);
-              card.classList.remove('is-reflowing', 'is-entering');
-              card.classList.add('is-entered');
-            });
-            (window as any).__initTiltCards?.();
-            cardFilterTimeline = null;
-          },
-        });
+        emptyState.classList.add('hidden');
+        clearCardMotion(emptyState);
+        container.classList.remove('is-empty');
+        const mountedCards = mountMmCards(filtered, isInitialEnter && !reduceMotion);
+        if (!isInitialEnter || reduceMotion) {
+          mountedCards.forEach((c) => settleMmCard(c));
+        }
+        (window as any).__initTiltCards?.();
+        if (!isInitialEnter) {
+          requestAnimationFrame(() => refreshScroll());
+        } else {
+          refreshScroll();
+        }
         return;
       }
 
-      mountFilteredCards(isInitialEnter);
-      (window as any).__initTiltCards?.();
+      // ========================================================
+      // 场景 A：筛选无匹配导图（对齐 /notes 五段式空状态时间线）
+      // ========================================================
+      if (filtered.length === 0) {
+        syncMmEmptyStateCopy();
+
+        // 子场景 A1：当前无在场卡片
+        if (existingCards.length === 0) {
+          const wasAlreadyEmpty = !emptyState.classList.contains('hidden');
+          container.innerHTML = '';
+          container.classList.add('is-empty');
+          emptyState.classList.remove('hidden');
+
+          // 空切空（如从 源码研读 0 切到 知识体系 0）：保持原位静止，不再闪烁
+          if (wasAlreadyEmpty) {
+            clearCardMotion(emptyState);
+            refreshScroll();
+            return;
+          }
+
+          // 删空最后一张导图后落入空态：柔和浮现一次
+          refreshScroll();
+          setCardEnterState(emptyState, { replay: true });
+          const tl = gsap.timeline({
+            onComplete: () => {
+              clearCardMotion(emptyState);
+              refreshScroll();
+              cardFilterTimeline = null;
+            },
+          });
+          cardFilterTimeline = tl;
+          addCardEnter(tl, emptyState, 0, { replay: true });
+          return;
+        }
+
+        // 子场景 A2：从有卡片切到空状态
+        // 钉高 → 视口回流 → 卡片柔和退场 → 空面板浮现 → 0.55s 高度塌缩
+        emptyState.classList.add('hidden');
+        if (currentH > 0) {
+          container.style.minHeight = `${currentH}px`;
+        }
+        returnToFilterBar();
+
+        existingCards.forEach((c) => {
+          c.classList.add('is-reflowing');
+          c.classList.remove('is-entered', 'is-entering');
+        });
+
+        const switchTime = cardExitDuration(existingCards.length);
+        const tl = gsap.timeline({
+          onComplete: () => {
+            clearCardMotion(emptyState);
+            refreshScroll();
+            cardFilterTimeline = null;
+          },
+        });
+        cardFilterTimeline = tl;
+
+        // 阶段 1：卡片轻微下沉、缩放并淡出
+        addCardExit(tl, existingCards, 0);
+
+        // 阶段 2：换骨就位（钉高保持，文档此刻不瞬塌）
+        tl.add(() => {
+          emptyState.classList.remove('hidden');
+          existingCards.forEach((c) => {
+            c.classList.add('is-filtered-out');
+            settleMmCard(c);
+          });
+          container.innerHTML = '';
+          refreshScroll({ clamp: false });
+        }, switchTime);
+
+        // 阶段 3：空状态面板沿 replay card-enter 节奏浮现
+        setCardEnterState(emptyState, { replay: true });
+        addCardEnter(tl, emptyState, switchTime, { replay: true });
+
+        // 阶段 4：钉住的空白网格高度在 0.55s 内徐收至 0
+        tl.to(container, {
+          minHeight: 0,
+          duration: 0.55,
+          ease: 'power2.inOut',
+          onUpdate: () => refreshScroll({ clamp: false }),
+          onComplete: () => {
+            container.style.minHeight = '0px';
+            container.classList.add('is-empty');
+            refreshScroll();
+          },
+        }, switchTime);
+        return;
+      }
+
+      // ========================================================
+      // 场景 B：筛选有导图呈现（原位同卡完全静止，仅消失/新增/换位卡片播放进退场）
+      // ========================================================
+      const wasEmpty = existingCards.length === 0 && !emptyState.classList.contains('hidden');
+      const numCols = getColumnCount();
+      const colEls = Array.from(container.querySelectorAll<HTMLElement>(':scope > .masonry-col'));
+
+      if (wasEmpty || colEls.length !== numCols) {
+        const tl = gsap.timeline();
+        cardFilterTimeline = tl;
+        let switchTime = 0;
+
+        if (wasEmpty) {
+          tl.to(
+            emptyState,
+            {
+              opacity: 0,
+              y: -8,
+              scale: 0.99,
+              duration: 0.22,
+              ease: 'power2.in',
+            },
+            0
+          );
+          switchTime = 0.22;
+        } else if (existingCards.length > 0) {
+          switchTime = launchMmFilterExit(tl, existingCards);
+        }
+
+        tl.add(() => {
+          container.classList.remove('is-empty');
+          const enteringCards = mountMmCards(filtered, false);
+          emptyState.classList.add('hidden');
+          clearCardMotion(emptyState);
+          refreshScroll({ clamp: false });
+
+          if (enteringCards.length === 0) {
+            cardFilterTimeline = null;
+            return;
+          }
+          launchMmFilterEnter(enteringCards);
+        }, switchTime);
+        return;
+      }
+
+      // 卡片 -> 卡片：逐列比对原位未变的导图卡片前缀
+      const targetCols: Array<Array<{ rec: MindMapRecord; globalIndex: number }>> = Array.from(
+        { length: numCols },
+        () => []
+      );
+      filtered.forEach((rec, idx) => {
+        targetCols[idx % numCols].push({ rec, globalIndex: idx });
+      });
+
+      const cardsToExit: HTMLElement[] = [];
+      const toMountByCol: Array<Array<{ rec: MindMapRecord; globalIndex: number }>> = Array.from(
+        { length: numCols },
+        () => []
+      );
+
+      for (let colIdx = 0; colIdx < numCols; colIdx++) {
+        const colEl = colEls[colIdx];
+        const existingColCards = Array.from(colEl.querySelectorAll<HTMLElement>('.mm-card'));
+        const targetColItems = targetCols[colIdx];
+
+        let splitRow = 0;
+        while (
+          splitRow < existingColCards.length &&
+          splitRow < targetColItems.length &&
+          existingColCards[splitRow].id === `mm-card-${targetColItems[splitRow].rec.id}`
+        ) {
+          existingColCards[splitRow].dataset.cardIndex = String(targetColItems[splitRow].globalIndex);
+          splitRow++;
+        }
+
+        for (let r = splitRow; r < existingColCards.length; r++) {
+          cardsToExit.push(existingColCards[r]);
+        }
+        for (let r = splitRow; r < targetColItems.length; r++) {
+          toMountByCol[colIdx].push(targetColItems[r]);
+        }
+      }
+
+      cardsToExit.sort((a, b) => Number(a.dataset.cardIndex || 0) - Number(b.dataset.cardIndex || 0));
+      const totalToMount = toMountByCol.reduce((acc, arr) => acc + arr.length, 0);
+
+      // 若全部列的所有卡片均原位未变（例如「全部导图 1」切到「架构拆解 1」），原位静止直接返回
+      if (cardsToExit.length === 0 && totalToMount === 0) {
+        emptyState.classList.add('hidden');
+        container.classList.remove('is-empty');
+        refreshScroll();
+        return;
+      }
+
+      const tl = gsap.timeline();
+      cardFilterTimeline = tl;
+
+      let switchTime = 0;
+      if (cardsToExit.length > 0) {
+        switchTime = launchMmFilterExit(tl, cardsToExit);
+      }
+
+      tl.add(() => {
+        cardsToExit.forEach((c) => c.remove());
+
+        const enteringCards: HTMLElement[] = [];
+        for (let colIdx = 0; colIdx < numCols; colIdx++) {
+          const colEl = colEls[colIdx];
+          for (const item of toMountByCol[colIdx]) {
+            const card = createCardElement(item.rec, false);
+            card.dataset.cardIndex = String(item.globalIndex);
+            colEl.appendChild(card);
+            enteringCards.push(card);
+          }
+        }
+
+        if (enteringCards.length === 0) {
+          refreshScroll({ clamp: false });
+          cardFilterTimeline = null;
+          return;
+        }
+
+        enteringCards.sort((a, b) => Number(a.dataset.cardIndex || 0) - Number(b.dataset.cardIndex || 0));
+        launchMmFilterEnter(enteringCards);
+        refreshScroll({ clamp: false });
+      }, switchTime);
     }
 
     document.getElementById('mm-empty-reset-btn')?.addEventListener('click', () => {
@@ -6675,17 +7032,31 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       }
     }, { signal });
 
+    function getMindmapsFingerprint(list: MindMapRecord[], cats: string[]): string {
+      return `${cats.join('|')}::${list
+        .map((m) => `${m.id}:${m.updatedAt}:${m.title}:${m.category}:${m.color}:${m.layout}:${m.postSlug || ''}:${m.tags.join(',')}`)
+        .join(';')}`;
+    }
+
     window.addEventListener('mindmaps:synced', () => {
       if (wbModal.classList.contains('hidden')) {
+        const prevFp = getMindmapsFingerprint(mapsList, categories);
         refreshDataFromStorage();
-        renderCards(false);
+        const nextFp = getMindmapsFingerprint(mapsList, categories);
+        if (prevFp !== nextFp) {
+          renderCards(false);
+        }
       }
     }, { signal });
 
     document.addEventListener('mindmaps:changed', () => {
       if (isSelfDeleting || !wbModal.classList.contains('hidden')) return;
+      const prevFp = getMindmapsFingerprint(mapsList, categories);
       refreshDataFromStorage();
-      renderCards(false);
+      const nextFp = getMindmapsFingerprint(mapsList, categories);
+      if (prevFp !== nextFp) {
+        renderCards(false);
+      }
     }, { signal });
 
     window.addEventListener('storage', (e) => {
@@ -6787,6 +7158,10 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         cardFilterTimeline.kill();
         cardFilterTimeline = null;
       }
+      gsap.killTweensOf(container);
+      gsap.killTweensOf(emptyState);
+      deleteTimers.forEach((t) => window.clearTimeout(t));
+      deleteTimers.clear();
       stopPanAnimation();
       if (linkMorphRafId !== null) {
         cancelAnimationFrame(linkMorphRafId);
@@ -6829,6 +7204,19 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   if (!(window as any)[LISTENER_KEY]) {
     document.addEventListener('astro:page-load', () => {
       initMindmapPage();
+      const container = document.getElementById('mindmaps-container');
+      const isIntroActive = Boolean(
+        document.querySelector('[data-site-intro]') &&
+          (document.documentElement.classList.contains('site-intro-active') || (window as any).__siteIntroPending)
+      );
+      if (
+        container &&
+        !isIntroActive &&
+        document.documentElement.classList.contains('js-enter') &&
+        !document.querySelector('main [data-enter].is-entering, main [data-enter].is-entered')
+      ) {
+        (window as any).__releasePageEnter?.();
+      }
     });
     (window as any)[LISTENER_KEY] = true;
   }

@@ -227,23 +227,26 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       <!-- 动态插入卡片 -->
     </section>
 
-    <!-- 空状态提示 (对齐 gallery-empty-state 视觉面板与重置交互) -->
+    <!-- 空状态提示 (全站一级空态视觉与动效基准) -->
     <div id="empty-state" class="notes-empty-state hidden mt-8 text-center py-16 panel max-w-xl mx-auto">
       <div class="w-16 h-16 rounded-full bg-[var(--bg-soft)] border border-[var(--rule)] mx-auto flex items-center justify-center text-[var(--muted)] mb-4 shadow-sm">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
           <polyline points="14 2 14 8 20 8"></polyline>
           <line x1="9" y1="15" x2="15" y2="15"></line>
         </svg>
       </div>
-      <h3 class="text-lg font-semibold text-[var(--text-strong)]">未寻得匹配的笔记</h3>
-      <p class="text-xs text-[var(--muted-strong)] mt-2 max-w-md mx-auto leading-relaxed">
+      <h3 class="text-lg font-semibold text-[var(--text-strong)]" id="notes-empty-title">未寻得匹配的笔记</h3>
+      <p class="text-xs text-[var(--muted-strong)] mt-2 max-w-md mx-auto leading-relaxed" id="notes-empty-desc">
         未匹配到符合当前分类或搜索词的笔记。不妨清空搜索词，或切换至「全部笔记」阅览。
       </p>
-      <button type="button" id="notes-reset-filter-btn" class="btn-secondary mt-6 text-xs py-2 px-5 cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
-        <span>重置筛选与搜索</span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-      </button>
+      <div class="flex flex-wrap items-center justify-center gap-2.5 mt-6">
+        <button type="button" id="notes-empty-create-btn" class="btn-primary hidden text-xs py-2 px-4 cursor-pointer">+ 新建随记</button>
+        <button type="button" id="notes-reset-filter-btn" class="btn-secondary text-xs py-2 px-5 cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
+          <span>重置筛选与搜索</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        </button>
+      </div>
     </div>
   </main>
 
@@ -642,7 +645,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     align-items: center;
     justify-content: center;
   }
-  .notes-empty-state.hidden {
+  .notes-empty-state.hidden,
+  .notes-empty-state .hidden {
     display: none !important;
   }
 
@@ -2211,6 +2215,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       clearCardMotion(el);
       el.classList.remove('is-reflowing', 'is-entering');
       el.classList.add('is-entered');
+      el.dataset.enterState = 'in';
     }
 
     function splitViewportCards(cards: HTMLElement[]): { visible: HTMLElement[]; offscreen: HTMLElement[] } {
@@ -2268,6 +2273,36 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       });
     }
 
+    function syncNotesEmptyStateCopy() {
+      const titleEl = document.getElementById('notes-empty-title');
+      const descEl = document.getElementById('notes-empty-desc');
+      const createBtnEl = document.getElementById('notes-empty-create-btn');
+      const resetBtnEl = document.getElementById('notes-reset-filter-btn');
+      const hasActiveFilters =
+        currentFilter.kind !== 'all' ||
+        currentFilter.article !== 'all' ||
+        currentFilter.color !== 'all' ||
+        Boolean(currentFilter.keyword.trim());
+
+      if (notesDatabase.length === 0 && !hasActiveFilters) {
+        if (titleEl) titleEl.textContent = '尚未创建任何笔记';
+        if (descEl) {
+          descEl.textContent =
+            '可以从上方新建独立 Markdown 随记，或在阅读博客文章时划选段落添加批注与墨问问答。';
+        }
+        createBtnEl?.classList.remove('hidden');
+        resetBtnEl?.classList.add('hidden');
+      } else {
+        if (titleEl) titleEl.textContent = '未寻得匹配的笔记';
+        if (descEl) {
+          descEl.textContent =
+            '未匹配到符合当前分类或搜索词的笔记。不妨清空搜索词，或切换至「全部笔记」阅览。';
+        }
+        createBtnEl?.classList.add('hidden');
+        resetBtnEl?.classList.remove('hidden');
+      }
+    }
+
     function renderCards(isFiltering = false, isInitialEnter = false) {
       const container = document.getElementById('notes-container');
       const emptyState = document.getElementById('empty-state');
@@ -2289,24 +2324,31 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const existingAllCards = getOrderedCards(container);
       existingAllCards.forEach((c) => settleNoteCard(c));
 
+      if (!isInitialEnter) {
+        emptyState.removeAttribute('data-enter');
+        emptyState.dataset.enterState = 'in';
+      }
+
       // ========================================================
       // 场景 0：首次加载或无动画渲染
       // ========================================================
       if (!isFiltering || reduceMotion) {
         if (filtered.length === 0) {
+          syncNotesEmptyStateCopy();
           container.innerHTML = '';
           container.classList.add('is-empty');
           emptyState.classList.remove('hidden');
-          gsap.set(emptyState, { clearProps: 'opacity,transform' });
+          clearCardMotion(emptyState);
           if (isInitialEnter && !reduceMotion) {
             emptyState.setAttribute('data-enter', 'card');
+            emptyState.setAttribute('data-no-replay', '');
           }
           refreshScroll();
           return;
         }
 
         emptyState.classList.add('hidden');
-        gsap.set(emptyState, { clearProps: 'opacity,transform' });
+        clearCardMotion(emptyState);
         container.classList.remove('is-empty');
         container.innerHTML = '';
         mountCards(filtered, container, isInitialEnter && !reduceMotion);
@@ -2315,6 +2357,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           mountedCards.forEach((c) => {
             c.classList.add('is-entered');
             c.classList.remove('is-reflowing', 'is-entering');
+            c.dataset.enterState = 'in';
           });
         }
         (window as any).__initTiltCards?.();
@@ -2330,16 +2373,28 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       // 场景 A：主动筛选无匹配笔记（目标为空状态，严禁强塞超高 minHeight）
       // ========================================================
       if (filtered.length === 0) {
-        // 子场景 A1：当前已在空状态（空切空，如从 Markdown 随记 0 切到 墨问 AI 问答 0），原位轻盈浮现
+        syncNotesEmptyStateCopy();
+
+        // 子场景 A1：当前无在场卡片
         if (existingAllCards.length === 0) {
+          const wasAlreadyEmpty = !emptyState.classList.contains('hidden');
           container.innerHTML = '';
           container.classList.add('is-empty');
           emptyState.classList.remove('hidden');
+
+          // 空切空（如从 Markdown 随记 0 切到 墨问 AI 问答 0）：保持原位静止，不再重复播放闪烁动效
+          if (wasAlreadyEmpty) {
+            clearCardMotion(emptyState);
+            refreshScroll();
+            return;
+          }
+
+          // 从删除最后一张卡片刚落入空态（此前 emptyState 仍处于 hidden）：柔和浮现一次
           refreshScroll();
           setCardEnterState(emptyState, { replay: true });
           const tl = gsap.timeline({
             onComplete: () => {
-              gsap.set(emptyState, { clearProps: 'opacity,transform' });
+              clearCardMotion(emptyState);
               refreshScroll();
               filterTimeline = null;
             },
@@ -2366,7 +2421,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         const switchTime = cardExitDuration(existingAllCards.length);
         const tl = gsap.timeline({
           onComplete: () => {
-            gsap.set(emptyState, { clearProps: 'opacity,transform' });
+            clearCardMotion(emptyState);
             refreshScroll();
             filterTimeline = null;
           },
@@ -3339,7 +3394,12 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       }
     }, { signal });
 
-    // 空状态重置按钮（重置筛选与搜索）
+    // 空状态新建与重置按钮
+    document.getElementById('notes-empty-create-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openEditor(null);
+    }, { signal });
+
     const resetFilterBtn = document.getElementById('notes-reset-filter-btn');
     resetFilterBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -3541,11 +3601,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         (window as any).__releasePageEnter?.();
       }
     };
-    const navEntry = performance.getEntriesByType?.('navigation')?.[0] as PerformanceNavigationTiming | undefined;
-    const isInitialHardLoad = !navEntry || new URL(navEntry.name, window.location.origin).pathname === window.location.pathname;
-    if (isInitialHardLoad) {
-      releaseNotesEnterIfNeeded();
-    }
+    releaseNotesEnterIfNeeded();
 
     // 换页清理（幂等释放全部事件、时间线、定时器与滚动锁）
     const cleanupNotesPage = () => {

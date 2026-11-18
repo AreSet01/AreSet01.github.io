@@ -194,3 +194,94 @@ test('5. notes.astro & mindmap.astro: article filter hover & active rows use fad
   assert.match(mindmap, /:global\(\.mm-article-item-row\)::after\s*\{[\s\S]*?linear-gradient\(90deg,\s*var\(--vermilion\).*?transparent 100%\)/, 'mindmap article filter row renders fading ink line');
   assert.match(mindmap, /class="mm-article-item-row/, 'mindmap article filter list uses mm-article-item-row');
 });
+
+test('6. cardMotion.ts: addCardEnter defers WAAPI launch until after tl.add setCardEnterState (Gallery card entrance fix)', async () => {
+  const bundled = esbuild.buildSync({
+    stdin: {
+      contents: `
+        import gsap from 'gsap';
+        import { setCardEnterState, addCardEnter } from './src/utils/cardMotion.ts';
+        (window as any).__runTest = (switchTime: number) => {
+          const card = document.getElementById('gal-card')!;
+          const events: string[] = [];
+          (card as any).animate = () => {
+            let cancelled = false;
+            events.push('animate-start');
+            return {
+              onfinish: null,
+              oncancel: null,
+              cancel() {
+                if (!cancelled) {
+                  cancelled = true;
+                  events.push('animate-cancel');
+                }
+              },
+            };
+          };
+          const tl = gsap.timeline();
+          tl.add(() => {
+            card.classList.remove('is-filtered-out');
+            events.push('set-enter-state');
+            setCardEnterState([card]);
+          }, switchTime);
+          addCardEnter(tl, [card], switchTime);
+          tl.progress(1);
+          return events;
+        };
+      `,
+      resolveDir: rootDir,
+      loader: 'ts',
+    },
+    bundle: true,
+    write: false,
+    format: 'iife',
+  }).outputFiles[0].text;
+
+  const dom = new JSDOM(
+    '<!doctype html><html><body><article id="gal-card" class="gallery-mat-card is-filtered-out"></article></body></html>',
+    { url: 'http://localhost/gallery', runScripts: 'outside-only' }
+  );
+  try {
+    dom.window.matchMedia = () => ({ matches: false });
+    dom.window.eval(bundled);
+
+    for (const st of [0, 0.22]) {
+      const card = dom.window.document.getElementById('gal-card');
+      card.classList.add('is-filtered-out');
+      const events = dom.window.__runTest(st);
+      assert.equal(events[0], 'set-enter-state', `At switchTime=${st}, setCardEnterState must run BEFORE WAAPI animate starts`);
+      assert.ok(events.includes('animate-start'), `At switchTime=${st}, WAAPI entrance animation must start`);
+      assert.ok(!events.includes('animate-cancel'), `At switchTime=${st}, setCardEnterState must NEVER cancel the newly launched WAAPI entrance`);
+    }
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('7. life.astro: modal outer frame is locked (overflow: hidden) and header removes verbose subtitle prose', () => {
+  const life = readSrc('src/pages/life.astro');
+  const dialogCss = life.match(/\.life-modal-dialog\s*\{([^}]+)\}/)?.[1] || '';
+  assert.match(dialogCss, /display:\s*flex;/, '.life-modal-dialog uses flex column layout');
+  assert.match(dialogCss, /flex-direction:\s*column;/, '.life-modal-dialog stacks header/body/actions');
+  assert.match(dialogCss, /overflow:\s*hidden;/, '.life-modal-dialog locks outer scrolling');
+  assert.doesNotMatch(dialogCss, /overflow-y:\s*auto/, '.life-modal-dialog must not vertically scroll outer frame');
+
+  assert.doesNotMatch(life, /<p class="modal-subtitle">/, 'Removes verbose .modal-subtitle HTML');
+  assert.doesNotMatch(life, /展卷细读一处好风光/, 'Removes verbose folio subtitle copy');
+  assert.ok(life.includes('class="modal-pill"') && life.includes('id="modal-life-title"'), 'Preserves compact inline pill and title');
+});
+
+test('8. BaseLayout.astro & mindmap.astro: single flash-free entrance, in-place subtabs, sync fingerprint guard & card exit/delete animations', () => {
+  const baseLayout = readSrc('src/layouts/BaseLayout.astro');
+  const mindmap = readSrc('src/pages/mindmap.astro');
+
+  assert.match(
+    baseLayout,
+    /releasedEarly = true;\s*\n\s*if \(enteredThisDocument\) \{\s*\n\s*document\.documentElement\.classList\.remove\('js-enter'\);/,
+    'BaseLayout preserves html.js-enter on early release before runPageEnter runs during client-side navigation'
+  );
+  assert.ok(mindmap.includes('const sameKeys ='), 'mindmap renderSubtabs reuses buttons in place instead of detaching on every click');
+  assert.ok(mindmap.includes('function getMindmapsFingerprint('), 'mindmap guards mindmaps:synced with visual fingerprint to avoid killing entrance animations');
+  assert.ok(mindmap.includes('@keyframes mmCardInkDry'), 'mindmap card deletion plays smooth circular ink-drying exit');
+  assert.ok(mindmap.includes('cardEl.style.maxHeight = `${initialHeight}px`'), 'mindmap pins initial maxHeight before .is-deleting so collapse transitions smoothly');
+});

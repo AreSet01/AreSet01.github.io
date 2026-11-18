@@ -213,13 +213,21 @@ const countByCategory = {
       })}
     </div>
 
-    <!-- 搜索/过滤无结果空状态 -->
-    <div id="life-empty-state" class="life-empty-state hidden">
-      <div class="empty-ink-circle">空</div>
-      <h3 class="empty-title">空山不见人，但闻人语响</h3>
-      <p class="empty-desc">没有找到符合条件的推荐，换个关键词或重置筛选试试吧。</p>
-      <button type="button" id="life-reset-filters-btn" class="life-reset-btn btn-secondary">
-        重置所有筛选
+    <!-- 搜索/过滤无结果空状态 (对齐 /notes 一级空态面板与交互) -->
+    <div id="life-empty-state" class="life-empty-state hidden mt-8 text-center py-16 panel max-w-xl mx-auto">
+      <div class="w-16 h-16 rounded-full bg-[var(--bg-soft)] border border-[var(--rule)] mx-auto flex items-center justify-center text-[var(--muted)] mb-4 shadow-sm">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-[var(--text-strong)]">未寻得相应拾光</h3>
+      <p class="text-xs text-[var(--muted-strong)] mt-2 max-w-md mx-auto leading-relaxed">
+        未匹配到符合当前分类与搜索词的推荐。不妨清空搜索词，或切换至「全部拾光」阅览。
+      </p>
+      <button type="button" id="life-reset-filters-btn" class="life-reset-btn btn-secondary mt-6 text-xs py-2 px-5 cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
+        <span>重置筛选与搜索</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
       </button>
     </div>
 
@@ -236,11 +244,10 @@ const countByCategory = {
         <button type="button" class="life-modal-close" id="life-modal-close" aria-label="关闭弹窗">✕</button>
         <div class="life-modal-header">
           <span class="modal-pill">抽签</span>
-          <h3 class="modal-title" id="modal-life-title">🎲 今日灵感签</h3>
-          <p class="modal-subtitle">既然犹豫不决，不妨把脚步交给机缘~</p>
+          <h3 class="modal-title" id="modal-life-title">今日灵感签</h3>
         </div>
 
-        <div id="life-modal-content" class="life-modal-body">
+        <div id="life-modal-content" class="life-modal-body" data-lenis-prevent>
           <!-- 动态注入抽签卡片内容 -->
         </div>
 
@@ -968,15 +975,13 @@ const countByCategory = {
     text-underline-offset: 3px;
   }
 
-  /* 空状态 */
+  /* 空状态（对齐 /notes 一级空态面板） */
   .life-empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    margin-top: 2rem;
-    padding: 5rem 1rem;
-    min-height: 548px;
+    min-height: 380px;
     text-align: center;
   }
 
@@ -985,58 +990,13 @@ const countByCategory = {
     display: none !important;
   }
 
-  @keyframes fade-in-scale {
-    0% { opacity: 0; transform: scale(0.96); }
-    100% { opacity: 1; transform: scale(1); }
-  }
-
-  .empty-ink-circle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    border: 1px solid var(--rule-strong);
-    font-family: var(--font-hand);
-    font-size: 1.5rem;
-    color: var(--muted);
-    margin-bottom: 1.2rem;
-  }
-
-  .empty-title {
-    font-family: var(--font-hand);
-    font-size: 1.25rem;
-    color: var(--text-strong);
-    margin-bottom: 0.5rem;
-  }
-
-  .empty-desc {
-    font-size: 0.88rem;
-    color: var(--muted);
-    max-width: 320px;
-    margin-bottom: 1.5rem;
-  }
-
   .life-reset-btn {
-    padding: 0.5rem 1.2rem;
-    font-size: 0.82rem;
-    color: var(--text-strong);
-    background: var(--bg-soft);
-    border: 1px solid var(--rule-strong);
-    border-radius: var(--radius-control);
     cursor: pointer;
     transition:
       transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
       background-color 220ms var(--ease),
       color 220ms var(--ease),
       border-color 220ms var(--ease);
-  }
-
-  .life-reset-btn:hover {
-    background: var(--text-strong);
-    color: var(--bg-base);
-    transform: translate3d(0, -1px, 0);
   }
 
   :global(body.life-modal-open) {
@@ -1073,13 +1033,12 @@ const countByCategory = {
 
   .life-modal-dialog {
     position: relative;
+    display: flex;
+    flex-direction: column;
     width: 100%;
     max-width: 500px;
-    max-height: min(90vh, 660px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    overscroll-behavior: contain;
-    scrollbar-width: none !important; -ms-overflow-style: none !important; -webkit-overflow-scrolling: touch;
+    max-height: min(92vh, 720px);
+    overflow: hidden;
     background: var(--bg-base);
     background-image: linear-gradient(
       90deg,
@@ -1090,7 +1049,7 @@ const countByCategory = {
     border: 1px solid var(--rule-strong);
     border-left: 3px solid var(--ink-strong);
     border-radius: 6px 14px 14px 6px;
-    padding: 2rem 2rem 1.85rem 2.15rem;
+    padding: 1.25rem 1.65rem 1.3rem 1.8rem;
     box-shadow: 0 26px 64px -10px rgba(0, 0, 0, 0.28);
     transform-origin: left center;
     transform: rotateY(-14deg) rotateX(3deg) translate3d(-12px, 14px, 0) scale(0.95);
@@ -1114,10 +1073,10 @@ const countByCategory = {
 
   .life-modal-close {
     position: absolute;
-    top: 1rem;
-    right: 1.2rem;
+    top: 0.95rem;
+    right: 1.05rem;
     padding: 0.25rem 0.5rem;
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     color: var(--muted);
     background: transparent;
     border: none;
@@ -1131,54 +1090,64 @@ const countByCategory = {
   }
 
   .life-modal-header {
-    text-align: center;
-    margin-bottom: 1.35rem;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-bottom: 0.85rem;
+    padding-right: 2rem;
+    text-align: left;
   }
 
   /* 圆润单色胶囊徽标 */
   .modal-pill {
     display: inline-flex;
     align-items: center;
-    font-size: 0.7rem;
+    flex-shrink: 0;
+    font-size: 0.68rem;
     font-weight: 600;
     letter-spacing: 0.12em;
-    padding: 0.18rem 0.68rem;
+    padding: 0.16rem 0.6rem;
     border: 1px solid var(--rule-strong);
     border-radius: 9999px;
     color: var(--text-strong);
     background: var(--bg-soft);
-    margin-bottom: 0.55rem;
   }
 
   .modal-title {
     font-family: var(--font-hand);
-    font-size: 1.45rem;
+    font-size: 1.12rem;
+    line-height: 1.25;
     color: var(--text-strong);
-    margin-bottom: 0.35rem;
-  }
-
-  .modal-subtitle {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-size: 0.85rem;
-    color: var(--muted);
+    margin: 0;
   }
 
   .life-modal-body {
-    min-height: 160px;
-    margin-bottom: 1.45rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    margin-bottom: 1rem;
     transform-origin: left center;
+  }
+
+  .life-modal-body::-webkit-scrollbar {
+    display: none;
   }
 
   @media (max-width: 639px) {
     .life-modal-dialog {
-      padding: 1.5rem 1.15rem 1.4rem 1.3rem;
-      margin: 1rem;
-      max-width: calc(100vw - 2rem);
+      padding: 1.15rem 1.1rem 1.15rem 1.25rem;
+      margin: 0.75rem;
+      max-width: calc(100vw - 1.5rem);
     }
   }
 
   .life-modal-actions {
+    flex-shrink: 0;
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
@@ -1508,32 +1477,29 @@ const countByCategory = {
       }
 
       // ========================================================
-      // 场景 A：无匹配结果（空状态）
+      // 场景 A：无匹配结果（空状态，对齐 /notes 一级空态时间线）
       // ========================================================
       if (toShow.length === 0) {
         const exitingCards = currentlyVisible;
 
-        // 子场景 A1：当前已处于空状态（空切空，例如在两个 0 条分类之间切换），原位执行轻盈浮现反馈
+        // 子场景 A1：当前已处于空状态（空切空，例如在两个 0 条分类之间切换），原位保持静止不再闪烁
         if (exitingCards.length === 0) {
+          container.style.minHeight = '0px';
           container.classList.add('is-empty');
+          toHide.forEach((c) => {
+            c.classList.add('is-filtered-out');
+            settleCard(c);
+          });
           if (emptyState) {
             emptyState.classList.remove('hidden');
-            setEmptyEnterState(emptyState);
-            const tl = gsap.timeline({
-              onComplete: () => {
-                clearCardMotion(emptyState);
-                refreshScroll();
-                filterTimeline = null;
-              },
-            });
-            filterTimeline = tl;
-            addCardEnter(tl, emptyState);
+            clearCardMotion(emptyState);
           }
+          refreshScroll();
           return;
         }
 
         // 子场景 A2：从有卡片切到空状态
-        // 与 gallery 空态同一套五段式：钉高 → 视口回流 → 卡片淡出 → 空面板浮现 → 高度塌缩
+        // 与 /notes 空态同一套五段式：钉高 → 视口回流 → 卡片淡出 → 空面板浮现 → 高度塌缩
         if (emptyState) {
           emptyState.classList.add('hidden');
         }
@@ -1576,10 +1542,10 @@ const countByCategory = {
           refreshScroll({ clamp: false });
         }, switchTime);
 
-        // 阶段 3：空状态面板以同样的 card-enter 节奏原位浮现
+        // 阶段 3：空状态面板以与 /notes 一致的 replay card-enter 节奏（0.44s）原位浮现
         if (emptyState) {
-          setEmptyEnterState(emptyState);
-          addCardEnter(tl, emptyState, switchTime);
+          setCardEnterState(emptyState, { replay: true });
+          addCardEnter(tl, emptyState, switchTime, { replay: true });
         }
 
         // 阶段 4：钉住的空白网格高度在 0.55s 内徐收至 0，空面板随之上浮到位
@@ -1699,19 +1665,19 @@ const countByCategory = {
       let switchTime = 0;
 
       if (wasEmpty && emptyState) {
-        // 阶段 1（空状态 -> 卡片）：先在原位平滑淡出空状态
+        // 阶段 1（空状态 -> 卡片）：对齐 /notes，0.22s 原位平滑淡出空状态
         tl.to(
           emptyState,
           {
             opacity: 0,
-            y: -12,
-            scale: 0.98,
-            duration: 0.18,
+            y: -8,
+            scale: 0.99,
+            duration: 0.22,
             ease: 'power2.in',
           },
           0
         );
-        switchTime = 0.18;
+        switchTime = 0.22;
       } else if (exitingCards.length > 0) {
         // 阶段 1（卡片 -> 卡片）：仅退场/换位卡片柔和淡出，原位卡片保持静止
         container.classList.remove('is-empty');
@@ -1950,12 +1916,8 @@ const countByCategory = {
       const mapHref = pickedCard.querySelector<HTMLAnchorElement>('.life-map-link')?.getAttribute('href') || '';
 
       if (modalPill) modalPill.textContent = mode === 'lottery' ? '抽签' : '拾光';
-      if (modalTitleEl) modalTitleEl.textContent = mode === 'lottery' ? '🎲 今日灵感签' : '📖 手账书页详笺';
-      if (modalSubtitleEl) {
-        modalSubtitleEl.textContent = mode === 'lottery'
-          ? '既然犹豫不决，不妨把脚步交给机缘~'
-          : '展卷细读一处好风光，留作他日出游备忘。';
-      }
+      if (modalTitleEl) modalTitleEl.textContent = mode === 'lottery' ? '今日灵感签' : '书页详笺';
+      if (modalSubtitleEl) modalSubtitleEl.textContent = '';
 
       if (modalContent) {
         const tipsHtml = tipNodes.length > 0

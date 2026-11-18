@@ -354,7 +354,9 @@ export function addCardEnter(
     const totalSpan = moveDuration + maxStagger;
     const ts = timeline.timeScale() || 1;
     const needsDeferredLaunch =
-      baseAt > 0.02 && elements.some((el) => el.classList.contains('is-filtered-out'));
+      elements.some((el) => el.classList.contains('is-filtered-out')) ||
+      (baseAt > 0.001 &&
+        elements.some((el) => !waapiPoseMap.has(el) && !el.classList.contains('is-entering')));
     const tlDelayOffset = !needsDeferredLaunch && timeline.totalTime() < 0.001 ? timeline.delay() : 0;
 
     const panelFlags = elements.map((el) =>

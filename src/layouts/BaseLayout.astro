@@ -1406,7 +1406,9 @@ const {
           initPageEnter(mergedOptions);
         } else {
           releasedEarly = true;
-          document.documentElement.classList.remove('js-enter');
+          if (enteredThisDocument) {
+            document.documentElement.classList.remove('js-enter');
+          }
         }
       };
       function runPageEnter() {

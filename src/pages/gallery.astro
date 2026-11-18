@@ -186,15 +186,22 @@ const countByCategory = {
       })}
     </div>
 
-    <!-- 空搜索提示 -->
-    <div id="gallery-empty-state" class="gallery-empty-state hidden mt-16 text-center py-16 panel" data-lenis-prevent>
-      <div class="text-4xl mb-3">🖼️</div>
+    <!-- 空搜索提示 (对齐 /notes 一级空态面板与交互) -->
+    <div id="gallery-empty-state" class="gallery-empty-state hidden mt-8 text-center py-16 panel max-w-xl mx-auto">
+      <div class="w-16 h-16 rounded-full bg-[var(--bg-soft)] border border-[var(--rule)] mx-auto flex items-center justify-center text-[var(--muted)] mb-4 shadow-sm">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>
+      </div>
       <h3 class="text-lg font-semibold text-[var(--text-strong)]">未寻得相应影痕</h3>
-      <p class="text-sm text-[var(--muted)] mt-2 max-w-md mx-auto">
+      <p class="text-xs text-[var(--muted-strong)] mt-2 max-w-md mx-auto leading-relaxed">
         未匹配到符合当前分类与搜索词的照片。不妨清空搜索词，或切换至「全部影痕」阅览。
       </p>
-      <button type="button" id="gallery-reset-filter" class="btn-secondary mt-6">
-        重置筛选与搜索
+      <button type="button" id="gallery-reset-filter" class="btn-secondary mt-6 text-xs py-2 px-5 cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
+        <span>重置筛选与搜索</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
       </button>
     </div>
   </main>
@@ -498,6 +505,22 @@ const countByCategory = {
     display: grid;
     grid-template-columns: repeat(1, 1fr);
     gap: 3.5rem;
+  }
+
+  .gallery-grid.is-empty {
+    display: none !important;
+  }
+
+  .gallery-empty-state {
+    min-height: 380px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .gallery-empty-state.hidden {
+    display: none !important;
   }
 
   @media (min-width: 640px) {
@@ -1307,7 +1330,9 @@ const countByCategory = {
      */
     let maxContainerHeight = 0;
     const syncGridBaseline = () => {
+      if (container.classList.contains('is-empty')) return;
       const hidden = cards.filter((card) => card.classList.contains('is-filtered-out'));
+      if (hidden.length === cards.length) return;
       if (hidden.length === 0) {
         const full = container.offsetHeight;
         if (full > 0) {
@@ -1341,26 +1366,57 @@ const countByCategory = {
       clearCardMotion(el);
     }
 
-    function refreshScroll() {
+    function refreshScroll(options: boolean | { clamp?: boolean } = true) {
+      const clamp = typeof options === 'boolean' ? options : options.clamp !== false;
       if (typeof ScrollTrigger !== 'undefined') {
         ScrollTrigger.refresh();
       }
       try {
-        (window as any).lenis?.resize();
+        const lenis = (window as any).lenis;
+        lenis?.resize?.();
+        if (!clamp) return;
+        if (lenis && typeof lenis.limit === 'number' && (window.scrollY > lenis.limit || lenis.targetScroll > lenis.limit)) {
+          lenis.scrollTo(lenis.limit, { immediate: true });
+        }
       } catch {}
     }
 
+    function returnToFilterBar() {
+      if (window.scrollY <= 80) return;
+      const anchor =
+        document.querySelector('.gallery-search-wrapper') ||
+        document.querySelector('.gallery-category-tabs');
+      if (!anchor) return;
+
+      const lenis = (window as any).lenis;
+      if (lenis && typeof lenis.scrollTo === 'function') {
+        lenis.scrollTo(anchor, {
+          offset: -90,
+          duration: 0.65,
+          easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        });
+      } else {
+        (anchor as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
     /**
-     * 统一卡片换场：
-     * 1. 离场：仅被筛除的画框轻微下沉、淡出；
-     * 2. 换骨：批量切换过滤状态，未变化卡片保持原位；
-     * 3. 入场：新出现的画框沿共享 card-enter 节奏轻轻上浮落位。
+     * 统一卡片换场（与 /notes 一级空态与卡片进退场完全一致）：
+     * 1. 空切空：原位保持静止，无闪烁动效；
+     * 2. 卡片 -> 空态：钉高 -> 视口回流 -> 卡片柔和退场 -> 空面板浮现 + 0.55s 高度塌缩；
+     * 3. 空态/卡片 -> 卡片：空面板 0.22s 先行淡出（或被筛除卡片退场），原位同卡静止，新卡沿 3D 纸笺落案入场。
      */
     function applyFilters(animate = true, shouldScroll = false) {
       if (filterTimeline) {
         filterTimeline.kill();
         filterTimeline = null;
       }
+      gsap.killTweensOf(container);
+      if (emptyState) {
+        gsap.killTweensOf(emptyState);
+      }
+      const currentH = container.offsetHeight;
+      container.style.minHeight = '';
       cards.forEach((card) => {
         clearCardMotion(card);
         card.classList.remove('is-reflowing', 'is-entering');
@@ -1391,7 +1447,7 @@ const countByCategory = {
 
       // 切换分类或标签时，若已下滚超出视野，平滑引导回网格顶部
       const tabsEl = document.querySelector('.gallery-category-tabs');
-      if (tabsEl && animate && shouldScroll) {
+      if (tabsEl && animate && shouldScroll && toShow.length > 0) {
         const tabsRect = tabsEl.getBoundingClientRect();
         if (tabsRect.top < 60) {
           if ((window as any).lenis) {
@@ -1402,22 +1458,9 @@ const countByCategory = {
         }
       }
 
-      const currentlyVisible = cards.filter((card) => !card.classList.contains('is-filtered-out'));
-
-      if (
-        currentlyVisible.length === toShow.length &&
-        currentlyVisible.every((c, i) => c === toShow[i])
-      ) {
-        toShow.forEach((card) => settleCard(card));
-        toHide.forEach((card) => {
-          card.classList.add('is-filtered-out');
-          settleCard(card);
-        });
-        if (emptyState) {
-          emptyState.classList.toggle('hidden', toShow.length > 0);
-        }
-        return;
-      }
+      const currentlyVisible = cards.filter(
+        (card) => !card.classList.contains('is-filtered-out') && !container.classList.contains('is-empty')
+      );
 
       if (!animate || reduceMotion) {
         toHide.forEach((card) => {
@@ -1428,106 +1471,152 @@ const countByCategory = {
           card.classList.remove('is-filtered-out');
           settleCard(card);
         });
-        if (emptyState) {
-          emptyState.classList.toggle('hidden', toShow.length > 0);
+        if (toShow.length === 0) {
+          container.classList.add('is-empty');
+          if (emptyState) {
+            emptyState.classList.remove('hidden');
+            clearCardMotion(emptyState);
+          }
+        } else {
+          container.classList.remove('is-empty');
+          if (emptyState) {
+            emptyState.classList.add('hidden');
+            clearCardMotion(emptyState);
+          }
+          syncGridBaseline();
         }
-        container.style.minHeight = '0px';
         refreshScroll();
         return;
       }
 
-      const currentH = container.offsetHeight;
-
       // ========================================================
-      // 场景 A：搜索无结果（空状态），页面变短时平滑过渡
+      // 场景 A：搜索/分类无结果（空状态），对齐 /notes 五段式时间线
       // ========================================================
       if (toShow.length === 0) {
+        const exitingCards = currentlyVisible;
+
+        // 子场景 A1：空切空（已在空态下切换其他 0 条分类或继续输入无结果词），原位保持静止不闪烁
+        if (exitingCards.length === 0) {
+          container.style.minHeight = '0px';
+          container.classList.add('is-empty');
+          toHide.forEach((c) => {
+            c.classList.add('is-filtered-out');
+            settleCard(c);
+          });
+          if (emptyState) {
+            emptyState.classList.remove('hidden');
+            clearCardMotion(emptyState);
+          }
+          refreshScroll();
+          return;
+        }
+
+        // 子场景 A2：从有卡片切到空状态
+        if (emptyState) {
+          emptyState.classList.add('hidden');
+        }
         if (currentH > 0) {
           container.style.minHeight = `${currentH}px`;
         }
+        returnToFilterBar();
 
-        // 若用户已向下滚动，调用 Lenis 平滑引导视口回至搜索栏，彻底杜绝单帧瞬变回弹
-        const searchWrapper = document.querySelector('.gallery-search-wrapper') || tabsEl;
-        if (searchWrapper && window.scrollY > 80) {
-          if ((window as any).lenis) {
-            (window as any).lenis.scrollTo(searchWrapper, {
-              offset: -90,
-              duration: 0.65,
-              easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-            });
-          } else {
-            searchWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        }
+        exitingCards.forEach((c) => {
+          c.classList.add('is-reflowing');
+          c.classList.remove('is-entered');
+        });
 
-        const exitingCards = currentlyVisible;
+        const switchTime = cardExitDuration(exitingCards.length);
         const tl = gsap.timeline({
           onComplete: () => {
-            exitingCards.forEach((c) => {
-              c.classList.add('is-filtered-out');
-              c.classList.remove('is-reflowing');
-              settleCard(c);
-            });
-
             if (emptyState) {
-              emptyState.classList.remove('hidden');
-              setCardEnterState(emptyState, { replay: true });
-              const enterTween = gsap.timeline({
-                onComplete: () => clearCardMotion(emptyState),
-              });
-              addCardEnter(enterTween, emptyState, 0, { replay: true });
+              clearCardMotion(emptyState);
             }
-
-            // 平滑收缩网格容器高度至 0，杜绝顿变
-            gsap.to(container, {
-              minHeight: 0,
-              duration: 0.55,
-              ease: 'power2.inOut',
-              onUpdate: () => refreshScroll(),
-              onComplete: () => {
-                container.style.minHeight = '0px';
-                refreshScroll();
-                filterTimeline = null;
-              },
-            });
+            refreshScroll();
+            filterTimeline = null;
           },
         });
         filterTimeline = tl;
 
-        if (exitingCards.length > 0) {
+        // 阶段 1：卡片柔和退场
+        addCardExit(tl, exitingCards, 0);
+
+        // 阶段 2：换骨就位（钉高保持，文档此刻不瞬塌）
+        tl.add(() => {
+          if (emptyState) {
+            emptyState.classList.remove('hidden');
+          }
           exitingCards.forEach((c) => {
-            c.classList.add('is-reflowing');
-            c.classList.remove('is-entered');
+            c.classList.add('is-filtered-out');
+            c.classList.remove('is-reflowing');
+            settleCard(c);
           });
-          addCardExit(tl, exitingCards, 0);
+          refreshScroll({ clamp: false });
+        }, switchTime);
+
+        // 阶段 3：空状态面板以同一套 replay card-enter 节奏浮现
+        if (emptyState) {
+          setCardEnterState(emptyState, { replay: true });
+          addCardEnter(tl, emptyState, switchTime, { replay: true });
         }
+
+        // 阶段 4：钉住的空白网格高度在 0.55s 内徐收至 0
+        tl.to(container, {
+          minHeight: 0,
+          duration: 0.55,
+          ease: 'power2.inOut',
+          onUpdate: () => refreshScroll({ clamp: false }),
+          onComplete: () => {
+            container.style.minHeight = '0px';
+            container.classList.add('is-empty');
+            refreshScroll();
+          },
+        }, switchTime);
         return;
       }
 
       // ========================================================
       // 场景 B：正常过滤有结果呈现
       // ========================================================
+      const stationarySet = new Set<HTMLElement>();
+      for (let i = 0; i < Math.min(currentlyVisible.length, toShow.length); i++) {
+        if (currentlyVisible[i] === toShow[i]) {
+          stationarySet.add(toShow[i]);
+        } else {
+          break;
+        }
+      }
+
+      const exitingCards = currentlyVisible.filter((c) => !stationarySet.has(c));
+      const enteringCards = toShow.filter((c) => !stationarySet.has(c));
+      const wasEmpty = currentlyVisible.length === 0 && Boolean(emptyState && !emptyState.classList.contains('hidden'));
+
+      if (!wasEmpty && exitingCards.length === 0 && enteringCards.length === 0) {
+        toShow.forEach((card) => settleCard(card));
+        toHide.forEach((card) => {
+          card.classList.add('is-filtered-out');
+          settleCard(card);
+        });
+        container.classList.remove('is-empty');
+        syncGridBaseline();
+        refreshScroll();
+        return;
+      }
+
       // 注意：空面板**不能**在这里同步隐藏。
       // 空态时网格容器是 min-height: 0px、卡片还是 is-filtered-out（display:none），
-      // 此刻先隐藏面板，这一帧文档就会短到「比视口还矮」，浏览器会把滚动位置钳到顶部
-      // （观感=点一下就直接跳回最顶、毫无过渡）。面板的隐藏挪到下面的换骨回调里，
-      // 和「卡片恢复」落在同一帧，文档高度只增不减，滚动位置就不会被钳。
+      // 此刻先隐藏面板，这一帧文档就会短到「比视口还矮」，浏览器会把滚动位置钳到顶部。
+      // 面板的隐藏挪到下面的换骨回调里，和「卡片恢复」落在同一帧。
       // 动画期间将高度锁定在当前高度，彻底杜绝切换中的布局抖动
-      // （空态进来时 currentH = 0，这里不生效——那种情况靠「同帧交接」保证不钳制）
-      if (currentH > 0) {
+      if (!wasEmpty && currentH > 0) {
         container.style.minHeight = `${currentH}px`;
       }
 
-      // 若卡片数量减少导致页面变短且用户滚在非常靠下的位置，平滑引导视口
       const searchWrapper = document.querySelector('.gallery-search-wrapper') || tabsEl;
-      if (searchWrapper && window.scrollY > 300 && toShow.length <= 3) {
+      if (!wasEmpty && searchWrapper && window.scrollY > 300 && toShow.length <= 3) {
         if ((window as any).lenis) {
           (window as any).lenis.scrollTo(searchWrapper, { offset: -90, duration: 0.6 });
         }
       }
-
-      const exitingCards = currentlyVisible;
-      const enteringCards = toShow;
 
       const tl = gsap.timeline({
         onComplete: () => {
@@ -1536,12 +1625,19 @@ const countByCategory = {
             card.classList.add('is-filtered-out');
             settleCard(card);
           });
+          if (wasEmpty) {
+            syncGridBaseline();
+            refreshScroll();
+            filterTimeline = null;
+            return;
+          }
           gsap.to(container, {
             minHeight: 0,
             duration: 0.35,
             ease: 'power2.out',
             onComplete: () => {
               container.style.minHeight = '0px';
+              syncGridBaseline();
               refreshScroll();
               filterTimeline = null;
             },
@@ -1550,22 +1646,38 @@ const countByCategory = {
       });
       filterTimeline = tl;
 
-      // 阶段 1：需退场的卡片轻微下沉并淡出
-      if (exitingCards.length > 0) {
+      let switchTime = 0;
+
+      // 阶段 1：空态先行淡出（保持占位不隐藏），或需退场的卡片轻微下沉淡出
+      if (wasEmpty && emptyState) {
+        tl.to(
+          emptyState,
+          {
+            opacity: 0,
+            y: -8,
+            scale: 0.99,
+            duration: 0.22,
+            ease: 'power2.in',
+          },
+          0
+        );
+        switchTime = 0.22;
+      } else if (exitingCards.length > 0) {
         exitingCards.forEach((c) => {
           c.classList.add('is-reflowing');
           c.classList.remove('is-entered');
         });
         addCardExit(tl, exitingCards, 0);
+        switchTime = cardExitDuration(exitingCards.length);
       }
-
-      const switchTime = cardExitDuration(exitingCards.length);
 
       // 阶段 2：换骨就位 (DOM 批切换与入场状态预置)
       tl.add(() => {
+        container.classList.remove('is-empty');
         // 空态 → 有内容：面板与卡片必须同一帧交接（见场景 B 开头的说明）
         if (emptyState) {
           emptyState.classList.add('hidden');
+          clearCardMotion(emptyState);
         }
         toHide.forEach((card) => {
           card.classList.add('is-filtered-out');
@@ -1575,6 +1687,7 @@ const countByCategory = {
         enteringCards.forEach((card) => {
           card.classList.remove('is-filtered-out');
           card.classList.add('is-reflowing');
+          card.classList.remove('is-entered', 'is-entering');
           card.dataset.enterState = 'in';
         });
 
@@ -1582,6 +1695,7 @@ const countByCategory = {
         if (enteringCards.length > 0) {
           setCardEnterState(enteringCards);
         }
+        refreshScroll({ clamp: false });
       }, switchTime);
 
       // 阶段 3：卡片沿 card-enter 节奏柔和落位
