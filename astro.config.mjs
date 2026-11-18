@@ -8,6 +8,7 @@ import rehypeKatex from 'rehype-katex';
 import { rehypeTableScroll } from './src/utils/rehypeTableScroll.ts';
 import { rehypeAlertCallouts } from './src/utils/rehypeAlertCallouts.ts';
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -202,9 +203,57 @@ function remarkMermaid() {  return (tree) => {
   };
 }
 
+function reactDevPreambleIntegration() {
+  return {
+    name: 'areset:react-dev-preamble',
+    hooks: {
+      'astro:config:setup'({ command, injectScript }) {
+        if (command !== 'dev') return;
+        // Mount points created via react-dom/client inside .astro <script> blocks do not emit <astro-island>,
+        // so ensure @vitejs/plugin-react's Fast Refresh preamble exists before any .tsx module evaluates.
+        injectScript(
+          'head-inline',
+          'window.$RefreshReg$=window.$RefreshReg$||function(){};window.$RefreshSig$=window.$RefreshSig$||function(){return function(t){return t};};',
+        );
+        injectScript(
+          'page',
+          'import { injectIntoGlobalHook } from "/@react-refresh";\ninjectIntoGlobalHook(window);\nwindow.$RefreshReg$=window.$RefreshReg$||function(){};window.$RefreshSig$=window.$RefreshSig$||function(){return function(t){return t};};',
+        );
+      },
+    },
+  };
+}
+
+function devApiOfflineFallbackPlugin() {
+  return {
+    name: 'areset:dev-api-offline-fallback',
+    configureServer(server) {
+      server.middlewares.use('/api', (_req, res, next) => {
+        const sock = net.connect({ host: '127.0.0.1', port: 8787 });
+        let settled = false;
+        const finish = (online) => {
+          if (settled) return;
+          settled = true;
+          sock.destroy();
+          if (online) {
+            next();
+          } else if (!res.headersSent && !res.writableEnded) {
+            res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end('{"ok":false,"offline":true}');
+          }
+        };
+        sock.setTimeout(150);
+        sock.once('connect', () => finish(true));
+        sock.once('timeout', () => finish(false));
+        sock.once('error', () => finish(false));
+      });
+    },
+  };
+}
+
 export default defineConfig({
   site: 'https://AreSet01.github.io',
-  integrations: [react(), versionManifestIntegration()],
+  integrations: [react(), reactDevPreambleIntegration(), versionManifestIntegration()],
   markdown: {
     // 让 **…** 在中文全角标点旁也能正确解析（CommonMark 的 flanking 规则在 CJK 下会失效）；
     // 必须放在 remarkMermaid 之前，确保解析阶段就挂上 micromark 扩展。
@@ -218,7 +267,28 @@ export default defineConfig({
     define: {
       'import.meta.env.PUBLIC_APP_BUILD_VERSION': JSON.stringify(APP_BUILD_VERSION),
     },
-    plugins: [tailwindcss()],
+    optimizeDeps: {
+      include: [
+        'react',
+        'react-dom',
+        'react-dom/client',
+        'react/jsx-runtime',
+        'react/jsx-dev-runtime',
+        'motion',
+        'motion/react',
+        'nanostores',
+        '@nanostores/react',
+        'three',
+        'gsap',
+        'gsap/ScrollTrigger',
+        'gsap/CustomEase',
+        'lenis',
+        'marked',
+        'mermaid',
+        'katex',
+      ],
+    },
+    plugins: [tailwindcss(), devApiOfflineFallbackPlugin()],
     server: {
       // 划词问答：本地另开一个 `npm run ask`（server/ask.mjs，默认 8787），dev 服务器把 /api 转过去
       proxy: { '/api': 'http://127.0.0.1:8787' },

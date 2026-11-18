@@ -14,7 +14,7 @@
     "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
-    "@astrojs/react": "^7.0.1",
+    "@astrojs/react": "^5.0.7",
     "@nanostores/react": "^2.0.1",
     "@tailwindcss/vite": "^4.2.2",
     "astro": "^6.1.5",
