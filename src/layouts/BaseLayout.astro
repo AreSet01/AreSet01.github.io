@@ -630,6 +630,7 @@ const {
       import { ScrollTrigger } from 'gsap/ScrollTrigger';
       import CustomEase from 'gsap/CustomEase';
       import Lenis from 'lenis';
+      import { animate, spring } from 'motion';
       import { readArticleMotion, cubicBezierPoints } from '../utils/articleMotion';
       import { addCardEnter, cardEnterDelay, clearCardMotion, setCardEnterState } from '../utils/cardMotion';
       import { mountSiteContextMenu } from '../utils/siteContextMenu';
@@ -645,14 +646,42 @@ const {
         queryCommandPalette,
         stepPaletteCategory,
         type PaletteCategory,
+        type PaletteResultItem,
         type RawPostSearchEntry,
       } from '../utils/commandPaletteEngine';
+      import {
+        clearAllModals,
+        connectShellStoreDom,
+        setModalOpenState,
+        shellStore,
+      } from '../stores/shellStore';
+      import {
+        applyPaletteQueryOutput,
+        closeCommandPalette,
+        commandPaletteStore,
+        openCommandPalette,
+        setActivePaletteIndex,
+        setPaletteIndexState,
+        setPalettePostEntries,
+        type PaletteIndexState,
+      } from '../stores/commandPaletteStore';
+      import { mountCommandPaletteResultsIsland } from '../components/islands/CommandPaletteResults';
 
       mountSiteContextMenu();
       mountAppAutoUpdate({ baseUrl: import.meta.env.BASE_URL ?? '/' });
       initReadingSync();
 
+      (window as any).__shellStoreDomCleanup?.();
+      (window as any).__shellStoreDomCleanup = connectShellStoreDom();
+      (window as any).__shellStore = shellStore;
+      (window as any).__commandPaletteStore = commandPaletteStore;
+
+      let paletteGliderCtrl: { stop?: () => void } | null = null;
+      let paletteModalCtrl: { stop?: () => void } | null = null;
+
       (window as any).__commandPaletteBridge = {
+        store: commandPaletteStore,
+        shellStore,
         computeGlider: computePaletteGliderGeometry,
         parseQuery: parsePaletteQuery,
         stepCategory: stepPaletteCategory,
@@ -660,8 +689,8 @@ const {
           const basePath = import.meta.env.BASE_URL ?? '/';
           const recentReading = getRecentReadingProgress(3);
           const isArticlePage = Boolean(document.querySelector('[data-post-prose]'));
-          const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-          const currentFont = document.documentElement.getAttribute('data-font') || 'pixel';
+          const currentTheme = shellStore.theme.get() || document.documentElement.getAttribute('data-theme') || 'light';
+          const currentFont = shellStore.font.get() || document.documentElement.getAttribute('data-font') || 'pixel';
           const topResume = recentReading[0];
           const commands = buildDefaultCommands({
             isArticlePage,
@@ -682,7 +711,129 @@ const {
             basePath,
           });
         },
+        syncOpen(open: boolean) {
+          if (open) {
+            openCommandPalette();
+          } else {
+            closeCommandPalette();
+          }
+        },
+        syncModalState(id: string, open: boolean) {
+          setModalOpenState(id, open);
+        },
+        clearModals() {
+          clearAllModals();
+        },
+        syncIndexState(state: PaletteIndexState, statusOverride?: string) {
+          setPaletteIndexState(state, statusOverride);
+        },
+        syncPostEntries(entries: RawPostSearchEntry[]) {
+          setPalettePostEntries(entries);
+        },
+        syncActiveIndex(nextIndex: number) {
+          return setActivePaletteIndex(nextIndex);
+        },
+        syncQueryState(payload: {
+          rawInput: string;
+          selectedCategory: PaletteCategory;
+          effectiveCategory: PaletteCategory;
+          isCommandPrefix: boolean;
+          items: PaletteResultItem[];
+          statusText: string;
+          activeIndex: number;
+          indexState: PaletteIndexState;
+        }) {
+          applyPaletteQueryOutput(
+            {
+              effectiveCategory: payload.effectiveCategory,
+              isCommandPrefix: payload.isCommandPrefix,
+              cleanQuery: payload.rawInput.trim(),
+              statusText: payload.statusText,
+              items: payload.items,
+            },
+            {
+              resetActive: false,
+              rawInput: payload.rawInput,
+              selected: payload.selectedCategory,
+            }
+          );
+          setPaletteIndexState(payload.indexState, payload.statusText);
+          setActivePaletteIndex(payload.activeIndex);
+        },
+        mountResultsIsland(container: HTMLElement) {
+          return mountCommandPaletteResultsIsland(container);
+        },
+        animateGlider(gliderEl: HTMLElement, transformStr: string, immediate = false) {
+          paletteGliderCtrl?.stop?.();
+          if (immediate) {
+            gliderEl.style.transition = 'none';
+            gliderEl.style.transform = transformStr;
+            gliderEl.style.opacity = '1';
+            return;
+          }
+          gliderEl.style.transition = 'none';
+          paletteGliderCtrl = animate(
+            gliderEl,
+            { transform: transformStr, opacity: 1 },
+            { type: spring, stiffness: 480, damping: 35, mass: 0.68 }
+          );
+        },
+        animateModal(
+          modalEl: HTMLElement,
+          opening: boolean,
+          fromGeom: { x: number; y: number; scaleX: number; scaleY: number }
+        ) {
+          paletteModalCtrl?.stop?.();
+          gsap.killTweensOf(modalEl);
+          const collapsedTransform = `translate3d(${fromGeom.x.toFixed(2)}px, ${fromGeom.y.toFixed(2)}px, 0) scale(${fromGeom.scaleX.toFixed(4)}, ${fromGeom.scaleY.toFixed(4)})`;
+          const openTransform = 'translate3d(0px, 0px, 0) scale(1, 1)';
+          if (opening) {
+            const ctrl = animate(
+              modalEl,
+              {
+                opacity: [0, 1],
+                transform: [collapsedTransform, openTransform],
+              },
+              { type: spring, stiffness: 390, damping: 32, mass: 0.82 }
+            );
+            paletteModalCtrl = ctrl;
+            ctrl.finished
+              ?.then(() => {
+                if (paletteModalCtrl === ctrl) {
+                  modalEl.style.removeProperty('transform');
+                  modalEl.style.removeProperty('opacity');
+                }
+              })
+              .catch(() => {});
+          } else {
+            const ctrl = animate(
+              modalEl,
+              {
+                opacity: [1, 0],
+                transform: [openTransform, collapsedTransform],
+              },
+              { duration: 0.28, ease: [0.32, 0, 0.2, 1] }
+            );
+            paletteModalCtrl = ctrl;
+            ctrl.finished
+              ?.then(() => {
+                if (paletteModalCtrl === ctrl) {
+                  modalEl.style.removeProperty('transform');
+                  modalEl.style.removeProperty('opacity');
+                }
+              })
+              .catch(() => {});
+          }
+        },
+        stopPaletteMotions() {
+          paletteGliderCtrl?.stop?.();
+          paletteModalCtrl?.stop?.();
+          paletteGliderCtrl = null;
+          paletteModalCtrl = null;
+        },
       };
+
+      (window as any).__connectCommandPaletteIsland?.();
 
       gsap.registerPlugin(ScrollTrigger, CustomEase);
       CustomEase.create('article-enter', cubicBezierPoints(readArticleMotion().revealEase));
@@ -1654,7 +1805,9 @@ const {
             if (mutation.attributeName === 'class' && searchOv.classList.contains('is-open')) {
               const modalInner = searchOv.querySelector('.search-panel');
               if (modalInner && window.gsap) {
-                const children = Array.from(modalInner.children);
+                const children = Array.from(modalInner.children).filter(
+                  (child) => !child.hasAttribute('data-search-results')
+                );
                 gsap.set(children, { y: 12, opacity: 0 });
                 gsap.to(children, {
                   y: 0,
@@ -2193,6 +2346,25 @@ const {
         // Respect OS reduced motion preference
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const activeModals = new Set();
+        let searchResultsIsland = null;
+        let unsubscribePaletteActiveIdx = null;
+
+        function ensureSearchResultsIsland() {
+          if (isDisposed || searchResultsIsland || !searchResultsEl) return Boolean(searchResultsIsland);
+          const bridge = window.__commandPaletteBridge;
+          if (!bridge || typeof bridge.mountResultsIsland !== 'function') return false;
+          searchResultsEl.innerHTML = '';
+          searchResultsIsland = bridge.mountResultsIsland(searchResultsEl);
+          if (bridge.store && bridge.store.activeIndex && typeof bridge.store.activeIndex.listen === 'function') {
+            unsubscribePaletteActiveIdx = bridge.store.activeIndex.listen((idx) => {
+              searchActiveIndex = idx;
+            });
+          }
+          return true;
+        }
+        window.__connectCommandPaletteIsland = ensureSearchResultsIsland;
+        ensureSearchResultsIsland();
+
         function notifyModalState(id, isOpen) {
           const wasOpen = activeModals.size > 0;
           if (isOpen) {
@@ -2200,6 +2372,7 @@ const {
           } else {
             activeModals.delete(id);
           }
+          window.__commandPaletteBridge?.syncModalState?.(id, isOpen);
           const nowOpen = activeModals.size > 0;
           if (!wasOpen && nowOpen) {
             window.dispatchEvent(new CustomEvent('app:modal-enter'));
@@ -2443,12 +2616,16 @@ const {
         function setActiveSearchResult(nextIndex) {
           if (!searchResults.length) {
             searchActiveIndex = -1;
+            window.__commandPaletteBridge?.syncActiveIndex?.(-1);
             return;
           }
 
           const safeIndex = (nextIndex + searchResults.length) % searchResults.length;
           searchActiveIndex = safeIndex;
-          syncActiveSearchResult();
+          window.__commandPaletteBridge?.syncActiveIndex?.(safeIndex);
+          if (!searchResultsIsland) {
+            syncActiveSearchResult();
+          }
         }
 
         function syncSearchTabGlider(effectiveCat, immediate = false) {
@@ -2489,7 +2666,9 @@ const {
           searchTabGlider.style.setProperty('--pill-rx', `${rx}px`);
           searchTabGlider.style.setProperty('--pill-ry', `${ry}px`);
 
-          if (immediate || prefersReducedMotion) {
+          if (bridge && typeof bridge.animateGlider === 'function') {
+            bridge.animateGlider(searchTabGlider, transformStr, immediate || prefersReducedMotion);
+          } else if (immediate || prefersReducedMotion) {
             searchTabGlider.style.transition = 'none';
             searchTabGlider.style.transform = transformStr;
             requestAnimationFrame(() => {
@@ -2667,9 +2846,14 @@ const {
           if (!searchResultsEl || !searchInput) return;
 
           const rawQuery = searchInput.value.trim();
+          const hasIsland = ensureSearchResultsIsland();
 
           if (searchState === 'loading' && !searchResults.length) {
             setSearchStatus('正在整理搜索索引...');
+            if (hasIsland) {
+              window.__commandPaletteBridge?.syncIndexState?.('loading', '正在整理搜索索引...');
+              return;
+            }
             searchResultsEl.innerHTML = `
               <div class="search-empty">
                 <p>正在装载全站书目与知识索引…</p>
@@ -2680,6 +2864,10 @@ const {
 
           if (searchState === 'error' && !searchResults.length) {
             setSearchStatus('搜索索引加载失败。');
+            if (hasIsland) {
+              window.__commandPaletteBridge?.syncIndexState?.('error', '搜索索引加载失败。');
+              return;
+            }
             searchResultsEl.innerHTML = `
               <div class="search-empty">
                 <p>暂时无法加载文章索引，你仍可切换至「笔记」「导图」或「指令」使用。</p>
@@ -2693,14 +2881,22 @@ const {
           }
 
           if (!searchResults.length) {
+            const emptyMsg = statusOverride || (rawQuery ? '未找到匹配项' : '暂无内容');
             if (!statusOverride) {
-              setSearchStatus(rawQuery ? '未找到匹配项' : '暂无内容');
+              setSearchStatus(emptyMsg);
+            }
+            if (hasIsland) {
+              return;
             }
             searchResultsEl.innerHTML = `
               <div class="search-empty">
                 <p>${rawQuery ? '换个关键词试试，或按 Tab 切换分类、输入 > 执行快捷指令。' : '当前分类下暂无记录。'}</p>
               </div>
             `;
+            return;
+          }
+
+          if (hasIsland) {
             return;
           }
 
@@ -2806,14 +3002,16 @@ const {
           const bridge = window.__commandPaletteBridge;
           let statusMessage = '';
           let effectiveCat = searchSelectedCategory;
+          let isPrefixMode = false;
 
           if (bridge && typeof bridge.runQuery === 'function') {
             const out = bridge.runQuery(searchInput.value, searchSelectedCategory, searchItems);
             searchResults = out.items;
             statusMessage = out.statusText;
             effectiveCat = out.effectiveCategory;
+            isPrefixMode = Boolean(out.isCommandPrefix);
             if (searchOverlay) {
-              searchOverlay.setAttribute('data-prefix-mode', out.isCommandPrefix ? 'true' : 'false');
+              searchOverlay.setAttribute('data-prefix-mode', isPrefixMode ? 'true' : 'false');
             }
           } else {
             const fullQuery = normalizeSearchText(searchInput.value);
@@ -2845,6 +3043,18 @@ const {
           if (searchState !== 'loading' || searchResults.length > 0) {
             searchState = 'ready';
           }
+
+          bridge?.syncQueryState?.({
+            rawInput: searchInput.value,
+            selectedCategory: searchSelectedCategory,
+            effectiveCategory: effectiveCat,
+            isCommandPrefix: isPrefixMode,
+            items: searchResults,
+            statusText: statusMessage,
+            activeIndex: searchActiveIndex,
+            indexState: searchState,
+          });
+
           renderSearchResults(statusMessage);
         }
 
@@ -2858,6 +3068,7 @@ const {
           if (searchIndexPromise && !force) return searchIndexPromise;
 
           searchState = 'loading';
+          window.__commandPaletteBridge?.syncIndexState?.('loading');
           renderSearchResults();
 
           const cacheBuster = `_t=${Date.now()}`;
@@ -2878,6 +3089,7 @@ const {
             })
             .then((items) => {
               searchItems = Array.isArray(items) ? items.map(buildSearchIndexEntry) : [];
+              window.__commandPaletteBridge?.syncPostEntries?.(searchItems);
               searchIndexPromise = null;
               updateSearchResults(false);
               return searchItems;
@@ -2885,6 +3097,7 @@ const {
             .catch((error) => {
               searchIndexPromise = null;
               searchState = 'error';
+              window.__commandPaletteBridge?.syncIndexState?.('error');
               renderSearchResults();
               throw error;
             });
@@ -2907,6 +3120,8 @@ const {
           }
 
           clearSearchCloseTimer();
+          ensureSearchResultsIsland();
+          window.__commandPaletteBridge?.syncOpen?.(true);
           searchSourceEl = sourceEl instanceof HTMLElement ? sourceEl : null;
           syncScrollbarOffset();
           if (window.lenis) window.lenis.stop();
@@ -2935,6 +3150,7 @@ const {
           if (!searchReady || !searchOverlay.classList.contains('is-open')) return;
 
           clearSearchCloseTimer();
+          window.__commandPaletteBridge?.syncOpen?.(false);
           searchOverlay.classList.remove('is-open');
           document.body.classList.remove('search-open');
 
@@ -2959,14 +3175,14 @@ const {
           }
 
           animateSearchModal(false);
-          searchCloseTimer = window.setTimeout(finishSearchClose, 380);
+          searchCloseTimer = window.setTimeout(finishSearchClose, 300);
         }
 
         // The palette unfolds from wherever it was summoned (the sidebar field, or top-centre
         // for the keyboard shortcut) and folds back there on close. Transform + opacity only.
         function animateSearchModal(opening) {
           const modalEl = searchOverlay?.querySelector('.search-modal');
-          if (!modalEl || !window.gsap || prefersReducedMotion) return;
+          if (!modalEl || prefersReducedMotion) return;
 
           const modalRect = modalEl.getBoundingClientRect();
           let x = 0;
@@ -2983,6 +3199,13 @@ const {
             }
           }
 
+          const bridge = window.__commandPaletteBridge;
+          if (bridge && typeof bridge.animateModal === 'function') {
+            bridge.animateModal(modalEl, opening, { x, y, scaleX, scaleY });
+            return;
+          }
+
+          if (!window.gsap) return;
           window.gsap.killTweensOf(modalEl);
           if (opening) {
             window.gsap.fromTo(modalEl,
@@ -3944,6 +4167,16 @@ const {
           isDisposed = true;
           controller.abort();
           activeModals.clear();
+          unsubscribePaletteActiveIdx?.();
+          unsubscribePaletteActiveIdx = null;
+          searchResultsIsland?.unmount?.();
+          searchResultsIsland = null;
+          if (window.__connectCommandPaletteIsland === ensureSearchResultsIsland) {
+            window.__connectCommandPaletteIsland = undefined;
+          }
+          window.__commandPaletteBridge?.stopPaletteMotions?.();
+          window.__commandPaletteBridge?.clearModals?.();
+          window.__commandPaletteBridge?.syncOpen?.(false);
           stopImageViewerAnimations();
           restoreSourceImageHidden(imageViewerSourceEl);
           revealObserver?.disconnect();
