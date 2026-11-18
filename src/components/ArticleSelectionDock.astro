@@ -96,6 +96,22 @@
         <span>引用</span>
         <kbd class="dock-kbd">C</kbd>
       </button>
+
+      <span class="dock-sep dock-sep-bookmark" aria-hidden="true"></span>
+
+      <button
+        type="button"
+        class="dock-action-btn dock-btn-bookmark"
+        id="dock-act-bookmark"
+        aria-label="在此处夹入书签 (B)"
+        title="在此选区夹入书签 (B)"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
+        </svg>
+        <span>夹签</span>
+        <kbd class="dock-kbd">B</kbd>
+      </button>
     </div>
 
     <!-- Mode B: 已高亮标注管理模式 (Manage Mode) -->
@@ -1493,10 +1509,17 @@
 
     let isDockInteracting = false;
     let dockExitCleanup: (() => void) | null = null;
+    let dockKeyPulseTimer: number | null = null;
 
     function hideDock() {
       if (!dock || !isDockVisible) return;
       isDockVisible = false;
+      if (dockKeyPulseTimer !== null) {
+        window.clearTimeout(dockKeyPulseTimer);
+        dockKeyPulseTimer = null;
+      }
+      dockCapsule?.classList.remove('has-key-press');
+      dockCapsule?.querySelectorAll('.is-key-pressed').forEach((el) => el.classList.remove('is-key-pressed'));
       document.body.classList.remove('has-selection-dock-open');
       if (dockExitCleanup) {
         dockExitCleanup();
@@ -2007,6 +2030,47 @@
       }, 700);
     }
 
+    // 5b. 🔖 夹入书签 (一文多签)
+    function triggerBookmark() {
+      let excerpt = '';
+      let headingId: string | undefined = undefined;
+      let headingText: string | undefined = undefined;
+      let prefix: string | undefined = undefined;
+      let suffix: string | undefined = undefined;
+
+      if (activeHighlightId) {
+        const found = storedRecords.find((r) => r.id === activeHighlightId);
+        if (found) {
+          excerpt = found.text;
+          headingId = found.headingId;
+          headingText = found.headingText;
+          prefix = found.prefix;
+          suffix = found.suffix;
+        }
+      } else if (currentSelectedRange) {
+        const info = serializeHighlight(currentSelectedRange, prose);
+        excerpt = info?.text || currentSelectedRange.toString().trim();
+        if (info) {
+          headingId = info.headingId;
+          headingText = info.headingText;
+          prefix = info.prefix;
+          suffix = info.suffix;
+        }
+      }
+
+      if (!excerpt) return;
+      const rbm = (window as any).__readingBookmarks;
+      if (rbm && typeof rbm.bookmarkSelection === 'function') {
+        rbm.bookmarkSelection({ excerpt, headingId, headingText, prefix, suffix });
+      } else {
+        showStamp('已夹入书签');
+      }
+      try {
+        window.getSelection()?.removeAllRanges();
+      } catch {}
+      hideDock();
+    }
+
     // 6. 🗑️ 取消划线 / 删除笔记（正文平滑褪色 + 抽屉卡片物理淡出 + 唯一单次 FLIP 补位，采用 0.4x 呼吸感节奏）
     function fadeOutAndRemoveHighlight(id: string) {
       const marks = Array.from(prose.querySelectorAll<HTMLElement>(`mark[data-highlight-id="${id}"]`));
@@ -2138,22 +2202,37 @@
     }
 
     // ---------- Dock 按钮事件绑定 ----------
-    document.getElementById('dock-act-highlight')?.addEventListener('click', () => triggerHighlight(), { signal });
-    document.getElementById('dock-act-pin')?.addEventListener('click', (e) => triggerPin(e.currentTarget as HTMLElement), { signal });
-    document.getElementById('dock-act-search')?.addEventListener('click', () => triggerSearch(), { signal });
-    document.getElementById('dock-act-ask')?.addEventListener('click', () => triggerAsk(), { signal });
-    document.getElementById('dock-act-copy')?.addEventListener('click', () => triggerCopy(), { signal });
+    const btnHighlight = document.getElementById('dock-act-highlight');
+    const btnPin = document.getElementById('dock-act-pin');
+    const btnSearch = document.getElementById('dock-act-search');
+    const btnAsk = document.getElementById('dock-act-ask');
+    const btnCopy = document.getElementById('dock-act-copy');
+    const btnBookmark = document.getElementById('dock-act-bookmark');
 
-    document.getElementById('dock-act-delete')?.addEventListener('click', () => triggerDeleteHighlight(), { signal });
-    document.getElementById('dock-act-manage-pin')?.addEventListener('click', (e) => triggerPin(e.currentTarget as HTMLElement), { signal });
-    document.getElementById('dock-act-manage-copy')?.addEventListener('click', () => triggerCopy(), { signal });
-    document.getElementById('dock-act-manage-close')?.addEventListener('click', () => hideDock(), { signal });
+    const btnManageDelete = document.getElementById('dock-act-delete');
+    const btnManagePin = document.getElementById('dock-act-manage-pin');
+    const btnManageCopy = document.getElementById('dock-act-manage-copy');
+    const btnManageClose = document.getElementById('dock-act-manage-close');
+    const btnManageSearch: HTMLElement | null = null;
+    const btnManageAsk: HTMLElement | null = null;
+
+    btnHighlight?.addEventListener('click', () => triggerHighlight(), { signal });
+    btnPin?.addEventListener('click', (e) => triggerPin(e.currentTarget as HTMLElement), { signal });
+    btnSearch?.addEventListener('click', () => triggerSearch(), { signal });
+    btnAsk?.addEventListener('click', () => triggerAsk(), { signal });
+    btnCopy?.addEventListener('click', () => triggerCopy(), { signal });
+    btnBookmark?.addEventListener('click', () => triggerBookmark(), { signal });
+
+    btnManageDelete?.addEventListener('click', () => triggerDeleteHighlight(), { signal });
+    btnManagePin?.addEventListener('click', (e) => triggerPin(e.currentTarget as HTMLElement), { signal });
+    btnManageCopy?.addEventListener('click', () => triggerCopy(), { signal });
+    btnManageClose?.addEventListener('click', () => hideDock(), { signal });
 
     // 全局快捷键监听 (H / P / F / A / C / Esc / Delete)
     window.addEventListener('keydown', (e) => {
       // 避免输入框内冲突
       const activeEl = document.activeElement;
-      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable)) {
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT' || (activeEl as HTMLElement).isContentEditable)) {
         return;
       }
 
@@ -2177,15 +2256,17 @@
         }
       }
 
-      if (isDockVisible) {
+      if (isDockVisible && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat) {
         const pulseKeyBtn = (btn: HTMLElement | null | undefined, action: () => void) => {
+          if (dockKeyPulseTimer !== null) return;
           if (btn && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             btn.classList.remove('is-key-pressed');
             dockCapsule?.classList.remove('has-key-press');
             void btn.offsetWidth;
             btn.classList.add('is-key-pressed');
             dockCapsule?.classList.add('has-key-press');
-            window.setTimeout(() => {
+            dockKeyPulseTimer = window.setTimeout(() => {
+              dockKeyPulseTimer = null;
               btn.classList.remove('is-key-pressed');
               dockCapsule?.classList.remove('has-key-press');
               action();
@@ -2195,7 +2276,10 @@
           }
         };
 
-        const key = e.key.toUpperCase();
+        let key = e.key.toUpperCase();
+        if ((key === 'PROCESS' || key === 'UNIDENTIFIED') && /^Key[A-Z]$/.test(e.code)) {
+          key = e.code.slice(3);
+        }
         if (key === 'H' && currentSelectedRange) {
           e.preventDefault();
           pulseKeyBtn(btnHighlight, () => triggerHighlight());
@@ -2212,6 +2296,9 @@
         } else if (key === 'C') {
           e.preventDefault();
           pulseKeyBtn(activeHighlightId ? btnManageCopy : btnCopy, () => triggerCopy());
+        } else if (key === 'B') {
+          e.preventDefault();
+          pulseKeyBtn(btnBookmark, () => triggerBookmark());
         } else if (activeHighlightId && (e.key === 'Delete' || e.key === 'Backspace')) {
           e.preventDefault();
           pulseKeyBtn(btnManageDelete, () => triggerDeleteHighlight());
@@ -3831,6 +3918,7 @@
       highlightBackdrop.remove();
       selectionBackdrop.remove();
       controller.abort();
+      if (dockKeyPulseTimer !== null) window.clearTimeout(dockKeyPulseTimer);
       if (dockTimeoutId) window.clearTimeout(dockTimeoutId);
       if (stampTimeoutId) window.clearTimeout(stampTimeoutId);
       (window as any)[CLEANUP_KEY] = undefined;
@@ -4879,7 +4967,9 @@
     #dock-act-pin,
     #dock-act-manage-pin,
     #dock-act-pin + .dock-sep,
-    #dock-act-manage-pin + .dock-sep {
+    #dock-act-manage-pin + .dock-sep,
+    #dock-act-bookmark,
+    .dock-sep-bookmark {
       display: none !important;
     }
 

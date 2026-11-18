@@ -561,8 +561,8 @@ const {
         <div class="search-panel" data-lenis-prevent>
           <div class="search-header">
             <div class="search-heading">
-              <p class="eyebrow">Command Palette</p>
-              <h2 class="search-title" id="search-title">搜索文章</h2>
+              <p class="eyebrow">Command Palette · 书斋检索与指令</p>
+              <h2 class="search-title" id="search-title">全局检索与快捷指令</h2>
             </div>
             <button class="search-close-btn" type="button" aria-label="关闭搜索">
               Esc
@@ -577,26 +577,48 @@ const {
               id="site-search-input"
               class="search-input"
               type="search"
-              placeholder="搜索标题、标签或摘要..."
+              placeholder="搜索文章、笔记、夹签、导图，或输入 > 执行指令..."
               autocomplete="off"
               spellcheck="false"
             />
           </label>
-          <div class="search-status" data-search-status>输入关键词，或直接浏览最近更新。</div>
-          <div class="search-results" data-search-results></div>
+          <div class="search-tabs-bar">
+            <div class="search-tabs" data-search-tabs role="tablist" aria-label="检索范围分类">
+              <span class="search-tab-glider" data-search-tab-glider aria-hidden="true"></span>
+              <button type="button" class="search-tab is-active" role="tab" aria-selected="true" data-search-cat="all">全部</button>
+              <button type="button" class="search-tab" role="tab" aria-selected="false" data-search-cat="posts">文章</button>
+              <button type="button" class="search-tab" role="tab" aria-selected="false" data-search-cat="notes">笔记</button>
+              <button type="button" class="search-tab" role="tab" aria-selected="false" data-search-cat="mindmaps">导图</button>
+              <button type="button" class="search-tab" role="tab" aria-selected="false" data-search-cat="commands">指令</button>
+            </div>
+            <button type="button" class="search-cmd-hint-btn" data-search-cmd-prefix-btn title="输入 > 进入快捷指令模式">
+              <span class="search-kbd">&gt;</span>
+              <span>指令</span>
+            </button>
+          </div>
+          <div class="search-status" data-search-status>输入关键词跨库检索，或输入 &gt; 唤出快捷指令。</div>
+          <div class="search-results" data-search-results role="listbox" aria-label="搜索与指令结果"></div>
           <div class="search-footer">
             <div class="search-footer-item">
               <span class="search-kbd">↑</span>
               <span class="search-kbd">↓</span>
-              <span>切换结果</span>
+              <span>选择</span>
+            </div>
+            <div class="search-footer-item">
+              <span class="search-kbd">Tab</span>
+              <span>切换分类</span>
+            </div>
+            <div class="search-footer-item">
+              <span class="search-kbd">&gt;</span>
+              <span>快捷指令</span>
             </div>
             <div class="search-footer-item">
               <span class="search-kbd">Enter</span>
-              <span>打开文章</span>
+              <span>打开 / 执行</span>
             </div>
             <div class="search-footer-item">
               <span class="search-kbd">Esc</span>
-              <span>关闭面板</span>
+              <span>关闭</span>
             </div>
           </div>
         </div>
@@ -611,9 +633,55 @@ const {
       import { addCardEnter, cardEnterDelay, clearCardMotion, setCardEnterState } from '../utils/cardMotion';
       import { mountSiteContextMenu } from '../utils/siteContextMenu';
       import { mountAppAutoUpdate } from '../utils/appAutoUpdate';
+      import { loadAllStoredNotes } from '../utils/articleHighlightEngine';
+      import { loadActiveMindMaps } from '../utils/mindmapEngine';
+      import { getAllBookmarks, getRecentReadingProgress } from '../utils/readingBookmarkEngine';
+      import { initReadingSync } from '../utils/readingSync';
+      import {
+        buildDefaultCommands,
+        computePaletteGliderGeometry,
+        parsePaletteQuery,
+        queryCommandPalette,
+        stepPaletteCategory,
+        type PaletteCategory,
+        type RawPostSearchEntry,
+      } from '../utils/commandPaletteEngine';
 
       mountSiteContextMenu();
       mountAppAutoUpdate({ baseUrl: import.meta.env.BASE_URL ?? '/' });
+      initReadingSync();
+
+      (window as any).__commandPaletteBridge = {
+        computeGlider: computePaletteGliderGeometry,
+        parseQuery: parsePaletteQuery,
+        stepCategory: stepPaletteCategory,
+        runQuery(rawInput: string, selectedCategory: PaletteCategory, posts: RawPostSearchEntry[]) {
+          const basePath = import.meta.env.BASE_URL ?? '/';
+          const recentReading = getRecentReadingProgress(3);
+          const isArticlePage = Boolean(document.querySelector('[data-post-prose]'));
+          const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+          const currentFont = document.documentElement.getAttribute('data-font') || 'pixel';
+          const topResume = recentReading[0];
+          const commands = buildDefaultCommands({
+            isArticlePage,
+            currentTheme,
+            currentFont,
+            hasRecentResume: Boolean(topResume),
+            recentResumeTitle: topResume?.postTitle,
+            recentResumeHref: topResume ? `${basePath.replace(/\/?$/, '/')}posts/${topResume.postSlug}/?resume=1` : undefined,
+            basePath,
+          });
+          return queryCommandPalette(rawInput, selectedCategory, {
+            posts,
+            noteBuckets: loadAllStoredNotes(),
+            bookmarks: getAllBookmarks(),
+            recentReading,
+            mindmaps: loadActiveMindMaps(),
+            commands,
+            basePath,
+          });
+        },
+      };
 
       gsap.registerPlugin(ScrollTrigger, CustomEase);
       CustomEase.create('article-enter', cubicBezierPoints(readArticleMotion().revealEase));
@@ -2048,6 +2116,9 @@ const {
         const searchResultsEl = searchOverlay?.querySelector('[data-search-results]');
         const searchStatusEl = searchOverlay?.querySelector('[data-search-status]');
         const searchCloseBtn = searchOverlay?.querySelector('.search-close-btn');
+        const searchTabsEl = searchOverlay?.querySelector('[data-search-tabs]');
+        const searchTabGlider = searchOverlay?.querySelector('[data-search-tab-glider]');
+        const searchCmdPrefixBtn = searchOverlay?.querySelector('[data-search-cmd-prefix-btn]');
         const searchIndexUrl = searchIndexPath;
         const searchReady = searchOverlay && searchInput && searchResultsEl && searchStatusEl && searchCloseBtn;
 
@@ -2063,6 +2134,7 @@ const {
         let searchItems = [];
         let searchResults = [];
         let searchActiveIndex = -1;
+        let searchSelectedCategory = 'all';
         let searchSourceEl = null;
         let searchCloseTimer = 0;
         let searchState = 'idle';
@@ -2356,67 +2428,326 @@ const {
           syncActiveSearchResult();
         }
 
-        function renderSearchResults() {
+        function syncSearchTabGlider(effectiveCat, immediate = false) {
+          if (!searchTabsEl || !searchTabGlider) return;
+          const catToHighlight = effectiveCat || searchSelectedCategory || 'all';
+          const tabs = searchTabsEl.querySelectorAll('[data-search-cat]');
+          let activeBtn = null;
+          tabs.forEach((btn) => {
+            const match = btn.getAttribute('data-search-cat') === catToHighlight;
+            btn.classList.toggle('is-active', match);
+            btn.setAttribute('aria-selected', match ? 'true' : 'false');
+            if (match) activeBtn = btn;
+          });
+          if (!activeBtn || !activeBtn.offsetWidth) return;
+
+          const bridge = window.__commandPaletteBridge;
+          const w = activeBtn.offsetWidth;
+          const h = activeBtn.offsetHeight || 30;
+          const left = activeBtn.offsetLeft;
+          const top = activeBtn.offsetTop;
+          let transformStr = '';
+          let rx = 15;
+          let ry = 15;
+          if (bridge && typeof bridge.computeGlider === 'function') {
+            const g = bridge.computeGlider(left, w, h, 100, 30, top);
+            transformStr = g.transform;
+            rx = g.rx;
+            ry = g.ry;
+          } else {
+            const sx = Math.max(0.05, w / 100);
+            const sy = Math.max(0.05, h / 30);
+            const halfR = Math.min(w, h) * 0.5;
+            rx = Number((halfR / sx).toFixed(2));
+            ry = Number((halfR / sy).toFixed(2));
+            transformStr = `translate3d(${left}px, ${top}px, 0) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
+          }
+
+          searchTabGlider.style.setProperty('--pill-rx', `${rx}px`);
+          searchTabGlider.style.setProperty('--pill-ry', `${ry}px`);
+
+          if (immediate || prefersReducedMotion) {
+            searchTabGlider.style.transition = 'none';
+            searchTabGlider.style.transform = transformStr;
+            requestAnimationFrame(() => {
+              if (searchTabGlider) searchTabGlider.style.transition = '';
+            });
+          } else {
+            searchTabGlider.style.transform = transformStr;
+          }
+          searchTabGlider.classList.add('is-ready');
+        }
+
+        function setSearchCategory(nextCat, resetActive = true) {
+          searchSelectedCategory = nextCat || 'all';
+          if (searchInput) {
+            const trimmed = searchInput.value.trimStart();
+            if (nextCat !== 'commands' && (trimmed.startsWith('>') || trimmed.startsWith('＞'))) {
+              searchInput.value = trimmed.slice(1).trimStart();
+            }
+          }
+          updateSearchResults(resetActive);
+        }
+
+        function executeCommandAction(actionId) {
+          if (!actionId) return false;
+          if (actionId.startsWith('theme:')) {
+            const targetTheme = actionId.slice(6);
+            closeSearch(false);
+            window.setTimeout(() => {
+              const toggleBtn = document.querySelector('[data-theme-toggle]');
+              if (typeof window.__transitionTheme === 'function') {
+                window.__transitionTheme(targetTheme, toggleBtn);
+              } else if (typeof window.__applyTheme === 'function') {
+                window.__applyTheme(targetTheme);
+              }
+            }, 80);
+            return true;
+          }
+
+          if (actionId === 'shell:toggle-font') {
+            const cur = document.documentElement.getAttribute('data-font') === 'kai' ? 'kai' : 'pixel';
+            const next = cur === 'kai' ? 'pixel' : 'kai';
+            closeSearch(false);
+            window.setTimeout(() => {
+              const fontBtn = document.querySelector('[data-font-toggle]');
+              if (typeof window.__transitionFont === 'function') {
+                window.__transitionFont(next, fontBtn);
+              } else if (fontBtn instanceof HTMLElement) {
+                fontBtn.click();
+              }
+            }, 80);
+            return true;
+          }
+
+          if (actionId === 'shell:toggle-trail') {
+            closeSearch(false);
+            const trailBtn = document.querySelector('[data-cursor-trail-toggle]');
+            if (trailBtn instanceof HTMLElement) trailBtn.click();
+            return true;
+          }
+
+          if (actionId === 'shell:toggle-sound') {
+            closeSearch(false);
+            window.setTimeout(() => {
+              const soundBtn = document.querySelector('[data-zen-sound-toggle]');
+              if (soundBtn instanceof HTMLElement) soundBtn.click();
+            }, 90);
+            return true;
+          }
+
+          if (actionId === 'shell:replay-intro') {
+            closeSearch(false);
+            const url = new URL(window.location.href);
+            url.searchParams.set('intro', '1');
+            window.location.assign(url.pathname + url.search + url.hash);
+            return true;
+          }
+
+          if (actionId === 'article:bookmark') {
+            closeSearch(false);
+            window.setTimeout(() => {
+              window.__readingBookmarks?.bookmarkSelection?.();
+            }, 80);
+            return true;
+          }
+
+          if (actionId === 'article:open-bookmarks') {
+            closeSearch(false);
+            window.setTimeout(() => {
+              window.__readingBookmarks?.openPopover?.();
+            }, 90);
+            return true;
+          }
+
+          if (actionId === 'article:search') {
+            closeSearch(false);
+            window.setTimeout(() => {
+              if (window.__articleSearch && typeof window.__articleSearch.open === 'function') {
+                window.__articleSearch.open();
+              } else {
+                const btn = document.querySelector('[data-article-search-trigger]');
+                if (btn instanceof HTMLElement) btn.click();
+              }
+            }, 90);
+            return true;
+          }
+
+          if (actionId === 'article:notes-drawer') {
+            closeSearch(false);
+            window.setTimeout(() => {
+              if (window.__articleNotes && typeof window.__articleNotes.openDrawer === 'function') {
+                window.__articleNotes.openDrawer();
+              } else {
+                const btn = document.querySelector('[data-article-notes-trigger]');
+                if (btn instanceof HTMLElement) btn.click();
+              }
+            }, 90);
+            return true;
+          }
+
+          return false;
+        }
+
+        function tryHandleSamePageJump(href) {
+          if (!href) return false;
+          try {
+            const targetUrl = new URL(href, window.location.origin);
+            const cleanCurPath = window.location.pathname.replace(/\/+$/, '');
+            const cleanTargetPath = targetUrl.pathname.replace(/\/+$/, '');
+            if (cleanCurPath !== cleanTargetPath) return false;
+
+            if (targetUrl.searchParams.get('resume') === '1' && window.__readingBookmarks?.resumeProgress) {
+              closeSearch(false);
+              window.setTimeout(() => window.__readingBookmarks.resumeProgress(), 80);
+              return true;
+            }
+            const bmId = targetUrl.searchParams.get('bm');
+            if (bmId && window.__readingBookmarks?.jumpToBookmark) {
+              closeSearch(false);
+              window.setTimeout(() => window.__readingBookmarks.jumpToBookmark(bmId), 80);
+              return true;
+            }
+            const noteId = targetUrl.searchParams.get('noteId');
+            if (noteId && window.__articleNotes?.jumpToHighlight) {
+              closeSearch(false);
+              window.setTimeout(() => window.__articleNotes.jumpToHighlight(noteId), 80);
+              return true;
+            }
+          } catch {}
+          return false;
+        }
+
+        function activateSearchResult(index, resultNode) {
+          const item = searchResults[index];
+          if (!item) return;
+          if (item.actionId) {
+            executeCommandAction(item.actionId);
+            return;
+          }
+          if (item.href) {
+            if (tryHandleSamePageJump(item.href)) return;
+            closeSearch(false);
+            if (resultNode instanceof HTMLAnchorElement) {
+              return;
+            }
+            const anchor = searchResultsEl?.querySelector(`a[data-search-result][data-index="${index}"]`);
+            if (anchor instanceof HTMLAnchorElement) {
+              anchor.click();
+            } else {
+              window.location.assign(item.href);
+            }
+          }
+        }
+
+        function renderSearchResults(statusOverride) {
           if (!searchResultsEl || !searchInput) return;
 
           const rawQuery = searchInput.value.trim();
 
-          if (searchState === 'loading') {
+          if (searchState === 'loading' && !searchResults.length) {
             setSearchStatus('正在整理搜索索引...');
             searchResultsEl.innerHTML = `
               <div class="search-empty">
-                <p>第一次打开时会稍等一下，随后就会很快。</p>
+                <p>正在装载全站书目与知识索引…</p>
               </div>
             `;
             return;
           }
 
-          if (searchState === 'error') {
+          if (searchState === 'error' && !searchResults.length) {
             setSearchStatus('搜索索引加载失败。');
             searchResultsEl.innerHTML = `
               <div class="search-empty">
-                <p>暂时无法加载搜索内容，稍后再试试。</p>
+                <p>暂时无法加载文章索引，你仍可切换至「笔记」「导图」或「指令」使用。</p>
               </div>
             `;
             return;
+          }
+
+          if (statusOverride) {
+            setSearchStatus(statusOverride);
           }
 
           if (!searchResults.length) {
-            setSearchStatus(rawQuery ? '没有找到匹配的文章。' : '最近更新');
+            if (!statusOverride) {
+              setSearchStatus(rawQuery ? '未找到匹配项' : '暂无内容');
+            }
             searchResultsEl.innerHTML = `
               <div class="search-empty">
-                <p>${rawQuery ? '换个关键词试试，比如标题、标签或一句摘要。' : '还没有可以搜索的文章。'}</p>
+                <p>${rawQuery ? '换个关键词试试，或按 Tab 切换分类、输入 > 执行快捷指令。' : '当前分类下暂无记录。'}</p>
               </div>
             `;
             return;
           }
 
-          setSearchStatus(rawQuery ? `找到 ${searchResults.length} 篇相关文章` : '最近更新');
+          let lastSection = '';
           searchResultsEl.innerHTML = searchResults.map((item, index) => {
-            const summary = item.description || item.excerpt || '打开这篇文章继续阅读。';
-            const tags = (item.tags ?? [])
+            const summary = item.summary || item.description || item.excerpt || '';
+            const chipsHtml = (item.chips || item.tags || [])
               .slice(0, 3)
               .map((tag) => `<span class="search-chip">${escapeHtml(tag)}</span>`)
               .join('');
 
+            const showSection = Boolean(!rawQuery && item.sectionLabel && item.sectionLabel !== lastSection);
+            if (showSection) lastSection = item.sectionLabel;
+            const sectionHeaderHtml = showSection
+              ? `<div class="search-section-header" role="presentation">${escapeHtml(item.sectionLabel)}</div>`
+              : '';
+
+            const badgeHtml = item.badge
+              ? `<span class="search-kind-badge" data-tone="${escapeHtml(item.badgeTone || 'muted')}">${escapeHtml(item.badge)}</span>`
+              : '';
+
+            const progressHtml = typeof item.progressRatio === 'number'
+              ? `<div class="search-resume-track" aria-hidden="true"><span class="search-resume-fill" style="transform:scaleX(${Math.max(0.03, Math.min(1, item.progressRatio)).toFixed(3)})"></span></div>`
+              : '';
+
+            const metaRight = item.metaRight || item.dateLabel || (item.slug ? `/${item.slug}` : '');
+            const isCommandBtn = Boolean(item.actionId && !item.href);
+
+            const innerHtml = `
+              <div class="search-result-top">
+                <div class="search-result-title-row">
+                  ${badgeHtml}
+                  <p class="search-result-title">${escapeHtml(item.title)}</p>
+                </div>
+                <span class="search-result-date">${escapeHtml(metaRight)}</span>
+              </div>
+              <p class="search-result-summary">${escapeHtml(summary)}</p>
+              ${progressHtml}
+              ${chipsHtml ? `<div class="search-result-meta"><div class="search-chip-group">${chipsHtml}</div></div>` : ''}
+            `;
+
+            if (isCommandBtn) {
+              return `
+                ${sectionHeaderHtml}
+                <button
+                  type="button"
+                  class="search-result search-result-btn${index === searchActiveIndex ? ' is-active' : ''}"
+                  data-search-result
+                  data-index="${index}"
+                  data-kind="${escapeHtml(item.kind || 'command')}"
+                  style="--i: ${Math.min(index, 8)}"
+                  aria-selected="${index === searchActiveIndex ? 'true' : 'false'}"
+                >
+                  ${innerHtml}
+                </button>
+              `;
+            }
+
             return `
+              ${sectionHeaderHtml}
               <a
-                href="${escapeHtml(item.href)}"
+                href="${escapeHtml(item.href || '#')}"
                 class="search-result${index === searchActiveIndex ? ' is-active' : ''}"
                 data-search-result
                 data-index="${index}"
-                style="--i: ${index}"
+                data-kind="${escapeHtml(item.kind || 'post')}"
+                style="--i: ${Math.min(index, 8)}"
                 aria-selected="${index === searchActiveIndex ? 'true' : 'false'}"
               >
-                <div class="search-result-top">
-                  <p class="search-result-title">${escapeHtml(item.title)}</p>
-                  <span class="search-result-date">${escapeHtml(item.dateLabel)}</span>
-                </div>
-                <p class="search-result-summary">${escapeHtml(summary)}</p>
-                <div class="search-result-meta">
-                  <div class="search-chip-group">${tags}</div>
-                  <span class="search-result-slug">/${escapeHtml(item.slug)}</span>
-                </div>
+                ${innerHtml}
               </a>
             `;
           }).join('');
@@ -2446,25 +2777,41 @@ const {
           return score;
         }
 
-        function updateSearchResults(resetActive = true) {
+        function updateSearchResults(resetActive = true, immediateGlider = false) {
           if (!searchInput) return;
 
-          const fullQuery = normalizeSearchText(searchInput.value);
-          const tokens = fullQuery.split(/\s+/).filter(Boolean);
+          const bridge = window.__commandPaletteBridge;
+          let statusMessage = '';
+          let effectiveCat = searchSelectedCategory;
 
-          if (!fullQuery) {
-            searchResults = searchItems.slice(0, 6);
+          if (bridge && typeof bridge.runQuery === 'function') {
+            const out = bridge.runQuery(searchInput.value, searchSelectedCategory, searchItems);
+            searchResults = out.items;
+            statusMessage = out.statusText;
+            effectiveCat = out.effectiveCategory;
+            if (searchOverlay) {
+              searchOverlay.setAttribute('data-prefix-mode', out.isCommandPrefix ? 'true' : 'false');
+            }
           } else {
-            searchResults = searchItems
-              .map((item) => ({
-                item,
-                score: scoreSearchItem(item, fullQuery, tokens),
-              }))
-              .filter((entry) => entry.score > 0)
-              .sort((left, right) => right.score - left.score || right.item.publishedAt - left.item.publishedAt)
-              .slice(0, 8)
-              .map((entry) => entry.item);
+            const fullQuery = normalizeSearchText(searchInput.value);
+            const tokens = fullQuery.split(/\s+/).filter(Boolean);
+            if (!fullQuery) {
+              searchResults = searchItems.slice(0, 6);
+            } else {
+              searchResults = searchItems
+                .map((item) => ({
+                  item,
+                  score: scoreSearchItem(item, fullQuery, tokens),
+                }))
+                .filter((entry) => entry.score > 0)
+                .sort((left, right) => right.score - left.score || right.item.publishedAt - left.item.publishedAt)
+                .slice(0, 8)
+                .map((entry) => entry.item);
+            }
+            statusMessage = fullQuery ? `找到 ${searchResults.length} 篇相关文章` : '最近更新';
           }
+
+          syncSearchTabGlider(effectiveCat, immediateGlider);
 
           if (resetActive) {
             searchActiveIndex = searchResults.length ? 0 : -1;
@@ -2472,8 +2819,10 @@ const {
             searchActiveIndex = searchResults.length ? searchResults.length - 1 : -1;
           }
 
-          searchState = 'ready';
-          renderSearchResults();
+          if (searchState !== 'loading' || searchResults.length > 0) {
+            searchState = 'ready';
+          }
+          renderSearchResults(statusMessage);
         }
 
         function ensureSearchIndex(force = false) {
@@ -2540,12 +2889,13 @@ const {
           if (window.lenis) window.lenis.stop();
           document.body.classList.add('search-lock');
           searchOverlay.setAttribute('aria-hidden', 'false');
-          updateSearchResults();
+          updateSearchResults(true, true);
 
           requestAnimationFrame(() => {
             searchOverlay.classList.add('is-open');
             document.body.classList.add('search-open');
             notifyModalState('search', true);
+            syncSearchTabGlider(undefined, true);
             animateSearchModal(true);
           });
 
@@ -3375,7 +3725,40 @@ const {
             updateSearchResults();
           }, { signal });
 
+          searchTabsEl?.addEventListener('click', (event) => {
+            const btn = event.target instanceof Element ? event.target.closest('[data-search-cat]') : null;
+            if (!btn) return;
+            event.preventDefault();
+            const cat = btn.getAttribute('data-search-cat') || 'all';
+            setSearchCategory(cat, true);
+            searchInput.focus({ preventScroll: true });
+          }, { signal });
+
+          searchCmdPrefixBtn?.addEventListener('click', (event) => {
+            event.preventDefault();
+            const cur = searchInput.value.trimStart();
+            if (!cur.startsWith('>') && !cur.startsWith('＞')) {
+              searchInput.value = `> ${cur}`;
+            } else {
+              searchInput.value = cur.slice(1).trimStart();
+            }
+            updateSearchResults(true);
+            searchInput.focus({ preventScroll: true });
+          }, { signal });
+
           searchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Tab') {
+              event.preventDefault();
+              event.stopPropagation();
+              const bridge = window.__commandPaletteBridge;
+              const delta = event.shiftKey ? -1 : 1;
+              const nextCat = bridge && typeof bridge.stepCategory === 'function'
+                ? bridge.stepCategory(searchSelectedCategory, delta)
+                : 'all';
+              setSearchCategory(nextCat, true);
+              return;
+            }
+
             if (event.key === 'ArrowDown') {
               event.preventDefault();
               setActiveSearchResult(searchActiveIndex + 1);
@@ -3390,7 +3773,7 @@ const {
 
             if (event.key === 'Enter' && searchActiveIndex >= 0 && searchResults[searchActiveIndex]) {
               event.preventDefault();
-              window.location.assign(searchResults[searchActiveIndex].href);
+              activateSearchResult(searchActiveIndex, null);
               return;
             }
 
@@ -3409,8 +3792,28 @@ const {
           searchResultsEl.addEventListener('click', (event) => {
             const target = event.target.closest('[data-search-result]');
             if (!target) return;
+            const index = Number(target.getAttribute('data-index'));
+            const item = searchResults[index];
+            if (item && item.actionId && !item.href) {
+              event.preventDefault();
+              activateSearchResult(index, target);
+              return;
+            }
+            if (item && item.href && tryHandleSamePageJump(item.href)) {
+              event.preventDefault();
+              return;
+            }
             closeSearch(false);
           }, { signal });
+
+          const refreshOpenPalette = () => {
+            if (searchOverlay.classList.contains('is-open')) {
+              updateSearchResults(false, true);
+            }
+          };
+          window.addEventListener('reading:synced', refreshOpenPalette, { signal });
+          window.addEventListener('reading:changed', refreshOpenPalette, { signal });
+          window.addEventListener('article-notes:synced', refreshOpenPalette, { signal });
         }
 
         function trapFocusInContainer(container, event) {

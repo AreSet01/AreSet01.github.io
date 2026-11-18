@@ -213,6 +213,7 @@ const DATA_DIR = config.dataDir;
 const ACCOUNTS_FILE = path.join(DATA_DIR, 'accounts.json');
 const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
 const MINDMAPS_FILE = path.join(DATA_DIR, 'mindmaps.json');
+const READING_FILE = path.join(DATA_DIR, 'reading.json');
 const SESSION_COOKIE = 'blog_notes_session';
 const SESSION_TTL_MS = config.sessionDays * 24 * 3600 * 1000;
 const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -246,6 +247,18 @@ const MINDMAP_LIMITS = {
   batch: 50,
   perUser: 500,
 };
+const READING_LIMITS = {
+  id: 180,
+  postSlug: 160,
+  postTitle: 200,
+  headingId: 160,
+  headingText: 180,
+  excerpt: 360,
+  context: 80,
+  note: 280,
+  batch: 200,
+  perUser: 1_000,
+};
 
 try {
   mkdirSync(DATA_DIR, { recursive: true });
@@ -271,6 +284,8 @@ const notesDb = loadJsonFile(NOTES_FILE, { users: {} });
 notesDb.users = notesDb.users && typeof notesDb.users === 'object' ? notesDb.users : {};
 const mindmapsDb = loadJsonFile(MINDMAPS_FILE, { users: {} });
 mindmapsDb.users = mindmapsDb.users && typeof mindmapsDb.users === 'object' ? mindmapsDb.users : {};
+const readingDb = loadJsonFile(READING_FILE, { users: {} });
+readingDb.users = readingDb.users && typeof readingDb.users === 'object' ? readingDb.users : {};
 
 function atomicWriteJson(file, value) {
   const tmp = `${file}.${process.pid}.tmp`;
@@ -652,6 +667,105 @@ function sanitizeNote(raw) {
     timestamp,
     updatedAt,
     deleted: Boolean(raw.deleted),
+  };
+}
+
+// ---------- 阅读进度与手动夹签（夹签续读） ----------
+let readingSaveTimer = null;
+function saveReadingNow() {
+  if (readingSaveTimer) {
+    clearTimeout(readingSaveTimer);
+    readingSaveTimer = null;
+  }
+  try {
+    atomicWriteJson(READING_FILE, readingDb);
+  } catch (err) {
+    console.error(`[ask] 保存阅读书签数据失败: ${err.message}`);
+  }
+}
+function scheduleReadingSave() {
+  if (readingSaveTimer) return;
+  readingSaveTimer = setTimeout(saveReadingNow, 450);
+  readingSaveTimer.unref?.();
+}
+
+function getUserReading(userId) {
+  if (!readingDb.users[userId] || typeof readingDb.users[userId] !== 'object') {
+    readingDb.users[userId] = { rev: 0, entries: {} };
+  }
+  const bucket = readingDb.users[userId];
+  bucket.entries = bucket.entries && typeof bucket.entries === 'object' ? bucket.entries : {};
+  bucket.rev = Number(bucket.rev) || 0;
+  return bucket;
+}
+
+function sanitizeReadingEntry(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const rawSlug = String(raw.postSlug || '').trim().replace(/[?#].*$/, '')
+    .replace(/^\/?(?:posts\/)?/, '')
+    .replace(/\/+$/, '')
+    .slice(0, READING_LIMITS.postSlug);
+  if (!rawSlug || !/^[A-Za-z0-9._/-]+$/.test(rawSlug)) return null;
+
+  const kind = raw.kind === 'bookmark' ? 'bookmark' : 'progress';
+  const clamp01 = (v) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return 0;
+    return Math.max(0, Math.min(1, Math.round(n * 1000) / 1000));
+  };
+  const progress = clamp01(raw.progress);
+  const numberOr = (value, fallback) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+  };
+  const updatedAt = numberOr(raw.updatedAt, Date.now());
+  const postTitle = (String(raw.postTitle || '').replace(/\s+/g, ' ').trim() || rawSlug).slice(0, READING_LIMITS.postTitle);
+  const headingId = String(raw.headingId || '').replace(/\s+/g, ' ').trim().slice(0, READING_LIMITS.headingId);
+  const headingText = String(raw.headingText || '').replace(/\s+/g, ' ').trim().slice(0, READING_LIMITS.headingText);
+  const deleted = Boolean(raw.deleted);
+
+  if (kind === 'progress') {
+    const id = `prog:${rawSlug}`;
+    const completed = Boolean(raw.completed) || progress >= 0.95;
+    const dismissedRaw = Number(raw.dismissedProgress);
+    return {
+      id,
+      kind: 'progress',
+      postSlug: rawSlug,
+      postTitle,
+      progress,
+      headingId,
+      headingText,
+      completed,
+      ...(Number.isFinite(dismissedRaw) ? { dismissedProgress: clamp01(dismissedRaw) } : {}),
+      updatedAt,
+      deleted,
+    };
+  }
+
+  const id = String(raw.id || '').trim();
+  if (!id || id.length > 80 || !/^[A-Za-z0-9_:-]+$/.test(id)) return null;
+  const createdAt = numberOr(raw.createdAt, updatedAt);
+  const excerpt = (String(raw.excerpt || '').replace(/\s+/g, ' ').trim() || headingText || '此处夹签').slice(0, READING_LIMITS.excerpt);
+  const prefix = String(raw.prefix || '').replace(/\s+/g, ' ').trim().slice(0, READING_LIMITS.context);
+  const suffix = String(raw.suffix || '').replace(/\s+/g, ' ').trim().slice(0, READING_LIMITS.context);
+  const note = String(raw.note || '').replace(/\s+/g, ' ').trim().slice(0, READING_LIMITS.note);
+
+  return {
+    id,
+    kind: 'bookmark',
+    postSlug: rawSlug,
+    postTitle,
+    progress,
+    headingId,
+    headingText,
+    excerpt,
+    ...(prefix ? { prefix } : {}),
+    ...(suffix ? { suffix } : {}),
+    ...(note ? { note } : {}),
+    createdAt,
+    updatedAt,
+    deleted,
   };
 }
 
@@ -1381,7 +1495,107 @@ async function handleAuth(req, res, pathname) {
 
 // ---------- /api/notes/* ----------
 
+async function handleReading(req, res, subPath) {
+  const user = currentUser(req);
+  if (!user) return sendJson(res, 401, { error: '未登录' });
+  const method = req.method || 'GET';
+  if (method !== 'GET' && !sameOrigin(req)) {
+    return sendJson(res, 403, { error: '请求来源不合法' });
+  }
+
+  const bucket = getUserReading(user.id);
+
+  if (subPath === '/export' && method === 'GET') {
+    const items = Object.values(bucket.entries)
+      .filter((e) => !e.deleted)
+      .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+    return sendJson(res, 200, {
+      ok: true,
+      rev: bucket.rev,
+      entries: items,
+    });
+  }
+
+  if (subPath === '/status' && method === 'GET') {
+    const urlObj = new URL(req.url || '/', 'http://localhost');
+    const since = Math.max(0, Number(urlObj.searchParams.get('since')) || 0);
+    const allItems = Object.values(bucket.entries);
+    const activeItems = allItems.filter((e) => !e.deleted);
+    const incomingChanges = allItems.filter((e) => Number(e.serverRev) > since);
+    return sendJson(res, 200, {
+      ok: true,
+      rev: bucket.rev,
+      totalCount: activeItems.length,
+      incomingCount: incomingChanges.length,
+      updatedAt: Math.max(0, ...allItems.map((e) => Number(e.updatedAt) || 0)),
+    });
+  }
+
+  if (subPath === '/sync' && method === 'POST') {
+    let body;
+    try {
+      body = await readJson(req, 1024 * 1024);
+    } catch {
+      return sendJson(res, 400, { error: '请求数据过大或格式有误' });
+    }
+
+    const since = Math.max(0, Number(body?.since) || 0);
+    const incoming = Array.isArray(body?.changes) ? body.changes.slice(0, READING_LIMITS.batch) : [];
+    const forced = new Set();
+    let dirty = false;
+
+    for (const raw of incoming) {
+      const clean = sanitizeReadingEntry(raw);
+      if (!clean) continue;
+      const existing = bucket.entries[clean.id];
+      if (!existing) {
+        if (Object.keys(bucket.entries).length >= READING_LIMITS.perUser) {
+          return sendJson(res, 413, { error: `阅读书签上限 ${READING_LIMITS.perUser} 条` });
+        }
+        bucket.entries[clean.id] = { ...clean, serverRev: ++bucket.rev };
+        dirty = true;
+        continue;
+      }
+      if (Number(existing.updatedAt) > Number(clean.updatedAt)) {
+        forced.add(clean.id);
+        continue;
+      }
+      if (
+        Number(existing.updatedAt) === Number(clean.updatedAt) &&
+        Boolean(existing.deleted) === Boolean(clean.deleted)
+      ) {
+        continue;
+      }
+      bucket.entries[clean.id] = { ...clean, serverRev: ++bucket.rev };
+      dirty = true;
+    }
+
+    if (dirty) scheduleReadingSave();
+
+    const allChanges = Object.values(bucket.entries)
+      .filter((e) => Number(e.serverRev) > since || forced.has(e.id))
+      .sort((a, b) => Number(a.serverRev) - Number(b.serverRev));
+    const changes = allChanges.slice(0, 800);
+    const hasMore = changes.length < allChanges.length;
+    const nextRev = hasMore && changes.length
+      ? Number(changes[changes.length - 1].serverRev)
+      : bucket.rev;
+
+    return sendJson(res, 200, {
+      ok: true,
+      rev: nextRev,
+      hasMore,
+      changes,
+    });
+  }
+
+  return sendJson(res, 404, { error: 'not found' });
+}
+
 async function handleNotes(req, res, pathname) {
+  if (pathname.startsWith('/api/notes/reading/')) {
+    return handleReading(req, res, pathname.slice('/api/notes/reading'.length));
+  }
   const user = currentUser(req);
   if (!user) return sendJson(res, 401, { error: '未登录' });
   const method = req.method || 'GET';
@@ -1876,6 +2090,14 @@ const server = http.createServer((req, res) => {
     });
   }
 
+  if (pathname.startsWith('/api/reading/')) {
+    return handleReading(req, res, pathname.slice('/api/reading'.length)).catch((error) => {
+      log('reading crash:', error?.stack || error);
+      if (!res.headersSent) sendJson(res, 500, { error: '服务出错了' });
+      else res.end();
+    });
+  }
+
   if (pathname.startsWith('/api/mindmaps/')) {
     return handleMindmaps(req, res, pathname).catch((error) => {
       log('mindmaps crash:', error?.stack || error);
@@ -1908,6 +2130,7 @@ const shutdown = () => {
   saveAnswers();
   saveNotesNow();
   saveMindmapsNow();
+  saveReadingNow();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 2000).unref();
 };

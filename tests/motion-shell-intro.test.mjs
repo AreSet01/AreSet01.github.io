@@ -118,7 +118,8 @@ describe('Motion Shell & Intro Artisan Upgrade Suite (60–120fps 零掉帧宣�
       '导航项 pointermove 内严禁调用 getBoundingClientRect 或 offsetHeight 引发强制同步回流'
     );
     assert.match(navCtrlCode, /metricMap = new WeakMap/, '导航游标必须通过预缓存几何表驱动');
-    assert.match(header, /\.glass-nav \.nav-link::before/, '导航悬停项应具备纯合成器笔触轻染层');
+    assert.match(header, /\.glass-nav \.nav-magnetic-glider/, '导航悬停与激活项由纯合成器朱砂飞白游标指示，无冗余背景框');
+    assert.match(header, /\.glass-nav \.nav-link::before,\s*\.glass-nav \.nav-link::after\s*\{\s*display:\s*none\s*!important;/, '导航链接保持纯文本无背景框极简排版');
     assert.match(header, /function scheduleCursorFrame\(\)/, '鼠标水墨拖尾与圆圈指针必须通过单一 rAF 合帧调度');
     assert.match(header, /__areSetMobileDrawerCleanup__/, '移动端抽屉必须遵循幂等销毁生命周期');
 

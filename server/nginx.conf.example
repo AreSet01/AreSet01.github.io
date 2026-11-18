@@ -51,8 +51,8 @@ server {
     gzip_types text/css application/javascript application/json image/svg+xml text/plain;
     gzip_min_length 1024;
 
-    # ---------- 划词问答、控制台、账号与笔记/导图同步接口 ----------
-    location ~ ^/api/(ask|settings(/.*)?|auth(/.*)?|notes(/.*)?|mindmaps(/.*)?)$ {
+    # ---------- 划词问答、控制台、账号与笔记/导图/书签同步接口 ----------
+    location ~ ^/api/(ask|settings(/.*)?|auth(/.*)?|notes(/.*)?|mindmaps(/.*)?|reading(/.*)?)$ {
         proxy_pass http://127.0.0.1:8787;
         proxy_http_version 1.1;
         proxy_set_header Host $host;

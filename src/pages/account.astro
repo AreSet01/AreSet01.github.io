@@ -10,7 +10,7 @@ import Header from '../components/Header.astro';
       <header class="account-head">
         <p class="account-kicker">Account / Sync</p>
         <h1 class="account-title">账号与数据同步</h1>
-        <p class="account-desc">登录后，划词笔记、备注、「存入笔记」的墨问回答与思维导图都会跨设备同步。未登录时仅保存在本机。</p>
+        <p class="account-desc">登录后，划词笔记、备注、「存入笔记」的墨问回答、思维导图与「夹签续读」阅读进度都会跨设备同步。未登录时仅保存在本机。</p>
       </header>
 
       <div id="authView" class="account-card">
@@ -171,9 +171,11 @@ import Header from '../components/Header.astro';
 <script>
   import { initNotesSync } from '../utils/notesSync';
   import { initMindmapSync } from '../utils/mindmapSync';
+  import { initReadingSync } from '../utils/readingSync';
 
   initNotesSync();
   initMindmapSync();
+  initReadingSync();
 
   const CLEANUP_KEY = '__areSetAccountCleanup__';
   const LISTENER_KEY = '__areSetAccountPageBound__';
@@ -379,6 +381,7 @@ import Header from '../components/Header.astro';
     async function refreshSyncStatus() {
       const notesSync = (window as any).__notesSync;
       const mindmapsSync = (window as any).__mindmapsSync;
+      const readingSync = (window as any).__readingSync;
       const syncBadge = $('syncBadge');
       const syncBadgeText = $('syncBadgeText');
       const syncStatus = $('syncStatus');
@@ -398,9 +401,10 @@ import Header from '../components/Header.astro';
       }
 
       try {
-        const [notesSt, mmSt] = await Promise.all([
+        const [notesSt, mmSt, rdSt] = await Promise.all([
           notesSync.checkSyncStatus(),
           mindmapsSync?.checkSyncStatus ? mindmapsSync.checkSyncStatus() : Promise.resolve(null),
+          readingSync?.checkSyncStatus ? readingSync.checkSyncStatus() : Promise.resolve(null),
         ]);
         if (!notesSt.ok) {
           if (syncBadge) syncBadge.setAttribute('data-state', notesSt.state || 'error');
@@ -410,10 +414,10 @@ import Header from '../components/Header.astro';
           return;
         }
 
-        const totalPending = Number(notesSt.pendingCount || 0) + Number(mmSt?.pendingCount || 0);
-        const totalIncoming = Number(notesSt.incomingCount || 0) + Number(mmSt?.incomingCount || 0);
+        const totalPending = Number(notesSt.pendingCount || 0) + Number(mmSt?.pendingCount || 0) + Number(rdSt?.pendingCount || 0);
+        const totalIncoming = Number(notesSt.incomingCount || 0) + Number(mmSt?.incomingCount || 0) + Number(rdSt?.incomingCount || 0);
         const ahead = totalPending > 0;
-        const behind = totalIncoming > 0 || notesSt.state === 'behind' || notesSt.state === 'diverged' || mmSt?.state === 'behind' || mmSt?.state === 'diverged';
+        const behind = totalIncoming > 0 || notesSt.state === 'behind' || notesSt.state === 'diverged' || mmSt?.state === 'behind' || mmSt?.state === 'diverged' || rdSt?.state === 'behind' || rdSt?.state === 'diverged';
         const combinedState = ahead && behind ? 'diverged' : ahead ? 'ahead' : behind ? 'behind' : 'latest';
 
         const stateLabels: Record<string, string> = {
@@ -434,15 +438,16 @@ import Header from '../components/Header.astro';
         setSyncInkFlowState(combinedState === 'latest' ? 'synced' : 'idle');
         if (syncStatus) {
           syncStatus.textContent = combinedState === 'latest'
-            ? '笔记与思维导图均已是最新，与云端完全同步'
-            : `待提交 ${totalPending} 项（笔记 ${notesSt.pendingCount} / 导图 ${mmSt?.pendingCount || 0}）· 待拉取 ${totalIncoming} 项`;
+            ? '笔记、思维导图与夹签进度均已是最新，与云端完全同步'
+            : `待提交 ${totalPending} 项（笔记 ${notesSt.pendingCount} / 导图 ${mmSt?.pendingCount || 0} / 夹签 ${rdSt?.pendingCount || 0}）· 待拉取 ${totalIncoming} 项`;
         }
 
-        const lastSyncAt = Math.max(Number(notesSt.lastSyncAt || 0), Number(mmSt?.lastSyncAt || 0));
+        const lastSyncAt = Math.max(Number(notesSt.lastSyncAt || 0), Number(mmSt?.lastSyncAt || 0), Number(rdSt?.lastSyncAt || 0));
         const lastTime = lastSyncAt ? new Date(lastSyncAt).toLocaleString('zh-CN') : '从未同步';
-        const mmRev = mmSt?.ok ? ` · 导图 rev: r${mmSt.localRev}/r${mmSt.serverRev}` : '';
+        const mmRev = mmSt?.ok ? ` · 导图: r${mmSt.localRev}/r${mmSt.serverRev}` : '';
+        const rdRev = rdSt?.ok ? ` · 夹签: r${rdSt.localRev}/r${rdSt.serverRev}` : '';
         if (syncDetail) {
-          syncDetail.textContent = `笔记: r${notesSt.localRev}/r${notesSt.serverRev}${mmRev} · 待提交: ${totalPending} · 待拉取: ${totalIncoming} · 上次同步: ${lastTime}`;
+          syncDetail.textContent = `笔记: r${notesSt.localRev}/r${notesSt.serverRev}${mmRev}${rdRev} · 待提交: ${totalPending} · 待拉取: ${totalIncoming} · 上次同步: ${lastTime}`;
         }
 
         if (pushPendingTag) {
@@ -530,6 +535,7 @@ import Header from '../components/Header.astro';
         await Promise.all([
           (window as any).__notesSync?.syncNow?.({ migrate: true }),
           (window as any).__mindmapsSync?.syncNow?.({ migrate: true }),
+          (window as any).__readingSync?.syncNow?.({ migrate: true }),
         ]);
         await refreshSyncStatus();
       } finally {
@@ -565,6 +571,7 @@ import Header from '../components/Header.astro';
         await Promise.all([
           (window as any).__notesSync?.syncNow?.({ migrate: true }),
           (window as any).__mindmapsSync?.syncNow?.({ migrate: true }),
+          (window as any).__readingSync?.syncNow?.({ migrate: true }),
         ]);
         await refreshSyncStatus();
       } finally {
@@ -594,6 +601,7 @@ import Header from '../components/Header.astro';
     $('pushSyncBtn')?.addEventListener('click', async () => {
       const notesSync = (window as any).__notesSync;
       const mindmapsSync = (window as any).__mindmapsSync;
+      const readingSync = (window as any).__readingSync;
       if (!notesSync || typeof notesSync.pushSync !== 'function') {
         setFeedback('同步模块尚未加载', 'error');
         return;
@@ -601,20 +609,21 @@ import Header from '../components/Header.astro';
       const btn = $('pushSyncBtn') as HTMLButtonElement | null;
       if (btn) btn.disabled = true;
       setSyncInkFlowState('pushing');
-      setFeedback('正在呈送本地笔记与导图至云端藏书阁…', 'info');
+      setFeedback('正在呈送本地笔记、导图与夹签至云端藏书阁…', 'info');
       try {
-        const [nRes, mRes] = await Promise.all([
+        const [nRes, mRes, rRes] = await Promise.all([
           notesSync.pushSync(),
           mindmapsSync?.pushSync ? mindmapsSync.pushSync() : Promise.resolve({ ok: true, pushedCount: 0 }),
+          readingSync?.pushSync ? readingSync.pushSync() : Promise.resolve({ ok: true, pushedCount: 0 }),
         ]);
-        if (nRes.ok && mRes.ok) {
-          const totalPushed = (nRes.pushedCount || 0) + (mRes.pushedCount || 0);
-          setFeedback(totalPushed > 0 ? `✓ 提交完成（笔记 ${nRes.pushedCount || 0} 条 · 导图 ${mRes.pushedCount || 0} 张）` : '本地暂无待提交的更改（已最新）', 'ok');
+        if (nRes.ok && mRes.ok && rRes.ok) {
+          const totalPushed = (nRes.pushedCount || 0) + (mRes.pushedCount || 0) + (rRes.pushedCount || 0);
+          setFeedback(totalPushed > 0 ? `✓ 提交完成（笔记 ${nRes.pushedCount || 0} · 导图 ${mRes.pushedCount || 0} · 夹签 ${rRes.pushedCount || 0}）` : '本地暂无待提交的更改（已最新）', 'ok');
           await refreshSyncStatus();
           triggerSealVerificationRitual('呈送钤印');
         } else {
           setSyncInkFlowState('error');
-          setFeedback(`提交失败：${(!nRes.ok ? nRes.reason : mRes.reason) || '网络错误'}`, 'error');
+          setFeedback(`提交失败：${(!nRes.ok ? nRes.reason : !mRes.ok ? mRes.reason : rRes.reason) || '网络错误'}`, 'error');
         }
       } catch (err: any) {
         setSyncInkFlowState('error');
@@ -627,6 +636,7 @@ import Header from '../components/Header.astro';
     $('pullSyncBtn')?.addEventListener('click', async () => {
       const notesSync = (window as any).__notesSync;
       const mindmapsSync = (window as any).__mindmapsSync;
+      const readingSync = (window as any).__readingSync;
       if (!notesSync || typeof notesSync.pullSync !== 'function') {
         setFeedback('同步模块尚未加载', 'error');
         return;
@@ -634,20 +644,21 @@ import Header from '../components/Header.astro';
       const btn = $('pullSyncBtn') as HTMLButtonElement | null;
       if (btn) btn.disabled = true;
       setSyncInkFlowState('pulling');
-      setFeedback('正在从云端藏书阁采撷最新笔记与导图…', 'info');
+      setFeedback('正在从云端藏书阁采撷最新笔记、导图与夹签…', 'info');
       try {
-        const [nRes, mRes] = await Promise.all([
+        const [nRes, mRes, rRes] = await Promise.all([
           notesSync.pullSync(),
           mindmapsSync?.pullSync ? mindmapsSync.pullSync() : Promise.resolve({ ok: true, pulledCount: 0 }),
+          readingSync?.pullSync ? readingSync.pullSync() : Promise.resolve({ ok: true, pulledCount: 0 }),
         ]);
-        if (nRes.ok && mRes.ok) {
-          const totalPulled = (nRes.pulledCount || 0) + (mRes.pulledCount || 0);
-          setFeedback(totalPulled > 0 ? `✓ 拉取完成（笔记 ${nRes.pulledCount || 0} 条 · 导图 ${mRes.pulledCount || 0} 张）` : '✓ 云端暂无新内容，本地已是最新', 'ok');
+        if (nRes.ok && mRes.ok && rRes.ok) {
+          const totalPulled = (nRes.pulledCount || 0) + (mRes.pulledCount || 0) + (rRes.pulledCount || 0);
+          setFeedback(totalPulled > 0 ? `✓ 拉取完成（笔记 ${nRes.pulledCount || 0} · 导图 ${mRes.pulledCount || 0} · 夹签 ${rRes.pulledCount || 0}）` : '✓ 云端暂无新内容，本地已是最新', 'ok');
           await refreshSyncStatus();
           triggerSealVerificationRitual('采撷钤印');
         } else {
           setSyncInkFlowState('error');
-          setFeedback(`拉取失败：${(!nRes.ok ? nRes.reason : mRes.reason) || '网络错误'}`, 'error');
+          setFeedback(`拉取失败：${(!nRes.ok ? nRes.reason : !mRes.ok ? mRes.reason : rRes.reason) || '网络错误'}`, 'error');
         }
       } catch (err: any) {
         setSyncInkFlowState('error');
@@ -660,6 +671,7 @@ import Header from '../components/Header.astro';
     $('syncNowBtn')?.addEventListener('click', async () => {
       const notesSync = (window as any).__notesSync;
       const mindmapsSync = (window as any).__mindmapsSync;
+      const readingSync = (window as any).__readingSync;
       if (!notesSync || typeof notesSync.syncNow !== 'function') {
         setFeedback('同步模块尚未加载', 'error');
         return;
@@ -669,20 +681,21 @@ import Header from '../components/Header.astro';
       setSyncInkFlowState('bidirectional');
       setFeedback('正在进行云墨流转双向全量同步…', 'info');
       try {
-        const [nRes, mRes] = await Promise.all([
+        const [nRes, mRes, rRes] = await Promise.all([
           notesSync.syncNow({ migrate: true }),
           mindmapsSync?.syncNow ? mindmapsSync.syncNow({ migrate: true }) : Promise.resolve({ ok: true, pushedCount: 0, pulledCount: 0 }),
+          readingSync?.syncNow ? readingSync.syncNow({ migrate: true }) : Promise.resolve({ ok: true, pushedCount: 0, pulledCount: 0 }),
         ]);
-        if (nRes.ok && mRes.ok) {
+        if (nRes.ok && mRes.ok && rRes.ok) {
           setFeedback(
-            `✓ 双向同步完成（提交 笔记${nRes.pushedCount || 0}/导图${mRes.pushedCount || 0}，拉取 笔记${nRes.pulledCount || 0}/导图${mRes.pulledCount || 0}）`,
+            `✓ 双向同步完成（提交 笔记${nRes.pushedCount || 0}/导图${mRes.pushedCount || 0}/夹签${rRes.pushedCount || 0}，拉取 笔记${nRes.pulledCount || 0}/导图${mRes.pulledCount || 0}/夹签${rRes.pulledCount || 0}）`,
             'ok'
           );
           await refreshSyncStatus();
           triggerSealVerificationRitual('双向契合');
         } else {
           setSyncInkFlowState('error');
-          setFeedback(`同步失败：${(!nRes.ok ? nRes.reason : mRes.reason) || '网络错误'}`, 'error');
+          setFeedback(`同步失败：${(!nRes.ok ? nRes.reason : !mRes.ok ? mRes.reason : rRes.reason) || '网络错误'}`, 'error');
         }
       } catch (err: any) {
         setSyncInkFlowState('error');

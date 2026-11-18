@@ -210,58 +210,37 @@ const noteNumber = String(index + 1).padStart(2, '0');
     opacity: 0.75;
   }
 
-  /* 3. 卡片边缘「行书起收笔墨线」渐显反馈 */
+  /* 3. 卡片边缘「行书起收笔墨线」渐显反馈（贴合外框 12px 圆角，自左上角弧线起笔并向双边飞白渐隐） */
   .paper-card-inkframe {
+    position: absolute;
+    inset: -1px;
+    border-radius: 12px;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .paper-card-inkframe::before {
+    content: '';
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    pointer-events: none;
-    z-index: 1;
-    overflow: hidden;
-  }
-
-  .paper-card-inkframe::before,
-  .paper-card-inkframe::after {
-    content: '';
-    position: absolute;
-    pointer-events: none;
-    transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1), opacity 360ms var(--ease);
+    border: 1.5px solid var(--vermilion);
+    -webkit-mask-image: radial-gradient(ellipse 76% 58% at 0% 0%, #000 0%, rgba(0, 0, 0, 0.78) 40%, transparent 86%);
+    mask-image: radial-gradient(ellipse 76% 58% at 0% 0%, #000 0%, rgba(0, 0, 0, 0.78) 40%, transparent 86%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    clip-path: inset(0 84% 84% 0 round 12px);
     opacity: 0;
-  }
-
-  /* 顶部横锋：起笔浓、收笔飞白渐隐 */
-  .paper-card-inkframe::before {
-    top: 0;
-    left: 0.85rem;
-    right: 2.4rem;
-    height: 1.5px;
-    background: linear-gradient(90deg, var(--vermilion) 0%, var(--accent) 42%, transparent 100%);
-    transform: scaleX(0);
-    transform-origin: left center;
-  }
-
-  /* 左缘竖锋：自左上折笔垂落 */
-  .paper-card-inkframe::after {
-    top: 0.85rem;
-    bottom: 1.8rem;
-    left: 0;
-    width: 2px;
-    background: linear-gradient(180deg, var(--vermilion) 0%, var(--accent) 48%, transparent 100%);
-    transform: scaleY(0);
-    transform-origin: center top;
+    pointer-events: none;
+    transition:
+      clip-path 480ms cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 300ms var(--ease);
   }
 
   .note-card.paper-card:hover .paper-card-inkframe::before,
   .note-card.paper-card:focus-within .paper-card-inkframe::before {
-    transform: scaleX(1);
-    opacity: 0.86;
-  }
-
-  .note-card.paper-card:hover .paper-card-inkframe::after,
-  .note-card.paper-card:focus-within .paper-card-inkframe::after {
-    transform: scaleY(1);
-    opacity: 0.78;
-    transition-delay: 45ms;
+    clip-path: inset(0 0% 0% 0 round 12px);
+    opacity: 0.9;
   }
 
   /* 4. 朱砂角印：悬停时如钤印轻落右下留白处 */
@@ -365,7 +344,6 @@ const noteNumber = String(index + 1).padStart(2, '0');
     .paper-card-elevation,
     .paper-card-sheen,
     .paper-card-inkframe::before,
-    .paper-card-inkframe::after,
     .paper-card-seal,
     .paper-read-cta::after,
     .paper-tag-chip,

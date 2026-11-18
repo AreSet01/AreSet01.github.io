@@ -230,7 +230,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
                 id="mm-article-filter-input"
                 aria-label="过滤关联文章"
                 placeholder="过滤关联文章..."
-                class="w-full bg-[var(--bg-soft)] border border-[var(--rule)] text-xs rounded-full pl-7 pr-2.5 py-1.5 text-[var(--text-strong)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--ink-strong)]"
+                class="w-full bg-[var(--bg-soft)] border border-[var(--rule)] text-xs rounded-full pl-7 pr-2.5 py-1.5 text-[var(--text-strong)] placeholder-[var(--muted)] focus:outline-none focus-visible:outline-none focus:border-[var(--ink-strong)]"
               />
             </div>
             <div class="max-h-60 overflow-y-auto space-y-1 text-xs" id="mm-article-filter-list" role="listbox" aria-label="关联文章清单"></div>
@@ -708,6 +708,51 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   .article-popover.is-open { transform: scale(1) translateY(0); opacity: 1; }
   .article-popover.is-closed { transform: scale(0.94) translateY(-8px); opacity: 0; pointer-events: none; visibility: hidden; }
 
+  :global(#mm-article-filter-input:focus),
+  :global(#mm-article-filter-input:focus-visible) {
+    outline: none !important;
+  }
+
+  :global(.mm-article-item-row) {
+    position: relative;
+    background: transparent;
+    color: var(--muted-strong);
+    transition: color 180ms var(--ease);
+    cursor: pointer;
+  }
+  :global(.mm-article-item-row)::after {
+    content: '';
+    position: absolute;
+    left: 0.625rem;
+    right: 0.625rem;
+    bottom: 0;
+    height: 1.5px;
+    background: linear-gradient(90deg, var(--vermilion) 0%, var(--accent) 48%, transparent 100%);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms var(--ease);
+  }
+  :global(.mm-article-item-row):hover,
+  :global(.mm-article-item-row):focus-visible {
+    color: var(--text-strong);
+    outline: none;
+  }
+  :global(.mm-article-item-row):hover::after,
+  :global(.mm-article-item-row):focus-visible::after {
+    transform: scaleX(1);
+    opacity: 0.68;
+  }
+  :global(.mm-article-item-row.active) {
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+  :global(.mm-article-item-row.active)::after {
+    transform: scaleX(1);
+    opacity: 0.95;
+  }
+
   .modal-overlay {
     background: rgba(0, 0, 0, 0.48);
     backdrop-filter: blur(10px);
@@ -781,7 +826,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     left: 0;
     width: 100px;
     transform-origin: 0 50%;
-    border-radius: var(--pill-rx, 9999px) / 9999px;
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px);
     background: var(--ink-strong);
     z-index: 1;
     pointer-events: none;
@@ -1395,7 +1440,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     left: 0;
     width: 100px;
     transform-origin: 0 50%;
-    border-radius: var(--pill-rx, 9999px) / 9999px;
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px);
     background: var(--ink-strong);
     z-index: 1;
     pointer-events: none;
@@ -2337,6 +2382,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     .mm-minimap,
     .mm-hold-pulse,
     :global(.mm-cselect-opt),
+    :global(.mm-article-item-row),
+    :global(.mm-article-item-row)::after,
     :global(.mm-collapse-btn),
     :global(.mm-card-action-btn),
     :global(.mm-card),
@@ -2745,10 +2792,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         subtabsGlider.style.opacity = '0';
         return;
       }
-      const sx = Math.max(0.05, activeBtn.offsetWidth / 100);
-      const halfH = Math.max(8, activeBtn.offsetHeight * 0.5);
+      const w = activeBtn.offsetWidth;
+      const h = subtabsGlider.offsetHeight || activeBtn.offsetHeight;
+      const sx = Math.max(0.05, w / 100);
+      const halfR = Math.min(w, h) * 0.5;
       subtabsGlider.style.opacity = '1';
-      subtabsGlider.style.setProperty('--pill-rx', `${(halfH / sx).toFixed(2)}px`);
+      subtabsGlider.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
+      subtabsGlider.style.setProperty('--pill-ry', `${halfR.toFixed(2)}px`);
       subtabsGlider.style.transform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
     }
 
@@ -3041,9 +3091,12 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const glider = container.querySelector<HTMLElement>('.mm-seg-glider');
       const activeBtn = container.querySelector<HTMLElement>('.mm-seg-btn.is-active');
       if (!glider || !activeBtn || !activeBtn.offsetWidth) return;
-      const sx = Math.max(0.05, activeBtn.offsetWidth / 100);
-      const halfH = Math.max(8, activeBtn.offsetHeight * 0.5);
-      glider.style.setProperty('--pill-rx', `${(halfH / sx).toFixed(2)}px`);
+      const w = activeBtn.offsetWidth;
+      const h = glider.offsetHeight || activeBtn.offsetHeight;
+      const sx = Math.max(0.05, w / 100);
+      const halfR = Math.min(w, h) * 0.5;
+      glider.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
+      glider.style.setProperty('--pill-ry', `${halfR.toFixed(2)}px`);
       const nextTransform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
       if (immediate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         glider.style.transition = 'none';
@@ -3219,10 +3272,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         : matched
             .map(
               (r) => `
-              <button type="button" data-mm-art="${escapeHtml(r.slug)}" class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left transition cursor-pointer ${
-                filterPostSlug === r.slug
-                  ? 'bg-[var(--ink-strong)] text-[var(--bg-base)] font-semibold'
-                  : 'hover:bg-[var(--bg-soft)] text-[var(--text-strong)]'
+              <button type="button" data-mm-art="${escapeHtml(r.slug)}" class="mm-article-item-row w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-left ${
+                filterPostSlug === r.slug ? 'active' : ''
               }">
                 <span class="truncate">${escapeHtml(r.label)}</span>
                 <span class="text-[0.68rem] opacity-70 shrink-0">${r.count}</span>
@@ -6667,10 +6718,50 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     container.removeAttribute('data-enter-hold');
 
     try {
-      const reopenMapId = sessionStorage.getItem('areSet_reopen_mindmap_id');
-      if (reopenMapId) {
-        sessionStorage.removeItem('areSet_reopen_mindmap_id');
-        requestAnimationFrame(() => openWorkbench(reopenMapId, false));
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryMapId = urlParams.get('map');
+      const queryNodeId = urlParams.get('node');
+      const queryCreateNew = urlParams.get('new') === '1';
+
+      if (queryMapId || queryCreateNew) {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('map');
+        cleanUrl.searchParams.delete('node');
+        cleanUrl.searchParams.delete('new');
+        window.history.replaceState(window.history.state, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+      }
+
+      if (queryCreateNew) {
+        requestAnimationFrame(() => createAndOpenNewMap());
+      } else if (queryMapId) {
+        requestAnimationFrame(() => {
+          openWorkbench(queryMapId, false);
+          if (queryNodeId && activeMap) {
+            const expandPath = (cur: MindMapNode): boolean => {
+              if (cur.id === queryNodeId) return true;
+              for (const child of cur.children || []) {
+                if (expandPath(child)) {
+                  cur.collapsed = false;
+                  return true;
+                }
+              }
+              return false;
+            };
+            if (expandPath(activeMap.root)) {
+              requestAnimationFrame(() => {
+                if (!activeMap) return;
+                renderCanvasAndOutline(true);
+                setSelection([queryNodeId], queryNodeId);
+              });
+            }
+          }
+        });
+      } else {
+        const reopenMapId = sessionStorage.getItem('areSet_reopen_mindmap_id');
+        if (reopenMapId) {
+          sessionStorage.removeItem('areSet_reopen_mindmap_id');
+          requestAnimationFrame(() => openWorkbench(reopenMapId, false));
+        }
       }
     } catch {}
 

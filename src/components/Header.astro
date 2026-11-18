@@ -1623,49 +1623,7 @@ import gsap from 'gsap';
       transition: color 220ms ease !important;
     }
 
-    /* 悬停与激活项：宣纸水墨轻染笔触（纯 GPU scaleX + opacity，零边框零重排） */
-    .glass-nav .nav-link::before {
-      content: '';
-      position: absolute;
-      left: -0.35rem;
-      right: -0.15rem;
-      top: 0.15rem;
-      bottom: 0.15rem;
-      border-radius: 5px;
-      background: linear-gradient(
-        90deg,
-        color-mix(in srgb, var(--ink-strong, #000) 7%, transparent) 0%,
-        transparent 92%
-      );
-      opacity: 0;
-      transform: scaleX(0.45);
-      transform-origin: left center;
-      pointer-events: none;
-      z-index: -1;
-      transition:
-        transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
-        opacity 220ms cubic-bezier(0.22, 1, 0.36, 1);
-    }
-
-    [data-theme="moss"] .glass-nav .nav-link::before {
-      background: linear-gradient(
-        90deg,
-        rgba(255, 241, 244, 0.16) 0%,
-        transparent 92%
-      );
-    }
-
-    .glass-nav .nav-link:hover::before,
-    .glass-nav .nav-link:focus-visible::before {
-      opacity: 1;
-      transform: scaleX(1);
-    }
-
-    .glass-nav .nav-link.is-active::before {
-      opacity: 0.62;
-      transform: scaleX(0.88);
-    }
-
+    .glass-nav .nav-link::before,
     .glass-nav .nav-link::after {
       display: none !important;
     }
@@ -1898,7 +1856,7 @@ import gsap from 'gsap';
   }
 
   @media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
-    .glass-nav, .site-shell, .site-shell > main, .glass-nav .nav-link::before, .glass-nav .nav-magnetic-glider {
+    .glass-nav, .site-shell, .site-shell > main, .glass-nav .nav-magnetic-glider {
       transition: none !important;
     }
     html[data-sidebar-collapsed="true"] .sidebar-expand-btn {

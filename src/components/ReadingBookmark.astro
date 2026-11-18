@@ -1,0 +1,1221 @@
+---
+// ReadingBookmark.astro — 「夹签续读」阅读进度记忆、竹签续读浮条与一文多签管理面板
+---
+
+<!-- 1. 重返未读完长文时的「竹签续读」轻浮条 -->
+<aside
+  id="reading-resume-slip"
+  class="reading-resume-slip"
+  hidden
+  role="status"
+  aria-live="polite"
+  aria-label="继续上次阅读位置"
+  data-lenis-prevent
+>
+  <span class="resume-slip-spine" aria-hidden="true"></span>
+  <div class="resume-slip-body">
+    <div class="resume-slip-eyebrow">
+      <span class="resume-slip-tag">夹签续读</span>
+      <span class="resume-slip-pct" data-resume-pct>0%</span>
+    </div>
+    <p class="resume-slip-heading" data-resume-heading>上次阅读位置</p>
+    <div class="resume-slip-progress-track" aria-hidden="true">
+      <span class="resume-slip-progress-fill" data-resume-bar></span>
+    </div>
+  </div>
+  <div class="resume-slip-actions">
+    <button
+      type="button"
+      class="resume-slip-jump-btn"
+      data-resume-jump
+      title="平滑滚动至上次停留位置"
+    >
+      <span>续读</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 12h14"></path>
+        <path d="m12 5 7 7-7 7"></path>
+      </svg>
+    </button>
+    <button
+      type="button"
+      class="resume-slip-close-btn"
+      data-resume-dismiss
+      aria-label="忽略本次续读提示"
+      title="收起提示"
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+  </div>
+</aside>
+
+<!-- 2. 一文多签管理浮笺（从目录栏「夹签」或快捷键唤起） -->
+<div
+  id="reading-bookmarks-popover"
+  class="reading-bookmarks-popover"
+  hidden
+  role="dialog"
+  aria-label="本文书签夹签列表"
+  data-lenis-prevent
+>
+  <span class="rbm-brush-head" aria-hidden="true"></span>
+  <div class="rbm-header">
+    <div class="rbm-title-group">
+      <span class="rbm-kicker">Bamboo Slips</span>
+      <strong class="rbm-title">本文夹签</strong>
+    </div>
+    <div class="rbm-header-actions">
+      <button
+        type="button"
+        class="rbm-add-current-btn"
+        data-rbm-add-current
+        title="在当前阅读位置夹入一枚书签 (快捷键 B)"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
+          <line x1="12" y1="7" x2="12" y2="13"></line>
+          <line x1="9" y1="10" x2="15" y2="10"></line>
+        </svg>
+        <span>夹签此处</span>
+        <kbd class="rbm-kbd">B</kbd>
+      </button>
+      <button
+        type="button"
+        class="rbm-close-btn"
+        data-rbm-close
+        aria-label="关闭夹签列表"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="rbm-list" data-rbm-list></div>
+</div>
+
+<!-- 3. 轻量竹签反馈微提示 -->
+<div id="reading-bookmark-toast" class="reading-bookmark-toast" hidden role="status" aria-live="polite">
+  <span class="rbm-toast-dot" aria-hidden="true"></span>
+  <span data-rbm-toast-text>已夹入书签</span>
+</div>
+
+<style>
+  .reading-resume-slip {
+    position: fixed;
+    right: 26px;
+    bottom: 78px;
+    z-index: 84;
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    max-width: min(23.5rem, calc(100vw - 32px));
+    padding: 0.72rem 0.82rem 0.72rem 0.95rem;
+    border-radius: 10px;
+    border: 1px solid var(--rule-strong);
+    background: var(--bg-elev);
+    color: var(--text-strong);
+    overflow: hidden;
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.98);
+    clip-path: inset(0 0 0 0 round 10px);
+    pointer-events: none;
+    transition:
+      opacity 260ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .reading-resume-slip::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: var(--glass-shadow-lg);
+    pointer-events: none;
+    opacity: 0.92;
+  }
+
+  .reading-resume-slip.is-visible {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    pointer-events: auto;
+  }
+
+  .resume-slip-spine {
+    position: absolute;
+    left: 0;
+    top: 10px;
+    bottom: 10px;
+    width: 2.5px;
+    border-radius: 0 2px 2px 0;
+    background: linear-gradient(180deg, var(--vermilion, #b83b28) 0%, var(--ink-strong, #18181b) 100%);
+  }
+
+  .resume-slip-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .resume-slip-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  .resume-slip-tag {
+    color: var(--vermilion, var(--accent));
+    font-weight: 700;
+  }
+
+  .resume-slip-pct {
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+
+  .resume-slip-heading {
+    margin: 0;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--text-strong);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .resume-slip-progress-track {
+    width: 100%;
+    height: 2px;
+    margin-top: 0.15rem;
+    border-radius: 999px;
+    background: var(--rule);
+    overflow: hidden;
+  }
+
+  .resume-slip-progress-fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--vermilion, var(--accent));
+    transform-origin: left center;
+    transform: scaleX(0);
+    transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .resume-slip-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .resume-slip-jump-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    padding: 0.36rem 0.68rem;
+    border-radius: 999px;
+    border: 1px solid var(--ink-strong);
+    background: var(--ink-strong);
+    color: var(--bg-base);
+    font-size: 0.74rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .resume-slip-jump-btn:hover {
+    opacity: 0.88;
+  }
+
+  .resume-slip-jump-btn:active {
+    transform: scale(0.96);
+  }
+
+  .resume-slip-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 180ms ease, border-color 180ms ease;
+  }
+
+  .resume-slip-close-btn:hover {
+    color: var(--text-strong);
+    border-color: var(--rule);
+  }
+
+  /* 本文夹签管理浮笺 */
+  .reading-bookmarks-popover {
+    position: fixed;
+    top: 4.8rem;
+    right: max(1.25rem, calc((100vw - 54rem) * 0.5));
+    z-index: 95;
+    width: min(22.5rem, calc(100vw - 24px));
+    max-height: min(68vh, 26rem);
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    border: 1px solid var(--rule-strong);
+    background: var(--bg-elev);
+    overflow: hidden;
+    opacity: 0;
+    transform: translate3d(0, -6px, 0) scale(0.97);
+    clip-path: inset(0 0 100% 0 round 12px);
+    pointer-events: none;
+    transition:
+      opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 230ms cubic-bezier(0.22, 1, 0.36, 1),
+      clip-path 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .reading-bookmarks-popover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: var(--glass-shadow-lg);
+    pointer-events: none;
+  }
+
+  .reading-bookmarks-popover.is-open {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    clip-path: inset(0 0 0 0 round 12px);
+    pointer-events: auto;
+  }
+
+  .rbm-brush-head {
+    position: absolute;
+    top: 0;
+    left: 10px;
+    right: 10px;
+    height: 1.5px;
+    background: linear-gradient(90deg, var(--vermilion, #b83b28) 0%, var(--ink-strong) 28%, transparent 100%);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1) 30ms;
+    pointer-events: none;
+  }
+
+  .reading-bookmarks-popover.is-open .rbm-brush-head {
+    transform: scaleX(1);
+  }
+
+  .rbm-header {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.8rem 0.9rem 0.68rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .rbm-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .rbm-kicker {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+
+  .rbm-title {
+    font-size: 0.88rem;
+    color: var(--text-strong);
+  }
+
+  .rbm-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .rbm-add-current-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.58rem;
+    border-radius: 999px;
+    border: 1px solid var(--rule-strong);
+    background: var(--bg-soft);
+    color: var(--text-strong);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 180ms ease, color 180ms ease, transform 150ms ease;
+  }
+
+  .rbm-add-current-btn:hover {
+    border-color: var(--ink-strong);
+  }
+
+  .rbm-add-current-btn:active {
+    transform: scale(0.96);
+  }
+
+  .rbm-kbd {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    padding: 0.05rem 0.28rem;
+    border-radius: 3px;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+  }
+
+  .rbm-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 999px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 180ms ease;
+  }
+
+  .rbm-close-btn:hover {
+    color: var(--text-strong);
+  }
+
+  .rbm-list {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 0.45rem;
+    gap: 0.25rem;
+  }
+
+  .rbm-list :global(.rbm-empty) {
+    padding: 1.4rem 0.9rem;
+    text-align: center;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  .rbm-list :global(.rbm-item) {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.58rem 0.65rem 0.58rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 180ms ease, transform 180ms ease;
+  }
+
+  .rbm-list :global(.rbm-item::before) {
+    content: '';
+    position: absolute;
+    left: 0.3rem;
+    top: 0.68rem;
+    bottom: 0.68rem;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--vermilion, var(--accent));
+    opacity: 0.45;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .rbm-list :global(.rbm-item:hover) {
+    border-color: var(--rule-strong);
+    transform: translate3d(2px, 0, 0);
+  }
+
+  .rbm-list :global(.rbm-item:hover::before) {
+    opacity: 1;
+  }
+
+  .rbm-list :global(.rbm-item-main) {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    text-align: left;
+    color: inherit;
+  }
+
+  .rbm-list :global(.rbm-item-meta) {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    color: var(--muted);
+  }
+
+  .rbm-list :global(.rbm-item-pct) {
+    color: var(--vermilion, var(--accent));
+    font-weight: 700;
+  }
+
+  .rbm-list :global(.rbm-item-heading) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rbm-list :global(.rbm-item-excerpt) {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.48;
+    color: var(--text-strong);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .rbm-list :global(.rbm-item-del) {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    opacity: 0.65;
+    transition: opacity 160ms ease, color 160ms ease;
+  }
+
+  .rbm-list :global(.rbm-item-del:hover) {
+    opacity: 1;
+    color: var(--vermilion, #ef4444);
+  }
+
+  /* 夹签成功轻提示 */
+  .reading-bookmark-toast {
+    position: fixed;
+    bottom: 84px;
+    left: 50%;
+    z-index: 108;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.44rem 0.88rem;
+    border-radius: 999px;
+    border: 1px solid var(--rule-strong);
+    background: var(--bg-elev);
+    color: var(--text-strong);
+    font-size: 0.78rem;
+    font-weight: 600;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate3d(-50%, 8px, 0) scale(0.96);
+    transition:
+      opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .reading-bookmark-toast.is-visible {
+    opacity: 1;
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+
+  .rbm-toast-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--vermilion, var(--accent));
+  }
+
+  /* 正文目标段落落签脉冲 */
+  :global(.rbm-target-flash) {
+    animation: rbmBlockFlash 1100ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes rbmBlockFlash {
+    0% { background-color: rgba(184, 59, 40, 0.14); }
+    100% { background-color: transparent; }
+  }
+
+  /* 标题入场挂起或移动端选区托盘展开时避让 */
+  :global(html.js-enter) .reading-resume-slip,
+  :global(html[data-post-title-hold="true"]) .reading-resume-slip,
+  :global(body:has(article[data-post-title-hold="true"])) .reading-resume-slip,
+  :global(body.has-selection-dock-open) .reading-resume-slip {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translate3d(0, 12px, 0) scale(0.98) !important;
+  }
+
+  @media (max-width: 640px) {
+    .reading-resume-slip {
+      left: 16px;
+      right: 16px;
+      bottom: calc(66px + env(safe-area-inset-bottom, 0px));
+      max-width: none;
+    }
+    .rbm-kbd {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reading-resume-slip,
+    .resume-slip-progress-fill,
+    .reading-bookmarks-popover,
+    .rbm-brush-head,
+    .reading-bookmark-toast,
+    .rbm-list :global(.rbm-item) {
+      transition: none !important;
+      animation: none !important;
+    }
+    :global(.rbm-target-flash) {
+      animation: none !important;
+    }
+  }
+</style>
+
+<script>
+  import {
+    addManualBookmark,
+    dismissReadingResume,
+    formatProgressPercent,
+    getArticleBookmarks,
+    getArticleReadingProgress,
+    normalizeReadingSlug,
+    removeManualBookmark,
+    shouldPromptResume,
+    upsertReadingProgress,
+    type ManualBookmarkRecord,
+  } from '../utils/readingBookmarkEngine';
+  import { initReadingSync } from '../utils/readingSync';
+
+  initReadingSync();
+
+  const CLEANUP_KEY = '__areSetReadingBookmarkCleanup__';
+  const LISTENER_KEY = '__areSetReadingBookmarkBound__';
+
+  function escapeHtml(raw: string): string {
+    return String(raw ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function initReadingBookmark() {
+    (window as any)[CLEANUP_KEY]?.();
+
+    const prose = document.querySelector<HTMLElement>('[data-post-prose]');
+    const article = document.querySelector<HTMLElement>('article');
+    if (!prose || !article) return;
+
+    const postSlug = normalizeReadingSlug(window.location.pathname);
+    if (!postSlug) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    const slip = document.getElementById('reading-resume-slip');
+    const slipPctEl = slip?.querySelector<HTMLElement>('[data-resume-pct]');
+    const slipHeadingEl = slip?.querySelector<HTMLElement>('[data-resume-heading]');
+    const slipBarEl = slip?.querySelector<HTMLElement>('[data-resume-bar]');
+    const slipJumpBtn = slip?.querySelector<HTMLButtonElement>('[data-resume-jump]');
+    const slipDismissBtn = slip?.querySelector<HTMLButtonElement>('[data-resume-dismiss]');
+
+    const popover = document.getElementById('reading-bookmarks-popover');
+    const popoverList = popover?.querySelector<HTMLElement>('[data-rbm-list]');
+    const popoverAddBtn = popover?.querySelector<HTMLButtonElement>('[data-rbm-add-current]');
+    const popoverCloseBtn = popover?.querySelector<HTMLButtonElement>('[data-rbm-close]');
+
+    const toast = document.getElementById('reading-bookmark-toast');
+    const toastText = toast?.querySelector<HTMLElement>('[data-rbm-toast-text]');
+
+    const getPostTitle = () =>
+      document.querySelector<HTMLElement>('[data-post-title]')?.textContent?.trim() ||
+      document.title.replace(/\s*[-·|].*$/, '').trim() ||
+      postSlug;
+
+    const isPostLocked = () => article.getAttribute('data-locked-post') === 'true';
+    const prefersReducedMotion = () =>
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+    // ---------- 预缓存几何坐标（零 scroll 同步回流） ----------
+    interface CachedHeading {
+      id: string;
+      text: string;
+      docTop: number;
+    }
+    let proseDocTop = 0;
+    let proseHeight = 1;
+    let viewportH = window.innerHeight || 800;
+    let cachedHeadings: CachedHeading[] = [];
+
+    function measureLayout() {
+      if (!prose.isConnected || isPostLocked()) return;
+      viewportH = window.innerHeight || 800;
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      const rect = prose.getBoundingClientRect();
+      proseDocTop = rect.top + scrollY;
+      proseHeight = Math.max(1, rect.height);
+
+      const headingNodes = prose.querySelectorAll<HTMLElement>('h2[id], h3[id]');
+      const next: CachedHeading[] = [];
+      headingNodes.forEach((h) => {
+        const hr = h.getBoundingClientRect();
+        next.push({
+          id: h.id,
+          text: (h.textContent || '').replace(/\s+/g, ' ').trim(),
+          docTop: hr.top + scrollY,
+        });
+      });
+      cachedHeadings = next;
+    }
+
+    const ro = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => measureLayout())
+      : null;
+    ro?.observe(prose);
+    window.addEventListener('resize', measureLayout, { passive: true, signal });
+
+    function computeCurrentPosition(): { progress: number; headingId: string; headingText: string } {
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      const anchorLine = scrollY + viewportH * 0.28;
+      const maxScrollable = Math.max(1, proseHeight - viewportH * 0.55);
+      const rawProgress = (anchorLine - proseDocTop) / maxScrollable;
+      const progress = Math.max(0, Math.min(1, rawProgress));
+
+      let headingId = '';
+      let headingText = '';
+      for (let i = cachedHeadings.length - 1; i >= 0; i -= 1) {
+        if (cachedHeadings[i].docTop <= anchorLine + 48) {
+          headingId = cachedHeadings[i].id;
+          headingText = cachedHeadings[i].text;
+          break;
+        }
+      }
+      return { progress, headingId, headingText };
+    }
+
+    // ---------- 轻提示与角标同步 ----------
+    let toastHideTimer = 0;
+    let toastHiddenTimer = 0;
+    function showToast(msg: string) {
+      if (!toast || !toastText) return;
+      window.clearTimeout(toastHideTimer);
+      window.clearTimeout(toastHiddenTimer);
+      toastText.textContent = msg;
+      toast.hidden = false;
+      requestAnimationFrame(() => {
+        toast.classList.add('is-visible');
+      });
+      toastHideTimer = window.setTimeout(() => {
+        toast.classList.remove('is-visible');
+        toastHiddenTimer = window.setTimeout(() => {
+          toast.hidden = true;
+        }, 230);
+      }, 1850);
+    }
+
+    function updateBookmarkBadges() {
+      const list = getArticleBookmarks(postSlug);
+      document.querySelectorAll<HTMLElement>('[data-bookmarks-count]').forEach((el) => {
+        el.textContent = String(list.length);
+      });
+      if (popover && !popover.hidden) {
+        renderPopoverList(list);
+      }
+    }
+
+    // ---------- 平滑定位到进度 / 书签 ----------
+    function scrollToTarget(opts: {
+      progress: number;
+      headingId?: string;
+      excerpt?: string;
+    }) {
+      measureLayout();
+      let targetEl: HTMLElement | null = null;
+
+      // 1. 若有摘录，优先在正文块中精准匹配该段落
+      if (opts.excerpt && opts.excerpt.length >= 4) {
+        const needle = opts.excerpt.slice(0, 48).replace(/\s+/g, ' ').trim();
+        const blocks = prose.querySelectorAll<HTMLElement>('p, li, pre, blockquote, h2, h3, h4, tr');
+        for (const block of blocks) {
+          const txt = (block.textContent || '').replace(/\s+/g, ' ');
+          if (txt.includes(needle)) {
+            targetEl = block;
+            break;
+          }
+        }
+      }
+
+      // 2. 退而匹配小节标题（若进度就在小节开头附近）
+      if (!targetEl && opts.headingId && !opts.excerpt) {
+        const headingEl = document.getElementById(opts.headingId);
+        if (headingEl && prose.contains(headingEl)) {
+          const scrollY = window.scrollY || 0;
+          const headingDocTop = headingEl.getBoundingClientRect().top + scrollY;
+          const ratioDocTop = proseDocTop + opts.progress * Math.max(1, proseHeight - viewportH * 0.55);
+          if (Math.abs(ratioDocTop - headingDocTop) < viewportH * 0.75) {
+            targetEl = headingEl;
+          }
+        }
+      }
+
+      const immediate = prefersReducedMotion();
+      const lenis = (window as any).lenis;
+
+      if (targetEl) {
+        const scrollY = window.scrollY || 0;
+        const destY = Math.max(0, targetEl.getBoundingClientRect().top + scrollY - 96);
+        if (lenis && typeof lenis.scrollTo === 'function') {
+          lenis.scrollTo(destY, { duration: immediate ? 0 : 0.75, immediate });
+        } else {
+          window.scrollTo({ top: destY, behavior: immediate ? 'auto' : 'smooth' });
+        }
+        const flashEl = targetEl;
+        window.setTimeout(() => {
+          flashEl.classList.remove('rbm-target-flash');
+          void flashEl.offsetWidth;
+          flashEl.classList.add('rbm-target-flash');
+        }, immediate ? 0 : 420);
+        return;
+      }
+
+      const maxScrollable = Math.max(1, proseHeight - viewportH * 0.55);
+      const destY = Math.max(0, proseDocTop + opts.progress * maxScrollable - viewportH * 0.24);
+      if (lenis && typeof lenis.scrollTo === 'function') {
+        lenis.scrollTo(destY, { duration: immediate ? 0 : 0.75, immediate });
+      } else {
+        window.scrollTo({ top: destY, behavior: immediate ? 'auto' : 'smooth' });
+      }
+    }
+
+    // ---------- 「竹签续读」浮条控制 ----------
+    let slipAutoHideTimer = 0;
+    let slipCloseTimer = 0;
+    const savedOnEnter = getArticleReadingProgress(postSlug);
+
+    function hideResumeSlip() {
+      if (!slip || slip.hidden) return;
+      window.clearTimeout(slipAutoHideTimer);
+      slip.classList.remove('is-visible');
+      window.clearTimeout(slipCloseTimer);
+      slipCloseTimer = window.setTimeout(() => {
+        if (slip) slip.hidden = true;
+      }, prefersReducedMotion() ? 0 : 280);
+    }
+
+    function showResumeSlipIfEligible() {
+      if (!slip || isPostLocked()) return;
+      const urlParams = new URLSearchParams(window.location.search);
+      const hash = window.location.hash;
+
+      // 若通过 ?bm=xxx 指定跳转到某枚手动夹签
+      const bmId = urlParams.get('bm');
+      if (bmId) {
+        const bm = getArticleBookmarks(postSlug).find((b) => b.id === bmId);
+        if (bm) {
+          window.setTimeout(() => scrollToTarget(bm), 280);
+        }
+        return;
+      }
+
+      // 若从 ⌘K「最近在读」点击进入 (?resume=1)，直接平滑送达上次位置
+      if (urlParams.get('resume') === '1' && savedOnEnter) {
+        window.setTimeout(() => {
+          scrollToTarget({
+            progress: savedOnEnter.progress,
+            headingId: savedOnEnter.headingId,
+          });
+          showToast(`已续读至 ${formatProgressPercent(savedOnEnter.progress)}%`);
+        }, 280);
+        return;
+      }
+
+      // 已有锚点或笔记深链时不叠加续读浮条
+      if (hash || urlParams.get('noteId')) return;
+      if (!shouldPromptResume(savedOnEnter) || !savedOnEnter) return;
+
+      const pct = formatProgressPercent(savedOnEnter.progress);
+      if (slipPctEl) slipPctEl.textContent = `${pct}%`;
+      if (slipHeadingEl) {
+        slipHeadingEl.textContent = savedOnEnter.headingText
+          ? `上次读至《${savedOnEnter.headingText}》`
+          : `上次读至全文 ${pct}% 处`;
+      }
+      if (slipBarEl) {
+        slipBarEl.style.transform = `scaleX(${Math.max(0.04, Math.min(1, savedOnEnter.progress)).toFixed(3)})`;
+      }
+
+      slip.hidden = false;
+      requestAnimationFrame(() => {
+        slip.classList.add('is-visible');
+      });
+
+      slipAutoHideTimer = window.setTimeout(() => {
+        hideResumeSlip();
+      }, 9500);
+    }
+
+    slipJumpBtn?.addEventListener('click', () => {
+      if (!savedOnEnter) return;
+      hideResumeSlip();
+      scrollToTarget({
+        progress: savedOnEnter.progress,
+        headingId: savedOnEnter.headingId,
+      });
+    }, { signal });
+
+    slipDismissBtn?.addEventListener('click', () => {
+      dismissReadingResume(postSlug);
+      hideResumeSlip();
+    }, { signal });
+
+    // ---------- 自动阅读进度采样与节流落盘 ----------
+    let scrollRaf = 0;
+    let saveDebounceTimer = 0;
+    let armedForTracking = false;
+    const armTimer = window.setTimeout(() => {
+      measureLayout();
+      armedForTracking = true;
+    }, 1400);
+
+    function persistCurrentProgress() {
+      if (!armedForTracking || isPostLocked()) return;
+      const { progress, headingId, headingText } = computeCurrentPosition();
+      // 读者主动深入滚动超过已存位置或刚超过 4% 时，自动收起未点的续读条
+      if (slip && !slip.hidden && savedOnEnter && progress > savedOnEnter.progress + 0.06) {
+        hideResumeSlip();
+      }
+      upsertReadingProgress({
+        postSlug,
+        postTitle: getPostTitle(),
+        progress,
+        headingId,
+        headingText,
+      });
+    }
+
+    window.addEventListener('scroll', () => {
+      if (!armedForTracking || isPostLocked()) return;
+      if (!scrollRaf) {
+        scrollRaf = window.requestAnimationFrame(() => {
+          scrollRaf = 0;
+          window.clearTimeout(saveDebounceTimer);
+          saveDebounceTimer = window.setTimeout(persistCurrentProgress, 900);
+        });
+      }
+    }, { passive: true, signal });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) persistCurrentProgress();
+    }, { signal });
+    window.addEventListener('pagehide', persistCurrentProgress, { signal });
+
+    // ---------- 手动夹签（支持选区夹签 & 视口当前段落夹签） ----------
+    function captureViewportParagraphExcerpt(): string {
+      const targetY = Math.min(window.innerHeight * 0.34, 280);
+      const blocks = prose.querySelectorAll<HTMLElement>('p, li, blockquote, pre, h2, h3');
+      let best: HTMLElement | null = null;
+      let bestDist = Infinity;
+      for (const el of blocks) {
+        const r = el.getBoundingClientRect();
+        if (r.height <= 0 || r.bottom < 40 || r.top > window.innerHeight - 40) continue;
+        const dist = Math.abs(r.top - targetY);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = el;
+        }
+      }
+      const txt = (best?.textContent || '').replace(/\s+/g, ' ').trim();
+      return txt.slice(0, 140);
+    }
+
+    function addBookmarkAtSelectionOrViewport(custom?: {
+      excerpt?: string;
+      headingId?: string;
+      headingText?: string;
+      prefix?: string;
+      suffix?: string;
+    }): ManualBookmarkRecord | null {
+      if (isPostLocked()) return null;
+      measureLayout();
+      const pos = computeCurrentPosition();
+      const excerpt = (custom?.excerpt || '').trim() || captureViewportParagraphExcerpt() || pos.headingText || '正文书签';
+      const record = addManualBookmark({
+        postSlug,
+        postTitle: getPostTitle(),
+        progress: pos.progress,
+        headingId: custom?.headingId || pos.headingId,
+        headingText: custom?.headingText || pos.headingText,
+        excerpt,
+        prefix: custom?.prefix,
+        suffix: custom?.suffix,
+      });
+      if (record) {
+        updateBookmarkBadges();
+        showToast(`已夹入书签 · ${formatProgressPercent(record.progress)}%`);
+      }
+      return record;
+    }
+
+    // ---------- 夹签管理浮笺列表渲染 ----------
+    let popoverCloseTimer = 0;
+    function renderPopoverList(items = getArticleBookmarks(postSlug)) {
+      if (!popoverList) return;
+      if (items.length === 0) {
+        popoverList.innerHTML = `
+          <div class="rbm-empty">
+            本文暂未夹签。<br/>阅读时按 <kbd>B</kbd> 或划词点击「夹签」，即可在此留存多处书签。
+          </div>
+        `;
+        return;
+      }
+
+      popoverList.innerHTML = items.map((bm) => {
+        const pct = formatProgressPercent(bm.progress);
+        const sec = bm.headingText ? `§ ${escapeHtml(bm.headingText)}` : '正文段落';
+        return `
+          <div class="rbm-item" data-rbm-id="${escapeHtml(bm.id)}">
+            <button type="button" class="rbm-item-main" data-rbm-jump="${escapeHtml(bm.id)}">
+              <span class="rbm-item-meta">
+                <span class="rbm-item-pct">${pct}%</span>
+                <span class="rbm-item-heading">${sec}</span>
+              </span>
+              <p class="rbm-item-excerpt">${escapeHtml(bm.excerpt)}</p>
+            </button>
+            <button type="button" class="rbm-item-del" data-rbm-del="${escapeHtml(bm.id)}" aria-label="移除此书签" title="移除书签">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openBookmarksPopover(anchorEl?: HTMLElement | null) {
+      if (!popover) return;
+      window.clearTimeout(popoverCloseTimer);
+      renderPopoverList();
+      if (anchorEl && window.innerWidth >= 640) {
+        const r = anchorEl.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+          const top = Math.min(window.innerHeight - 320, Math.max(64, r.bottom + 8));
+          const right = Math.max(16, window.innerWidth - r.right);
+          popover.style.top = `${Math.round(top)}px`;
+          popover.style.right = `${Math.round(right)}px`;
+        }
+      }
+      popover.hidden = false;
+      requestAnimationFrame(() => {
+        popover.classList.add('is-open');
+      });
+    }
+
+    function closeBookmarksPopover() {
+      if (!popover || popover.hidden) return;
+      popover.classList.remove('is-open');
+      window.clearTimeout(popoverCloseTimer);
+      popoverCloseTimer = window.setTimeout(() => {
+        if (popover) popover.hidden = true;
+      }, prefersReducedMotion() ? 0 : 220);
+    }
+
+    function toggleBookmarksPopover(anchorEl?: HTMLElement | null) {
+      if (!popover) return;
+      if (!popover.hidden && popover.classList.contains('is-open')) {
+        closeBookmarksPopover();
+      } else {
+        openBookmarksPopover(anchorEl);
+      }
+    }
+
+    document.querySelectorAll<HTMLElement>('[data-article-bookmarks-trigger]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleBookmarksPopover(btn);
+      }, { signal });
+    });
+
+    popoverAddBtn?.addEventListener('click', () => {
+      addBookmarkAtSelectionOrViewport();
+    }, { signal });
+
+    popoverCloseBtn?.addEventListener('click', () => {
+      closeBookmarksPopover();
+    }, { signal });
+
+    popoverList?.addEventListener('click', (e) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (!target) return;
+      const delBtn = target.closest<HTMLElement>('[data-rbm-del]');
+      if (delBtn) {
+        e.stopPropagation();
+        const id = delBtn.dataset.rbmDel || '';
+        if (removeManualBookmark(id)) {
+          updateBookmarkBadges();
+          showToast('已移除书签');
+        }
+        return;
+      }
+      const jumpBtn = target.closest<HTMLElement>('[data-rbm-jump]');
+      if (jumpBtn) {
+        const id = jumpBtn.dataset.rbmJump || '';
+        const bm = getArticleBookmarks(postSlug).find((b) => b.id === id);
+        if (bm) {
+          closeBookmarksPopover();
+          scrollToTarget(bm);
+        }
+      }
+    }, { signal });
+
+    document.addEventListener('pointerdown', (e) => {
+      if (!popover || popover.hidden) return;
+      const t = e.target instanceof Element ? e.target : null;
+      if (t && (popover.contains(t) || t.closest('[data-article-bookmarks-trigger]'))) return;
+      closeBookmarksPopover();
+    }, { signal });
+
+    // 全局快捷键 B：当不在输入框、模态框且划词托盘未接管时，一键在当前视口段落夹签
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && popover && !popover.hidden) {
+        closeBookmarksPopover();
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.tagName === 'SELECT' ||
+          (activeEl as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+      if (
+        document.body.classList.contains('has-selection-dock-open') ||
+        document.body.classList.contains('search-open') ||
+        document.body.classList.contains('image-view-open') ||
+        document.body.classList.contains('mermaid-modal-open')
+      ) {
+        return;
+      }
+      let key = e.key.toUpperCase();
+      if ((key === 'PROCESS' || key === 'UNIDENTIFIED') && /^Key[A-Z]$/.test(e.code)) {
+        key = e.code.slice(3);
+      }
+      if (key === 'B') {
+        e.preventDefault();
+        addBookmarkAtSelectionOrViewport();
+      }
+    }, { signal });
+
+    // 云端同步或外部修改后刷新角标
+    window.addEventListener('reading:synced', updateBookmarkBadges, { signal });
+    window.addEventListener('reading:changed', updateBookmarkBadges, { signal });
+    window.addEventListener('post-unlocked', () => {
+      measureLayout();
+      showResumeSlipIfEligible();
+    }, { signal });
+
+    // 暴露给 ArticleSelectionDock 与 ⌘K 命令面板联动调用
+    (window as any).__readingBookmarks = {
+      bookmarkSelection: (payload?: {
+        excerpt?: string;
+        headingId?: string;
+        headingText?: string;
+        prefix?: string;
+        suffix?: string;
+      }) => addBookmarkAtSelectionOrViewport(payload),
+      openPopover: () => openBookmarksPopover(document.querySelector<HTMLElement>('[data-article-bookmarks-trigger]')),
+      jumpToBookmark: (id: string) => {
+        const bm = getArticleBookmarks(postSlug).find((b) => b.id === id);
+        if (bm) scrollToTarget(bm);
+      },
+      resumeProgress: () => {
+        const prog = getArticleReadingProgress(postSlug);
+        if (prog) scrollToTarget({ progress: prog.progress, headingId: prog.headingId });
+      },
+      getBookmarks: () => getArticleBookmarks(postSlug),
+    };
+
+    measureLayout();
+    updateBookmarkBadges();
+
+    // 等待标题书法入场释放后再温和呈现续读条
+    const startSlipTimer = window.setTimeout(() => {
+      measureLayout();
+      showResumeSlipIfEligible();
+    }, 520);
+
+    (window as any)[CLEANUP_KEY] = () => {
+      persistCurrentProgress();
+      controller.abort();
+      ro?.disconnect();
+      if (scrollRaf) window.cancelAnimationFrame(scrollRaf);
+      window.clearTimeout(armTimer);
+      window.clearTimeout(startSlipTimer);
+      window.clearTimeout(saveDebounceTimer);
+      window.clearTimeout(slipAutoHideTimer);
+      window.clearTimeout(slipCloseTimer);
+      window.clearTimeout(popoverCloseTimer);
+      window.clearTimeout(toastHideTimer);
+      window.clearTimeout(toastHiddenTimer);
+      (window as any).__readingBookmarks = undefined;
+      (window as any)[CLEANUP_KEY] = undefined;
+    };
+
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+    }, { signal });
+  }
+
+  initReadingBookmark();
+  if (!(window as any)[LISTENER_KEY]) {
+    document.addEventListener('astro:page-load', initReadingBookmark);
+    (window as any)[LISTENER_KEY] = true;
+  }
+</script>
