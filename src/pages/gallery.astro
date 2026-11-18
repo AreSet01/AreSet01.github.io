@@ -731,7 +731,7 @@ const countByCategory = {
     width: 3.2rem;
     height: 1.5px;
     border-radius: 999px;
-    background: linear-gradient(90deg, color-mix(in srgb, #c84b31 70%, var(--accent)), transparent);
+    background: linear-gradient(90deg, var(--ink-strong), transparent);
     transform: scaleX(0.32);
     transform-origin: left center;
     opacity: 0.38;
@@ -2089,7 +2089,7 @@ const countByCategory = {
         closeBtn?.focus?.({ preventScroll: true });
       }
 
-      // 笔墨点染印章水花
+      // 笔墨点染水墨微澜
       (window as any).__inkSplash?.(window.innerWidth / 2, window.innerHeight / 2, 16);
     }
 

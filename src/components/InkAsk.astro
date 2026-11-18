@@ -1,6 +1,6 @@
 ---
 // InkAsk.astro — 墨问 · AI 伴读与划词问答
-// 1. 在正文里选中一段 → 选区末尾钤出「问」→ 墨圈圈出，卡片流式写出通俗生动的解答，支持拖拽移动窗口。
+// 1. 在正文里选中一段 → 选区末尾浮出「墨问」圆钮 → 墨圈圈出，卡片流式写出通俗生动的解答，支持拖拽移动窗口。
 // 2. 右上角常驻「墨问 AI」伴读按钮 → 点击滑出右侧全文伴读侧边栏，支持多轮深入探讨。
 // 3. 服务端是 server/ask.mjs。
 ---
@@ -143,7 +143,7 @@
     seal = document.createElement('button');
     seal.type = 'button';
     seal.className = 'ink-ask-seal';
-    seal.innerHTML = '<span class="ink-ask-seal-glyph" aria-hidden="true">问</span>';
+    seal.innerHTML = ASK_BRAND_ICON;
     seal.title = '问问 AI（通俗解释）';
     seal.setAttribute('aria-label', '问 AI：通俗解释选中的内容');
     seal.addEventListener('pointerdown', (event) => {
@@ -2483,7 +2483,7 @@
 </script>
 
 <style is:global>
-  /* ---------- 划词「问」字朱砂印章（钤落微震 + 双层墨环荡开，零动态 blur） ---------- */
+  /* ---------- 划词悬浮墨问圆钮（单色细线 SVG + 圆润胶囊 + 双层水纹墨环荡开，零动态 blur） ---------- */
   .ink-ask-seal {
     position: absolute;
     top: 0;
@@ -2494,12 +2494,12 @@
     width: 34px;
     height: 34px;
     padding: 0;
-    border: 1.5px solid rgba(var(--vermilion-rgb, 194, 63, 44), 0.72);
-    border-radius: 9px;
+    border: 1.5px solid rgba(var(--vermilion-rgb, 0, 0, 0), 0.42);
+    border-radius: 9999px;
     background: var(--bg-elev);
     color: var(--vermilion);
     line-height: 1;
-    box-shadow: 0 6px 18px var(--ink-mist), inset 0 0 0 1px rgba(var(--vermilion-rgb, 194, 63, 44), 0.14);
+    box-shadow: 0 6px 18px var(--ink-mist), inset 0 1px 0 rgba(255, 255, 255, 0.35);
     transform: none;
     touch-action: manipulation;
     user-select: none;
@@ -2511,14 +2511,6 @@
       border-color 180ms ease,
       background 180ms ease,
       color 180ms ease;
-  }
-  .ink-ask-seal-glyph {
-    font-family: var(--font-hand-title, var(--font-serif));
-    font-size: 1.05rem;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: 0;
-    transform: translateY(-0.5px);
   }
   .ink-ask-seal.is-shown {
     display: grid;
@@ -2538,9 +2530,9 @@
   .ink-ask-seal::after {
     content: '';
     position: absolute;
-    inset: -3px;
+    inset: -2px;
     border: 1px solid var(--vermilion);
-    border-radius: 11px;
+    border-radius: 9999px;
     opacity: 0;
     pointer-events: none;
   }
@@ -2548,7 +2540,7 @@
     animation: ink-ask-splash 360ms var(--article-ease-surface) 20ms both;
   }
   .ink-ask-seal.is-popping::after {
-    border-radius: 999px;
+    border-radius: 9999px;
     animation: ink-ask-splash 460ms var(--article-ease-surface) 70ms both;
   }
 
@@ -3002,7 +2994,7 @@
     opacity: 1;
     color: var(--vermilion);
     background: var(--vermilion-soft);
-    border-color: rgba(var(--vermilion-rgb, 194, 63, 44), 0.22);
+    border-color: rgba(var(--vermilion-rgb, 0, 0, 0), 0.22);
   }
   .ink-ask-q-recall:active {
     transform: scale(0.95);
@@ -3548,7 +3540,7 @@
     cursor: pointer;
     white-space: nowrap;
     user-select: none;
-    box-shadow: 0 2px 8px rgba(var(--vermilion-rgb, 194, 63, 44), 0.18);
+    box-shadow: 0 2px 8px rgba(var(--vermilion-rgb, 0, 0, 0), 0.14);
     animation: inkAskRecallPulse 2s ease-in-out infinite;
     transition: transform 160ms ease, background 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
   }
@@ -3558,7 +3550,7 @@
     background: var(--vermilion);
     color: var(--bg-base);
     transform: scale(1.04);
-    box-shadow: 0 4px 12px rgba(var(--vermilion-rgb, 194, 63, 44), 0.28);
+    box-shadow: 0 4px 12px rgba(var(--vermilion-rgb, 0, 0, 0), 0.22);
   }
   [data-theme="dark"] .ink-ask-form.is-busy .ink-ask-recall {
     background: rgba(255, 255, 255, 0.1);
@@ -3846,7 +3838,7 @@
   .ink-ask-drawer-history-btn.is-active {
     color: var(--vermilion);
     background: var(--vermilion-soft);
-    border-color: rgba(var(--vermilion-rgb, 196, 73, 52), 0.25);
+    border-color: rgba(var(--vermilion-rgb, 0, 0, 0), 0.25);
   }
 
   /* ---------- 历史对话抽屉折叠面板 ---------- */
@@ -3943,7 +3935,7 @@
   }
   .ink-ask-history-item.is-active {
     background: var(--vermilion-soft);
-    border-color: rgba(var(--vermilion-rgb, 196, 73, 52), 0.2);
+    border-color: rgba(var(--vermilion-rgb, 0, 0, 0), 0.2);
   }
   .ink-ask-history-item-main {
     flex: 1;
@@ -4145,7 +4137,7 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(105deg, rgba(var(--vermilion-rgb, 194, 63, 44), 0.08) 0%, transparent 62%);
+    background: linear-gradient(105deg, rgba(var(--vermilion-rgb, 0, 0, 0), 0.06) 0%, transparent 62%);
     opacity: 0;
     transform: translateX(-18%);
     transition: opacity 220ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -4515,7 +4507,7 @@
     cursor: pointer;
     white-space: nowrap;
     user-select: none;
-    box-shadow: 0 2px 8px rgba(var(--vermilion-rgb, 194, 63, 44), 0.18);
+    box-shadow: 0 2px 8px rgba(var(--vermilion-rgb, 0, 0, 0), 0.14);
     animation: inkAskRecallPulse 2s ease-in-out infinite;
     transition: transform 160ms ease, background 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
   }
@@ -4525,7 +4517,7 @@
     background: var(--vermilion);
     color: var(--bg-base);
     transform: scale(1.04);
-    box-shadow: 0 4px 12px rgba(var(--vermilion-rgb, 194, 63, 44), 0.28);
+    box-shadow: 0 4px 12px rgba(var(--vermilion-rgb, 0, 0, 0), 0.22);
   }
   [data-theme="dark"] .ink-ask-drawer-form.is-busy .ink-ask-drawer-recall {
     background: rgba(255, 255, 255, 0.1);
@@ -4673,13 +4665,13 @@
     width: 11px;
     height: 11px;
     border-radius: 50%;
-    background: radial-gradient(circle, #ffd56b 0%, var(--vermilion, #c23f2c) 80%);
-    box-shadow: 0 0 14px rgba(235, 168, 35, 0.85), 0 0 4px var(--vermilion, #c23f2c);
+    background: radial-gradient(circle, var(--ink-strong) 0%, var(--ink) 80%);
+    box-shadow: 0 0 12px var(--ink-mist), 0 0 4px var(--vermilion);
     z-index: 100095;
     pointer-events: none;
   }
   .ink-save-fly-particle.is-tail {
-    box-shadow: 0 0 8px rgba(194, 63, 44, 0.45);
+    box-shadow: 0 0 8px var(--ink-mist);
     opacity: 0.72;
   }
 
@@ -4697,8 +4689,8 @@
     gap: 0.45rem;
     padding: 0.36rem 0.65rem;
     border-radius: 10px;
-    border: 1px solid rgba(194, 63, 44, 0.28);
-    background: var(--vermilion-soft, rgba(194, 63, 44, 0.08));
+    border: 1px solid var(--rule-strong);
+    background: var(--vermilion-soft);
     font-family: var(--font-body);
     font-size: 0.76rem;
     color: var(--text-strong);
@@ -4706,11 +4698,11 @@
   }
   .ink-ask-followup-badge {
     flex-shrink: 0;
-    padding: 1px 6px;
-    border-radius: 4px;
+    padding: 1px 7px;
+    border-radius: 9999px;
     background: var(--bg-elev);
-    border: 1px solid rgba(194, 63, 44, 0.28);
-    color: var(--vermilion, #c23f2c);
+    border: 1px solid var(--rule-strong);
+    color: var(--vermilion);
     font-size: 0.68rem;
     font-weight: 600;
   }
@@ -4739,7 +4731,7 @@
   }
   .ink-ask-followup-close:hover {
     background: rgba(0, 0, 0, 0.08);
-    color: var(--vermilion, #c23f2c);
+    color: var(--vermilion);
   }
 
   /* 对照台反查对话轮次：书脊水墨横扫（720ms 鲜明浸润）与并排拖拽态 */
@@ -4755,8 +4747,8 @@
     border-left: 3px solid var(--vermilion);
     background: linear-gradient(
       90deg,
-      rgba(var(--vermilion-rgb, 194, 63, 44), 0.16) 0%,
-      rgba(215, 150, 20, 0.08) 55%,
+      rgba(var(--vermilion-rgb, 0, 0, 0), 0.14) 0%,
+      rgba(var(--vermilion-rgb, 0, 0, 0), 0.05) 55%,
       transparent 100%
     );
     transform-origin: left center;
@@ -4781,8 +4773,8 @@
     opacity: 0.6;
   }
   .ink-ask-drawer.is-drop-target .ink-ask-drawer-input-wrap {
-    border-color: var(--vermilion, #c23f2c) !important;
-    box-shadow: 0 0 0 3.5px rgba(194, 63, 44, 0.22) !important;
+    border-color: var(--vermilion) !important;
+    box-shadow: 0 0 0 3.5px var(--vermilion-soft) !important;
   }
 
   @media print {

@@ -703,7 +703,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       border-width 380ms 90ms var(--ease-card) !important;
   }
 
-  /* 案头宣纸批注笺：伪元素承载悬浮阴影与左侧书脊朱砂/墨色光韵，零 box-shadow 重绘 */
+  /* 案头宣纸批注笺：伪元素承载悬浮阴影与左侧书脊墨色光韵，零 box-shadow 重绘 */
   :global(.notes-card) {
     break-inside: avoid;
     -webkit-column-break-inside: avoid;
@@ -739,7 +739,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     box-shadow: 0 5px 18px -3px rgba(74, 53, 32, 0.07);
   }
 
-  /* 左侧朱砂/墨色书脊洇染光韵（完全内聚于圆角内，无直角切边） */
+  /* 左侧书脊水墨洇染光韵（完全内聚于圆角内，无直角切边） */
   :global(.notes-card)::before {
     content: '';
     position: absolute;
@@ -750,7 +750,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     background:
       radial-gradient(
         ellipse 42% 78% at 0% 48%,
-        color-mix(in srgb, var(--note-accent, #c84b31) 14%, transparent) 0%,
+        color-mix(in srgb, var(--note-accent, var(--ink-strong)) 14%, transparent) 0%,
         transparent 76%
       );
     opacity: 0.42;
@@ -774,7 +774,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   :global([data-theme="dark"] .notes-card)::after {
     box-shadow:
       0 18px 38px -10px rgba(0, 0, 0, 0.52),
-      0 0 24px -8px color-mix(in srgb, var(--note-accent, #e06d53) 26%, transparent);
+      0 0 24px -8px color-mix(in srgb, var(--note-accent, var(--ink-strong)) 22%, transparent);
   }
 
   :global(.notes-card):hover,
@@ -1004,19 +1004,19 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       transform 400ms cubic-bezier(0.22, 1, 0.36, 1),
       opacity 260ms var(--ease-card);
   }
-  /* 折笺卷首朱砂/水墨细线徐展 */
+  /* 折笺卷首单色水墨细线徐展 */
   .modal-card::before {
     content: '';
     position: absolute;
     top: 0;
     left: 1.25rem;
     right: 1.25rem;
-    height: 2px;
+    height: 1.5px;
     border-radius: 999px;
     background: linear-gradient(
       90deg,
       transparent 0%,
-      color-mix(in srgb, #c84b31 62%, var(--ink-strong)) 50%,
+      var(--rule-strong) 50%,
       transparent 100%
     );
     transform: scaleX(0.18);

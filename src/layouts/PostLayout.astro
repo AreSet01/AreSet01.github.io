@@ -363,7 +363,7 @@ const hasToc = tocHeadings.length > 1;
             .join('');
         }
 
-        let unsealing = false;
+        let unlocking = false;
 
         function finishUnlock(withUnfurl) {
           if (content) {
@@ -379,7 +379,7 @@ const hasToc = tocHeadings.length > 1;
           }
           if (panel) {
             panel.hidden = true;
-            panel.classList.remove('is-unsealing');
+            panel.classList.remove('is-opening');
           }
           article?.setAttribute('data-locked-post', 'false');
           try { window.lenis?.resize(); } catch {}
@@ -392,14 +392,14 @@ const hasToc = tocHeadings.length > 1;
             finishUnlock(false);
             return;
           }
-          if (unsealing) return;
-          unsealing = true;
-          panel.classList.add('is-unsealing');
+          if (unlocking) return;
+          unlocking = true;
+          panel.classList.add('is-opening');
           let done = false;
           const complete = () => {
             if (done) return;
             done = true;
-            unsealing = false;
+            unlocking = false;
             finishUnlock(true);
             window.dispatchEvent(new CustomEvent('post-unlocked'));
           };
@@ -420,7 +420,7 @@ const hasToc = tocHeadings.length > 1;
 
         form.addEventListener('submit', async (event) => {
           event.preventDefault();
-          if (unsealing) return;
+          if (unlocking) return;
           const formData = new FormData(form);
           const password = String(formData.get('password') ?? '');
           if (!password) return;
@@ -1039,7 +1039,7 @@ const hasToc = tocHeadings.length > 1;
         }, { signal });
       }
 
-      // ---------- Reading spine: brush-damped scroll stroke, cinnabar halo dots per h2 ----------
+      // ---------- Reading spine: brush-damped scroll stroke, water-ink halo dots per h2 ----------
       const body = document.querySelector<HTMLElement>('[data-post-body]');
       const spine = document.querySelector<HTMLElement>('[data-post-spine]');
       const spineLine = document.querySelector<SVGLineElement>('[data-post-spine-line]');
@@ -1810,14 +1810,14 @@ const hasToc = tocHeadings.length > 1;
 
             const header = document.createElement('div');
             header.className = 'prose-callout-head';
-            header.innerHTML = `<span class="prose-callout-seal">${meta.icon}</span><span class="prose-callout-title">${meta.label}</span>`;
+            header.innerHTML = `<span class="prose-callout-icon">${meta.icon}</span><span class="prose-callout-title">${meta.label}</span>`;
             bq.prepend(header);
           });
         }
 
         function enhanceCodeBlocks() {
           const COPY_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
-          const SEAL_STAMP_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><polyline points="17 8.5 10.5 15.5 7 12"></polyline></svg>';
+          const CHECK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
 
           prose.querySelectorAll('pre').forEach((pre) => {
             if (pre.dataset.codeEnhanced === 'true') return;
@@ -1958,7 +1958,7 @@ const hasToc = tocHeadings.length > 1;
                 copyButton.classList.remove('is-copied');
                 void copyButton.offsetWidth;
                 copyButton.classList.add('is-copied');
-                copyButton.innerHTML = `${SEAL_STAMP_SVG}<span>钤印已录</span>`;
+                copyButton.innerHTML = `${CHECK_SVG}<span>已复制</span>`;
                 copyResetTimer = window.setTimeout(() => {
                   copyButton.classList.remove('is-copied');
                   copyButton.innerHTML = `${COPY_SVG}<span>Copy</span>`;
@@ -2592,19 +2592,19 @@ const hasToc = tocHeadings.length > 1;
       --callout-border: rgba(46, 125, 91, 0.25);
     }
     .prose blockquote.prose-callout.is-important {
-      --callout-accent: var(--vermilion, #c23f2c);
-      --callout-bg: rgba(194, 63, 44, 0.055);
-      --callout-border: rgba(194, 63, 44, 0.26);
+      --callout-accent: var(--ink-strong);
+      --callout-bg: var(--vermilion-soft);
+      --callout-border: var(--rule-strong);
     }
     .prose blockquote.prose-callout.is-warning {
-      --callout-accent: #c57b18;
-      --callout-bg: rgba(197, 123, 24, 0.065);
-      --callout-border: rgba(197, 123, 24, 0.28);
+      --callout-accent: #8a5a14;
+      --callout-bg: rgba(138, 90, 20, 0.06);
+      --callout-border: rgba(138, 90, 20, 0.24);
     }
     .prose blockquote.prose-callout.is-caution {
-      --callout-accent: #b83227;
-      --callout-bg: rgba(184, 50, 39, 0.065);
-      --callout-border: rgba(184, 50, 39, 0.3);
+      --callout-accent: var(--ink-strong);
+      --callout-bg: rgba(var(--vermilion-rgb, 0, 0, 0), 0.055);
+      --callout-border: var(--rule-strong);
     }
     [data-theme="dark"] .prose blockquote.prose-callout {
       --callout-bg: rgba(255, 255, 255, 0.04);
@@ -2623,17 +2623,17 @@ const hasToc = tocHeadings.length > 1;
       color: var(--callout-accent);
       user-select: none;
     }
-    .prose-callout-seal {
+    .prose-callout-icon {
       display: inline-grid;
       place-items: center;
       width: 22px;
       height: 22px;
-      border-radius: 5px;
-      background: rgba(0, 0, 0, 0.04);
+      border-radius: 9999px;
+      background: rgba(var(--vermilion-rgb, 0, 0, 0), 0.05);
       border: 1px solid var(--callout-border);
       color: var(--callout-accent);
     }
-    [data-theme="dark"] .prose-callout-seal {
+    [data-theme="dark"] .prose-callout-icon {
       background: rgba(255, 255, 255, 0.06);
     }
     .prose blockquote.prose-callout > p:last-child {
@@ -2665,16 +2665,16 @@ const hasToc = tocHeadings.length > 1;
       transform: translateY(-1px);
     }
     .code-copy-button.is-copied {
-      border-color: rgba(218, 82, 62, 0.72) !important;
-      color: #fecaca !important;
-      background: rgba(194, 63, 44, 0.24) !important;
-      letter-spacing: 0.04em;
-      animation: codeCopySealStamp 280ms var(--article-ease-surface);
+      border-color: rgba(255, 255, 255, 0.44) !important;
+      color: #f4f4f5 !important;
+      background: rgba(255, 255, 255, 0.14) !important;
+      letter-spacing: 0.03em;
+      animation: codeCopyInkRipple 260ms var(--article-ease-surface);
     }
-    @keyframes codeCopySealStamp {
-      0% { transform: scale(1.1) rotate(-2deg); opacity: 0.86; }
-      58% { transform: scale(0.97) rotate(0.5deg); opacity: 1; }
-      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    @keyframes codeCopyInkRipple {
+      0% { transform: scale(0.95); opacity: 0.84; }
+      58% { transform: scale(1.03); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
     }
     .prose pre.is-code-collapsed {
       max-height: 240px;
@@ -2737,12 +2737,12 @@ const hasToc = tocHeadings.length > 1;
       content: '';
       position: absolute;
       inset: -4px -8px;
-      border-left: 2.5px solid var(--vermilion, #c23f2c);
+      border-left: 2.5px solid var(--vermilion);
       border-radius: 3px 6px 6px 3px;
       background: linear-gradient(
         90deg,
-        var(--vermilion-soft, rgba(194, 63, 44, 0.14)) 0%,
-        rgba(194, 63, 44, 0.06) 46%,
+        var(--vermilion-soft) 0%,
+        rgba(var(--vermilion-rgb, 0, 0, 0), 0.04) 46%,
         transparent 100%
       );
       opacity: 0;
@@ -2782,9 +2782,9 @@ const hasToc = tocHeadings.length > 1;
     .heading-anchor-btn:hover,
     .heading-anchor-btn.is-copied {
       opacity: 1;
-      color: var(--vermilion, #c23f2c);
-      background: var(--vermilion-soft, rgba(194, 63, 44, 0.1));
-      border-color: rgba(194, 63, 44, 0.28);
+      color: var(--vermilion);
+      background: var(--vermilion-soft);
+      border-color: var(--rule-strong);
     }
     .prose .is-anchor-target {
       isolation: isolate;
@@ -2855,13 +2855,13 @@ const hasToc = tocHeadings.length > 1;
     .post-link-popover-badge {
       display: inline-flex;
       align-items: center;
-      padding: 1px 7px;
-      border-radius: 4px;
+      padding: 1px 8px;
+      border-radius: 9999px;
       font-size: 0.68rem;
       font-weight: 600;
-      color: var(--vermilion, #c23f2c);
-      background: var(--vermilion-soft, rgba(194, 63, 44, 0.1));
-      border: 1px solid rgba(194, 63, 44, 0.22);
+      color: var(--vermilion);
+      background: var(--vermilion-soft);
+      border: 1px solid var(--rule-strong);
     }
     .post-link-popover-meta {
       font-family: var(--font-mono);
@@ -2901,7 +2901,7 @@ const hasToc = tocHeadings.length > 1;
     .post-link-popover-go {
       font-size: 0.76rem;
       font-weight: 600;
-      color: var(--vermilion, #c23f2c);
+      color: var(--vermilion);
       text-decoration: none !important;
       transition: transform 150ms ease;
     }
@@ -2923,9 +2923,9 @@ const hasToc = tocHeadings.length > 1;
       transition: all 160ms ease;
     }
     .post-link-popover-pin:hover {
-      border-color: var(--vermilion, #c23f2c);
-      color: var(--vermilion, #c23f2c);
-      background: var(--vermilion-soft, rgba(194, 63, 44, 0.08));
+      border-color: var(--vermilion);
+      color: var(--vermilion);
+      background: var(--vermilion-soft);
     }
   </style>
 </BaseLayout>

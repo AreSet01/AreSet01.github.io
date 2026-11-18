@@ -1789,20 +1789,20 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
   /* 交互视口与画布层：外层独立平移（不缩放置灰） + 内层 CSS zoom 矢量重绘，彻底解决高倍率文本发糊 */
   .mm-canvas-pane {
-    --mm-cinnabar: #b83b32;
-    --mm-cinnabar-soft: rgba(184, 59, 50, 0.14);
+    --mm-focus-ink: var(--ink-strong, #141413);
+    --mm-focus-soft: rgba(20, 20, 19, 0.1);
   }
   :global([data-theme="dark"]) .mm-canvas-pane {
-    --mm-cinnabar: #e06c60;
-    --mm-cinnabar-soft: rgba(224, 108, 96, 0.2);
+    --mm-focus-ink: var(--ink-strong, #eae8e3);
+    --mm-focus-soft: rgba(234, 232, 227, 0.15);
   }
   :global([data-theme="moss"]) .mm-canvas-pane {
-    --mm-cinnabar: #FFC2D1;
-    --mm-cinnabar-soft: rgba(255, 194, 209, 0.22);
+    --mm-focus-ink: #FFC2D1;
+    --mm-focus-soft: rgba(255, 194, 209, 0.22);
   }
   :global([data-theme="rice"]) .mm-canvas-pane {
-    --mm-cinnabar: #a63429;
-    --mm-cinnabar-soft: rgba(166, 52, 41, 0.14);
+    --mm-focus-ink: #4E4132;
+    --mm-focus-soft: rgba(78, 65, 50, 0.12);
   }
   .mm-canvas-viewport {
     position: absolute;
@@ -1868,8 +1868,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     top: 0;
     pointer-events: none;
     z-index: 28;
-    border: 1.5px dashed var(--mm-cinnabar, #b83b32);
-    background: var(--mm-cinnabar-soft, rgba(184, 59, 50, 0.1));
+    border: 1.5px dashed var(--mm-focus-ink);
+    background: var(--mm-focus-soft);
     border-radius: 8px;
   }
   .mm-marquee-box.hidden { display: none; }
@@ -1881,8 +1881,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     height: 38px;
     margin: -19px 0 0 -19px;
     border-radius: 9999px;
-    border: 2px solid var(--mm-cinnabar, #b83b32);
-    background: var(--mm-cinnabar-soft, rgba(184, 59, 50, 0.16));
+    border: 2px solid var(--mm-focus-ink);
+    background: var(--mm-focus-soft);
     pointer-events: none;
     z-index: 29;
     animation: mmHoldPulse 380ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
@@ -1893,7 +1893,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     to { opacity: 0; transform: scale(1.75); }
   }
 
-  /* 画布节点元素（JS 动态生成必须带 :global，零 box-shadow 重绘 + 温润朱砂水墨呼吸印框） */
+  /* 画布节点元素（JS 动态生成必须带 :global，零 box-shadow 重绘 + 温润水墨呼吸选框） */
   :global(.mm-node) {
     position: absolute;
     width: max-content;
@@ -1956,21 +1956,21 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     position: absolute;
     inset: -4.5px;
     border-radius: 14px;
-    border: 1.5px solid color-mix(in srgb, var(--node-color, var(--mm-cinnabar, #b83b32)) 58%, var(--mm-cinnabar, #b83b32));
+    border: 1.5px solid color-mix(in srgb, var(--node-color, var(--mm-focus-ink)) 78%, var(--mm-focus-ink));
     background: radial-gradient(
       circle at 50% 50%,
-      color-mix(in srgb, var(--mm-cinnabar, #b83b32) 12%, transparent) 0%,
+      color-mix(in srgb, var(--node-color, var(--mm-focus-ink)) 10%, transparent) 0%,
       transparent 72%
     );
     pointer-events: none;
-    animation: mmInkSealBreathe 2.8s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+    animation: mmInkFocusBreathe 2.8s cubic-bezier(0.37, 0, 0.63, 1) infinite;
   }
   :global(.mm-node.is-selected.is-root)::before {
     inset: -5px;
     border-radius: 17px;
-    border-color: var(--mm-cinnabar, #b83b32);
+    border-color: var(--mm-focus-ink);
   }
-  @keyframes mmInkSealBreathe {
+  @keyframes mmInkFocusBreathe {
     0%, 100% {
       opacity: 0.56;
       transform: scale3d(0.992, 0.992, 1);
@@ -1981,7 +1981,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     }
   }
   :global(.mm-node.is-selected:not(.is-root)) {
-    border-color: color-mix(in srgb, var(--node-color, var(--ink-strong)) 72%, var(--mm-cinnabar, #b83b32));
+    border-color: var(--node-color, var(--mm-focus-ink));
     z-index: 5;
   }
   :global(.mm-node.is-selected.is-root) {
@@ -1993,7 +1993,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     pointer-events: none;
   }
   :global(.mm-node.is-drop-target) {
-    border-color: var(--mm-cinnabar, #b83b32) !important;
+    border-color: var(--mm-focus-ink) !important;
     transform: scale(1.04);
     z-index: 8;
   }
@@ -2002,7 +2002,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     position: absolute;
     inset: -4px;
     border-radius: 14px;
-    border: 2px solid var(--mm-cinnabar, #b83b32);
+    border: 2px solid var(--mm-focus-ink);
     opacity: 0.85;
     pointer-events: none;
   }
@@ -2125,26 +2125,27 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   }
   .mm-drag-ghost.hidden { display: none; }
 
-  /* 置于拖拽浮影之上的落点方向标识胶囊（永不被浮影遮挡，朱砂印信配色） */
+  /* 置于拖拽浮影之上的落点方向标识胶囊（永不被浮影遮挡，单色浓墨高对比胶囊） */
   .mm-drop-pill {
     position: fixed;
     left: 0;
     top: 0;
     z-index: 126;
     pointer-events: none;
-    background: var(--mm-cinnabar, #b83b32);
-    color: #fff;
+    background: var(--ink-strong);
+    color: var(--bg-base);
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     padding: 0.18rem 0.58rem;
     border-radius: 9999px;
-    border: 1.5px solid rgba(255, 255, 255, 0.82);
+    border: 1.5px solid var(--bg-elev);
     white-space: nowrap;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
     will-change: transform;
   }
   :global([data-theme="moss"]) .mm-drop-pill {
+    background: #FFC2D1;
     color: #004D40;
   }
   .mm-drop-pill.hidden { display: none; }
@@ -2154,7 +2155,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     position: absolute;
     height: 3.5px;
     border-radius: 9999px;
-    background: var(--mm-cinnabar, #b83b32);
+    background: var(--mm-focus-ink);
     pointer-events: none;
     z-index: 35;
   }
@@ -2164,7 +2165,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   }
   .mm-reorder-indicator.hidden { display: none; }
 
-  /* 缩略舆图小地图（宣纸微缩印谱，单 rAF GPU 视口框跟手巡览） */
+  /* 缩略舆图小地图（宣纸微缩脉络图，单 rAF GPU 视口框跟手巡览） */
   .mm-minimap {
     position: absolute;
     right: 0.85rem;
@@ -2190,7 +2191,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   }
   .mm-minimap.is-dragging {
     cursor: grabbing;
-    border-color: var(--mm-cinnabar, #b83b32);
+    border-color: var(--mm-focus-ink);
   }
   .mm-minimap-svg {
     width: 100%;
@@ -2205,8 +2206,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     width: 48px;
     height: 32px;
     border-radius: 4px;
-    border: 1.4px solid var(--mm-cinnabar, #b83b32);
-    background: var(--mm-cinnabar-soft, rgba(184, 59, 50, 0.14));
+    border: 1.4px solid var(--mm-focus-ink);
+    background: var(--mm-focus-soft);
     pointer-events: none;
     transform-origin: 0 0;
   }
@@ -5582,7 +5583,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           const ex = tBox.x + (tBox.side === 'left' ? tBox.w : 0);
           const ey = mode === 'before' ? tBox.y - 7 : tBox.y + tBox.h + 8;
           const mid = (sx + ex) / 2;
-          nextPreviewSvg = `<path d="M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ey}, ${ex} ${ey}" fill="none" stroke="var(--mm-cinnabar, #c84b31)" stroke-width="2" stroke-dasharray="5 4"/>`;
+          nextPreviewSvg = `<path d="M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ey}, ${ex} ${ey}" fill="none" stroke="var(--mm-focus-ink, var(--ink-strong))" stroke-width="2" stroke-dasharray="5 4"/>`;
         }
       }
 

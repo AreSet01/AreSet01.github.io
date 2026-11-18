@@ -90,18 +90,18 @@ const MOSS_SHADES = [
       <!-- 视图 1：密码解锁卡片 -->
       <section id="lockSection" class="flex-1 w-full min-h-[calc(100vh-9.5rem)] flex items-center justify-center my-auto py-8 transition-[transform,opacity] duration-300">
         <div class="settings-lock-card w-full max-w-md bg-white/85 dark:bg-neutral-900/85 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-8 shadow-xl shadow-neutral-900/5 relative overflow-hidden">
-          <span class="settings-cinnabar-hairline" aria-hidden="true"></span>
-          <div class="w-12 h-12 mx-auto rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-[#c84b31] dark:text-[#e06d53] mb-5 border border-neutral-200/60 dark:border-neutral-700/60">
+          <span class="settings-ink-hairline" aria-hidden="true"></span>
+          <div class="w-12 h-12 mx-auto rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-700 dark:text-neutral-200 mb-5 border border-neutral-200/60 dark:border-neutral-700/60">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
             </svg>
           </div>
 
           <h2 class="text-center text-lg font-semibold text-neutral-900 dark:text-neutral-100 tracking-tight">
-            服务器控制台 · 朱砂信印锁
+            服务器控制台 · 书斋密钥锁
           </h2>
           <p class="text-center text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 mb-6">
-            此页面受服务端管理密钥保护，请钤印验证以展开书斋配置卷轴
+            此页面受服务端管理密钥保护，请输入管理密钥以展开配置
           </p>
 
           <form id="loginForm" class="space-y-4">
@@ -117,7 +117,7 @@ const MOSS_SHADES = [
                   required
                   autocomplete="current-password"
                   placeholder="••••••••••••"
-                  class="w-full px-3.5 py-2.5 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:border-[#c84b31] dark:focus:border-[#e06d53] transition-colors font-mono"
+                  class="w-full px-3.5 py-2.5 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:border-neutral-700 dark:focus:border-neutral-300 transition-colors font-mono"
                 />
                 <button
                   type="button"
@@ -137,7 +137,7 @@ const MOSS_SHADES = [
               id="loginSubmitBtn"
               class="w-full py-2.5 px-4 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-neutral-100 dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-[background-color,transform] duration-200 flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-[0.99]"
             >
-              <span id="loginBtnText">钤印验证并启卷</span>
+              <span id="loginBtnText">验证密钥并启卷</span>
               <svg id="loginSpinner" class="hidden animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -188,10 +188,10 @@ const MOSS_SHADES = [
 
         <!-- 模块 -1：纸境书斋 · 四境主题涟漪、墨玉滑块与兰亭字韵调校 -->
         <section id="paperStudioSection" class="settings-studio-card w-full bg-white/85 dark:bg-neutral-900/85 backdrop-blur-xl border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-6 sm:p-7 shadow-sm relative overflow-hidden">
-          <span class="settings-cinnabar-hairline" aria-hidden="true"></span>
+          <span class="settings-ink-hairline" aria-hidden="true"></span>
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-neutral-100 dark:border-neutral-800/70">
             <div class="flex items-start sm:items-center gap-3">
-              <div class="p-2.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 text-[#c84b31] dark:text-[#e06d53] border border-amber-200/70 dark:border-amber-800/40 shrink-0">
+              <div class="p-2.5 rounded-xl bg-neutral-100/90 dark:bg-neutral-800/70 text-neutral-700 dark:text-neutral-200 border border-neutral-200/80 dark:border-neutral-700/70 shrink-0">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                 </svg>
@@ -201,7 +201,7 @@ const MOSS_SHADES = [
                   <h2 class="text-base font-semibold text-neutral-900 dark:text-neutral-100 tracking-tight">
                     纸境书斋 · 墨玉开关与字韵调校
                   </h2>
-                  <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100/80 dark:bg-amber-900/50 text-[#a53821] dark:text-amber-200 font-mono">
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200/80 dark:border-neutral-700/70 font-mono">
                     Ink-Jade Studio
                   </span>
                 </div>
@@ -223,18 +223,18 @@ const MOSS_SHADES = [
                 type="button"
                 class="theme-preview-card"
                 data-theme-preview-card="light"
-                data-ripple-color="#c84b31"
+                data-ripple-color="#141517"
                 data-theme-label="宣纸素白 (Light)"
-                style="--card-paper:#faf8f4; --card-ink:#141517; --card-accent:#c84b31;"
+                style="--card-paper:#faf8f4; --card-ink:#141517; --card-accent:#141517;"
               >
                 <span class="theme-preview-swatch">
                   <span class="swatch-line is-title"></span>
                   <span class="swatch-line"></span>
-                  <span class="swatch-seal">印</span>
+                  <span class="swatch-dot" aria-hidden="true"></span>
                 </span>
                 <span class="theme-preview-meta">
                   <strong>宣纸素白</strong>
-                  <small>素笺乌丝 · 朱砂点染</small>
+                  <small>素笺乌丝 · 清透淡墨</small>
                 </span>
               </button>
 
@@ -242,14 +242,14 @@ const MOSS_SHADES = [
                 type="button"
                 class="theme-preview-card"
                 data-theme-preview-card="dark"
-                data-ripple-color="#e06d53"
+                data-ripple-color="#d4d0c8"
                 data-theme-label="松烟玄夜 (Dark)"
-                style="--card-paper:#15161a; --card-ink:#f2efe9; --card-accent:#e06d53;"
+                style="--card-paper:#15161a; --card-ink:#f2efe9; --card-accent:#d4d0c8;"
               >
                 <span class="theme-preview-swatch">
                   <span class="swatch-line is-title"></span>
                   <span class="swatch-line"></span>
-                  <span class="swatch-seal">夜</span>
+                  <span class="swatch-dot" aria-hidden="true"></span>
                 </span>
                 <span class="theme-preview-meta">
                   <strong>松烟玄夜</strong>
@@ -268,7 +268,7 @@ const MOSS_SHADES = [
                 <span class="theme-preview-swatch">
                   <span class="swatch-line is-title"></span>
                   <span class="swatch-line"></span>
-                  <span class="swatch-seal">青</span>
+                  <span class="swatch-dot" aria-hidden="true"></span>
                 </span>
                 <span class="theme-preview-meta">
                   <strong>竹青粉墨</strong>
@@ -280,14 +280,14 @@ const MOSS_SHADES = [
                 type="button"
                 class="theme-preview-card"
                 data-theme-preview-card="rice"
-                data-ripple-color="#9e5a24"
+                data-ripple-color="#6B5B45"
                 data-theme-label="古籍米黄 (Rice)"
-                style="--card-paper:#ebe0cb; --card-ink:#2c2218; --card-accent:#9e5a24;"
+                style="--card-paper:#ebe0cb; --card-ink:#2c2218; --card-accent:#6B5B45;"
               >
                 <span class="theme-preview-swatch">
                   <span class="swatch-line is-title"></span>
                   <span class="swatch-line"></span>
-                  <span class="swatch-seal">卷</span>
+                  <span class="swatch-dot" aria-hidden="true"></span>
                 </span>
                 <span class="theme-preview-meta">
                   <strong>古籍米黄</strong>
@@ -386,11 +386,11 @@ const MOSS_SHADES = [
               <div id="fontLiveSpecimen" class="settings-specimen-box">
                 <span class="specimen-shimmer" id="specimenShimmer" aria-hidden="true"></span>
                 <div class="specimen-head">
-                  <span class="specimen-seal">试墨</span>
+                  <span class="specimen-pill">试墨预览</span>
                   <span id="specimenMetaText" class="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">像素碑刻 · 100%</span>
                 </div>
                 <p id="specimenBodyText" class="specimen-body">
-                  纸上得来终觉浅，绝知此事要躬行。落笔生枝蔓，朱砂定信音。
+                  纸上得来终觉浅，绝知此事要躬行。落笔生枝蔓，水墨润清音。
                 </p>
               </div>
             </div>
@@ -992,7 +992,7 @@ const MOSS_SHADES = [
         ripple.style.height = `${maxRadius.toFixed(1)}px`;
         ripple.style.left = `${cx.toFixed(1)}px`;
         ripple.style.top = `${cy.toFixed(1)}px`;
-        ripple.style.setProperty('--ripple-color', rippleHex || '#c84b31');
+        ripple.style.setProperty('--ripple-color', rippleHex || '#141517');
         hostEl.appendChild(ripple);
 
         if (typeof ripple.animate === 'function') {
@@ -1125,7 +1125,7 @@ const MOSS_SHADES = [
         themeCards.forEach((card) => {
           card.addEventListener('click', (e) => {
             const nextTheme = card.getAttribute('data-theme-preview-card') || 'light';
-            const rippleHex = card.getAttribute('data-ripple-color') || '#c84b31';
+            const rippleHex = card.getAttribute('data-ripple-color') || '#141517';
             spawnSettingsInkRipple(card, e, rippleHex);
             if (typeof window.__applyTheme === 'function') {
               window.__applyTheme(nextTheme);
@@ -1349,7 +1349,7 @@ const MOSS_SHADES = [
 
       initPaperStudioControls();
 
-      // 切换视图（含朱砂破封启卷平滑入场）
+      // 切换视图（含水墨启卷平滑入场）
       function setAuthedState(authed, animateUnfurl = false) {
         if (authed) {
           lockSection.classList.add('hidden');
@@ -1453,7 +1453,7 @@ const MOSS_SHADES = [
           currentToken = data.token;
           sessionStorage.setItem(STORAGE_KEY, currentToken);
           setAuthedState(true, true);
-          showToast('钤印核验通过，正在展开书斋配置...');
+          showToast('密钥验证通过，正在展开配置...');
           await loadConfig();
           await loadInvites();
           await loadAccounts();
@@ -1463,7 +1463,7 @@ const MOSS_SHADES = [
         } finally {
           loginSubmitBtn.disabled = false;
           loginSpinner.classList.add('hidden');
-          loginBtnText.textContent = '验证密码并解锁';
+          loginBtnText.textContent = '验证密钥并启卷';
         }
       }, { signal });
 
@@ -1984,7 +1984,7 @@ const MOSS_SHADES = [
   </script>
 
   <style is:global>
-    /* 确保控制台视口撑满全屏，且不被侧边栏浮动按扭/印章遮挡 */
+    /* 确保控制台视口撑满全屏，且不被侧边栏浮动按钮遮挡 */
     .site-shell:has(.settings-viewport),
     .site-shell-standalone {
       flex-direction: column !important;
@@ -2011,14 +2011,14 @@ const MOSS_SHADES = [
       display: none !important;
     }
 
-    /* 卷首朱砂细线 */
-    .settings-cinnabar-hairline {
+    /* 卷首单色细墨线 */
+    .settings-ink-hairline {
       position: absolute;
       top: 0;
       left: 8%;
       right: 8%;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, rgba(200, 75, 49, 0.72), transparent);
+      height: 1.5px;
+      background: linear-gradient(90deg, transparent, var(--border-strong, rgba(100, 100, 108, 0.45)), transparent);
       pointer-events: none;
     }
 
@@ -2030,8 +2030,8 @@ const MOSS_SHADES = [
       z-index: 4;
       background: radial-gradient(
         circle,
-        color-mix(in srgb, var(--ripple-color, #c84b31) 46%, transparent) 0%,
-        color-mix(in srgb, var(--ripple-color, #c84b31) 20%, transparent) 55%,
+        color-mix(in srgb, var(--ripple-color, #141517) 36%, transparent) 0%,
+        color-mix(in srgb, var(--ripple-color, #141517) 14%, transparent) 55%,
         transparent 74%
       );
       transform: translate3d(-50%, -50%, 0) scale(0.08);
@@ -2061,11 +2061,11 @@ const MOSS_SHADES = [
     }
     .theme-preview-card:hover {
       transform: translate3d(0, -2px, 0);
-      border-color: var(--card-accent, #c84b31);
+      border-color: var(--card-accent, var(--ink-strong));
     }
     .theme-preview-card.is-active {
-      border-color: var(--card-accent, #c84b31);
-      background: color-mix(in srgb, var(--card-accent, #c84b31) 9%, transparent);
+      border-color: var(--card-accent, var(--ink-strong));
+      background: color-mix(in srgb, var(--card-accent, var(--ink-strong)) 8%, transparent);
     }
 
     .theme-preview-swatch {
@@ -2093,17 +2093,15 @@ const MOSS_SHADES = [
       height: 5px;
       opacity: 0.82;
     }
-    .theme-preview-swatch .swatch-seal {
+    .theme-preview-swatch .swatch-dot {
       position: absolute;
-      right: 0.55rem;
-      bottom: 0.45rem;
-      padding: 0.06rem 0.28rem;
-      font-size: 0.62rem;
-      font-weight: 700;
-      border-radius: 3px;
-      color: var(--card-accent);
-      border: 1px solid var(--card-accent);
-      transform: rotate(-4deg);
+      right: 0.58rem;
+      bottom: 0.52rem;
+      width: 14px;
+      height: 6px;
+      border-radius: 9999px;
+      background: var(--card-accent);
+      opacity: 0.86;
     }
 
     .theme-preview-meta {
@@ -2139,7 +2137,7 @@ const MOSS_SHADES = [
       border-color: rgba(255, 255, 255, 0.08);
     }
     .ink-jade-row:hover {
-      border-color: rgba(200, 75, 49, 0.36);
+      border-color: rgba(100, 100, 108, 0.36);
     }
 
     .ink-jade-switch {
@@ -2164,8 +2162,8 @@ const MOSS_SHADES = [
       border-color: rgba(16, 185, 129, 0.55);
     }
     [data-theme="rice"] .ink-jade-switch.is-on {
-      background: linear-gradient(135deg, #9e472f 0%, #6e2d1b 100%);
-      border-color: rgba(200, 75, 49, 0.55);
+      background: linear-gradient(135deg, #6B5B45 0%, #4E4132 100%);
+      border-color: rgba(107, 91, 69, 0.55);
     }
 
     .ink-jade-thumb {
@@ -2194,7 +2192,7 @@ const MOSS_SHADES = [
       appearance: none;
       height: 6px;
       border-radius: 999px;
-      background: linear-gradient(90deg, rgba(13, 110, 97, 0.28), rgba(200, 75, 49, 0.36));
+      background: linear-gradient(90deg, rgba(13, 110, 97, 0.28), rgba(82, 82, 91, 0.34));
       outline: none;
       cursor: pointer;
     }
@@ -2276,7 +2274,7 @@ const MOSS_SHADES = [
       inset: 0;
       pointer-events: none;
       opacity: 0;
-      background: linear-gradient(110deg, transparent 25%, rgba(200, 75, 49, 0.12) 50%, transparent 75%);
+      background: linear-gradient(110deg, transparent 25%, rgba(100, 100, 108, 0.12) 50%, transparent 75%);
     }
     .specimen-head {
       display: flex;
@@ -2284,15 +2282,22 @@ const MOSS_SHADES = [
       justify-content: space-between;
       margin-bottom: 0.45rem;
     }
-    .specimen-seal {
-      display: inline-block;
-      padding: 0.06rem 0.36rem;
-      font-size: 0.64rem;
-      font-weight: 700;
-      color: #c84b31;
-      border: 1px solid rgba(200, 75, 49, 0.72);
-      border-radius: 3px;
-      transform: rotate(-3deg);
+    .specimen-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.1rem 0.52rem;
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--text-strong, #262626);
+      background: rgba(120, 120, 128, 0.12);
+      border: 1px solid rgba(120, 120, 128, 0.28);
+      border-radius: 9999px;
+    }
+    [data-theme="dark"] .specimen-pill {
+      color: #ebe8e1;
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.18);
     }
     .specimen-body {
       margin: 0;

@@ -678,7 +678,7 @@
         { duration: flightDuration, easing: 'ease-out', fill: 'forwards' }
       );
 
-      // 2. 凝练朱砂墨珠沿同条二次贝塞尔弧线疾掠落位
+      // 2. 凝练浓淡墨珠沿同条二次贝塞尔弧线疾掠落位
       const ghost = document.createElement('div');
       ghost.className = 'pin-fly-ghost';
       ghost.setAttribute('aria-hidden', 'true');
@@ -713,7 +713,7 @@
 
       anim.onfinish = () => {
         cleanupFlight();
-        // 3. 落点轻漾单枚朱砂墨环（不再叠加角标跳弹，收束克制）
+        // 3. 落点轻漾单枚水墨涟漪墨环（不再叠加角标跳弹，收束克制）
         const ripple = document.createElement('div');
         ripple.className = 'pin-ink-ripple';
         ripple.setAttribute('aria-hidden', 'true');

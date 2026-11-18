@@ -49,14 +49,20 @@ import Header from '../components/Header.astro';
         <div class="account-profile-head">
           <div class="account-profile-identity">
             <div>
-              <p class="account-kicker">Signed in · 印信通行</p>
+              <p class="account-kicker">Signed in · 已登录 · 云端就绪</p>
               <p class="account-username" id="profileUsername">—</p>
             </div>
-            <!-- 朱砂钤印核验章 -->
-            <div class="account-cinnabar-seal-wrap" id="accountSealWrap" aria-hidden="true">
-              <span class="seal-ink-ring ring-a"></span>
-              <span class="seal-ink-ring ring-b"></span>
-              <span class="account-cinnabar-seal" id="accountSealStamp">钤印核验</span>
+            <!-- 云端核验圆润胶囊徽标 + 双圈单色水纹涟漪 -->
+            <div class="account-status-capsule-wrap" id="accountStatusWrap" aria-hidden="true">
+              <span class="account-ink-ripple ring-a"></span>
+              <span class="account-ink-ripple ring-b"></span>
+              <span class="account-status-capsule" id="accountStatusBadge">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+                  <path d="m9.5 13.5 1.8 1.8 3.7-3.8"/>
+                </svg>
+                <span id="accountStatusLabel">同步就绪</span>
+              </span>
             </div>
           </div>
           <button type="button" id="logoutBtn" class="account-ghost-btn">退出登录</button>
@@ -100,7 +106,7 @@ import Header from '../components/Header.astro';
               </svg>
               <span class="ink-flow-droplet droplet-push"></span>
               <span class="ink-flow-droplet droplet-pull"></span>
-              <span class="bridge-confluence-seal" id="bridgeConfluenceLabel">云墨</span>
+              <span class="bridge-confluence-pill" id="bridgeConfluenceLabel">云墨同频</span>
             </div>
             <div class="bridge-node is-cloud">
               <span class="bridge-node-title">云端藏书阁</span>
@@ -213,8 +219,8 @@ import Header from '../components/Header.astro';
     const loginForm = $('loginForm') as HTMLFormElement | null;
     const registerForm = $('registerForm') as HTMLFormElement | null;
     const profileUsername = $('profileUsername');
-    const sealWrap = $('accountSealWrap');
-    const sealStamp = $('accountSealStamp');
+    const statusWrap = $('accountStatusWrap');
+    const statusLabelEl = $('accountStatusLabel');
     const syncInkBridge = $('syncInkBridge');
     const bridgeLocalMeta = $('bridgeLocalMeta');
     const bridgeCloudMeta = $('bridgeCloudMeta');
@@ -259,29 +265,29 @@ import Header from '../components/Header.astro';
       pushing: '呈送 →',
       pulling: '← 采撷',
       bidirectional: '⇄ 流转',
-      synced: '印合',
+      synced: '已同步',
       error: '阻滞',
     };
 
     function setSyncInkFlowState(mode: SyncFlowMode) {
       if (syncInkBridge) syncInkBridge.setAttribute('data-flow', mode);
-      if (bridgeConfluenceLabel) bridgeConfluenceLabel.textContent = FLOW_LABELS[mode] || '云墨';
+      if (bridgeConfluenceLabel) bridgeConfluenceLabel.textContent = FLOW_LABELS[mode] || '云墨同频';
     }
 
-    let sealStampTimer = 0;
-    function triggerSealVerificationRitual(stampLabel = '钤印核验') {
-      if (sealStamp) sealStamp.textContent = stampLabel;
-      if (!sealWrap || reduceMotion) return;
-      window.clearTimeout(sealStampTimer);
-      sealWrap.classList.remove('is-stamping');
+    let statusRippleTimer = 0;
+    function triggerAccountStatusRipple(statusLabel = '同步就绪') {
+      if (statusLabelEl) statusLabelEl.textContent = statusLabel;
+      if (!statusWrap || reduceMotion) return;
+      window.clearTimeout(statusRippleTimer);
+      statusWrap.classList.remove('is-rippling');
       requestAnimationFrame(() => {
-        sealWrap.classList.add('is-stamping');
-        const rect = sealWrap.getBoundingClientRect();
+        statusWrap.classList.add('is-rippling');
+        const rect = statusWrap.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
           (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 10);
         }
-        sealStampTimer = scheduleTimer(() => {
-          sealWrap.classList.remove('is-stamping');
+        statusRippleTimer = scheduleTimer(() => {
+          statusWrap.classList.remove('is-rippling');
         }, 720);
       });
     }
@@ -475,14 +481,14 @@ import Header from '../components/Header.astro';
       }
     }
 
-    function showProfile(user: { username: string }, stampTitle = '钤印核验') {
+    function showProfile(user: { username: string }, statusTitle = '同步就绪') {
       authView?.setAttribute('hidden', '');
       profileView?.removeAttribute('hidden');
       setServiceHint('');
       if (profileUsername) profileUsername.textContent = user.username;
       requestAnimationFrame(() => {
         profileView?.classList.add('is-in');
-        triggerSealVerificationRitual(stampTitle);
+        triggerAccountStatusRipple(statusTitle);
       });
       void refreshSyncStatus();
     }
@@ -530,7 +536,7 @@ import Header from '../components/Header.astro';
           if (res.status === 404) setServiceHint(AUTH_PROXY_HINT);
           return;
         }
-        showProfile(data.user, '朱砂钤印');
+        showProfile(data.user, '云端就绪');
         setSyncInkFlowState('bidirectional');
         await Promise.all([
           (window as any).__notesSync?.syncNow?.({ migrate: true }),
@@ -566,7 +572,7 @@ import Header from '../components/Header.astro';
           if (res.status === 404) setServiceHint(AUTH_PROXY_HINT);
           return;
         }
-        showProfile(data.user, '新印落籍');
+        showProfile(data.user, '新卷就绪');
         setSyncInkFlowState('bidirectional');
         await Promise.all([
           (window as any).__notesSync?.syncNow?.({ migrate: true }),
@@ -591,7 +597,7 @@ import Header from '../components/Header.astro';
       setSyncInkFlowState('checking');
       try {
         await refreshSyncStatus();
-        triggerSealVerificationRitual('印信已核');
+        triggerAccountStatusRipple('校验就绪');
         setFeedback('✓ 校验完成，最新状态已同步呈现', 'ok');
       } finally {
         scheduleTimer(() => btn?.classList.remove('is-spinning'), 500);
@@ -620,7 +626,7 @@ import Header from '../components/Header.astro';
           const totalPushed = (nRes.pushedCount || 0) + (mRes.pushedCount || 0) + (rRes.pushedCount || 0);
           setFeedback(totalPushed > 0 ? `✓ 提交完成（笔记 ${nRes.pushedCount || 0} · 导图 ${mRes.pushedCount || 0} · 夹签 ${rRes.pushedCount || 0}）` : '本地暂无待提交的更改（已最新）', 'ok');
           await refreshSyncStatus();
-          triggerSealVerificationRitual('呈送钤印');
+          triggerAccountStatusRipple('已提交云端');
         } else {
           setSyncInkFlowState('error');
           setFeedback(`提交失败：${(!nRes.ok ? nRes.reason : !mRes.ok ? mRes.reason : rRes.reason) || '网络错误'}`, 'error');
@@ -655,7 +661,7 @@ import Header from '../components/Header.astro';
           const totalPulled = (nRes.pulledCount || 0) + (mRes.pulledCount || 0) + (rRes.pulledCount || 0);
           setFeedback(totalPulled > 0 ? `✓ 拉取完成（笔记 ${nRes.pulledCount || 0} · 导图 ${mRes.pulledCount || 0} · 夹签 ${rRes.pulledCount || 0}）` : '✓ 云端暂无新内容，本地已是最新', 'ok');
           await refreshSyncStatus();
-          triggerSealVerificationRitual('采撷钤印');
+          triggerAccountStatusRipple('已拉取最新');
         } else {
           setSyncInkFlowState('error');
           setFeedback(`拉取失败：${(!nRes.ok ? nRes.reason : !mRes.ok ? mRes.reason : rRes.reason) || '网络错误'}`, 'error');
@@ -692,7 +698,7 @@ import Header from '../components/Header.astro';
             'ok'
           );
           await refreshSyncStatus();
-          triggerSealVerificationRitual('双向契合');
+          triggerAccountStatusRipple('云墨同频');
         } else {
           setSyncInkFlowState('error');
           setFeedback(`同步失败：${(!nRes.ok ? nRes.reason : !mRes.ok ? mRes.reason : rRes.reason) || '网络错误'}`, 'error');
@@ -1052,7 +1058,7 @@ import Header from '../components/Header.astro';
   .account-message {
     margin: 0.9rem 0 0;
     font-size: 0.82rem;
-    color: #c0392b;
+    color: var(--text-strong);
   }
 
   .account-service-hint {
@@ -1110,72 +1116,73 @@ import Header from '../components/Header.astro';
     flex-wrap: wrap;
   }
 
-  /* 朱砂钤印核验仪式章 (Cinnabar Seal Verification Ritual) */
-  .account-cinnabar-seal-wrap {
+  /* 云端就绪圆润胶囊徽标 + 双圈单色水纹涟漪 */
+  .account-status-capsule-wrap {
     position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
   }
-  .account-cinnabar-seal {
+  .account-status-capsule {
     position: relative;
     z-index: 2;
     display: inline-flex;
     align-items: center;
-    padding: 0.22rem 0.58rem;
-    border: 1.5px solid color-mix(in srgb, var(--vermilion, #c84b31) 82%, transparent);
-    border-radius: 4px;
-    background: color-mix(in srgb, var(--vermilion, #c84b31) 10%, transparent);
-    color: var(--vermilion, #c84b31);
-    font-family: var(--font-serif);
+    gap: 0.34rem;
+    padding: 0.24rem 0.68rem;
+    border: 1px solid var(--rule-strong);
+    border-radius: 9999px;
+    background: var(--bg-soft);
+    color: var(--text-strong);
+    font-family: var(--font-body);
     font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    transform: rotate(-4deg) scale(1);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    transform: scale(1);
     user-select: none;
   }
-  .seal-ink-ring {
+  .account-ink-ripple {
     position: absolute;
-    inset: -4px;
-    border-radius: 6px;
-    border: 1.5px solid color-mix(in srgb, var(--vermilion, #c84b31) 60%, transparent);
+    inset: -3px;
+    border-radius: 9999px;
+    border: 1px solid var(--rule-strong);
     opacity: 0;
     pointer-events: none;
-    transform: scale(0.75);
+    transform: scale(0.84);
   }
-  .account-cinnabar-seal-wrap.is-stamping .account-cinnabar-seal {
-    animation: cinnabarSealStamp 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  .account-status-capsule-wrap.is-rippling .account-status-capsule {
+    animation: accountCapsulePop 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
-  .account-cinnabar-seal-wrap.is-stamping .seal-ink-ring.ring-a {
-    animation: cinnabarRingRipple 580ms 90ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  .account-status-capsule-wrap.is-rippling .account-ink-ripple.ring-a {
+    animation: accountInkRippleRing 560ms 60ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
-  .account-cinnabar-seal-wrap.is-stamping .seal-ink-ring.ring-b {
-    animation: cinnabarRingRipple 680ms 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  .account-status-capsule-wrap.is-rippling .account-ink-ripple.ring-b {
+    animation: accountInkRippleRing 680ms 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
-  @keyframes cinnabarSealStamp {
+  @keyframes accountCapsulePop {
     0% {
-      opacity: 0;
-      transform: translate3d(0, -10px, 0) scale(1.68) rotate(-14deg);
+      opacity: 0.72;
+      transform: translate3d(0, 3px, 0) scale(0.95);
     }
-    62% {
+    60% {
       opacity: 1;
-      transform: translate3d(0, 1px, 0) scale(0.95) rotate(-2deg);
+      transform: translate3d(0, -1px, 0) scale(1.03);
     }
     100% {
       opacity: 1;
-      transform: translate3d(0, 0, 0) scale(1) rotate(-4deg);
+      transform: translate3d(0, 0, 0) scale(1);
     }
   }
 
-  @keyframes cinnabarRingRipple {
+  @keyframes accountInkRippleRing {
     0% {
-      opacity: 0.68;
-      transform: scale(0.82) rotate(-4deg);
+      opacity: 0.62;
+      transform: scale(0.88);
     }
     100% {
       opacity: 0;
-      transform: scale(1.75) rotate(-4deg);
+      transform: scale(1.62);
     }
   }
 
@@ -1245,13 +1252,13 @@ import Header from '../components/Header.astro';
     transition: opacity 260ms var(--ease);
   }
   .bridge-stream.stream-push {
-    stroke: var(--vermilion, #c84b31);
+    stroke: var(--ink-strong);
   }
   .bridge-stream.stream-pull {
-    stroke: #2563eb;
+    stroke: var(--ink-mid, #555555);
   }
   [data-theme="dark"] .bridge-stream.stream-pull {
-    stroke: #60a5fa;
+    stroke: var(--ink-mid, #a8a8a8);
   }
 
   .ink-flow-droplet {
@@ -1266,22 +1273,22 @@ import Header from '../components/Header.astro';
   .ink-flow-droplet.droplet-push {
     left: 8%;
     margin-top: -7px;
-    background: var(--vermilion, #c84b31);
+    background: var(--ink-strong);
   }
   .ink-flow-droplet.droplet-pull {
     right: 8%;
     margin-top: 1px;
-    background: #2563eb;
+    background: var(--ink-mid, #555555);
   }
   [data-theme="dark"] .ink-flow-droplet.droplet-pull {
-    background: #60a5fa;
+    background: var(--ink-mid, #a8a8a8);
   }
 
-  .bridge-confluence-seal {
+  .bridge-confluence-pill {
     position: relative;
     z-index: 2;
-    padding: 0.1rem 0.42rem;
-    border-radius: 999px;
+    padding: 0.12rem 0.5rem;
+    border-radius: 9999px;
     font-size: 0.65rem;
     font-family: var(--font-mono);
     font-weight: 700;
@@ -1313,17 +1320,17 @@ import Header from '../components/Header.astro';
   .sync-ink-bridge[data-flow="bidirectional"] .droplet-pull {
     animation: dropletGlideLeft 920ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
-  .sync-ink-bridge[data-flow="synced"] .bridge-confluence-seal {
-    color: #16a34a;
-    border-color: rgba(34, 197, 94, 0.45);
-    background: rgba(34, 197, 94, 0.1);
+  .sync-ink-bridge[data-flow="synced"] .bridge-confluence-pill {
+    color: var(--text-strong);
+    border-color: var(--rule-strong);
+    background: var(--vermilion-soft);
   }
-  [data-theme="dark"] .sync-ink-bridge[data-flow="synced"] .bridge-confluence-seal {
-    color: #4ade80;
+  [data-theme="dark"] .sync-ink-bridge[data-flow="synced"] .bridge-confluence-pill {
+    color: var(--text-strong);
   }
-  .sync-ink-bridge[data-flow="error"] .bridge-confluence-seal {
-    color: #dc2626;
-    border-color: rgba(220, 38, 38, 0.45);
+  .sync-ink-bridge[data-flow="error"] .bridge-confluence-pill {
+    color: var(--text-strong);
+    border-color: var(--ink-strong);
   }
 
   @keyframes inkStreamFlow {
@@ -1783,13 +1790,13 @@ import Header from '../components/Header.astro';
       animation: none !important;
       transition: none !important;
     }
-    .account-cinnabar-seal-wrap.is-stamping .account-cinnabar-seal {
+    .account-status-capsule-wrap.is-rippling .account-status-capsule {
       animation: none !important;
       transition: none !important;
       opacity: 1 !important;
-      transform: rotate(-4deg) !important;
+      transform: none !important;
     }
-    .seal-ink-ring,
+    .account-ink-ripple,
     .ink-flow-droplet {
       animation: none !important;
       opacity: 0 !important;

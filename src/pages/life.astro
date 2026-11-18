@@ -235,7 +235,7 @@ const countByCategory = {
       <div class="life-modal-dialog" data-lenis-prevent>
         <button type="button" class="life-modal-close" id="life-modal-close" aria-label="关闭弹窗">✕</button>
         <div class="life-modal-header">
-          <span class="modal-seal">抽签</span>
+          <span class="modal-pill">抽签</span>
           <h3 class="modal-title" id="modal-life-title">🎲 今日灵感签</h3>
           <p class="modal-subtitle">既然犹豫不决，不妨把脚步交给机缘~</p>
         </div>
@@ -455,7 +455,7 @@ const countByCategory = {
       transform 400ms cubic-bezier(0.22, 1, 0.36, 1),
       opacity 220ms var(--ease);
   }
-  /* 游标底端朱砂飞白笔锋 */
+  /* 游标底端浓墨飞白笔锋 */
   .life-tab-brush-glider::after {
     content: '';
     position: absolute;
@@ -464,7 +464,7 @@ const countByCategory = {
     bottom: -2px;
     height: 2px;
     border-radius: 999px;
-    background: linear-gradient(90deg, transparent, var(--vermilion, #c84b31), transparent);
+    background: linear-gradient(90deg, transparent, var(--vermilion), transparent);
     opacity: 0.85;
   }
   .life-tab-brush-glider.is-ready {
@@ -617,7 +617,7 @@ const countByCategory = {
   [data-theme="dark"] .life-card::after {
     box-shadow:
       0 20px 42px -10px rgba(0, 0, 0, 0.56),
-      0 0 22px -8px rgba(224, 109, 83, 0.2);
+      0 0 22px -8px rgba(255, 255, 255, 0.08);
   }
   .life-card:hover::after,
   .life-card:focus-within::after {
@@ -716,8 +716,8 @@ const countByCategory = {
   .life-card:hover .life-card-folio-btn,
   .life-card-folio-btn:focus-visible {
     opacity: 1;
-    color: var(--vermilion, #c84b31);
-    border-color: color-mix(in srgb, var(--vermilion, #c84b31) 48%, var(--rule-strong));
+    color: var(--text-strong);
+    border-color: var(--rule-strong);
     transform: translate3d(1px, -1px, 0);
   }
 
@@ -826,7 +826,7 @@ const countByCategory = {
     top: 0;
     bottom: 0;
     width: 1.5px;
-    background: linear-gradient(180deg, var(--vermilion, #c84b31), var(--accent), transparent);
+    background: linear-gradient(180deg, var(--ink-strong), var(--accent), transparent);
     transform: scaleY(0.28);
     transform-origin: top center;
     opacity: 0.45;
@@ -874,7 +874,7 @@ const countByCategory = {
       opacity 260ms calc(var(--tip-idx, 0) * 45ms) var(--ease);
   }
   .life-card:hover .life-card-tips-list li::before {
-    background: var(--vermilion, #c84b31);
+    background: var(--ink-strong);
     opacity: 1;
     transform: scale(1.18);
   }
@@ -897,7 +897,7 @@ const countByCategory = {
     transition: border-color 260ms var(--ease), color 260ms var(--ease);
   }
   .life-card:hover .life-card-best-time {
-    border-color: color-mix(in srgb, var(--vermilion, #c84b31) 42%, var(--rule-strong));
+    border-color: var(--ink-strong);
     color: var(--text-strong);
   }
 
@@ -1088,7 +1088,7 @@ const countByCategory = {
       transparent 34px
     );
     border: 1px solid var(--rule-strong);
-    border-left: 3px solid color-mix(in srgb, var(--vermilion, #c84b31) 52%, var(--rule-strong));
+    border-left: 3px solid var(--ink-strong);
     border-radius: 6px 14px 14px 6px;
     padding: 2rem 2rem 1.85rem 2.15rem;
     box-shadow: 0 26px 64px -10px rgba(0, 0, 0, 0.28);
@@ -1135,19 +1135,19 @@ const countByCategory = {
     margin-bottom: 1.35rem;
   }
 
-  /* 朱砂印信签章 */
-  .modal-seal {
-    display: inline-block;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    padding: 0.16rem 0.52rem;
-    border: 1.5px solid color-mix(in srgb, var(--vermilion, #c84b31) 78%, transparent);
-    border-radius: 3px;
-    color: var(--vermilion, #c84b31);
-    background: color-mix(in srgb, var(--vermilion, #c84b31) 8%, transparent);
+  /* 圆润单色胶囊徽标 */
+  .modal-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    padding: 0.18rem 0.68rem;
+    border: 1px solid var(--rule-strong);
+    border-radius: 9999px;
+    color: var(--text-strong);
+    background: var(--bg-soft);
     margin-bottom: 0.55rem;
-    transform: rotate(-3deg);
   }
 
   .modal-title {
@@ -1299,7 +1299,7 @@ const countByCategory = {
     const modalContent = document.getElementById('life-modal-content');
     const modalReroll = document.getElementById('life-modal-reroll');
     const modalLocate = document.getElementById('life-modal-locate');
-    const modalSeal = modal?.querySelector<HTMLElement>('.modal-seal') || null;
+    const modalPill = modal?.querySelector<HTMLElement>('.modal-pill') || null;
     const modalTitleEl = document.getElementById('modal-life-title');
     const modalSubtitleEl = modal?.querySelector<HTMLElement>('.modal-subtitle') || null;
 
@@ -1903,11 +1903,11 @@ const countByCategory = {
         if (isLottery && diceIcon) {
           gsap.fromTo(diceIcon, { rotation: 0, scale: 1 }, { rotation: 720, scale: 1.35, duration: 0.65, ease: 'back.out(2)', clearProps: 'scale' });
         }
-        if (modalSeal) {
+        if (modalPill) {
           gsap.fromTo(
-            modalSeal,
-            { scale: 1.46, rotation: -12, opacity: 0.25 },
-            { scale: 1, rotation: -3, opacity: 1, duration: 0.38, ease: 'back.out(2.1)' }
+            modalPill,
+            { scale: 0.92, y: 4, opacity: 0 },
+            { scale: 1, y: 0, opacity: 1, duration: 0.3, ease: 'power2.out' }
           );
         }
       }
@@ -1949,7 +1949,7 @@ const countByCategory = {
       const tipNodes = Array.from(pickedCard.querySelectorAll('.life-card-tips-list li'));
       const mapHref = pickedCard.querySelector<HTMLAnchorElement>('.life-map-link')?.getAttribute('href') || '';
 
-      if (modalSeal) modalSeal.textContent = mode === 'lottery' ? '抽签' : '拾光';
+      if (modalPill) modalPill.textContent = mode === 'lottery' ? '抽签' : '拾光';
       if (modalTitleEl) modalTitleEl.textContent = mode === 'lottery' ? '🎲 今日灵感签' : '📖 手账书页详笺';
       if (modalSubtitleEl) {
         modalSubtitleEl.textContent = mode === 'lottery'
@@ -2129,7 +2129,7 @@ const countByCategory = {
       if (emptyState) gsap.killTweensOf(emptyState);
       if (modalContent) gsap.killTweensOf(modalContent);
       if (diceIcon) gsap.killTweensOf(diceIcon);
-      if (modalSeal) gsap.killTweensOf(modalSeal);
+      if (modalPill) gsap.killTweensOf(modalPill);
       if (isModalOpen) {
         if ((window as any).lenis) {
           (window as any).lenis.start();

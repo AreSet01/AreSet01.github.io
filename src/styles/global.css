@@ -340,7 +340,10 @@ html[data-font="kai"] body {
   --rule: rgba(0, 34, 29, 0.16);
   --rule-strong: rgba(0, 34, 29, 0.32);
   --rule-soft: rgba(0, 34, 29, 0.08);
-  --vermilion: #b91c1c;
+  --vermilion: #00362e;
+  --vermilion-strong: #00221d;
+  --vermilion-soft: rgba(0, 54, 46, 0.14);
+  --vermilion-rgb: 0, 54, 46;
   --glass-bg: rgba(77, 182, 172, 0.92);
   --glass-bg-strong: rgba(77, 182, 172, 0.97);
   --glass-bg-soft: rgba(77, 182, 172, 0.6);
@@ -2265,21 +2268,6 @@ html[data-sidebar-collapsed="true"] .zen-sound-capsule {
   gap: 0.55rem;
 }
 
-.zen-seal {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.55rem;
-  height: 1.55rem;
-  border-radius: 3px;
-  background: var(--vermon, #d23f31);
-  color: #ffffff;
-  font-family: var(--font-hand-title);
-  font-size: 0.95rem;
-  line-height: 1;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
 .zen-title-group {
   display: flex;
   flex-direction: column;
@@ -3478,7 +3466,7 @@ mark.article-highlight-mark.is-code-mark,
   --callout-bg: rgba(154, 104, 24, 0.05);
 }
 
-/* 4. Warning: 赭石 / 警策朱砂 */
+/* 4. Warning: 赭石暖褐 */
 .callout-warning {
   --callout-accent: #b24b26;
   --callout-title-color: #8c3618;
@@ -3781,12 +3769,6 @@ mark.article-highlight-mark.is-code-mark,
     color: var(--text-strong) !important;
     text-decoration: none !important;
     line-height: 1 !important;
-  }
-
-  .brand-seal {
-    width: 1.55rem !important;
-    height: 1.55rem !important;
-    font-size: 0.9rem !important;
   }
 
   /* Hide desktop-only nav clusters inside .glass-nav on mobile */
@@ -6800,43 +6782,9 @@ html.font-switching::view-transition-new(root) {
   color: var(--muted-strong);
 }
 
-/* Stamp that "thumps" into place once the page has settled */
-.about-stamp {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 5.2rem;
-  height: 5.2rem;
-  border: 2px solid var(--vermilion);
-  border-radius: 4px;
-  color: var(--vermilion);
-  font-family: var(--font-hand-title);
-  font-size: 1.05rem;
-  line-height: 1.15;
-  text-align: center;
-  writing-mode: vertical-rl;
-  box-shadow: inset 0 0 6px var(--vermilion-soft);
-  transform: rotate(-6deg);
-  opacity: 0;
-  user-select: none;
-}
-
-.about-stamp.is-stamped {
-  animation: aboutStamp 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-@keyframes aboutStamp {
-  0%   { opacity: 0; transform: rotate(-14deg) scale(1.7); }
-  60%  { opacity: 1; transform: rotate(-4deg) scale(0.94); }
-  100% { opacity: 1; transform: rotate(-6deg) scale(1); }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .about-typed-caret {
     animation: none;
-  }
-  .about-stamp {
-    opacity: 1;
   }
   .about-timeline-spine line {
     stroke-dashoffset: 0;
@@ -7078,7 +7026,7 @@ html[data-font="kai"] .post-title {
   animation: none !important;
 }
 
-/* ---------- h2: calligraphy brush rule draws left→right with vermilion nib & feibai taper ---------- */
+/* ---------- h2: calligraphy brush rule draws left→right with monochrome ink & feibai taper ---------- */
 .prose .pr[data-pr="heading"] {
   position: relative;
   border-top-color: transparent;
@@ -7098,7 +7046,7 @@ html[data-font="kai"] .post-title {
   height: 1.5px;
   background: linear-gradient(
     90deg,
-    var(--vermilion, #c23f2c) 0%,
+    var(--vermilion) 0%,
     var(--rule-strong) 16%,
     var(--rule) 76%,
     transparent 100%
@@ -7268,7 +7216,7 @@ html[data-font="kai"] .post-title {
   transition: transform 640ms var(--article-ease-surface), opacity 500ms var(--article-ease-reveal);
 }
 
-/* ---------- Reading spine: brush-drawn ink line & cinnabar halo nodes ---------- */
+/* ---------- Reading spine: brush-drawn ink line & water-ink halo nodes ---------- */
 .post-spine {
   position: absolute;
   top: 0;
@@ -7298,11 +7246,12 @@ html[data-font="kai"] .post-title {
 .post-spine-dot {
   position: absolute;
   left: 50%;
-  width: 0.54rem;
-  height: 0.54rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
   background: var(--bg-base);
-  border: 1.75px solid var(--vermilion);
-  transform: translate(-50%, -50%) rotate(45deg) scale(0);
+  border: 1.65px solid var(--ink-strong);
+  transform: translate(-50%, -50%) scale(0);
   transition:
     transform 420ms var(--article-ease-surface),
     background-color 280ms var(--article-ease-surface);
@@ -7312,24 +7261,25 @@ html[data-font="kai"] .post-title {
   content: '';
   position: absolute;
   inset: -5px;
-  border: 1px solid var(--vermilion);
+  border-radius: 9999px;
+  border: 1px solid var(--ink);
   opacity: 0;
   transform: scale(0.55);
   pointer-events: none;
 }
 
 .post-spine-dot.is-lit {
-  transform: translate(-50%, -50%) rotate(45deg) scale(1);
-  background: var(--vermilion);
+  transform: translate(-50%, -50%) scale(1);
+  background: var(--ink-strong);
 }
 
 .post-spine-dot.is-lit::after {
-  animation: spineDotCinnabarBloom 680ms var(--article-ease-surface) forwards;
+  animation: spineDotInkBloom 680ms var(--article-ease-surface) forwards;
 }
 
-@keyframes spineDotCinnabarBloom {
+@keyframes spineDotInkBloom {
   0% {
-    opacity: 0.72;
+    opacity: 0.68;
     transform: scale(0.55);
   }
   100% {
@@ -7365,7 +7315,7 @@ html[data-font="kai"] .post-title {
     stroke-dashoffset: 0;
   }
   .post-spine-dot {
-    transform: translate(-50%, -50%) rotate(45deg) scale(1);
+    transform: translate(-50%, -50%) scale(1);
   }
   .post-spine-dot.is-lit::after {
     animation: none;
@@ -7379,14 +7329,14 @@ html[data-font="kai"] .post-title {
 /* ================= Site-entry curtain (墨化为像素: drop → burst → vortex → glyphs → page) =================
    Markup ships on every page (BaseLayout) but only paints on the load the inline head script
    armed with html.site-intro-active — so a session that has already seen it never flashes.
-   Everything that moves lives on the canvas; the DOM here is the seal, the tagline, the footer. */
+   Everything that moves lives on the canvas; the DOM here is the water-ink ring, the tagline, the footer. */
 
 .site-intro {
   position: fixed;
   inset: 0;
   z-index: 9990;
   display: none;
-  overflow: hidden; /* the seal waits at 2× / -17° before it lands, and the ink ring is 46vmax */
+  overflow: hidden;
   background-color: var(--bg-base);
   cursor: pointer;
   touch-action: none;
@@ -7439,42 +7389,7 @@ html.site-intro-active .site-intro {
   will-change: transform;
 }
 
-.site-intro-seal {
-  position: absolute;
-  width: 3rem;
-  aspect-ratio: 1;
-  opacity: 0;
-  pointer-events: none;
-  will-change: transform, opacity;
-}
-
-.site-intro-seal svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  image-rendering: pixelated;
-}
-
-/* CSS, not presentation attributes — var() is not valid in fill="" / stroke="" */
-.site-intro-seal .seal-plate {
-  fill: var(--ink-strong);
-}
-
-.site-intro-seal .seal-frame {
-  fill: none;
-  stroke: var(--bg-base);
-  stroke-width: 2.6;
-  opacity: 0.92;
-}
-
-.site-intro-seal .seal-glyph {
-  fill: var(--bg-base);
-  font-family: var(--font-pixel);
-  font-size: 46px;
-  text-anchor: middle;
-}
-
-/* Ink ring that spreads out of the seal on impact */
+/* Monochrome water-ink ripple ring that spreads out on glyph settlement */
 .site-intro-ring {
   position: absolute;
   left: 50%;
@@ -7830,22 +7745,6 @@ html.site-intro-active .site-intro {
   align-items: flex-start;
   gap: 0.6rem;
   margin-left: 2rem;
-}
-
-.timeline-end-seal {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3.6rem;
-  height: 3.6rem;
-  border: 2px solid var(--vermilion);
-  border-radius: 4px;
-  color: var(--vermilion);
-  font-family: var(--font-hand-title);
-  font-size: 1rem;
-  writing-mode: vertical-rl;
-  transform: rotate(-5deg);
-  box-shadow: inset 0 0 6px var(--vermilion-soft);
 }
 
 .timeline-end-count {
@@ -9406,52 +9305,50 @@ a.chart-bar-name:hover {
 }
 
 .lock-panel::after {
-  content: '破封 · 启卷';
+  content: '';
   position: absolute;
-  top: 1.4rem;
-  right: 1.5rem;
-  padding: 0.22rem 0.62rem;
-  border: 1.5px solid var(--vermilion, #c23f2c);
-  border-radius: 3px;
-  font-family: var(--font-hand-title, var(--font-serif));
-  font-size: 0.84rem;
-  letter-spacing: 0.14em;
-  color: var(--vermilion, #c23f2c);
-  background: var(--vermilion-soft, rgba(194, 63, 44, 0.08));
+  inset: -20%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 42%,
+    var(--vermilion-soft) 0%,
+    rgba(var(--vermilion-rgb, 0, 0, 0), 0.04) 42%,
+    transparent 68%
+  );
   opacity: 0;
-  transform: scale(1.28) rotate(-8deg);
+  transform: scale(0.35);
   pointer-events: none;
 }
 
-.lock-panel.is-unsealing {
+.lock-panel.is-opening {
   pointer-events: none;
-  animation: lockPanelUnseal 380ms var(--article-ease-layout) forwards;
+  animation: lockPanelUnfurl 380ms var(--article-ease-layout) forwards;
 }
 
-.lock-panel.is-unsealing::after {
-  animation: lockSealStamp 280ms var(--article-ease-surface) forwards;
+.lock-panel.is-opening::after {
+  animation: lockInkBloom 340ms var(--article-ease-surface) forwards;
 }
 
 [data-locked-content="true"].is-unfurling {
   animation: lockedScrollUnfurl 540ms var(--article-ease-reveal) both;
 }
 
-@keyframes lockSealStamp {
+@keyframes lockInkBloom {
   0% {
-    opacity: 0;
-    transform: scale(1.28) rotate(-8deg);
+    opacity: 0.78;
+    transform: scale(0.35);
   }
-  55% {
-    opacity: 0.96;
-    transform: scale(0.96) rotate(-3deg);
+  58% {
+    opacity: 0.56;
+    transform: scale(1.28);
   }
   100% {
-    opacity: 0.92;
-    transform: scale(1) rotate(-4deg);
+    opacity: 0;
+    transform: scale(1.85);
   }
 }
 
-@keyframes lockPanelUnseal {
+@keyframes lockPanelUnfurl {
   0% {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
@@ -9495,7 +9392,7 @@ a.chart-bar-name:hover {
 }
 
 .lock-input.is-error-shake {
-  border-color: var(--vermilion, #c23f2c);
+  border-color: var(--ink-strong);
   animation: lockInputShake 320ms var(--article-ease-surface);
 }
 
@@ -9507,8 +9404,8 @@ a.chart-bar-name:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lock-panel.is-unsealing,
-  .lock-panel.is-unsealing::after,
+  .lock-panel.is-opening,
+  .lock-panel.is-opening::after,
   [data-locked-content="true"].is-unfurling,
   .lock-input.is-error-shake {
     animation: none !important;
@@ -9559,7 +9456,7 @@ a.chart-bar-name:hover {
   }
 }
 
-/* Brand mark: replace dot with mini seal */
+/* Brand mark */
 .brand-mark {
   display: inline-flex;
   align-items: center;
@@ -9570,31 +9467,6 @@ a.chart-bar-name:hover {
   font-size: 1.4rem;
   letter-spacing: 0.02em;
   color: var(--text-strong);
-}
-
-.brand-seal {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.65rem;
-  height: 1.65rem;
-  background: var(--vermilion);
-  color: var(--bg-elev);
-  font-family: var(--font-hand-title);
-  font-size: 0.95rem;
-  font-weight: 500;
-  line-height: 1;
-  border-radius: 2px;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
-    0 1px 3px rgba(120, 30, 20, 0.28);
-  transform: rotate(-2deg);
-  letter-spacing: 0;
-}
-
-[data-theme="dark"] .brand-seal {
-  background: var(--vermilion);
-  color: var(--bg-base);
 }
 
 /* ================= Vertical-style accents (rail dividers) ================= */
@@ -9742,9 +9614,12 @@ a.chart-bar-name:hover {
 }
 
 .mermaid-action-btn.is-copied {
-  color: var(--vermilion, #c23f2c) !important;
-  border-color: var(--vermilion, #c23f2c) !important;
-  background: var(--vermilion-soft, rgba(194, 63, 44, 0.1)) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-strong) !important;
+  border-color: var(--rule-strong) !important;
+  background: var(--vermilion-soft) !important;
 }
 
 .mermaid-action-btn.is-active {
@@ -10400,14 +10275,14 @@ body.gallery-lightbox-open {
 /* Source Ink Frame Pulse (zero multi-spread box-shadow thrash) */
 @keyframes pinSourceRadar {
   0% {
-    outline: 2px solid var(--vermilion, var(--accent));
+    outline: 2px solid var(--ink-strong);
     outline-offset: 2px;
-    background-color: rgba(194, 63, 44, 0.12);
+    background-color: var(--vermilion-soft);
   }
   45% {
-    outline: 1.5px solid var(--vermilion, var(--accent));
+    outline: 1.5px solid var(--ink);
     outline-offset: 5px;
-    background-color: rgba(194, 63, 44, 0.05);
+    background-color: rgba(var(--vermilion-rgb, 0, 0, 0), 0.04);
   }
   100% {
     outline: 1px solid transparent;
@@ -10464,14 +10339,14 @@ body.gallery-lightbox-open {
   margin-left: -6px;
   margin-top: -6px;
   border-radius: 999px;
-  background: radial-gradient(circle at 35% 35%, #fff7ed 0%, var(--vermilion, var(--accent)) 62%, rgba(194, 63, 44, 0.85) 100%);
-  box-shadow: 0 0 12px rgba(194, 63, 44, 0.52);
+  background: radial-gradient(circle at 35% 35%, var(--bg-elev) 0%, var(--ink) 62%, var(--ink-strong) 100%);
+  box-shadow: 0 0 10px var(--ink-mist);
   will-change: transform, opacity;
 }
 
 [data-theme="dark"] .pin-fly-ghost {
-  background: radial-gradient(circle at 35% 35%, #ffffff 0%, var(--vermilion, #e05a47) 68%, rgba(224, 90, 71, 0.85) 100%) !important;
-  box-shadow: 0 0 14px rgba(224, 90, 71, 0.62);
+  background: radial-gradient(circle at 35% 35%, #ffffff 0%, var(--ink) 68%, var(--ink-mid) 100%) !important;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.32);
 }
 
 .pin-ink-ripple {
@@ -10694,9 +10569,9 @@ body.gallery-lightbox-open {
   background: linear-gradient(
     105deg,
     transparent 0%,
-    rgba(194, 63, 44, 0.08) 32%,
+    rgba(var(--vermilion-rgb, 0, 0, 0), 0.06) 32%,
     rgba(255, 255, 255, 0.28) 50%,
-    rgba(194, 63, 44, 0.08) 68%,
+    rgba(var(--vermilion-rgb, 0, 0, 0), 0.06) 68%,
     transparent 100%
   );
   opacity: 0;
@@ -11534,7 +11409,7 @@ html[data-companion-mode="split"] #companion-overlay {
   pointer-events: auto;
 }
 
-/* ---------- 双卷并排中间分隔缝（14px 呼吸留白槽 + 朱砂墨丝指引） ---------- */
+/* ---------- 双卷并排中间分隔缝（14px 呼吸留白槽 + 水墨丝缕指引） ---------- */
 #companion-splitter {
   --companion-inner-w: calc(100vw - 2 * var(--companion-frame-pad) - 14px);
   position: fixed;
@@ -11565,9 +11440,9 @@ html[data-companion-mode="split"] #companion-splitter {
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    rgba(194, 63, 44, 0.22) 16%,
-    var(--vermilion, #c23f2c) 50%,
-    rgba(194, 63, 44, 0.22) 84%,
+    var(--vermilion-soft) 16%,
+    var(--ink-strong) 50%,
+    var(--vermilion-soft) 84%,
     transparent 100%
   );
   opacity: 0;
@@ -11594,7 +11469,7 @@ html[data-companion-resizing="true"] #companion-splitter::before {
 }
 #companion-splitter:hover::after,
 html[data-companion-resizing="true"] #companion-splitter::after {
-  background: var(--vermilion, #c23f2c);
+  background: var(--ink-strong);
   opacity: 1;
   height: 58px;
 }
@@ -11602,7 +11477,7 @@ html[data-companion-resizing="true"] #companion-splitter::after {
   outline: none;
 }
 #companion-splitter:focus-visible::after {
-  background: var(--vermilion, #7D5C42);
+  background: var(--ink-strong);
   opacity: 1;
 }
 .companion-splitter-grip {
@@ -11946,10 +11821,10 @@ html[data-companion-mode="notes-full"] #article-search-floating-pill {
   background: linear-gradient(to bottom, transparent, var(--vermilion), transparent);
 }
 #companion-splitter.is-snapped-50::after {
-  background: var(--vermilion);
+  background: var(--ink-strong);
   opacity: 1;
   height: 64px;
-  box-shadow: 0 0 0 4px rgba(194, 63, 44, 0.24), 0 6px 18px rgba(194, 63, 44, 0.3);
+  box-shadow: 0 0 0 4px var(--vermilion-soft), 0 6px 18px var(--ink-mist);
   transform: scaleX(1.35);
 }
 
@@ -12303,7 +12178,7 @@ html[data-companion-mode="notes-full"] #article-search-floating-pill {
 .site-ctx-item:not(:disabled):hover,
 .site-ctx-item:not(:disabled):focus-visible {
   background: var(--bg-soft, rgba(24, 24, 27, 0.06));
-  color: var(--vermilion, #c24a2c);
+  color: var(--ink-strong, #18181b);
   outline: none;
 }
 
@@ -12349,7 +12224,7 @@ html[data-companion-mode="notes-full"] #article-search-floating-pill {
 [data-theme="dark"] .site-ctx-item:not(:disabled):hover,
 [data-theme="dark"] .site-ctx-item:not(:disabled):focus-visible {
   background: rgba(255, 255, 255, 0.08);
-  color: #f39c6b;
+  color: #ffffff;
 }
 
 [data-theme="moss"] .site-ctx-menu {
@@ -12373,7 +12248,7 @@ html[data-companion-mode="notes-full"] #article-search-floating-pill {
 [data-theme="rice"] .site-ctx-item:not(:disabled):hover,
 [data-theme="rice"] .site-ctx-item:not(:disabled):focus-visible {
   background: rgba(107, 91, 69, 0.1);
-  color: #9b3d24;
+  color: #2b241c;
 }
 
 .site-ctx-toast {
@@ -12471,8 +12346,8 @@ html[data-companion-mode="notes-full"] #article-search-floating-pill {
 }
 
 .app-update-pill-btn.is-primary:hover {
-  background: var(--vermilion, #c24a2c);
-  color: #ffffff;
+  background: var(--ink, #27272a);
+  color: var(--bg-elev, #ffffff);
 }
 
 .app-update-pill-btn:active {

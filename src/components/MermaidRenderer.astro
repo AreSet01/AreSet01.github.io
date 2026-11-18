@@ -432,7 +432,7 @@
       const target = e.target as HTMLElement | null;
       if (!target) return;
 
-      // 1. 复制 Mermaid 代码
+      // 1. 复制 Mermaid 代码（细线对勾 SVG + 已复制 + 单色水墨微澜）
       const copyBtn = target.closest<HTMLElement>('.mermaid-btn-copy');
       if (copyBtn) {
         const block = copyBtn.closest<HTMLElement>('.mermaid-block');
@@ -442,15 +442,28 @@
         if (!rawCode) return;
         try {
           await navigator.clipboard.writeText(rawCode);
-          const span = copyBtn.querySelector('span') || copyBtn;
-          const original = span.textContent;
+          const CHECK_SVG = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+          if (!copyBtn.dataset.originalHtml) {
+            copyBtn.dataset.originalHtml = copyBtn.innerHTML;
+          }
+          const prevTimer = Number(copyBtn.dataset.copyTimer || 0);
+          if (prevTimer) {
+            window.clearTimeout(prevTimer);
+            copyTimers.delete(prevTimer);
+          }
+          copyBtn.classList.remove('is-copied');
+          void copyBtn.offsetWidth;
           copyBtn.classList.add('is-copied');
-          span.textContent = '钤印已录';
+          copyBtn.innerHTML = `${CHECK_SVG}<span>已复制</span>`;
           const copyTimer = window.setTimeout(() => {
             copyTimers.delete(copyTimer);
+            delete copyBtn.dataset.copyTimer;
             copyBtn.classList.remove('is-copied');
-            span.textContent = original;
+            if (copyBtn.dataset.originalHtml) {
+              copyBtn.innerHTML = copyBtn.dataset.originalHtml;
+            }
           }, 1500);
+          copyBtn.dataset.copyTimer = String(copyTimer);
           copyTimers.add(copyTimer);
         } catch {}
         return;

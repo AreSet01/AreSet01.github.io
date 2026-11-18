@@ -4268,12 +4268,12 @@
   @keyframes article-highlight-pulse {
     0% {
       background-color: rgba(255, 197, 61, 0.62) !important;
-      outline: 1.5px solid var(--vermilion, #c23f2c);
+      outline: 1.5px solid var(--ink-strong);
       outline-offset: 1px;
     }
     55% {
       background-color: rgba(255, 197, 61, 0.32) !important;
-      outline: 1px solid rgba(194, 63, 44, 0.45);
+      outline: 1px solid var(--rule-strong);
       outline-offset: 3px;
     }
     100% {
@@ -4368,8 +4368,8 @@
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(215, 140, 10, 0.24) 68%,
-      rgba(194, 63, 44, 0.28) 92%,
+      rgba(215, 140, 10, 0.22) 68%,
+      rgba(var(--vermilion-rgb, 0, 0, 0), 0.18) 92%,
       transparent 100%
     );
     opacity: 0;
@@ -4502,12 +4502,12 @@
   @keyframes unifiedBlockPulse {
     0% {
       background: var(--hl-block-bg-hover);
-      outline: 2px solid var(--vermilion, #c23f2c);
+      outline: 2px solid var(--ink-strong);
       outline-offset: 1px;
     }
     55% {
       background: var(--hl-block-bg-hover);
-      outline: 1px solid rgba(194, 63, 44, 0.4);
+      outline: 1px solid var(--rule-strong);
       outline-offset: 4px;
     }
     100% {
@@ -6409,28 +6409,28 @@
   }
 
   .notes-btn-ask {
-    color: var(--vermilion, #c23f2c);
-    border-color: rgba(194, 63, 44, 0.28);
+    color: var(--vermilion);
+    border-color: var(--rule-strong);
   }
   .notes-btn-ask:hover {
-    color: var(--vermilion, #c23f2c);
-    background: var(--vermilion-soft, rgba(194, 63, 44, 0.1));
-    border-color: var(--vermilion, #c23f2c);
+    color: var(--vermilion);
+    background: var(--vermilion-soft);
+    border-color: var(--vermilion);
   }
 
   /* 快捷键按键按压微弹反馈 */
   .dock-action-btn.is-key-pressed {
     transform: translateY(1px) scale(0.92) !important;
-    background: rgba(194, 63, 44, 0.14) !important;
-    color: var(--vermilion, #c23f2c) !important;
+    background: var(--vermilion-soft) !important;
+    color: var(--vermilion) !important;
   }
   .dock-action-btn.is-key-pressed .dock-kbd {
-    background: var(--vermilion, #c23f2c);
-    color: #fff;
-    border-color: var(--vermilion, #c23f2c);
+    background: var(--vermilion);
+    color: var(--bg-base);
+    border-color: var(--vermilion);
   }
   .selection-dock-capsule.has-key-press {
-    box-shadow: 0 0 0 4px rgba(194, 63, 44, 0.18), 0 16px 40px rgba(0, 0, 0, 0.16);
+    box-shadow: 0 0 0 4px var(--vermilion-soft), 0 16px 40px rgba(0, 0, 0, 0.16);
   }
 
   /* 划词/追问飞入墨问幽灵胶囊 */
@@ -6440,7 +6440,7 @@
     max-width: 240px;
     padding: 4px 12px;
     border-radius: 999px;
-    border: 1px solid var(--vermilion, #c23f2c);
+    border: 1px solid var(--ink-strong);
     background: var(--glass-bg-strong, var(--bg-elev));
     color: var(--text-strong);
     font-family: var(--font-body);
@@ -6449,7 +6449,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    box-shadow: 0 10px 28px rgba(194, 63, 44, 0.24);
+    box-shadow: 0 10px 28px var(--ink-mist);
     pointer-events: none;
   }
 
@@ -6488,14 +6488,14 @@
     width: 20px;
     height: 20px;
     border-radius: 999px;
-    background: var(--vermilion-soft, rgba(194, 63, 44, 0.14));
-    color: var(--vermilion, #c23f2c);
+    background: var(--vermilion-soft);
+    color: var(--vermilion);
     flex-shrink: 0;
   }
   .notes-saved-toast-action {
     border: none;
     background: transparent;
-    color: var(--vermilion, #c23f2c);
+    color: var(--vermilion);
     font-family: var(--font-body);
     font-size: 0.78rem;
     font-weight: 700;
@@ -6505,7 +6505,7 @@
     transition: background 150ms ease, transform 150ms ease;
   }
   .notes-saved-toast-action:hover {
-    background: var(--vermilion-soft, rgba(194, 63, 44, 0.1));
+    background: var(--vermilion-soft);
     transform: translateX(1.5px);
   }
 
@@ -6531,8 +6531,8 @@
   .notes-item-card[data-note-kind="ai"].has-pulse::after {
     background: linear-gradient(
       90deg,
-      rgba(var(--vermilion-rgb, 194, 63, 44), 0.22) 0%,
-      rgba(var(--vermilion-rgb, 194, 63, 44), 0.08) 56%,
+      rgba(var(--vermilion-rgb, 0, 0, 0), 0.18) 0%,
+      rgba(var(--vermilion-rgb, 0, 0, 0), 0.06) 56%,
       transparent 100%
     );
   }
@@ -6661,7 +6661,7 @@
   [data-theme="rice"] .note-hover-tooltip-card {
     background: rgba(247, 240, 226, 0.97);
     border-color: rgba(107, 91, 69, 0.24);
-    border-left-color: var(--vermilion, #a83c28);
+    border-left-color: var(--vermilion, #7D5C42);
   }
 
   /* Header */
