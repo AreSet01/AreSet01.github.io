@@ -1254,6 +1254,8 @@ const countByCategory = {
   import CustomEase from 'gsap/CustomEase';
   import { addCardEnter, addCardExit, cardExitDuration, clearCardMotion, setCardEnterState } from '../utils/cardMotion';
   import { GALLERY_PHOTOS } from '../data/gallery';
+  import { getCollectionFilterController } from '../stores/collectionFilterStore';
+  import { animateCountValue, animateInkPopover } from '../utils/workbenchMotion';
 
   gsap.registerPlugin(ScrollTrigger, CustomEase);
   CustomEase.create('enter', 'M0,0 C0.16,1 0.3,1 1,1');
@@ -1298,6 +1300,17 @@ const countByCategory = {
     const cards = Array.from(container.querySelectorAll<HTMLElement>('.gallery-mat-card'));
     const emptyState = document.getElementById('gallery-empty-state');
     const resetBtn = document.getElementById('gallery-reset-filter');
+
+    const filterCtrl = typeof getCollectionFilterController === 'function' ? getCollectionFilterController('gallery') : null;
+    filterCtrl?.resetFilters();
+    filterCtrl?.setCounts(cards.length, cards.length);
+
+    if (typeof animateCountValue === 'function' && !reduceMotion) {
+      document.querySelectorAll<HTMLElement>('.gallery-stat-pill b[data-count]').forEach((cntEl) => {
+        const target = Number(cntEl.dataset.count || 0);
+        if (target > 0) animateCountValue(cntEl, target, { from: 0, durationSec: 0.48 });
+      });
+    }
 
     // 宣纸暗房墨韵显影：懒加载图片未解码完成时挂载轻雾，解码完成后徐徐显影（零 blur 卡顿）
     cards.forEach((card) => {
@@ -1455,6 +1468,7 @@ const countByCategory = {
           toHide.push(card);
         }
       });
+      filterCtrl?.setCounts(cards.length, toShow.length);
 
       // 切换分类或标签时，若已下滚超出视野，平滑引导回网格顶部
       const tabsEl = document.querySelector('.gallery-category-tabs');
@@ -1729,6 +1743,7 @@ const countByCategory = {
         if (catId === currentCategory && !searchQuery) return;
 
         currentCategory = catId;
+        filterCtrl?.setCategory(catId);
         catTabs.forEach((t) => {
           t.classList.remove('is-active');
           t.setAttribute('aria-selected', 'false');
@@ -1757,6 +1772,7 @@ const countByCategory = {
 
           // 重置分类至「全部影痕」，以保证全库检索该标签
           currentCategory = 'all';
+          filterCtrl?.selectTag(tag, { resetCategoryToAll: true });
           catTabs.forEach((t, i) => {
             if (i === 0) {
               t.classList.add('is-active');
@@ -1792,6 +1808,7 @@ const countByCategory = {
       searchInput.addEventListener('compositionend', () => {
         isComposing = false;
         searchQuery = searchInput.value;
+        filterCtrl?.setSearchQuery(searchQuery);
         if (searchClear) {
           searchClear.classList.toggle('hidden', searchQuery.length === 0);
         }
@@ -1804,6 +1821,7 @@ const countByCategory = {
       searchInput.addEventListener('input', () => {
         if (isComposing) return;
         searchQuery = searchInput.value;
+        filterCtrl?.setSearchQuery(searchQuery);
         if (searchClear) {
           searchClear.classList.toggle('hidden', searchQuery.length === 0);
         }
@@ -1818,6 +1836,7 @@ const countByCategory = {
       e.stopPropagation();
       if (searchInput) searchInput.value = '';
       searchQuery = '';
+      filterCtrl?.setSearchQuery('');
       searchClear.classList.add('hidden');
       applyFilters();
       searchInput?.focus();
@@ -1827,6 +1846,7 @@ const countByCategory = {
       e.stopPropagation();
       currentCategory = 'all';
       searchQuery = '';
+      filterCtrl?.resetFilters();
       if (searchInput) searchInput.value = '';
       searchClear?.classList.add('hidden');
       catTabs.forEach((t, i) => {
@@ -2014,6 +2034,7 @@ const countByCategory = {
     function openLightbox(photoId: string, originEl?: HTMLElement) {
       if (!lightbox) return;
       isLightboxOpen = true;
+      filterCtrl?.setActiveModal(photoId);
       if (originEl) lastFocusedElement = originEl;
 
       const list = getActivePhotoList();
@@ -2226,6 +2247,7 @@ const countByCategory = {
     function closeLightbox() {
       if (!lightbox || !isLightboxOpen) return;
       isLightboxOpen = false;
+      filterCtrl?.setActiveModal(null);
 
       // Lenis 协调：恢复页面滚动
       if ((window as any).lenis) {
@@ -2533,6 +2555,7 @@ const countByCategory = {
     const cleanupGalleryPage = () => {
       activeContainer = null;
       controller.abort();
+      filterCtrl?.setActiveModal(null);
       window.clearTimeout(baselineTimer);
       window.clearTimeout(searchTimer);
       if (filterTimeline) {

@@ -178,6 +178,26 @@ import Header from '../components/Header.astro';
   import { initNotesSync } from '../utils/notesSync';
   import { initMindmapSync } from '../utils/mindmapSync';
   import { initReadingSync } from '../utils/readingSync';
+  import {
+    $syncConfluence,
+    $syncSession,
+    $syncState,
+    refreshUnifiedSyncStatus,
+    runUnifiedBidirectionalSync,
+    runUnifiedPullSync,
+    runUnifiedPushSync,
+    setActiveAuthTab,
+    setSyncFeedback,
+    setSyncFlowMode,
+    setSyncSessionUser,
+    type SyncFlowMode,
+  } from '../stores/syncStore';
+  import {
+    animateInkPopover,
+    animatePaperModal,
+    animatePillGlider,
+    stopPillGlider,
+  } from '../utils/workbenchMotion';
 
   initNotesSync();
   initMindmapSync();
@@ -197,6 +217,7 @@ import Header from '../components/Header.astro';
     const { signal } = controller;
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     const trackedTimers = new Set<number>();
+    const storeUnsubs: Array<() => void> = [];
 
     function scheduleTimer(fn: () => void, ms: number): number {
       const id = window.setTimeout(() => {
@@ -225,26 +246,25 @@ import Header from '../components/Header.astro';
     const bridgeLocalMeta = $('bridgeLocalMeta');
     const bridgeCloudMeta = $('bridgeCloudMeta');
     const bridgeConfluenceLabel = $('bridgeConfluenceLabel');
+    const syncBadge = $('syncBadge');
+    const syncBadgeText = $('syncBadgeText');
     const syncStatus = $('syncStatus');
+    const syncDetail = $('syncDetail');
+    const pushPendingTag = $('pushPendingTag');
+    const pullIncomingTag = $('pullIncomingTag');
     const serviceHint = $('authServiceHint') as HTMLParagraphElement | null;
 
     function syncAccountTabGlider(immediate = false) {
       if (!accountTabs || !accountTabGlider) return;
       const activeBtn = accountTabs.querySelector<HTMLElement>('.account-tab.is-active');
       if (!activeBtn || !activeBtn.offsetWidth) return;
-      const sx = Math.max(0.05, activeBtn.offsetWidth / 100);
-      accountTabGlider.style.setProperty('--pill-rx', `${(7 / sx).toFixed(2)}px`);
-      const nextTransform = `translate3d(${activeBtn.offsetLeft}px, 0, 0) scaleX(${sx.toFixed(4)})`;
-      if (immediate || reduceMotion) {
-        accountTabGlider.style.transition = 'none';
-        accountTabGlider.style.transform = nextTransform;
-        requestAnimationFrame(() => {
-          if (accountTabGlider) accountTabGlider.style.transition = '';
-        });
-      } else {
-        accountTabGlider.style.transform = nextTransform;
-      }
-      accountTabGlider.classList.add('is-ready');
+      // Inverse border-radius (--pill-rx / --pill-ry) spring glider via workbenchMotion
+      animatePillGlider(accountTabGlider, activeBtn, {
+        container: accountTabs,
+        immediate: immediate || reduceMotion,
+        fixedRadius: 7,
+        readyClass: 'is-ready',
+      });
     }
 
     const tabsRO = typeof ResizeObserver !== 'undefined' && accountTabs
@@ -252,27 +272,71 @@ import Header from '../components/Header.astro';
       : null;
     if (tabsRO && accountTabs) tabsRO.observe(accountTabs);
 
-    // 入场：下一帧挂 is-ready，让 CSS 过渡跑起来
     requestAnimationFrame(() => {
       shell.classList.add('is-ready');
       syncAccountTabGlider(true);
     });
 
-    type SyncFlowMode = 'idle' | 'checking' | 'pushing' | 'pulling' | 'bidirectional' | 'synced' | 'error';
-    const FLOW_LABELS: Record<SyncFlowMode, string> = {
-      idle: '待命',
-      checking: '巡验',
-      pushing: '呈送 →',
-      pulling: '← 采撷',
-      bidirectional: '⇄ 流转',
-      synced: '已同步',
-      error: '阻滞',
-    };
-
     function setSyncInkFlowState(mode: SyncFlowMode) {
-      if (syncInkBridge) syncInkBridge.setAttribute('data-flow', mode);
-      if (bridgeConfluenceLabel) bridgeConfluenceLabel.textContent = FLOW_LABELS[mode] || '云墨同频';
+      setSyncFlowMode(mode);
     }
+
+    // Declarative Nanostores -> DOM bindings for #syncInkBridge, #syncBadge, and revision telemetry
+    storeUnsubs.push(
+      $syncConfluence.subscribe((conf) => {
+        if (syncInkBridge) syncInkBridge.setAttribute('data-flow', conf.flowMode);
+        if (bridgeConfluenceLabel) bridgeConfluenceLabel.textContent = conf.confluenceLabel || '云墨同频';
+        if (bridgeLocalMeta) bridgeLocalMeta.textContent = conf.localMetaText;
+        if (bridgeCloudMeta) bridgeCloudMeta.textContent = conf.cloudMetaText;
+      })
+    );
+
+    storeUnsubs.push(
+      $syncState.subscribe((st) => {
+        if (!st.ready) {
+          if (syncStatus) syncStatus.textContent = st.statusSummary;
+          return;
+        }
+        if (syncBadge) syncBadge.setAttribute('data-state', st.badgeState);
+        if (syncBadgeText) syncBadgeText.textContent = st.badgeLabel;
+        if (syncStatus) syncStatus.textContent = st.statusSummary;
+        if (syncDetail) syncDetail.textContent = st.detailSummary;
+
+        if (pushPendingTag) {
+          if (st.totalPending > 0) {
+            const wasHidden = pushPendingTag.hasAttribute('hidden');
+            pushPendingTag.textContent = `${st.totalPending} 项待提交`;
+            pushPendingTag.removeAttribute('hidden');
+            if (wasHidden && !reduceMotion) {
+              animateInkPopover(pushPendingTag, 'open', { useClipPath: false, offsetY: -3 });
+            }
+          } else {
+            pushPendingTag.setAttribute('hidden', '');
+          }
+        }
+
+        if (pullIncomingTag) {
+          if (st.totalIncoming > 0) {
+            const wasHidden = pullIncomingTag.hasAttribute('hidden');
+            pullIncomingTag.textContent = `${st.totalIncoming} 项新内容`;
+            pullIncomingTag.removeAttribute('hidden');
+            if (wasHidden && !reduceMotion) {
+              animateInkPopover(pullIncomingTag, 'open', { useClipPath: false, offsetY: -3 });
+            }
+          } else {
+            pullIncomingTag.setAttribute('hidden', '');
+          }
+        }
+      })
+    );
+
+    storeUnsubs.push(
+      $syncSession.subscribe((sess) => {
+        if (sess.authenticated && profileUsername) {
+          profileUsername.textContent = sess.username || '—';
+        }
+      })
+    );
 
     let statusRippleTimer = 0;
     function triggerAccountStatusRipple(statusLabel = '同步就绪') {
@@ -295,6 +359,10 @@ import Header from '../components/Header.astro';
     (window as any)[CLEANUP_KEY] = () => {
       controller.abort();
       tabsRO?.disconnect();
+      stopPillGlider(accountTabGlider);
+      while (storeUnsubs.length > 0) {
+        storeUnsubs.pop()?.();
+      }
       trackedTimers.forEach((tid) => window.clearTimeout(tid));
       trackedTimers.clear();
       (window as any)[CLEANUP_KEY] = undefined;
@@ -321,14 +389,8 @@ import Header from '../components/Header.astro';
     }
 
     function popMessageEl(el: HTMLElement) {
-      if (reduceMotion || typeof el.animate !== 'function') return;
-      el.animate(
-        [
-          { opacity: 0, transform: 'translate3d(0, -5px, 0)' },
-          { opacity: 1, transform: 'translate3d(0, 0, 0)' },
-        ],
-        { duration: 260, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
-      );
+      if (reduceMotion) return;
+      animateInkPopover(el, 'open', { useClipPath: false, offsetY: -5 });
     }
 
     function setServiceHint(message: string) {
@@ -351,6 +413,7 @@ import Header from '../components/Header.astro';
     function switchTab(tab: 'login' | 'register') {
       if (!tabLogin || !tabRegister || !loginForm || !registerForm) return;
       const login = tab === 'login';
+      setActiveAuthTab(tab);
       tabLogin.classList.toggle('is-active', login);
       tabRegister.classList.toggle('is-active', !login);
       tabLogin.setAttribute('aria-selected', String(login));
@@ -358,6 +421,10 @@ import Header from '../components/Header.astro';
       loginForm.hidden = !login;
       registerForm.hidden = login;
       setMessage('');
+      const visibleForm = login ? loginForm : registerForm;
+      if (!reduceMotion) {
+        animateInkPopover(visibleForm, 'open', { useClipPath: false, offsetY: 6 });
+      }
       requestAnimationFrame(() => syncAccountTabGlider(false));
     }
 
@@ -367,6 +434,7 @@ import Header from '../components/Header.astro';
     let feedbackHideTimer = 0;
     let feedbackClearTimer = 0;
     function setFeedback(msg: string, type: 'ok' | 'error' | 'info' = 'info') {
+      setSyncFeedback(msg, type);
       const fb = $('syncActionFeedback');
       if (!fb) return;
       fb.textContent = msg;
@@ -378,114 +446,28 @@ import Header from '../components/Header.astro';
         feedbackHideTimer = scheduleTimer(() => {
           fb.style.opacity = '0';
           feedbackClearTimer = scheduleTimer(() => {
-            if (fb.style.opacity === '0') fb.textContent = '';
+            if (fb.style.opacity === '0') {
+              fb.textContent = '';
+              setSyncFeedback('', 'info');
+            }
           }, 300);
         }, 5000);
       }
     }
 
     async function refreshSyncStatus() {
-      const notesSync = (window as any).__notesSync;
-      const mindmapsSync = (window as any).__mindmapsSync;
-      const readingSync = (window as any).__readingSync;
-      const syncBadge = $('syncBadge');
-      const syncBadgeText = $('syncBadgeText');
-      const syncStatus = $('syncStatus');
-      const syncDetail = $('syncDetail');
-      const pushPendingTag = $('pushPendingTag');
-      const pullIncomingTag = $('pullIncomingTag');
-
-      if (!notesSync || typeof notesSync.checkSyncStatus !== 'function') {
-        if (syncStatus) syncStatus.textContent = '同步模块尚未就绪';
-        return;
-      }
-
-      if (syncBadge) syncBadge.setAttribute('data-state', 'checking');
-      if (syncBadgeText) syncBadgeText.textContent = '校验中…';
-      if (syncInkBridge?.getAttribute('data-flow') === 'idle') {
-        setSyncInkFlowState('checking');
-      }
-
-      try {
-        const [notesSt, mmSt, rdSt] = await Promise.all([
-          notesSync.checkSyncStatus(),
-          mindmapsSync?.checkSyncStatus ? mindmapsSync.checkSyncStatus() : Promise.resolve(null),
-          readingSync?.checkSyncStatus ? readingSync.checkSyncStatus() : Promise.resolve(null),
-        ]);
-        if (!notesSt.ok) {
-          if (syncBadge) syncBadge.setAttribute('data-state', notesSt.state || 'error');
-          if (syncBadgeText) syncBadgeText.textContent = notesSt.state === 'need-login' ? '未登录' : '校验异常';
-          if (syncStatus) syncStatus.textContent = notesSt.message || '无法获取同步状态';
-          setSyncInkFlowState('error');
-          return;
-        }
-
-        const totalPending = Number(notesSt.pendingCount || 0) + Number(mmSt?.pendingCount || 0) + Number(rdSt?.pendingCount || 0);
-        const totalIncoming = Number(notesSt.incomingCount || 0) + Number(mmSt?.incomingCount || 0) + Number(rdSt?.incomingCount || 0);
-        const ahead = totalPending > 0;
-        const behind = totalIncoming > 0 || notesSt.state === 'behind' || notesSt.state === 'diverged' || mmSt?.state === 'behind' || mmSt?.state === 'diverged' || rdSt?.state === 'behind' || rdSt?.state === 'diverged';
-        const combinedState = ahead && behind ? 'diverged' : ahead ? 'ahead' : behind ? 'behind' : 'latest';
-
-        const stateLabels: Record<string, string> = {
-          latest: '本地已是最新',
-          ahead: '本地有待提交',
-          behind: '云端有待拉取',
-          diverged: '需双向同步',
-        };
-
-        if (syncBadge) syncBadge.setAttribute('data-state', combinedState);
-        if (syncBadgeText) syncBadgeText.textContent = stateLabels[combinedState] || '已校验';
-        if (bridgeLocalMeta) {
-          bridgeLocalMeta.textContent = totalPending > 0 ? `待提交 ${totalPending}` : `r${notesSt.localRev} 已净`;
-        }
-        if (bridgeCloudMeta) {
-          bridgeCloudMeta.textContent = totalIncoming > 0 ? `待拉取 ${totalIncoming}` : `r${notesSt.serverRev} 齐平`;
-        }
-        setSyncInkFlowState(combinedState === 'latest' ? 'synced' : 'idle');
-        if (syncStatus) {
-          syncStatus.textContent = combinedState === 'latest'
-            ? '笔记、思维导图与夹签进度均已是最新，与云端完全同步'
-            : `待提交 ${totalPending} 项（笔记 ${notesSt.pendingCount} / 导图 ${mmSt?.pendingCount || 0} / 夹签 ${rdSt?.pendingCount || 0}）· 待拉取 ${totalIncoming} 项`;
-        }
-
-        const lastSyncAt = Math.max(Number(notesSt.lastSyncAt || 0), Number(mmSt?.lastSyncAt || 0), Number(rdSt?.lastSyncAt || 0));
-        const lastTime = lastSyncAt ? new Date(lastSyncAt).toLocaleString('zh-CN') : '从未同步';
-        const mmRev = mmSt?.ok ? ` · 导图: r${mmSt.localRev}/r${mmSt.serverRev}` : '';
-        const rdRev = rdSt?.ok ? ` · 夹签: r${rdSt.localRev}/r${rdSt.serverRev}` : '';
-        if (syncDetail) {
-          syncDetail.textContent = `笔记: r${notesSt.localRev}/r${notesSt.serverRev}${mmRev}${rdRev} · 待提交: ${totalPending} · 待拉取: ${totalIncoming} · 上次同步: ${lastTime}`;
-        }
-
-        if (pushPendingTag) {
-          if (totalPending > 0) {
-            pushPendingTag.textContent = `${totalPending} 项待提交`;
-            pushPendingTag.removeAttribute('hidden');
-          } else {
-            pushPendingTag.setAttribute('hidden', '');
-          }
-        }
-
-        if (pullIncomingTag) {
-          if (totalIncoming > 0) {
-            pullIncomingTag.textContent = `${totalIncoming} 项新内容`;
-            pullIncomingTag.removeAttribute('hidden');
-          } else {
-            pullIncomingTag.setAttribute('hidden', '');
-          }
-        }
-      } catch (err) {
-        if (syncBadge) syncBadge.setAttribute('data-state', 'error');
-        if (syncBadgeText) syncBadgeText.textContent = '校验失败';
-        if (syncStatus) syncStatus.textContent = '网络异常，无法校验最新状态';
-        setSyncInkFlowState('error');
-      }
+      await refreshUnifiedSyncStatus();
     }
 
     function showProfile(user: { username: string }, statusTitle = '同步就绪') {
       authView?.setAttribute('hidden', '');
       profileView?.removeAttribute('hidden');
       setServiceHint('');
+      setSyncSessionUser(user, statusTitle);
       if (profileUsername) profileUsername.textContent = user.username;
+      if (profileView && !reduceMotion) {
+        animatePaperModal(profileView, profileView, 'open', { variant: 'slip' });
+      }
       requestAnimationFrame(() => {
         profileView?.classList.add('is-in');
         triggerAccountStatusRipple(statusTitle);
@@ -494,9 +476,13 @@ import Header from '../components/Header.astro';
     }
 
     function showAuth() {
+      setSyncSessionUser(null);
       profileView?.setAttribute('hidden', '');
       profileView?.classList.remove('is-in');
       authView?.removeAttribute('hidden');
+      if (authView && !reduceMotion) {
+        animatePaperModal(authView, authView, 'open', { variant: 'slip' });
+      }
       requestAnimationFrame(() => {
         authView?.classList.add('is-in');
         syncAccountTabGlider(true);
@@ -537,13 +523,7 @@ import Header from '../components/Header.astro';
           return;
         }
         showProfile(data.user, '云端就绪');
-        setSyncInkFlowState('bidirectional');
-        await Promise.all([
-          (window as any).__notesSync?.syncNow?.({ migrate: true }),
-          (window as any).__mindmapsSync?.syncNow?.({ migrate: true }),
-          (window as any).__readingSync?.syncNow?.({ migrate: true }),
-        ]);
-        await refreshSyncStatus();
+        await runUnifiedBidirectionalSync({ migrate: true });
       } finally {
         if (submit) submit.disabled = false;
       }
@@ -573,13 +553,7 @@ import Header from '../components/Header.astro';
           return;
         }
         showProfile(data.user, '新卷就绪');
-        setSyncInkFlowState('bidirectional');
-        await Promise.all([
-          (window as any).__notesSync?.syncNow?.({ migrate: true }),
-          (window as any).__mindmapsSync?.syncNow?.({ migrate: true }),
-          (window as any).__readingSync?.syncNow?.({ migrate: true }),
-        ]);
-        await refreshSyncStatus();
+        await runUnifiedBidirectionalSync({ migrate: true });
       } finally {
         if (submit) submit.disabled = false;
       }
@@ -605,107 +579,76 @@ import Header from '../components/Header.astro';
     }, { signal });
 
     $('pushSyncBtn')?.addEventListener('click', async () => {
-      const notesSync = (window as any).__notesSync;
-      const mindmapsSync = (window as any).__mindmapsSync;
-      const readingSync = (window as any).__readingSync;
-      if (!notesSync || typeof notesSync.pushSync !== 'function') {
-        setFeedback('同步模块尚未加载', 'error');
-        return;
-      }
       const btn = $('pushSyncBtn') as HTMLButtonElement | null;
       if (btn) btn.disabled = true;
-      setSyncInkFlowState('pushing');
       setFeedback('正在呈送本地笔记、导图与夹签至云端藏书阁…', 'info');
       try {
-        const [nRes, mRes, rRes] = await Promise.all([
-          notesSync.pushSync(),
-          mindmapsSync?.pushSync ? mindmapsSync.pushSync() : Promise.resolve({ ok: true, pushedCount: 0 }),
-          readingSync?.pushSync ? readingSync.pushSync() : Promise.resolve({ ok: true, pushedCount: 0 }),
-        ]);
-        if (nRes.ok && mRes.ok && rRes.ok) {
-          const totalPushed = (nRes.pushedCount || 0) + (mRes.pushedCount || 0) + (rRes.pushedCount || 0);
-          setFeedback(totalPushed > 0 ? `✓ 提交完成（笔记 ${nRes.pushedCount || 0} · 导图 ${mRes.pushedCount || 0} · 夹签 ${rRes.pushedCount || 0}）` : '本地暂无待提交的更改（已最新）', 'ok');
-          await refreshSyncStatus();
+        const res = await runUnifiedPushSync();
+        if (!res.ready) {
+          setFeedback('同步模块尚未加载', 'error');
+          return;
+        }
+        if (res.ok) {
+          setFeedback(
+            res.totalPushed > 0
+              ? `✓ 提交完成（笔记 ${res.notesPushed} · 导图 ${res.mindmapsPushed} · 夹签 ${res.readingPushed}）`
+              : '本地暂无待提交的更改（已最新）',
+            'ok'
+          );
           triggerAccountStatusRipple('已提交云端');
         } else {
-          setSyncInkFlowState('error');
-          setFeedback(`提交失败：${(!nRes.ok ? nRes.reason : !mRes.ok ? mRes.reason : rRes.reason) || '网络错误'}`, 'error');
+          setFeedback(`提交失败：${res.reason || '网络错误'}`, 'error');
         }
-      } catch (err: any) {
-        setSyncInkFlowState('error');
-        setFeedback(`提交异常：${err?.message || '未知错误'}`, 'error');
       } finally {
         if (btn) btn.disabled = false;
       }
     }, { signal });
 
     $('pullSyncBtn')?.addEventListener('click', async () => {
-      const notesSync = (window as any).__notesSync;
-      const mindmapsSync = (window as any).__mindmapsSync;
-      const readingSync = (window as any).__readingSync;
-      if (!notesSync || typeof notesSync.pullSync !== 'function') {
-        setFeedback('同步模块尚未加载', 'error');
-        return;
-      }
       const btn = $('pullSyncBtn') as HTMLButtonElement | null;
       if (btn) btn.disabled = true;
-      setSyncInkFlowState('pulling');
       setFeedback('正在从云端藏书阁采撷最新笔记、导图与夹签…', 'info');
       try {
-        const [nRes, mRes, rRes] = await Promise.all([
-          notesSync.pullSync(),
-          mindmapsSync?.pullSync ? mindmapsSync.pullSync() : Promise.resolve({ ok: true, pulledCount: 0 }),
-          readingSync?.pullSync ? readingSync.pullSync() : Promise.resolve({ ok: true, pulledCount: 0 }),
-        ]);
-        if (nRes.ok && mRes.ok && rRes.ok) {
-          const totalPulled = (nRes.pulledCount || 0) + (mRes.pulledCount || 0) + (rRes.pulledCount || 0);
-          setFeedback(totalPulled > 0 ? `✓ 拉取完成（笔记 ${nRes.pulledCount || 0} · 导图 ${mRes.pulledCount || 0} · 夹签 ${rRes.pulledCount || 0}）` : '✓ 云端暂无新内容，本地已是最新', 'ok');
-          await refreshSyncStatus();
+        const res = await runUnifiedPullSync();
+        if (!res.ready) {
+          setFeedback('同步模块尚未加载', 'error');
+          return;
+        }
+        if (res.ok) {
+          setFeedback(
+            res.totalPulled > 0
+              ? `✓ 拉取完成（笔记 ${res.notesPulled} · 导图 ${res.mindmapsPulled} · 夹签 ${res.readingPulled}）`
+              : '✓ 云端暂无新内容，本地已是最新',
+            'ok'
+          );
           triggerAccountStatusRipple('已拉取最新');
         } else {
-          setSyncInkFlowState('error');
-          setFeedback(`拉取失败：${(!nRes.ok ? nRes.reason : !mRes.ok ? mRes.reason : rRes.reason) || '网络错误'}`, 'error');
+          setFeedback(`拉取失败：${res.reason || '网络错误'}`, 'error');
         }
-      } catch (err: any) {
-        setSyncInkFlowState('error');
-        setFeedback(`拉取异常：${err?.message || '未知错误'}`, 'error');
       } finally {
         if (btn) btn.disabled = false;
       }
     }, { signal });
 
     $('syncNowBtn')?.addEventListener('click', async () => {
-      const notesSync = (window as any).__notesSync;
-      const mindmapsSync = (window as any).__mindmapsSync;
-      const readingSync = (window as any).__readingSync;
-      if (!notesSync || typeof notesSync.syncNow !== 'function') {
-        setFeedback('同步模块尚未加载', 'error');
-        return;
-      }
       const btn = $('syncNowBtn') as HTMLButtonElement | null;
       if (btn) btn.disabled = true;
-      setSyncInkFlowState('bidirectional');
       setFeedback('正在进行云墨流转双向全量同步…', 'info');
       try {
-        const [nRes, mRes, rRes] = await Promise.all([
-          notesSync.syncNow({ migrate: true }),
-          mindmapsSync?.syncNow ? mindmapsSync.syncNow({ migrate: true }) : Promise.resolve({ ok: true, pushedCount: 0, pulledCount: 0 }),
-          readingSync?.syncNow ? readingSync.syncNow({ migrate: true }) : Promise.resolve({ ok: true, pushedCount: 0, pulledCount: 0 }),
-        ]);
-        if (nRes.ok && mRes.ok && rRes.ok) {
+        const res = await runUnifiedBidirectionalSync({ migrate: true });
+        if (!res.ready) {
+          setFeedback('同步模块尚未加载', 'error');
+          return;
+        }
+        if (res.ok) {
           setFeedback(
-            `✓ 双向同步完成（提交 笔记${nRes.pushedCount || 0}/导图${mRes.pushedCount || 0}/夹签${rRes.pushedCount || 0}，拉取 笔记${nRes.pulledCount || 0}/导图${mRes.pulledCount || 0}/夹签${rRes.pulledCount || 0}）`,
+            `✓ 双向同步完成（提交 笔记${res.notesPushed}/导图${res.mindmapsPushed}/夹签${res.readingPushed}，拉取 笔记${res.notesPulled}/导图${res.mindmapsPulled}/夹签${res.readingPulled}）`,
             'ok'
           );
-          await refreshSyncStatus();
           triggerAccountStatusRipple('云墨同频');
         } else {
-          setSyncInkFlowState('error');
-          setFeedback(`同步失败：${(!nRes.ok ? nRes.reason : !mRes.ok ? mRes.reason : rRes.reason) || '网络错误'}`, 'error');
+          setFeedback(`同步失败：${res.reason || '网络错误'}`, 'error');
         }
-      } catch (err: any) {
-        setSyncInkFlowState('error');
-        setFeedback(`同步异常：${err?.message || '未知错误'}`, 'error');
       } finally {
         if (btn) btn.disabled = false;
       }
@@ -724,6 +667,9 @@ import Header from '../components/Header.astro';
       void refreshSyncStatus();
     }, { signal });
     window.addEventListener('mindmaps:synced', () => {
+      void refreshSyncStatus();
+    }, { signal });
+    window.addEventListener('reading:synced', () => {
       void refreshSyncStatus();
     }, { signal });
 
@@ -921,7 +867,7 @@ import Header from '../components/Header.astro';
     width: 100px;
     transform-origin: 0 50%;
     z-index: 0;
-    border-radius: var(--pill-rx, 7px) / 7px;
+    border-radius: var(--pill-rx, 7px) / var(--pill-ry, 7px);
     background: var(--bg-elev);
     border: 1px solid var(--rule);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);

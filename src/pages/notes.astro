@@ -530,6 +530,17 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     transition: border-color 0.3s var(--ease), transform 0.3s var(--ease);
   }
 
+  /* 统计胶囊磁吸游标：纯 GPU translate3d + scaleX + 反向圆角补偿，由 workbenchMotion 弹簧驱动 */
+  [data-notes-stats-strip] [data-notes-stats-glider] {
+    width: 100px !important;
+    left: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px) !important;
+    transform-origin: left center !important;
+    transition: opacity 220ms var(--ease) !important;
+  }
+
   .notes-stat-item {
     cursor: pointer;
     transition: color 240ms var(--ease);
@@ -1280,6 +1291,33 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   } from '../utils/articleHighlightEngine';
   import { initNotesSync, syncNow } from '../utils/notesSync';
   import { handleMarkdownKeydown, createMarkdownToolbar } from '../utils/markdownShortcuts';
+  import {
+    $filteredNotes,
+    $hasActiveNotesFilters,
+    $notesFilter,
+    $notesStats,
+    closeNotesModal,
+    hydrateNotesKindFromSession,
+    openNotesModal,
+    resetNotesFilters,
+    setNotesArticleSearchQuery,
+    setNotesArticleSlug,
+    setNotesColor,
+    setNotesEditorTab,
+    setNotesItems,
+    setNotesKind,
+    setNotesPopoverOpen,
+    setNotesSearchQuery,
+    type NoteFilterKind,
+  } from '../stores/notesWorkbenchStore';
+  import {
+    animateCountValue,
+    animateInkPopover,
+    animatePaperModal,
+    animatePillGlider,
+    computeInversePillRadius,
+    stopPillGlider,
+  } from '../utils/workbenchMotion';
 
   const LISTENER_KEY = '__areSetNotesPageInit__';
   const CLEANUP_KEY = '__areSetNotesPageCleanup__';
@@ -1483,6 +1521,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           postTitle,
         };
       });
+      setNotesItems(notesDatabase);
     }
 
     function noteTimestamp(item: ArticleHighlightRecord): number {
@@ -1504,26 +1543,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     }
 
     function getFilteredNotes(): NoteItem[] {
-      return notesDatabase.filter((item) => {
-        const itemKind = item.kind || 'highlight';
-        if (currentFilter.kind !== 'all' && itemKind !== currentFilter.kind) return false;
-        if (currentFilter.article === 'standalone' && item.postSlug !== '__standalone__' && item.kind !== 'free') return false;
-        if (currentFilter.article !== 'all' && currentFilter.article !== 'standalone' && item.postSlug !== currentFilter.article) return false;
-        if (currentFilter.color !== 'all' && normalizeColor(item.color) !== currentFilter.color) return false;
-        if (currentFilter.keyword) {
-          const kw = currentFilter.keyword.toLowerCase();
-          const matchTitle = (item.title || '').toLowerCase().includes(kw);
-          const matchText = (item.text || '').toLowerCase().includes(kw);
-          const matchRawText = (item.rawText || '').toLowerCase().includes(kw);
-          const matchComment = (item.comment || '').toLowerCase().includes(kw);
-          const matchArticle = (item.postTitle || '').toLowerCase().includes(kw);
-          const matchHeading = cleanSection(item.headingText).toLowerCase().includes(kw);
-          const matchQuestion = (item.question || '').toLowerCase().includes(kw);
-          const matchTags = (item.tags || []).some((t) => t.toLowerCase().includes(kw));
-          if (!matchTitle && !matchText && !matchRawText && !matchComment && !matchArticle && !matchHeading && !matchQuestion && !matchTags) return false;
-        }
-        return true;
-      });
+      return $filteredNotes.get() as NoteItem[];
     }
 
     function buildQuote(item: NoteItem): string {
@@ -1542,39 +1562,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       return `${quote}\n\n—— ${source}${item.comment ? `\n> **批注**：${item.comment}` : ''}`;
     }
 
-    function animateCountUp(el: HTMLElement, targetVal: number, durationMs = 440) {
-      if (targetVal <= 0) {
-        if (el.textContent !== '0') el.textContent = '0';
-        return;
-      }
-      const start = performance.now();
-      const from = 0;
-      let prevText = el.textContent || '';
-      function tick(now: number) {
-        const elapsed = now - start;
-        const progress = Math.min(elapsed / durationMs, 1);
-        const easeVal = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
-        const current = Math.round(from + (targetVal - from) * easeVal);
-        const nextText = String(current);
-        if (nextText !== prevText) {
-          el.textContent = nextText;
-          prevText = nextText;
-        }
-        if (progress < 1) requestAnimationFrame(tick);
-      }
-      requestAnimationFrame(tick);
-      // 后台标签页 rAF 可能被节流；兜底保证最终值一定落地
-      window.setTimeout(() => {
-        const finalStr = String(targetVal);
-        if (el.textContent !== finalStr) el.textContent = finalStr;
-      }, durationMs + 120);
-    }
-
     function updateStats(animate = false) {
-      const total = notesDatabase.length;
-      const free = notesDatabase.filter((n) => n.kind === 'free').length;
-      const highlights = notesDatabase.filter((n) => (n.kind || 'highlight') === 'highlight').length;
-      const ai = notesDatabase.filter((n) => n.kind === 'ai').length;
+      const { total, free, highlight: highlights, ai } = $notesStats.get();
 
       const elTotal = document.getElementById('stat-total');
       const elFree = document.getElementById('stat-free');
@@ -1582,10 +1571,10 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const elAi = document.getElementById('stat-ai');
 
       if (animate && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-        if (elTotal) animateCountUp(elTotal, total, 420);
-        if (elFree) animateCountUp(elFree, free, 450);
-        if (elHighlights) animateCountUp(elHighlights, highlights, 480);
-        if (elAi) animateCountUp(elAi, ai, 500);
+        if (elTotal) animateCountValue(elTotal, total, { from: 0, durationSec: 0.42 });
+        if (elFree) animateCountValue(elFree, free, { from: 0, durationSec: 0.45 });
+        if (elHighlights) animateCountValue(elHighlights, highlights, { from: 0, durationSec: 0.48 });
+        if (elAi) animateCountValue(elAi, ai, { from: 0, durationSec: 0.5 });
       } else {
         if (elTotal && elTotal.textContent !== String(total)) elTotal.textContent = String(total);
         if (elFree && elFree.textContent !== String(free)) elFree.textContent = String(free);
@@ -1602,13 +1591,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const items = strip.querySelectorAll<HTMLElement>('.stats-item');
 
       function moveGlider(target: HTMLElement) {
-        const stripRect = strip.getBoundingClientRect();
-        const targetRect = target.getBoundingClientRect();
-        const left = targetRect.left - stripRect.left;
-        const width = targetRect.width;
+        const wasHidden = glider.style.opacity !== '1';
         glider.style.opacity = '1';
-        glider.style.transform = `translateX(${left}px)`;
-        glider.style.width = `${width}px`;
+        animatePillGlider(glider, target, {
+          container: strip,
+          immediate: wasHidden,
+          opacity: 1,
+        });
         items.forEach((it) => it.classList.remove('is-hovered'));
         target.classList.add('is-hovered');
       }
@@ -1626,7 +1615,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
           const statKind = item.getAttribute('data-stat-kind');
           if (statKind) {
-            const nextKind = statKind !== 'all' && currentFilter.kind === statKind ? 'all' : statKind;
+            const curKind = $notesFilter.get().kind;
+            const nextKind = statKind !== 'all' && curKind === statKind ? 'all' : statKind;
             const subBtn = document.querySelector<HTMLButtonElement>(`#subtabs-cluster .sub-tab-btn[data-kind="${nextKind}"]`);
             subBtn?.click();
           }
@@ -1656,40 +1646,37 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const glider = document.getElementById('subtabs-glider');
       if (!cluster || !glider) return;
 
-      try {
-        const savedKind = sessionStorage.getItem('notes-subtab-kind');
-        if (savedKind && ['all', 'free', 'highlight', 'ai'].includes(savedKind)) {
-          currentFilter.kind = savedKind;
-          cluster.querySelectorAll<HTMLElement>('.sub-tab-btn').forEach((b) => {
-            const match = (b.getAttribute('data-kind') || 'all') === savedKind;
-            b.classList.toggle('active', match);
-            b.setAttribute('aria-pressed', match ? 'true' : 'false');
-          });
-        }
-      } catch {}
+      const savedKind = hydrateNotesKindFromSession();
+      currentFilter.kind = savedKind;
+      cluster.querySelectorAll<HTMLElement>('.sub-tab-btn').forEach((b) => {
+        const match = (b.getAttribute('data-kind') || 'all') === savedKind;
+        b.classList.toggle('active', match);
+        b.setAttribute('aria-pressed', match ? 'true' : 'false');
+      });
       syncActiveStatKind(currentFilter.kind);
 
-      function updateGlider() {
+      function updateGlider(immediate = false) {
         const activeBtn = cluster.querySelector<HTMLElement>('.sub-tab-btn.active');
         if (!activeBtn) return;
         const w = activeBtn.offsetWidth;
         const h = glider.offsetHeight || activeBtn.offsetHeight;
         if (!w || !h) return;
-        const left = activeBtn.offsetLeft;
-        const sx = Math.max(0.05, w / 100);
-        const halfR = Math.min(w, h) * 0.5;
-        glider.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
-        glider.style.setProperty('--pill-ry', `${halfR.toFixed(2)}px`);
-        glider.style.transform = `translate3d(${left.toFixed(1)}px, 0, 0) scaleX(${sx.toFixed(4)})`;
+        const metrics = computeInversePillRadius(w, h, activeBtn.offsetLeft, 0);
+        glider.style.setProperty('--pill-rx', `${metrics.rx.toFixed(2)}px`);
+        glider.style.setProperty('--pill-ry', `${metrics.ry.toFixed(2)}px`);
+        animatePillGlider(glider, activeBtn, {
+          container: cluster,
+          immediate,
+        });
       }
-      (window as any).__updateNotesSubtabsGlider = updateGlider;
+      (window as any).__updateNotesSubtabsGlider = () => updateGlider(false);
 
-      window.addEventListener('resize', updateGlider, { signal });
-      document.fonts?.ready?.then(updateGlider).catch(() => {});
-      setTimeout(updateGlider, 50);
+      window.addEventListener('resize', () => updateGlider(true), { signal });
+      document.fonts?.ready?.then(() => updateGlider(true)).catch(() => {});
+      setTimeout(() => updateGlider(true), 50);
       if (typeof ResizeObserver !== 'undefined') {
         (window as any).__notesSubtabsRO?.disconnect?.();
-        const ro = new ResizeObserver(() => updateGlider());
+        const ro = new ResizeObserver(() => updateGlider(true));
         ro.observe(cluster);
         (window as any).__notesSubtabsRO = ro;
       }
@@ -1709,9 +1696,10 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           });
           btn.classList.add('active');
           btn.setAttribute('aria-pressed', 'true');
-          currentFilter.kind = btn.getAttribute('data-kind') || 'all';
-          syncActiveStatKind(currentFilter.kind);
-          try { sessionStorage.setItem('notes-subtab-kind', currentFilter.kind); } catch {}
+          const nextKind = (btn.getAttribute('data-kind') || 'all') as NoteFilterKind;
+          currentFilter.kind = nextKind;
+          setNotesKind(nextKind);
+          syncActiveStatKind(nextKind);
 
           if (rect.width > 0 && rect.height > 0) {
             (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 6);
@@ -1722,55 +1710,42 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           else if (right > clusterLeft + clusterWidth) {
             cluster.scrollTo({ left: right - clusterWidth, behavior: 'smooth' });
           }
-          requestAnimationFrame(updateGlider);
+          requestAnimationFrame(() => updateGlider(false));
           renderCards(true);
         }, { signal });
       });
     }
 
     function getArticlesStats() {
-      const map = new Map<string, { slug: string; title: string; count: number }>();
-      let standaloneCount = 0;
-
-      notesDatabase.forEach((n) => {
-        if (!n.postSlug || n.postSlug === '__standalone__' || n.kind === 'free') {
-          standaloneCount++;
-        }
-        if (n.postSlug && n.postSlug !== '__standalone__') {
-          if (!map.has(n.postSlug)) {
-            map.set(n.postSlug, { slug: n.postSlug, title: n.postTitle || n.postSlug, count: 0 });
-          }
-          map.get(n.postSlug)!.count++;
-        }
-      });
-
+      const stats = $notesStats.get();
       return {
-        total: notesDatabase.length,
-        standalone: standaloneCount,
-        articles: Array.from(map.values()),
+        total: stats.total,
+        standalone: stats.standalone,
+        articles: stats.articles,
       };
     }
 
     function renderArticleDropdown() {
       const stats = getArticlesStats();
+      const filterState = $notesFilter.get();
       const listContainer = document.getElementById('article-list-container');
       const triggerLabel = document.getElementById('article-trigger-label');
       const quickClearBtn = document.getElementById('article-quick-clear');
       if (!listContainer || !triggerLabel || !quickClearBtn) return;
 
-      const kw = currentFilter.articleSearch.toLowerCase();
+      const kw = filterState.articleSearchQuery.toLowerCase();
 
-      if (currentFilter.article === 'all') {
+      if (filterState.articleSlug === 'all') {
         triggerLabel.textContent = `来源: 全部来源 (${stats.total})`;
         triggerLabel.removeAttribute('title');
         quickClearBtn.classList.add('hidden');
-      } else if (currentFilter.article === 'standalone') {
+      } else if (filterState.articleSlug === 'standalone') {
         triggerLabel.textContent = `来源: 仅独立便签 (${stats.standalone})`;
         triggerLabel.removeAttribute('title');
         quickClearBtn.classList.remove('hidden');
       } else {
-        const found = stats.articles.find((a) => a.slug === currentFilter.article);
-        const titleShort = found ? found.title : currentFilter.article;
+        const found = stats.articles.find((a) => a.slug === filterState.articleSlug);
+        const titleShort = found ? found.title : filterState.articleSlug;
         triggerLabel.textContent = `文章: ${titleShort} (${found ? found.count : 0})`;
         triggerLabel.setAttribute('title', titleShort);
         quickClearBtn.classList.remove('hidden');
@@ -1798,11 +1773,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       `;
 
       if (!kw || '全部文章来源'.includes(kw)) {
-        html += rowHtml('all', '全部来源', stats.total, '全部来源', currentFilter.article === 'all');
+        html += rowHtml('all', '全部来源', stats.total, '全部来源', filterState.articleSlug === 'all');
       }
 
       if (!kw || '仅独立便签随记markdown'.includes(kw)) {
-        html += rowHtml('standalone', '仅独立 Markdown 便签', stats.standalone, '仅独立 Markdown 便签', currentFilter.article === 'standalone');
+        html += rowHtml('standalone', '仅独立 Markdown 便签', stats.standalone, '仅独立 Markdown 便签', filterState.articleSlug === 'standalone');
       }
 
       html += `<div class="h-px bg-[var(--rule)] my-1" role="presentation"></div>`;
@@ -1813,7 +1788,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         html += `<div class="text-center py-4 text-xs text-[var(--muted)]">未找到匹配文章</div>`;
       } else {
         filteredArticles.forEach((a) => {
-          html += rowHtml(a.slug, a.title, `${a.count}条`, a.title, currentFilter.article === a.slug);
+          html += rowHtml(a.slug, a.title, `${a.count}条`, a.title, filterState.articleSlug === a.slug);
         });
       }
 
@@ -1821,7 +1796,9 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
       listContainer.querySelectorAll<HTMLElement>('.article-item-row').forEach((row) => {
         const choose = () => {
-          currentFilter.article = row.getAttribute('data-slug') || 'all';
+          const nextSlug = row.getAttribute('data-slug') || 'all';
+          currentFilter.article = nextSlug;
+          setNotesArticleSlug(nextSlug);
           closeArticlePopover();
           renderArticleDropdown();
           renderCards(true);
@@ -1847,10 +1824,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         panel.removeAttribute('inert');
         panel.setAttribute('aria-hidden', 'false');
         trigger.setAttribute('aria-expanded', 'true');
+        setNotesPopoverOpen(true);
+        animateInkPopover(panel, 'open', { radiusPx: 14, offsetY: -8 });
         const input = document.getElementById('article-search-input') as HTMLInputElement | null;
         if (input) {
           input.value = '';
           currentFilter.articleSearch = '';
+          setNotesArticleSearchQuery('');
           renderArticleDropdown();
           setTimeout(() => input.focus(), 60);
         }
@@ -1863,11 +1843,14 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const panel = document.getElementById('article-popover-panel');
       const trigger = document.getElementById('article-popover-trigger');
       if (!panel || !trigger) return;
+      if (panel.classList.contains('is-closed')) return;
       panel.classList.remove('is-open');
       panel.classList.add('is-closed');
       panel.setAttribute('inert', '');
       panel.setAttribute('aria-hidden', 'true');
       trigger.setAttribute('aria-expanded', 'false');
+      setNotesPopoverOpen(false);
+      animateInkPopover(panel, 'close', { useClipPath: false, offsetY: -8 });
       if (restoreFocus) trigger.focus();
     }
 
@@ -2287,11 +2270,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const descEl = document.getElementById('notes-empty-desc');
       const createBtnEl = document.getElementById('notes-empty-create-btn');
       const resetBtnEl = document.getElementById('notes-reset-filter-btn');
-      const hasActiveFilters =
-        currentFilter.kind !== 'all' ||
-        currentFilter.article !== 'all' ||
-        currentFilter.color !== 'all' ||
-        Boolean(currentFilter.keyword.trim());
+      const hasActiveFilters = $hasActiveNotesFilters.get();
 
       if (notesDatabase.length === 0 && !hasActiveFilters) {
         if (titleEl) titleEl.textContent = '尚未创建任何笔记';
@@ -2771,31 +2750,43 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       }
 
       if (readerBody) readerBody.scrollTop = 0;
-      modal.classList.remove('hidden');
+      openNotesModal('reader', id);
+      modal.classList.remove('hidden', 'is-closed');
+      modal.classList.add('is-open');
       syncModalLock();
-      // 两次 rAF 确保 hidden 移除后的样式先落一帧，transition 才会真正播放
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          modal.classList.remove('is-closed');
-          modal.classList.add('is-open');
+      animatePaperModal(modal, readerCard, 'open', {
+        variant: 'slip',
+        onComplete: () => {
           readerCard?.focus({ preventScroll: true });
-        });
+        },
+      });
+      requestAnimationFrame(() => {
+        readerCard?.focus({ preventScroll: true });
       });
     }
 
     function closeReaderModal() {
       const modal = document.getElementById('reader-modal');
+      const readerCard = document.getElementById('reader-card');
       if (!modal || modal.classList.contains('hidden')) return;
       modal.classList.remove('is-open');
       modal.classList.add('is-closed');
-      if (readerCloseTimer) window.clearTimeout(readerCloseTimer);
-      readerCloseTimer = window.setTimeout(() => {
-        modal.classList.add('hidden');
-        viewingNoteId = null;
+      closeNotesModal('reader');
+      if (readerCloseTimer) {
+        window.clearTimeout(readerCloseTimer);
         readerCloseTimer = null;
-        syncModalLock();
-        restoreFocus(lastFocusedEl);
-      }, 300);
+      }
+      animatePaperModal(modal, readerCard, 'close', {
+        variant: 'slip',
+        closeDurationSec: 0.24,
+        onComplete: () => {
+          if (modal.classList.contains('is-open')) return;
+          modal.classList.add('hidden');
+          viewingNoteId = null;
+          syncModalLock();
+          restoreFocus(lastFocusedEl);
+        },
+      });
     }
 
     function isModalVisible(id: string): boolean {
@@ -2852,19 +2843,28 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
     function settleConfirm(ok: boolean) {
       const modal = document.getElementById('delete-confirm-modal');
+      const card = document.getElementById('delete-confirm-card');
       if (!modal || !confirmResolver) return;
       const resolve = confirmResolver;
       confirmResolver = null;
       modal.classList.remove('is-open');
       modal.classList.add('is-closed');
-      if (confirmCloseTimer) window.clearTimeout(confirmCloseTimer);
-      confirmCloseTimer = window.setTimeout(() => {
-        modal.classList.add('hidden');
+      closeNotesModal('delete-confirm');
+      if (confirmCloseTimer) {
+        window.clearTimeout(confirmCloseTimer);
         confirmCloseTimer = null;
-        syncModalLock();
-        restoreFocus(confirmLastFocused);
-        confirmLastFocused = null;
-      }, 240);
+      }
+      animatePaperModal(modal, card, 'close', {
+        variant: 'slip',
+        closeDurationSec: 0.2,
+        onComplete: () => {
+          if (modal.classList.contains('is-open')) return;
+          modal.classList.add('hidden');
+          syncModalLock();
+          restoreFocus(confirmLastFocused);
+          confirmLastFocused = null;
+        },
+      });
       resolve(ok);
     }
 
@@ -2904,16 +2904,14 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
       return new Promise<boolean>((resolve) => {
         confirmResolver = resolve;
-        modal.classList.remove('hidden');
-        void modal.offsetWidth;
-        modal.classList.remove('is-closed');
+        openNotesModal('delete-confirm');
+        modal.classList.remove('hidden', 'is-closed');
         modal.classList.add('is-open');
         syncModalLock();
+        animatePaperModal(modal, card, 'open', { variant: 'slip' });
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            card.focus({ preventScroll: true });
-            document.getElementById('delete-confirm-cancel')?.focus({ preventScroll: true });
-          });
+          card.focus({ preventScroll: true });
+          document.getElementById('delete-confirm-cancel')?.focus({ preventScroll: true });
         });
       });
     }
@@ -2944,6 +2942,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     function openEditor(id: string | null = null) {
       editingNoteId = id;
       const modal = document.getElementById('editor-modal');
+      const editorCard = document.getElementById('editor-card');
       const titleWrap = document.getElementById('editor-title-wrap');
       const titleInput = document.getElementById('editor-title-input') as HTMLInputElement | null;
       const contentInput = document.getElementById('editor-content-input') as HTMLTextAreaElement | null;
@@ -3026,14 +3025,11 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         tags: tagsInput.value.trim(),
         color: document.querySelector<HTMLInputElement>('input[name="note-color"]:checked')?.value || 'blue',
       };
-      modal.classList.remove('hidden');
+      openNotesModal('editor', id);
+      modal.classList.remove('hidden', 'is-closed');
+      modal.classList.add('is-open');
       syncModalLock();
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          modal.classList.remove('is-closed');
-          modal.classList.add('is-open');
-        });
-      });
+      animatePaperModal(modal, editorCard, 'open', { variant: 'slip' });
       setTimeout(() => contentInput.focus(), 80);
     }
 
@@ -3053,6 +3049,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
     function closeEditor(force = false) {
       const modal = document.getElementById('editor-modal');
+      const editorCard = document.getElementById('editor-card');
       if (!modal || modal.classList.contains('hidden')) return;
       const cancelBtn = document.getElementById('cancel-modal-btn');
       if (!force && isEditorDirty()) {
@@ -3071,15 +3068,23 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       if (cancelBtn) cancelBtn.textContent = '取消';
       modal.classList.remove('is-open');
       modal.classList.add('is-closed');
-      if (editorCloseTimer) window.clearTimeout(editorCloseTimer);
-      editorCloseTimer = window.setTimeout(() => {
-        modal.classList.add('hidden');
-        editingNoteId = null;
-        editorTargetKind = 'free';
+      closeNotesModal('editor');
+      if (editorCloseTimer) {
+        window.clearTimeout(editorCloseTimer);
         editorCloseTimer = null;
-        syncModalLock();
-        restoreFocus(lastFocusedEl);
-      }, 300);
+      }
+      animatePaperModal(modal, editorCard, 'close', {
+        variant: 'slip',
+        closeDurationSec: 0.24,
+        onComplete: () => {
+          if (modal.classList.contains('is-open')) return;
+          modal.classList.add('hidden');
+          editingNoteId = null;
+          editorTargetKind = 'free';
+          syncModalLock();
+          restoreFocus(lastFocusedEl);
+        },
+      });
     }
 
     function switchEditorTab(tab: 'write' | 'preview') {
@@ -3089,6 +3094,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const previewArea = document.getElementById('editor-preview-area');
       if (!writeBtn || !previewBtn || !contentInput || !previewArea) return;
 
+      setNotesEditorTab(tab);
       const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
       if (tab === 'write') {
@@ -3097,14 +3103,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         previewBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--muted-strong)] hover:text-[var(--text-strong)] cursor-pointer transition-colors duration-200';
         contentInput.classList.remove('hidden');
         previewArea.classList.add('hidden');
-        if (wasPreview && !reduceMotion && typeof contentInput.animate === 'function') {
-          contentInput.animate(
-            [
-              { opacity: 0.35, transform: 'translate3d(0, 4px, 0)' },
-              { opacity: 1, transform: 'translate3d(0, 0, 0)' },
-            ],
-            { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
-          );
+        if (wasPreview && !reduceMotion) {
+          animateInkPopover(contentInput, 'open', { useClipPath: false, offsetY: 4 });
         }
       } else {
         previewBtn.className = 'px-2.5 py-0.5 rounded-md font-medium text-[var(--bg-base)] bg-[var(--ink-strong)] cursor-pointer transition-colors duration-200';
@@ -3112,14 +3112,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         previewArea.innerHTML = renderNoteMarkdown(contentInput.value) || '<p class="text-[var(--muted)] italic">暂无内容预览...</p>';
         contentInput.classList.add('hidden');
         previewArea.classList.remove('hidden');
-        if (!reduceMotion && typeof previewArea.animate === 'function') {
-          previewArea.animate(
-            [
-              { opacity: 0.25, transform: 'translate3d(0, 5px, 0)' },
-              { opacity: 1, transform: 'translate3d(0, 0, 0)' },
-            ],
-            { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
-          );
+        if (!reduceMotion) {
+          animateInkPopover(previewArea, 'open', { useClipPath: false, offsetY: 5 });
         }
       }
     }
@@ -3339,12 +3333,15 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     document.getElementById('article-quick-clear')?.addEventListener('click', (e) => {
       e.stopPropagation();
       currentFilter.article = 'all';
+      setNotesArticleSlug('all');
       renderArticleDropdown();
       renderCards(true);
     }, { signal });
 
     document.getElementById('article-search-input')?.addEventListener('input', (e) => {
-      currentFilter.articleSearch = (e.target as HTMLInputElement).value;
+      const val = (e.target as HTMLInputElement).value;
+      currentFilter.articleSearch = val;
+      setNotesArticleSearchQuery(val);
       renderArticleDropdown();
     }, { signal });
 
@@ -3370,6 +3367,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     }
     allColorPill?.addEventListener('click', () => {
       currentFilter.color = 'all';
+      setNotesColor('all');
       setColorPressed('all');
       renderCards(true);
     }, { signal });
@@ -3378,6 +3376,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       btn.addEventListener('click', () => {
         const value = btn.getAttribute('data-color') || 'all';
         currentFilter.color = value;
+        setNotesColor(value);
         setColorPressed(value);
         renderCards(true);
       }, { signal });
@@ -3396,6 +3395,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       if (searchDebounce) window.clearTimeout(searchDebounce);
       searchDebounce = window.setTimeout(() => {
         currentFilter.keyword = val.trim();
+        setNotesSearchQuery(val);
         renderCards(true);
       }, 150);
     }, { signal });
@@ -3404,6 +3404,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       if (searchInput) {
         searchInput.value = '';
         currentFilter.keyword = '';
+        setNotesSearchQuery('');
         searchClearBtn.classList.add('hidden');
         searchInput.focus();
         renderCards(true);
@@ -3424,6 +3425,8 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       currentFilter.color = 'all';
       currentFilter.keyword = '';
       currentFilter.articleSearch = '';
+      resetNotesFilters();
+      syncActiveStatKind('all');
 
       if (searchInput) searchInput.value = '';
       if (searchClearBtn) searchClearBtn.classList.add('hidden');
@@ -3622,6 +3625,10 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
     // 换页清理（幂等释放全部事件、时间线、定时器与滚动锁）
     const cleanupNotesPage = () => {
       controller.abort();
+      stopPillGlider(document.getElementById('notes-stats-glider'));
+      stopPillGlider(document.getElementById('subtabs-glider'));
+      closeNotesModal();
+      setNotesPopoverOpen(false);
       if (filterTimeline) {
         filterTimeline.kill();
         filterTimeline = null;
