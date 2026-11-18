@@ -20,18 +20,60 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
       <p class="tag-hint" data-enter="left">
         Tags Gather Into A Galaxy
       </p>
-      <div class="tag-legend" data-enter="bottom">
-        <span><b>{tags.length}</b> 个标签</span>
-        <span><b>{strongPairs}</b> 组强共现</span>
-        <span><b>{posts.length}</b> 篇文章</span>
+      <div class="tag-meta-row" data-enter="bottom">
+        <div class="tag-legend">
+          <span><b>{tags.length}</b> 个标签</span>
+          <span><b>{strongPairs}</b> 组强共现</span>
+          <span><b>{posts.length}</b> 篇文章</span>
+        </div>
+
+        <div class="tag-view-toolbar">
+          <div class="tag-view-switch" role="group" aria-label="星图视图模式" data-tag-view-bar>
+            <span class="tag-view-glider" data-tag-view-glider aria-hidden="true"></span>
+            <button
+              type="button"
+              class="tag-view-btn is-active"
+              data-tag-view-btn="2d"
+              aria-pressed="true"
+            >
+              <span>平面星图</span>
+              <small>2D</small>
+            </button>
+            <button
+              type="button"
+              class="tag-view-btn"
+              data-tag-view-btn="3d"
+              aria-pressed="false"
+            >
+              <span>三维星云</span>
+              <small>3D</small>
+            </button>
+          </div>
+
+          <div class="tag-3d-controls" data-tag-3d-controls hidden>
+            <span class="tag-3d-hint">拖拽旋览 · 滚轮调焦</span>
+            <button
+              type="button"
+              class="tag-3d-reset"
+              data-tag-3d-reset
+              aria-label="重置三维星云视角与缩放"
+              title="归位默认视角 (100%)"
+            >
+              <span>归位</span>
+              <span class="tag-3d-zoom" data-tag-zoom-readout>100%</span>
+            </button>
+          </div>
+        </div>
       </div>
     </section>
 
     <section
       class="tag-sky"
       data-tag-sky
+      data-view-mode="2d"
       data-pairs={JSON.stringify(pairs.map((pair) => [pair.a, pair.b, pair.weight]))}
     >
+      <canvas class="tag-sky-webgl" data-tag-webgl aria-hidden="true"></canvas>
       <svg class="tag-sky-links" data-tag-links aria-hidden="true"></svg>
       <div class="tag-sky-nodes" data-tag-nodes>
         {tags.map((tag) => (
@@ -40,6 +82,7 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
             href={`/tags/${tagSlug(tag.name)}`}
             data-tag-node
             data-tag={tag.name}
+            data-weight={(tag.count / maxCount).toFixed(3)}
             style={`--weight: ${(tag.count / maxCount).toFixed(3)}`}
           >
             <span class="tag-node-halo" aria-hidden="true"></span>
@@ -53,13 +96,197 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
 </BaseLayout>
 
 <style>
+  .tag-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem 1.5rem;
+    margin-top: 1.4rem;
+  }
+
+  .tag-meta-row .tag-legend {
+    margin-top: 0;
+  }
+
+  .tag-view-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem 0.85rem;
+  }
+
+  .tag-view-switch {
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    padding: 3px;
+    border-radius: 9999px;
+    border: 1px solid var(--rule);
+    background: color-mix(in srgb, var(--bg-soft) 78%, transparent);
+  }
+
+  /* 100x32 基准胶囊 + 纯 GPU translate3d/scale + 反向圆角补偿，零布局回流 */
+  .tag-view-glider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100px;
+    height: 32px;
+    border: none !important;
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px);
+    transform-origin: 0 0;
+    background: var(--ink-strong);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+    will-change: transform, opacity;
+  }
+
+  :global([data-theme="moss"]) .tag-view-glider {
+    background: var(--accent);
+  }
+
+  .tag-view-btn {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.34rem;
+    padding: 0.32rem 0.82rem;
+    border-radius: 9999px;
+    border: none;
+    background: transparent;
+    color: var(--muted-strong);
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.2;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition:
+      color 220ms var(--ease),
+      opacity 220ms var(--ease);
+  }
+
+  .tag-view-btn small {
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.05em;
+    opacity: 0.72;
+  }
+
+  .tag-view-btn:hover {
+    color: var(--text-strong);
+  }
+
+  .tag-view-btn.is-active {
+    color: var(--bg-base);
+  }
+
+  :global([data-theme="moss"]) .tag-view-btn.is-active {
+    color: #002b24;
+  }
+
+  :global([data-theme="moss"][data-moss-shade="4DB6AC"]) .tag-view-btn.is-active {
+    color: #f2fbf9;
+  }
+
+  .tag-view-btn[aria-disabled="true"] {
+    opacity: 0.42;
+    cursor: not-allowed;
+  }
+
+  .tag-3d-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  .tag-3d-hint {
+    letter-spacing: 0.04em;
+    opacity: 0.85;
+  }
+
+  @media (max-width: 640px) {
+    .tag-3d-hint {
+      display: none;
+    }
+  }
+
+  .tag-3d-reset {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+    padding: 0.24rem 0.66rem;
+    border-radius: 9999px;
+    border: 1px solid var(--rule);
+    background: color-mix(in srgb, var(--bg-soft) 72%, transparent);
+    color: var(--text-strong);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    cursor: pointer;
+    transition:
+      transform 180ms var(--ease),
+      border-color 180ms var(--ease),
+      background-color 180ms var(--ease);
+  }
+
+  .tag-3d-reset:hover {
+    border-color: var(--rule-strong);
+    transform: translateY(-1px);
+  }
+
+  .tag-3d-reset:active {
+    transform: scale(0.97);
+  }
+
+  .tag-3d-zoom {
+    opacity: 0.72;
+  }
+
   .tag-sky {
     background:
       radial-gradient(ellipse 64% 56% at 50% 50%, color-mix(in srgb, var(--bg-soft) 55%, transparent) 0%, transparent 100%);
   }
 
+  .tag-sky[data-view-mode="3d"] {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .tag-sky[data-view-mode="3d"]:global(.is-orbiting) {
+    cursor: grabbing;
+  }
+
+  .tag-sky-webgl {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 340ms var(--ease);
+  }
+
+  .tag-sky[data-view-mode="3d"] .tag-sky-webgl {
+    opacity: 1;
+  }
+
+  .tag-sky[data-view-mode="3d"] .tag-sky-links {
+    opacity: 0;
+    transition: opacity 260ms var(--ease);
+  }
+
   /* 静止收敛后释放非活跃节点的 will-change，节约 GPU 合成层显存 */
-  .tag-sky:global(.is-settled) .tag-node:not(:hover):not(:global(.is-lit)):not(:global(.is-origin)) {
+  .tag-sky[data-view-mode="2d"]:global(.is-settled) .tag-node:not(:hover):not(:global(.is-lit)):not(:global(.is-origin)) {
     will-change: auto;
   }
 
@@ -192,7 +419,10 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
       animation: none !important;
       stroke-dasharray: none;
     }
-    .tag-node-halo {
+    .tag-node-halo,
+    .tag-sky-webgl,
+    .tag-view-btn,
+    .tag-3d-reset {
       transition: none !important;
     }
   }
@@ -200,6 +430,10 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
 
 <script>
   import gsap from 'gsap';
+  import { animate, spring } from 'motion';
+  import { canUseWebGL } from '../../utils/threeInkStage';
+  import { createTagConstellationThree } from '../../utils/tagConstellationThree';
+  import type { TagConstellationThreeHandle } from '../../utils/tagConstellationThree';
 
   // Force-directed constellation layout:
   // - Fixed 60Hz timestep prevents acceleration on 120–240Hz displays
@@ -207,10 +441,15 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
   // - Kinetic-energy convergence & offscreen/hidden-tab sleep immediately halt rAF at rest
   const CLEANUP_KEY = '__areSetTagSkyCleanup__';
   const LISTENER_KEY = '__areSetTagSkyBound__';
+  const GLIDER_BASE_W = 100;
+  const GLIDER_BASE_H = 32;
+
+  type ConstellationMode = '2d' | '3d';
 
   interface Node {
     el: HTMLElement;
     name: string;
+    weight: number;
     x: number;
     y: number;
     vx: number;
@@ -230,6 +469,14 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
     basePath: SVGPathElement;
     pulsePath: SVGPathElement;
     lastD: string;
+  }
+
+  interface SwitchTabMetric {
+    mode: ConstellationMode;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
   }
 
   function buildArcPath(x1: number, y1: number, x2: number, y2: number, sign: 1 | -1): string {
@@ -252,14 +499,98 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
     const sky = document.querySelector<HTMLElement>('[data-tag-sky]');
     const wrap = sky?.querySelector<HTMLElement>('[data-tag-nodes]');
     const svg = sky?.querySelector<SVGSVGElement>('[data-tag-links]');
+    const webglCanvas = sky?.querySelector<HTMLCanvasElement>('[data-tag-webgl]');
     if (!sky || !wrap || !svg) return;
+
+    const viewBar = document.querySelector<HTMLElement>('[data-tag-view-bar]');
+    const viewGlider = viewBar?.querySelector<HTMLElement>('[data-tag-view-glider]');
+    const viewButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-tag-view-btn]'));
+    const controls3d = document.querySelector<HTMLElement>('[data-tag-3d-controls]');
+    const reset3dBtn = document.querySelector<HTMLButtonElement>('[data-tag-3d-reset]');
+    const zoomReadout = document.querySelector<HTMLElement>('[data-tag-zoom-readout]');
 
     const controller = new AbortController();
     const { signal } = controller;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const webglCapable = !reduceMotion && canUseWebGL();
 
     const els = Array.from(wrap.querySelectorAll<HTMLElement>('[data-tag-node]'));
     if (!els.length) return;
+
+    let activeMode: ConstellationMode = '2d';
+    let modeRequestToken = 0;
+    let threeHandle: TagConstellationThreeHandle | null = null;
+    let gliderAnim: { stop?: () => void } | null = null;
+    let switchMetrics: SwitchTabMetric[] = [];
+
+    const btn3d = viewButtons.find((b) => b.dataset.tagViewBtn === '3d');
+    if (btn3d && !webglCapable) {
+      btn3d.setAttribute('aria-disabled', 'true');
+      btn3d.title = reduceMotion
+        ? '已开启减弱动态效果，自动保持平面水墨星图'
+        : '当前环境未启用 WebGL，自动保持平面水墨星图';
+    }
+
+    const measureViewSwitch = () => {
+      switchMetrics = viewButtons.map((btn) => ({
+        mode: (btn.dataset.tagViewBtn === '3d' ? '3d' : '2d') as ConstellationMode,
+        x: btn.offsetLeft,
+        y: btn.offsetTop,
+        w: Math.max(1, btn.offsetWidth),
+        h: Math.max(1, btn.offsetHeight),
+      }));
+    };
+
+    const syncViewGlider = (mode: ConstellationMode, withSpring: boolean) => {
+      viewButtons.forEach((btn) => {
+        const isCurrent = btn.dataset.tagViewBtn === mode;
+        btn.classList.toggle('is-active', isCurrent);
+        btn.setAttribute('aria-pressed', isCurrent ? 'true' : 'false');
+      });
+      if (controls3d) {
+        controls3d.hidden = mode !== '3d';
+      }
+
+      if (!viewGlider || switchMetrics.length === 0) return;
+      const metric = switchMetrics.find((m) => m.mode === mode) ?? switchMetrics[0];
+      const sx = Math.max(0.01, metric.w / GLIDER_BASE_W);
+      const sy = Math.max(0.01, metric.h / GLIDER_BASE_H);
+      const halfR = Math.min(metric.w, metric.h) * 0.5;
+      viewGlider.style.setProperty('--pill-rx', `${(halfR / sx).toFixed(2)}px`);
+      viewGlider.style.setProperty('--pill-ry', `${(halfR / sy).toFixed(2)}px`);
+      viewGlider.style.opacity = '1';
+
+      const targetTransform = `translate3d(${metric.x.toFixed(1)}px, ${metric.y.toFixed(1)}px, 0px) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
+      gliderAnim?.stop?.();
+      gliderAnim = null;
+
+      if (!withSpring || reduceMotion) {
+        viewGlider.style.transform = targetTransform;
+        return;
+      }
+
+      try {
+        gliderAnim = animate(
+          viewGlider,
+          { transform: targetTransform },
+          { type: spring, stiffness: 420, damping: 34, mass: 0.72 },
+        );
+      } catch {
+        viewGlider.style.transform = targetTransform;
+      }
+    };
+
+    measureViewSwitch();
+    syncViewGlider('2d', false);
+
+    let viewBarRo: ResizeObserver | null = null;
+    if (viewBar && typeof ResizeObserver !== 'undefined') {
+      viewBarRo = new ResizeObserver(() => {
+        measureViewSwitch();
+        syncViewGlider(activeMode, false);
+      });
+      viewBarRo.observe(viewBar);
+    }
 
     let width = sky.clientWidth;
     let height = sky.clientHeight;
@@ -279,6 +610,7 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
       return {
         el,
         name: el.dataset.tag || '',
+        weight: Number.parseFloat(el.dataset.weight || '0') || 0,
         x: 0,
         y: 0,
         vx: 0,
@@ -495,7 +827,7 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
 
     function tick(now: number) {
       frame = 0;
-      if (settled || signal.aborted || document.hidden || !inViewport) {
+      if (activeMode !== '2d' || settled || signal.aborted || document.hidden || !inViewport) {
         lastTime = 0;
         return;
       }
@@ -524,12 +856,13 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
     }
 
     function ensureTicking() {
-      if (settled || frame || reduceMotion || document.hidden || !inViewport || signal.aborted) return;
+      if (activeMode !== '2d' || settled || frame || reduceMotion || document.hidden || !inViewport || signal.aborted) return;
       lastTime = 0;
       frame = requestAnimationFrame(tick);
     }
 
     function run() {
+      if (activeMode !== '2d') return;
       cancelAnimationFrame(frame);
       frame = 0;
       seed();
@@ -552,6 +885,11 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
     // ---------- Hover: light up constellation & orient outward ink-stream pulses ----------
     function highlight(name: string | null) {
       focusedTag = name;
+      if (activeMode === '3d' && threeHandle) {
+        threeHandle.highlight(name);
+        return;
+      }
+
       sky!.classList.toggle('is-focused', Boolean(name));
       const near = name ? neighbours.get(name) ?? new Set<string>() : null;
 
@@ -579,6 +917,120 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
         }
       }
     }
+
+    async function setViewMode(requested: ConstellationMode, withSpring = true): Promise<ConstellationMode> {
+      const token = ++modeRequestToken;
+      if (requested === '3d') {
+        if (!webglCapable) {
+          activeMode = '2d';
+          sky!.dataset.viewMode = '2d';
+          sky!.removeAttribute('data-lenis-prevent');
+          syncViewGlider('2d', withSpring);
+          return '2d';
+        }
+        if (activeMode === '3d' && threeHandle?.active) {
+          syncViewGlider('3d', withSpring);
+          return '3d';
+        }
+
+        cancelAnimationFrame(frame);
+        frame = 0;
+        activeMode = '3d';
+        sky!.dataset.viewMode = '3d';
+        sky!.setAttribute('data-lenis-prevent', '');
+        syncViewGlider('3d', withSpring);
+        if (zoomReadout) zoomReadout.textContent = '100%';
+
+        const handle = await createTagConstellationThree({
+          sky: sky!,
+          canvas: webglCanvas,
+          nodes: nodes.map((n) => ({
+            el: n.el,
+            name: n.name,
+            hw: n.hw,
+            hh: n.hh,
+            weight: n.weight,
+          })),
+          pairs: rawPairs,
+          onZoomChange: (z) => {
+            if (zoomReadout) {
+              zoomReadout.textContent = `${Math.round(z * 100)}%`;
+            }
+          },
+        });
+
+        if (signal.aborted || token !== modeRequestToken) {
+          handle.dispose();
+          return activeMode;
+        }
+
+        if (!handle.active || handle.fallback) {
+          handle.dispose();
+          activeMode = '2d';
+          sky!.dataset.viewMode = '2d';
+          sky!.removeAttribute('data-lenis-prevent');
+          syncViewGlider('2d', false);
+          nodes.forEach((n) => {
+            n.paintedX = Number.NaN;
+            n.paintedY = Number.NaN;
+          });
+          paint();
+          ensureTicking();
+          return '2d';
+        }
+
+        threeHandle = handle;
+        if (focusedTag) {
+          threeHandle.highlight(focusedTag);
+        }
+        return '3d';
+      }
+
+      // Switch to 2D SVG mode
+      if (threeHandle) {
+        threeHandle.dispose();
+        threeHandle = null;
+      }
+      activeMode = '2d';
+      sky!.dataset.viewMode = '2d';
+      sky!.removeAttribute('data-lenis-prevent');
+      syncViewGlider('2d', withSpring);
+
+      nodes.forEach((n) => {
+        n.paintedX = Number.NaN;
+        n.paintedY = Number.NaN;
+      });
+      if (settled) {
+        paint();
+      } else {
+        run();
+      }
+      if (focusedTag) {
+        highlight(focusedTag);
+      }
+      return '2d';
+    }
+
+    viewButtons.forEach((btn) => {
+      btn.addEventListener(
+        'click',
+        () => {
+          const targetMode: ConstellationMode = btn.dataset.tagViewBtn === '3d' ? '3d' : '2d';
+          if (targetMode === '3d' && !webglCapable) return;
+          void setViewMode(targetMode, true);
+        },
+        { signal },
+      );
+    });
+
+    reset3dBtn?.addEventListener(
+      'click',
+      () => {
+        threeHandle?.resetView();
+        if (zoomReadout) zoomReadout.textContent = '100%';
+      },
+      { signal },
+    );
 
     els.forEach((el) => {
       el.addEventListener('pointerenter', () => highlight(el.dataset.tag || null), { signal });
@@ -624,16 +1076,31 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
       'resize',
       () => {
         window.clearTimeout(resizeTimer);
-        resizeTimer = window.setTimeout(run, 180);
+        resizeTimer = window.setTimeout(() => {
+          measureViewSwitch();
+          syncViewGlider(activeMode, false);
+          if (activeMode === '2d') run();
+        }, 180);
       },
       { signal },
     );
 
     run();
 
+    // Honor ?view=3d deep link when WebGL is available
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('view') === '3d' && webglCapable) {
+        void setViewMode('3d', false);
+      }
+    } catch {}
+
     // Re-measure once webfont settles so text-box separation stays crisp
     document.fonts?.ready.then(() => {
       if (signal.aborted) return;
+      measureViewSwitch();
+      syncViewGlider(activeMode, false);
+      if (activeMode !== '2d') return;
       wrap.classList.remove('is-laid-out');
       const nextDims = nodes.map((node) => ({
         hw: node.el.offsetWidth / 2,
@@ -648,13 +1115,27 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
       run();
     });
 
+    (window as any).__areSetTagSkyMode__ = {
+      getMode: () => activeMode,
+      setMode: (mode: ConstellationMode) => setViewMode(mode, true),
+    };
+
     (window as any)[CLEANUP_KEY] = () => {
+      modeRequestToken += 1;
       controller.abort();
       io.disconnect();
+      viewBarRo?.disconnect();
+      gliderAnim?.stop?.();
+      gliderAnim = null;
+      if (threeHandle) {
+        threeHandle.dispose();
+        threeHandle = null;
+      }
       cancelAnimationFrame(frame);
       frame = 0;
       window.clearTimeout(resizeTimer);
       gsap.killTweensOf(els);
+      (window as any).__areSetTagSkyMode__ = undefined;
       (window as any)[CLEANUP_KEY] = undefined;
     };
   }

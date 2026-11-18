@@ -71,6 +71,12 @@ python RenderDoc2obj.py
 ![贴图](Picture/Find_Texture0.png)
 ![贴图](Picture/Find_Texture1.png)
 
+## 交互式管线检视：DrawCall 网格与多通道透视
+
+在实际逆向还原 UE5 / Vulkan 渲染帧时，除了核对 `VS Input` 导出的顶点坐标外，往往还需要逐通道排查**世界空间法线朝向**、**`TEXCOORD0` UV 展开接缝（对应 Mip 0 贴图采样）**以及**三角面拓扑连线**。下面内置了一个实时 WebGL 渲染管线检视台，可直接拖拽旋览、滚轮调焦，并在 `墨韵着色`、`世界法线`、`线性深度`、`UV 棋盘` 与 `拓扑线框` 五种通道之间即时切换对照：
+
+<div data-three-demo data-demo-preset="resonator" data-demo-pass="ink-lit" data-demo-title="RenderDoc · 鸣潮抓帧网格与通道检视台" data-demo-subtitle="复现 VS Input CSV → OBJ 拓扑重建、UV0 棋盘核验与水墨 NPR 着色通道（按住拖拽旋览 · 滚轮缩放）"></div>
+
 ## 最终效果
 
 ![最终效果](Picture/End.png)
