@@ -244,7 +244,6 @@
     canvas.height = Math.round(H * dpr);
 
     const ink = cssVar('--ink-strong', '#111111');
-    const vermilion = cssVar('--vermilion', ink);
     const theme = document.documentElement.getAttribute('data-theme');
     const grainAlpha = theme === null || theme === 'light' || theme === 'rice' ? 0.05 : 0.075;
     const cx = W / 2;
@@ -562,7 +561,7 @@
 
       drawInitialDrop(ctx!, t);
 
-      // Dual concentric ink + vermilion shockwave rings on impact
+      // Dual concentric monochrome ink shockwave rings on impact
       if (shockRadius > 0 && shockRadius < vortexR * 1.65) {
         const ringAlpha = Math.max(0, 1 - shockRadius / (vortexR * 1.6));
         ctx!.save();
@@ -574,9 +573,9 @@
         ctx!.stroke();
 
         if (shockRadius > 18) {
-          ctx!.strokeStyle = vermilion;
+          ctx!.strokeStyle = ink;
           ctx!.lineWidth = 0.85;
-          ctx!.globalAlpha = ringAlpha * 0.55;
+          ctx!.globalAlpha = ringAlpha * 0.45;
           ctx!.beginPath();
           ctx!.arc(cx, cy, shockRadius * 0.72, 0, Math.PI * 2);
           ctx!.stroke();

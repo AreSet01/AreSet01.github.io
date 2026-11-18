@@ -439,7 +439,7 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
 
     <!-- 宣纸批注小笺浮窗：常驻流外并通过纯 GPU translate3d 平滑跟随，杜绝 hidden 切换重排 -->
     <div class="stats-tip stats-paper-note" data-stats-tip aria-hidden="true">
-      <span class="stats-tip-seal" aria-hidden="true">笺</span>
+      <span class="stats-tip-dot" aria-hidden="true"></span>
       <span class="stats-tip-body" data-stats-tip-body></span>
     </div>
   </main>
@@ -833,8 +833,8 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     border-radius: 5px;
     background: var(--bg-elev);
     color: var(--text-strong);
-    border: 1px solid var(--rule-strong);
-    border-top: 2px solid var(--vermilion);
+    border: 1px solid var(--border-strong);
+    border-radius: 9999px;
     box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.22);
     visibility: hidden;
     opacity: 0;
@@ -849,19 +849,13 @@ const clip = (text: string, max = 16) => (text.length > max ? `${text.slice(0, m
     opacity: 1;
   }
 
-  .stats-tip-seal {
+  .stats-tip-dot {
     flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.15rem;
-    height: 1.15rem;
-    border: 1px solid var(--vermilion);
-    border-radius: 2px;
-    color: var(--vermilion);
-    font-family: var(--font-hand-title);
-    font-size: 0.66rem;
-    line-height: 1;
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--ink-strong);
+    opacity: 0.82;
   }
 
   /* 5. 数据表开合隔离容器：动画中启用 contain 阻断内部表格重排扩散 */

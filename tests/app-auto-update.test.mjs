@@ -164,6 +164,8 @@ describe('自动版本检测、安全静默升级与缓存穿透套件', () => {
       assert.equal(replacedUrl, null, 'Must defer while MindMap workbench is open');
       const pill = doc.getElementById('app-update-pill');
       assert.ok(pill, 'Update notification pill must be mounted');
+      assert.equal(pill.querySelector('.app-update-seal'), null, 'Update pill must not render square seal badge');
+      assert.ok(pill.querySelector('.app-update-dove svg'), 'Update pill renders hairline dove SVG icon');
 
       // Exit workbench -> triggers settle auto-reload
       doc.getElementById('mm-workbench-modal').classList.add('hidden');

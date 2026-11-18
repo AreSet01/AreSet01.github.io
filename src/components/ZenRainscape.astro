@@ -103,7 +103,6 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
   interface RainPalette {
     rain: string;
     ripple: string;
-    sealAccent: string;
   }
 
   function computePalette(): RainPalette {
@@ -112,25 +111,21 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
       return {
         rain: '234, 232, 227',
         ripple: '234, 232, 227',
-        sealAccent: '217, 92, 72',
       };
     } else if (theme === 'moss') {
       return {
         rain: '255, 236, 242',
         ripple: '255, 214, 226',
-        sealAccent: '255, 194, 209',
       };
     } else if (theme === 'rice') {
       return {
         rain: '43, 36, 28',
         ripple: '52, 43, 33',
-        sealAccent: '168, 59, 40',
       };
     }
     return {
       rain: '26, 24, 20',
       ripple: '30, 28, 24',
-      sealAccent: '184, 59, 40',
     };
   }
 
@@ -389,7 +384,7 @@ import { getZenAudioEngine } from '../utils/zenAudioEngine';
     }
     if (cEave > 0) {
       ctx.lineWidth = 0.75;
-      ctx.strokeStyle = `rgba(${palette.sealAccent}, ${(0.18 * currentOpacity).toFixed(3)})`;
+      ctx.strokeStyle = `rgba(${palette.ripple}, ${(0.20 * currentOpacity).toFixed(3)})`;
       ctx.stroke(ripEaveRings);
     }
     if (cCores > 0) {

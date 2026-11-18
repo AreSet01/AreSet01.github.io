@@ -90,7 +90,7 @@ const CONTEXT_MENU_MOTION_CSS = `
     clip-path 150ms cubic-bezier(0.32, 0, 0.2, 1);
 }
 
-/* 顶缘起笔墨线（起笔锋芒 + 朱砂钤点） */
+/* 顶缘起笔墨线（浓淡飞白水墨横锋） */
 .site-ctx-brush-head {
   position: absolute;
   top: 0;
@@ -100,13 +100,13 @@ const CONTEXT_MENU_MOTION_CSS = `
   pointer-events: none;
   background: linear-gradient(
     90deg,
-    #b83b28 0%,
-    var(--ink-strong, #18181b) 22%,
+    var(--ink-strong, #000000) 0%,
+    var(--ink-mid, #555555) 38%,
     transparent 100%
   );
   transform: scaleX(0);
   transform-origin: left center;
-  opacity: 0.82;
+  opacity: 0.78;
   transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1) 35ms;
 }
 
@@ -114,8 +114,8 @@ const CONTEXT_MENU_MOTION_CSS = `
   transform-origin: right center;
   background: linear-gradient(
     270deg,
-    #b83b28 0%,
-    var(--ink-strong, #18181b) 22%,
+    var(--ink-strong, #000000) 0%,
+    var(--ink-mid, #555555) 38%,
     transparent 100%
   );
 }
@@ -125,7 +125,7 @@ const CONTEXT_MENU_MOTION_CSS = `
 }
 
 [data-theme="dark"] .site-ctx-brush-head {
-  background: linear-gradient(90deg, #d9533f 0%, rgba(255, 255, 255, 0.72) 26%, transparent 100%);
+  background: linear-gradient(90deg, var(--ink-strong, #f3f4f6) 0%, rgba(255, 255, 255, 0.45) 38%, transparent 100%);
 }
 
 [data-theme="moss"] .site-ctx-brush-head {
@@ -144,7 +144,7 @@ const CONTEXT_MENU_MOTION_CSS = `
   right: 0;
   height: 32px;
   border-radius: 7px;
-  background: rgba(24, 22, 18, 0.065);
+  background: var(--accent-soft, rgba(24, 22, 18, 0.065));
   pointer-events: none;
   opacity: 0;
   transform: translate3d(0, 0, 0) scaleX(0.97);
@@ -162,7 +162,7 @@ const CONTEXT_MENU_MOTION_CSS = `
   bottom: 7px;
   width: 2px;
   border-radius: 999px;
-  background: #b83b28;
+  background: var(--ink-strong, #000000);
 }
 
 .site-ctx-hover-pill.is-active {
@@ -175,7 +175,7 @@ const CONTEXT_MENU_MOTION_CSS = `
 }
 
 [data-theme="dark"] .site-ctx-hover-pill::before {
-  background: #e06350;
+  background: var(--ink-strong, #f3f4f6);
 }
 
 [data-theme="moss"] .site-ctx-hover-pill {
@@ -228,7 +228,7 @@ const CONTEXT_MENU_MOTION_CSS = `
 }
 
 .site-ctx-toast {
-  border: 1px solid rgba(184, 59, 40, 0.35);
+  border: 1px solid var(--border-strong, rgba(0, 0, 0, 0.24));
   transition:
     opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
     transform 240ms cubic-bezier(0.22, 1, 0.36, 1);

@@ -26,8 +26,6 @@ const noteNumber = String(index + 1).padStart(2, '0');
     <span class="paper-card-sheen" aria-hidden="true"></span>
     <!-- Running-script calligraphy edge ink frame -->
     <span class="paper-card-inkframe" aria-hidden="true"></span>
-    <!-- Vermilion corner seal mark -->
-    <span class="paper-card-seal" aria-hidden="true">{locked ? '封' : '阅'}</span>
 
     <a
       href={`/posts/${slug}`}
@@ -243,39 +241,6 @@ const noteNumber = String(index + 1).padStart(2, '0');
     opacity: 0.9;
   }
 
-  /* 4. 朱砂角印：悬停时如钤印轻落右下留白处 */
-  .paper-card-seal {
-    position: absolute;
-    right: 1.35rem;
-    top: 2.95rem;
-    width: 1.48rem;
-    height: 1.48rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1.5px solid var(--vermilion);
-    border-radius: 3px;
-    color: var(--vermilion);
-    background: color-mix(in srgb, var(--vermilion) 6%, transparent);
-    font-family: var(--font-hand-title);
-    font-size: 0.74rem;
-    line-height: 1;
-    pointer-events: none;
-    user-select: none;
-    z-index: 1;
-    opacity: 0;
-    transform: scale(1.32) rotate(-12deg);
-    transition:
-      opacity 280ms var(--ease),
-      transform 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-
-  .note-card.paper-card:hover .paper-card-seal,
-  .note-card.paper-card:focus-within .paper-card-seal {
-    opacity: 0.76;
-    transform: scale(1) rotate(-5deg);
-  }
-
   .paper-card-no {
     position: relative;
     transition: color 260ms var(--ease);
@@ -344,7 +309,6 @@ const noteNumber = String(index + 1).padStart(2, '0');
     .paper-card-elevation,
     .paper-card-sheen,
     .paper-card-inkframe::before,
-    .paper-card-seal,
     .paper-read-cta::after,
     .paper-tag-chip,
     .paper-tag-chip::after {

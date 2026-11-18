@@ -831,7 +831,7 @@ const {
       // time it scrolls back into view. Kinds:
       //   left | right | top | bottom | scale — directional transform + opacity
       //   card  — shared soft landing for every article / note / collection card
-      //   stamp — seal slams down (scale + rotate), ink splash on landing, number counts up
+      //   stamp — monochrome ink ripple settle, gentle ink splash, number counts up
       //   ink   — a drop of ink at the row's left edge spreads into the whole row (clip-path)
       // On first paint the authored direction plays; on scroll re-entries the vertical component
       // follows the scroll (rising in from below when scrolling down, dropping in from above when
@@ -853,8 +853,8 @@ const {
       CustomEase.create('paper-glide', 'M0,0 C0.2,0.84 0.3,1 1,1');
       // 宣纸水墨毛细渗透曲线：先浸润纸肌，后缓缓晕开收口
       CustomEase.create('ink-seep', 'M0,0 C0.14,0.74 0.26,0.97 1,1');
-      // 朱砂石章钤印曲线：干脆落印轻压宣纸（微陷 0.985），随即沉稳落定，摒弃廉价橡胶弹跳
-      CustomEase.create('cinnabar-seal', 'M0,0 C0.15,0.94 0.28,1.032 0.54,0.988 0.78,0.996 1,1 1,1');
+      // 水墨凝定曲线：轻触宣纸温润落定，零弹跳
+      CustomEase.create('ink-settle', 'M0,0 C0.16,0.92 0.28,1 0.56,1 0.8,1 1,1 1,1');
 
       // Which way the page is moving — CSS reveals (post body) read it off <html>
       ScrollTrigger.create({
@@ -893,13 +893,13 @@ const {
         return { origin: `${Math.round(x)}px ${Math.round(y)}px`, radius };
       }
 
-      // Spawn a lightweight GPU-composited cinnabar/ink impression ring on stamp landing
-      function spawnStampSealHalo(el) {
+      // Spawn a lightweight GPU-composited monochrome water-ink ripple halo on settle
+      function spawnInkRippleHalo(el) {
         if (!el || !el.isConnected || !document.body) return;
         const rect = el.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return;
         const halo = document.createElement('div');
-        halo.className = 'stamp-seal-halo';
+        halo.className = 'ink-ripple-halo';
         Object.assign(halo.style, {
           left: `${Math.round(rect.left)}px`,
           top: `${Math.round(rect.top)}px`,
@@ -910,14 +910,14 @@ const {
         if (typeof halo.animate === 'function') {
           const anim = halo.animate(
             [
-              { transform: 'scale(0.94)', opacity: 0.62 },
-              { transform: 'scale(1.24)', opacity: 0 },
+              { transform: 'scale(0.96)', opacity: 0.52 },
+              { transform: 'scale(1.22)', opacity: 0 },
             ],
-            { duration: 540, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'forwards' }
+            { duration: 520, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'forwards' }
           );
           anim.onfinish = () => halo.remove();
         } else {
-          window.setTimeout(() => halo.remove(), 560);
+          window.setTimeout(() => halo.remove(), 540);
         }
       }
 
@@ -1006,27 +1006,29 @@ const {
         }
 
         if (kind === 'stamp') {
-          // 朱砂钤印：沉稳石章压纸落印 + 朱砂余韵光环扩散
+          // 水墨凝定：轻盈落定 + 单色水墨涟漪光环扩散
           const restRotation = preMeta?.restRotation ?? restingRotation(el);
           const rect = preMeta?.rect ?? el.getBoundingClientRect();
           const origin = (rect.right > window.innerWidth * 0.65) ? 'right center' : '50% 50%';
           gsap.set(el, {
             opacity: 0,
-            scale: 1.56,
-            rotation: restRotation - 11,
+            scale: 1.08,
+            y: 8,
+            rotation: restRotation,
             transformOrigin: origin,
             willChange: 'transform, opacity',
           });
           tl.to(el, {
             opacity: 1,
             scale: 1,
+            y: 0,
             rotation: restRotation,
-            duration: 0.58,
-            ease: 'cinnabar-seal',
+            duration: 0.48,
+            ease: 'ink-settle',
             onStart: () => {
-              gsap.delayedCall(0.16, () => {
+              gsap.delayedCall(0.14, () => {
                 if (el && el.isConnected) {
-                  spawnStampSealHalo(el);
+                  spawnInkRippleHalo(el);
                   splashAt(el);
                 }
               });
@@ -1689,11 +1691,11 @@ const {
           const sparkleColors = currentTheme === 'moss' ? [
             '#FFF1F4', '#FFC2D1', '#FBE3E9', '#FFD3DE', '#F0C4CF'
           ] : currentTheme === 'rice' ? [
-            '#2B241C', '#423A30', '#5E4531', '#6B5B45', '#A83B28'
+            '#2B241C', '#423A30', '#5C5245', '#6B5B45', '#1F1A14'
           ] : currentTheme === 'dark' ? [
-            '#EAE8E3', '#D9D6CE', '#BFBCB4', '#A6A39B', '#D9533F'
+            '#EAE8E3', '#D9D6CE', '#BFBCB4', '#A6A39B', '#F4F3EF'
           ] : [
-            '#1A1814', '#0D0C09', '#3A352C', '#2A2620', '#B83B28'
+            '#1A1814', '#0D0C09', '#3A352C', '#524D46', '#222222'
           ];
 
           const safeCount = Math.min(16, Math.max(4, count));
@@ -1713,10 +1715,7 @@ const {
             const size = Math.random() * 4.5 + 2;
             const angle = (Math.PI * 2 * i) / safeCount + (Math.random() - 0.5) * 0.45;
             const distance = Math.random() * 48 + 12;
-            const isSealFleck = i === 0;
-            const color = isSealFleck
-              ? sparkleColors[sparkleColors.length - 1]
-              : sparkleColors[Math.floor(Math.random() * (sparkleColors.length - 1))];
+            const color = sparkleColors[Math.floor(Math.random() * sparkleColors.length)];
             const elongation = 0.52 + Math.random() * 0.48;
             const deg = (angle * 180 / Math.PI).toFixed(1);
 
@@ -1874,7 +1873,7 @@ const {
             'rgba(13,12,9,0.32)',
             'rgba(58,53,44,0.24)',
             'rgba(42,38,32,0.26)',
-            'rgba(168,57,43,0.18)',
+            'rgba(82,78,72,0.18)',
           ];
 
           // Pre-bake soft glow sprites for each color to eliminate ~3,840 gradient allocations / sec
@@ -3932,7 +3931,7 @@ const {
           overlay.remove();
           imageOverlay.remove();
           canvas.remove();
-          document.querySelectorAll('[data-ink-splash-group], .stamp-seal-halo, #theme-switch-ink-ring').forEach((n) => n.remove());
+          document.querySelectorAll('[data-ink-splash-group], .ink-ripple-halo, #theme-switch-ink-ring').forEach((n) => n.remove());
           document.body.classList.remove('search-lock', 'search-open', 'preview-lock', 'preview-active', 'preview-open', 'image-view-open');
           document.documentElement.style.setProperty('--scrollbar-offset', '0px');
         };
@@ -4232,13 +4231,13 @@ const {
     </script>
 
     <style is:global>
-      /* ── 主题/字体切换水墨晕环 & 朱砂落印余波（纯合成器 transform + opacity，零 blur） ── */
+      /* ── 主题/字体切换水墨晕环 & 单色水墨涟漪光环（纯合成器 transform + opacity，零 blur） ── */
       .theme-switch-ink-ring {
         position: fixed;
         z-index: 2147483645;
         border-radius: 50%;
         pointer-events: none;
-        border: 1.5px solid rgba(184, 59, 40, 0.42);
+        border: 1.5px solid var(--border-strong, rgba(0, 0, 0, 0.34));
         background: radial-gradient(
           circle,
           transparent 62%,
@@ -4250,7 +4249,7 @@ const {
       }
 
       [data-theme="dark"] .theme-switch-ink-ring {
-        border-color: rgba(217, 83, 63, 0.46);
+        border-color: rgba(234, 232, 227, 0.38);
         background: radial-gradient(
           circle,
           transparent 62%,
@@ -4269,22 +4268,22 @@ const {
         );
       }
 
-      .stamp-seal-halo {
+      .ink-ripple-halo {
         position: fixed;
         z-index: 60;
-        border-radius: 8px;
-        border: 1.25px solid rgba(184, 59, 40, 0.48);
+        border-radius: 9999px;
+        border: 1.25px solid var(--border-strong, var(--ink));
         pointer-events: none;
         transform-origin: center center;
         will-change: transform, opacity;
       }
 
-      [data-theme="dark"] .stamp-seal-halo {
-        border-color: rgba(217, 83, 63, 0.52);
+      [data-theme="dark"] .ink-ripple-halo {
+        border-color: rgba(234, 232, 227, 0.42);
       }
 
-      [data-theme="moss"] .stamp-seal-halo {
-        border-color: rgba(255, 194, 209, 0.6);
+      [data-theme="moss"] .ink-ripple-halo {
+        border-color: rgba(255, 194, 209, 0.58);
       }
 
       /* View Transition 运行中彻底静默内层 CSS 过渡，杜绝旧帧快照滞后与 box-shadow/filter 掉帧 */
@@ -4353,15 +4352,15 @@ const {
         z-index: 2;
         border-radius: 6px;
         background:
-          linear-gradient(90deg, #b83b28 12px, transparent 12px) 0 0 / 100% 1.5px no-repeat,
-          linear-gradient(180deg, #b83b28 12px, transparent 12px) 0 0 / 1.5px 100% no-repeat,
-          linear-gradient(270deg, #b83b28 12px, transparent 12px) 100% 100% / 100% 1.5px no-repeat,
-          linear-gradient(0deg, #b83b28 12px, transparent 12px) 100% 100% / 1.5px 100% no-repeat;
-        opacity: 0.52;
+          linear-gradient(90deg, var(--ink, #222222) 12px, transparent 12px) 0 0 / 100% 1.5px no-repeat,
+          linear-gradient(180deg, var(--ink, #222222) 12px, transparent 12px) 0 0 / 1.5px 100% no-repeat,
+          linear-gradient(270deg, var(--ink, #222222) 12px, transparent 12px) 100% 100% / 100% 1.5px no-repeat,
+          linear-gradient(0deg, var(--ink, #222222) 12px, transparent 12px) 100% 100% / 1.5px 100% no-repeat;
+        opacity: 0.42;
       }
 
       [data-theme="dark"] .image-viewer-silk-corners {
-        opacity: 0.45;
+        opacity: 0.42;
       }
 
       [data-theme="moss"] .image-viewer-silk-corners {
@@ -4396,7 +4395,7 @@ const {
         .image-viewer-overlay.is-open,
         .image-viewer-media,
         .theme-switch-ink-ring,
-        .stamp-seal-halo {
+        .ink-ripple-halo {
           transition: none !important;
           animation: none !important;
         }

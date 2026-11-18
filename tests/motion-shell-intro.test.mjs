@@ -11,7 +11,7 @@ import { ZenAudioEngine } from '../src/utils/zenAudioEngine.ts';
 const rootDir = process.cwd();
 const readSrc = (relPath) => fs.readFileSync(path.join(rootDir, relPath), 'utf8');
 
-describe('Motion Shell & Intro Artisan Upgrade Suite (60–120fps 零掉帧宣纸水墨与朱砂钤印)', () => {
+describe('Motion Shell & Intro Artisan Upgrade Suite (60–120fps 零掉帧纯粹单色水墨与圆润胶囊)', () => {
   const baseLayout = readSrc('src/layouts/BaseLayout.astro');
   const header = readSrc('src/components/Header.astro');
   const footer = readSrc('src/components/Footer.astro');
@@ -22,14 +22,16 @@ describe('Motion Shell & Intro Artisan Upgrade Suite (60–120fps 零掉帧宣�
   const siteContextMenu = readSrc('src/utils/siteContextMenu.ts');
   const appAutoUpdate = readSrc('src/utils/appAutoUpdate.ts');
 
-  it('1. BaseLayout: [data-enter] 东方水墨/朱砂曲线编排、零 filter:blur、预读防抖与 will-change 及时释放', () => {
-    // 宣纸舒卷、水墨毛细渗透与朱砂石章钤印三条专属 CustomEase
+  it('1. BaseLayout: [data-enter] 纯单色水墨曲线编排、零 filter:blur、预读防抖与 will-change 及时释放', () => {
+    // 宣纸舒卷、水墨毛细渗透与水墨凝定三条专属 CustomEase（无印章/朱砂语义）
     assert.match(baseLayout, /CustomEase\.create\('paper-glide'/, '必须注册宣纸舒卷曲线 paper-glide');
     assert.match(baseLayout, /CustomEase\.create\('ink-seep'/, '必须注册水墨渗透曲线 ink-seep');
-    assert.match(baseLayout, /CustomEase\.create\('cinnabar-seal'/, '必须注册朱砂钤印曲线 cinnabar-seal');
+    assert.match(baseLayout, /CustomEase\.create\('ink-settle'/, '必须注册水墨凝定曲线 ink-settle');
+    assert.doesNotMatch(baseLayout, /cinnabar-seal|stamp-seal-halo/, 'BaseLayout 严禁残留印章曲线或朱砂光环类名');
 
-    // stamp 落印光环余韵 + ink 首屏读写分离防回流
-    assert.match(baseLayout, /function spawnStampSealHalo/, 'stamp 落印必须激发朱砂余韵光环');
+    // 单色水墨涟漪光环 + ink 首屏读写分离防回流
+    assert.match(baseLayout, /function spawnInkRippleHalo/, '必须激发纯单色水墨涟漪光环');
+    assert.match(baseLayout, /\.ink-ripple-halo\s*\{[\s\S]*?border-radius:\s*9999px;/, '水墨涟漪光环必须为圆润环形');
     assert.match(baseLayout, /const preMetaMap = new Map\(\);/, 'initPageEnter 必须在批量写入样式前统一预读几何坐标');
 
     // bloom 与 sparkle 彻底根除 filter:blur 逐帧动画与 boxShadow 重绘
@@ -91,19 +93,20 @@ describe('Motion Shell & Intro Artisan Upgrade Suite (60–120fps 零掉帧宣�
       '转场交接必须同时校验视觉消散度与真实时间进度'
     );
     assert.match(postTransition, /__areSetPostTransitionCleanup__/, 'PostTransition 必须提供完整清理钩子');
+    assert.doesNotMatch(postTransition, /sealRed|#b83b28|#d9533f/i, 'PostTransition 严禁残留朱砂红配色');
   });
 
-  it('4. SiteIntro: 消除 7000 粒子旋涡 Math.hypot 瓶颈、预烘焙扫描墨带、离屏休眠与朱砂落印', () => {
+  it('4. SiteIntro: 消除 7000 粒子旋涡 Math.hypot 瓶颈、预烘焙扫描墨带、离屏休眠与纯单色水墨涟漪定版', () => {
     assert.match(siteIntro, /SIN_LUT = new Float32Array\(256\)/, 'SiteIntro 必须使用预计算正弦表替代逐粒子 Math.sin');
     assert.match(siteIntro, /const rSq = dx \* dx \+ dy \* dy;/, '旋涡场必须使用平方距离 + 单次 sqrt 替代高开销 Math.hypot');
     assert.doesNotMatch(siteIntro, /Math\.hypot\(dx,\s*dy\)/, 'SiteIntro 粒子物理循环内严禁调用 Math.hypot');
-    assert.match(siteIntro, /data-intro-seal/, 'SiteIntro 必须挂载朱砂钤印 DOM 节点');
-    assert.match(siteIntro, /data-intro-ring/, 'SiteIntro 必须挂载落印墨环扩散节点');
-    assert.match(siteIntro, /ease:\s*'intro-seal-press'/, '朱砂落印必须采用沉稳压纸钤印曲线');
+    assert.doesNotMatch(siteIntro, /data-intro-seal|site-intro-seal|#b83b28|#d9533f/i, 'SiteIntro 严禁挂载方章节点或朱砂红变量');
+    assert.match(siteIntro, /data-intro-ring/, 'SiteIntro 必须挂载单色水墨涟漪扩散节点');
+    assert.match(siteIntro, /T\.ripple/, '定版时刻采用单色水纹涟漪扩散');
     assert.match(siteIntro, /document\.addEventListener\('visibilitychange'/, 'SiteIntro 必须在标签页不可见时自动休眠暂停 rAF');
   });
 
-  it('5. Header & Footer: 零 pointermove 同步回流、毛笔飞白朱砂游标、rAF 指针合帧与页脚闲章交互', () => {
+  it('5. Header & Footer: 零 pointermove 同步回流、单色浓淡墨痕游标、rAF 指针合帧与简洁素雅页脚', () => {
     // 提取 Header 导航磁吸控制器，确保 pointermove 内绝无 getBoundingClientRect
     const navCtrlStart = header.indexOf('setupNavMagneticGliderController');
     const navCtrlEnd = header.indexOf('setupMobileDrawerController');
@@ -118,19 +121,22 @@ describe('Motion Shell & Intro Artisan Upgrade Suite (60–120fps 零掉帧宣�
       '导航项 pointermove 内严禁调用 getBoundingClientRect 或 offsetHeight 引发强制同步回流'
     );
     assert.match(navCtrlCode, /metricMap = new WeakMap/, '导航游标必须通过预缓存几何表驱动');
-    assert.match(header, /\.glass-nav \.nav-magnetic-glider/, '导航悬停与激活项由纯合成器朱砂飞白游标指示，无冗余背景框');
+    assert.match(header, /\.glass-nav \.nav-magnetic-glider/, '导航悬停与激活项由纯合成器浓淡飞白水墨游标指示，无冗余背景框');
+    assert.doesNotMatch(header, /#b83b28|#d9533f|footer-cinnabar-seal/i, 'Header 严禁残留硬编码朱砂红或印章选择器');
     assert.match(header, /\.glass-nav \.nav-link::before,\s*\.glass-nav \.nav-link::after\s*\{\s*display:\s*none\s*!important;/, '导航链接保持纯文本无背景框极简排版');
     assert.match(header, /function scheduleCursorFrame\(\)/, '鼠标水墨拖尾与圆圈指针必须通过单一 rAF 合帧调度');
     assert.match(header, /__areSetMobileDrawerCleanup__/, '移动端抽屉必须遵循幂等销毁生命周期');
 
-    // 页脚朱砂闲章微交互
-    assert.match(footer, /data-footer-seal/, 'Footer 必须包含可钤盖的朱砂千秋闲章');
-    assert.match(footer, /__areSetFooterSealCleanup__/, 'Footer 闲章脚本必须注册幂等销毁钩子');
+    // 页脚保持简洁纯粹细墨线与版权排版，无闲章
+    assert.doesNotMatch(footer, /data-footer-seal|footer-cinnabar-seal|钤印|#b83b28|#d9533f/i, 'Footer 必须彻底移除方印按钮与朱砂红渐变');
+    assert.match(footer, /var\(--border\)/, 'Footer 使用主题细墨线分隔');
   });
 
-  it('6. siteContextMenu & appAutoUpdate: 竹简笺条展开 + 游走墨衬 Pill & 飞鸽朱砂小笺 JSDOM 实测', async () => {
+  it('6. siteContextMenu & appAutoUpdate: 单色起笔墨线 + 游走墨衬 Pill & 圆润飞鸽更新胶囊 JSDOM 实测', async () => {
     assert.doesNotMatch(siteContextMenu, /filter:\s*blur\(/, '右键菜单严禁使用 filter: blur(...) 动画');
-    assert.doesNotMatch(appAutoUpdate, /filter:\s*blur\(/, '更新提示小笺严禁使用 filter: blur(...) 动画');
+    assert.doesNotMatch(appAutoUpdate, /filter:\s*blur\(/, '更新提示胶囊严禁使用 filter: blur(...) 动画');
+    assert.doesNotMatch(siteContextMenu, /#b83b28|#d9533f/i, '右键菜单严禁残留朱砂红硬编码色值');
+    assert.doesNotMatch(appAutoUpdate, /app-update-seal|#b83b28|#d9533f/i, '更新提示严禁包含方章或朱砂红硬编码色值');
 
     // A. 右键菜单端到端结构与悬停游走墨衬 Pill 验证
     {
@@ -187,9 +193,10 @@ describe('Motion Shell & Intro Artisan Upgrade Suite (60–120fps 零掉帧宣�
       try {
         await api.checkNow(true);
         const pill = doc.getElementById('app-update-pill');
-        assert.ok(pill, '繁忙编辑态下应挂载朱砂更新小笺');
-        assert.ok(pill.querySelector('[data-update-seal]'), '小笺应包含「新」字朱砂钤印');
-        assert.ok(pill.querySelector('[data-update-ink-bar]'), '小笺应包含底缘水墨进度反馈条');
+        assert.ok(pill, '繁忙编辑态下应挂载圆润飞鸽更新胶囊');
+        assert.equal(pill.querySelector('[data-update-seal]'), null, '更新胶囊严禁挂载方印节点');
+        assert.ok(pill.querySelector('.app-update-dove svg'), '更新胶囊应包含精致细线飞鸽 SVG 图标');
+        assert.ok(pill.querySelector('[data-update-ink-bar]'), '更新胶囊应包含底缘单色水墨进度反馈条');
 
         // 退出编辑焦点进入结算期 -> 触发 is-settling 满墨过渡
         doc.getElementById('ed').blur();
@@ -207,9 +214,12 @@ describe('Motion Shell & Intro Artisan Upgrade Suite (60–120fps 零掉帧宣�
     assert.match(zenRainscape, /const ripHigh = new Path2D\(\);/, '宣纸水澜必须采用透明度分桶 Path2D 批量绘制');
     assert.match(zenRainscape, /eaveDrips/, '听雨画布应具备檐前垂珠触纸成澜意境');
     assert.match(zenRainscape, /__areSetZenRainscapeCleanup__/, 'ZenRainscape 必须注册幂等销毁钩子');
+    assert.doesNotMatch(zenRainscape, /sealAccent|184,\s*59,\s*40/, 'ZenRainscape 必须统一使用清透单色水墨涟漪');
     assert.ok(!zenRainscape.includes('splashes') && !zenRainscape.includes('mists'), '严禁引入底部积水或灰雾斑块');
 
-    assert.match(zenSoundscape, /data-zen-wave/, '音景面板应包含 7 毫水墨声波律动谱');
+    assert.doesNotMatch(zenSoundscape, /data-zen-seal|\.zen-seal/, '音景面板严禁挂载「雨」字方章');
+    assert.match(zenSoundscape, /\.zen-brand-pill[\s\S]*?border-radius:\s*9999px/, '音景面板采用细线 SVG + 圆润胶囊徽标');
+    assert.match(zenSoundscape, /data-zen-wave/, '音景面板应包含 7 毫单色水墨声波律动谱');
     assert.match(zenSoundscape, /function measureAndClampCapsule\(\)/, '音景面板滚动钳制必须通过 rAF 合帧避免强制同步回流');
 
     // 验证 ZenAudioEngine 零分配声波采样行为
