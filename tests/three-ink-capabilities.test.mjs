@@ -308,6 +308,8 @@ describe('Slice B — Three.js WebGL 3D Ink Constellation, Xuan-Paper Shader & R
     assert.ok(tagsAstro.includes('平面星图') && tagsAstro.includes('三维星云'), '/tags 须提供平面星图 / 三维星云切换胶囊');
     assert.ok(tagsAstro.includes('data-tag-view-glider'), '/tags 切换器须包含反向圆角弹簧滑块');
     assert.match(tagsAstro, /\.tag-view-glider\s*\{[\s\S]*?width:\s*100px;[\s\S]*?border-radius:\s*var\(--pill-rx,\s*9999px\)\s*\/\s*var\(--pill-ry,\s*9999px\)/);
+    assert.ok(tagsAstro.includes('data-tag-3d-hint') && tagsAstro.includes('syncControls3d') && tagsAstro.includes('stopControls3dAnims'), '/tags 右侧提示与归位按钮须接入 Motion 弹簧进出场动画与防重入清理');
+    assert.ok(!tagsAstro.includes('controls3d.hidden ='), '/tags 右侧控制区严禁使用 .hidden 硬切导致进退场动画丢失');
     assert.ok(tagsAstro.includes('const STEP = 1 / 60;'));
     assert.ok(tagsAstro.includes('alpha <= 0.02 || (alpha < 0.36 && maxDisp < 0.04)'));
     assert.ok(tagsAstro.includes('tag-link-pulse') && tagsAstro.includes('constellationInkFlow'));

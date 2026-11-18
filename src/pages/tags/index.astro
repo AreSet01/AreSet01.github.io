@@ -50,12 +50,13 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
             </button>
           </div>
 
-          <div class="tag-3d-controls" data-tag-3d-controls hidden>
-            <span class="tag-3d-hint">拖拽旋览 · 滚轮调焦</span>
+          <div class="tag-3d-controls" data-tag-3d-controls aria-hidden="true">
+            <span class="tag-3d-hint" data-tag-3d-hint>拖拽旋览 · 滚轮调焦</span>
             <button
               type="button"
               class="tag-3d-reset"
               data-tag-3d-reset
+              tabindex="-1"
               aria-label="重置三维星云视角与缩放"
               title="归位默认视角 (100%)"
             >
@@ -206,11 +207,24 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
     font-family: var(--font-mono);
     font-size: 0.7rem;
     color: var(--muted);
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  .tag-3d-controls.is-visible {
+    pointer-events: auto;
+    visibility: visible;
   }
 
   .tag-3d-hint {
     letter-spacing: 0.04em;
     opacity: 0.85;
+    will-change: transform, opacity;
+  }
+
+  .tag-3d-controls:not(.is-visible) .tag-3d-hint {
+    opacity: 0;
+    transform: translate3d(-12px, 0, 0);
   }
 
   @media (max-width: 640px) {
@@ -231,10 +245,17 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
     font-family: var(--font-mono);
     font-size: 0.68rem;
     cursor: pointer;
+    opacity: 1;
+    will-change: transform, opacity;
     transition:
       transform 180ms var(--ease),
       border-color 180ms var(--ease),
       background-color 180ms var(--ease);
+  }
+
+  .tag-3d-controls:not(.is-visible) .tag-3d-reset {
+    opacity: 0;
+    transform: translate3d(-14px, 0, 0) scale(0.92);
   }
 
   .tag-3d-reset:hover {
@@ -506,6 +527,7 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
     const viewGlider = viewBar?.querySelector<HTMLElement>('[data-tag-view-glider]');
     const viewButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-tag-view-btn]'));
     const controls3d = document.querySelector<HTMLElement>('[data-tag-3d-controls]');
+    const hint3d = controls3d?.querySelector<HTMLElement>('[data-tag-3d-hint]') ?? null;
     const reset3dBtn = document.querySelector<HTMLButtonElement>('[data-tag-3d-reset]');
     const zoomReadout = document.querySelector<HTMLElement>('[data-tag-zoom-readout]');
 
@@ -521,7 +543,143 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
     let modeRequestToken = 0;
     let threeHandle: TagConstellationThreeHandle | null = null;
     let gliderAnim: { stop?: () => void } | null = null;
+    let hintAnim: { stop?: () => void; cancel?: () => void; finished?: Promise<unknown> } | null = null;
+    let resetAnim: { stop?: () => void; cancel?: () => void; finished?: Promise<unknown> } | null = null;
+    let controls3dShown: boolean | null = null;
+    let controls3dGen = 0;
     let switchMetrics: SwitchTabMetric[] = [];
+
+    const stopControls3dAnims = () => {
+      hintAnim?.cancel?.();
+      hintAnim = null;
+      resetAnim?.cancel?.();
+      resetAnim = null;
+      hint3d?.getAnimations?.().forEach((anim) => anim.cancel());
+      reset3dBtn?.getAnimations?.().forEach((anim) => anim.cancel());
+    };
+
+    const clearControlInlineStyles = (el: HTMLElement | null) => {
+      if (!el) return;
+      el.style.opacity = '';
+      el.style.transform = '';
+    };
+
+    const syncControls3d = (show: boolean, withAnimation: boolean) => {
+      if (!controls3d || controls3dShown === show) return;
+      controls3dShown = show;
+      const gen = ++controls3dGen;
+      const hintComputed = hint3d ? getComputedStyle(hint3d) : null;
+      const resetComputed = reset3dBtn ? getComputedStyle(reset3dBtn) : null;
+      const hintStartOp = hintComputed ? Number.parseFloat(hintComputed.opacity) : 0;
+      const resetStartOp = resetComputed ? Number.parseFloat(resetComputed.opacity) : 0;
+      const hintStartTf = hintComputed?.transform && hintComputed.transform !== 'none'
+        ? hintComputed.transform
+        : 'translate3d(-12px, 0, 0)';
+      const resetStartTf = resetComputed?.transform && resetComputed.transform !== 'none'
+        ? resetComputed.transform
+        : 'translate3d(-14px, 0, 0) scale(0.92)';
+      stopControls3dAnims();
+
+      if (!withAnimation || reduceMotion) {
+        controls3d.classList.toggle('is-visible', show);
+        controls3d.style.visibility = show ? 'visible' : 'hidden';
+        controls3d.style.pointerEvents = show ? 'auto' : 'none';
+        controls3d.setAttribute('aria-hidden', show ? 'false' : 'true');
+        if (reset3dBtn) reset3dBtn.tabIndex = show ? 0 : -1;
+        clearControlInlineStyles(hint3d);
+        clearControlInlineStyles(reset3dBtn);
+        return;
+      }
+
+      if (show) {
+        controls3d.style.visibility = 'visible';
+        controls3d.style.pointerEvents = 'auto';
+        controls3d.classList.add('is-visible');
+        controls3d.setAttribute('aria-hidden', 'false');
+        if (reset3dBtn) reset3dBtn.tabIndex = 0;
+
+        try {
+          if (hint3d) {
+            const fromRest = hintStartOp <= 0.02;
+            hintAnim = animate(
+              hint3d,
+              {
+                opacity: [fromRest ? 0 : hintStartOp, 0.85],
+                transform: [fromRest ? 'translate3d(-12px, 0, 0)' : hintStartTf, 'translate3d(0px, 0, 0)'],
+              },
+              { duration: 0.26, ease: [0.22, 1, 0.36, 1], delay: fromRest ? 0.04 : 0 },
+            );
+          }
+          if (reset3dBtn) {
+            const fromRest = resetStartOp <= 0.02;
+            resetAnim = animate(
+              reset3dBtn,
+              {
+                opacity: [fromRest ? 0 : resetStartOp, 1],
+                transform: [fromRest ? 'translate3d(-14px, 0, 0) scale(0.92)' : resetStartTf, 'translate3d(0px, 0, 0) scale(1)'],
+              },
+              { duration: 0.3, ease: [0.22, 1.12, 0.36, 1], delay: fromRest ? 0.08 : 0 },
+            );
+          }
+          void Promise.all([hintAnim?.finished, resetAnim?.finished]).then(() => {
+            if (signal.aborted || gen !== controls3dGen || !controls3dShown) return;
+            stopControls3dAnims();
+            clearControlInlineStyles(hint3d);
+            clearControlInlineStyles(reset3dBtn);
+            requestAnimationFrame(() => {
+              if (signal.aborted || gen !== controls3dGen || !controls3dShown) return;
+              clearControlInlineStyles(hint3d);
+              clearControlInlineStyles(reset3dBtn);
+            });
+          });
+        } catch {
+          clearControlInlineStyles(hint3d);
+          clearControlInlineStyles(reset3dBtn);
+        }
+        return;
+      }
+
+      // Exit: keep layout visible & disable interaction while tucking back toward the pill
+      controls3d.style.visibility = 'visible';
+      controls3d.style.pointerEvents = 'none';
+      controls3d.setAttribute('aria-hidden', 'true');
+      if (reset3dBtn) reset3dBtn.tabIndex = -1;
+
+      try {
+        if (reset3dBtn) {
+          resetAnim = animate(
+            reset3dBtn,
+            { opacity: [resetStartOp, 0], transform: [resetStartTf, 'translate3d(-14px, 0, 0) scale(0.92)'] },
+            { duration: 0.19, ease: [0.32, 0, 0.67, 1] },
+          );
+        }
+        if (hint3d) {
+          hintAnim = animate(
+            hint3d,
+            { opacity: [hintStartOp, 0], transform: [hintStartTf, 'translate3d(-12px, 0, 0)'] },
+            { duration: 0.18, ease: [0.32, 0, 0.67, 1], delay: 0.03 },
+          );
+        }
+        void Promise.all([hintAnim?.finished, resetAnim?.finished]).then(() => {
+          if (signal.aborted || gen !== controls3dGen || controls3dShown) return;
+          controls3d.classList.remove('is-visible');
+          controls3d.style.visibility = 'hidden';
+          stopControls3dAnims();
+          clearControlInlineStyles(hint3d);
+          clearControlInlineStyles(reset3dBtn);
+          requestAnimationFrame(() => {
+            if (signal.aborted || gen !== controls3dGen || controls3dShown) return;
+            clearControlInlineStyles(hint3d);
+            clearControlInlineStyles(reset3dBtn);
+          });
+        });
+      } catch {
+        controls3d.classList.remove('is-visible');
+        controls3d.style.visibility = 'hidden';
+        clearControlInlineStyles(hint3d);
+        clearControlInlineStyles(reset3dBtn);
+      }
+    };
 
     const btn3d = viewButtons.find((b) => b.dataset.tagViewBtn === '3d');
     if (btn3d && !webglCapable) {
@@ -547,9 +705,7 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
         btn.classList.toggle('is-active', isCurrent);
         btn.setAttribute('aria-pressed', isCurrent ? 'true' : 'false');
       });
-      if (controls3d) {
-        controls3d.hidden = mode !== '3d';
-      }
+      syncControls3d(mode === '3d', withSpring);
 
       if (!viewGlider || switchMetrics.length === 0) return;
       const metric = switchMetrics.find((m) => m.mode === mode) ?? switchMetrics[0];
@@ -1127,6 +1283,7 @@ const strongPairs = pairs.filter((pair) => pair.weight >= 2).length;
       viewBarRo?.disconnect();
       gliderAnim?.stop?.();
       gliderAnim = null;
+      stopControls3dAnims();
       if (threeHandle) {
         threeHandle.dispose();
         threeHandle = null;
