@@ -650,8 +650,9 @@
     const prose = document.querySelector<HTMLElement>('[data-post-prose]');
     const article = document.querySelector<HTMLElement>('article');
     if (!prose || !article) return;
+    if (prose.dataset.articleSlug === '__inactive__') return;
 
-    const postSlug = normalizeReadingSlug(window.location.pathname);
+    const postSlug = normalizeReadingSlug(prose.dataset.articleSlug || window.location.pathname);
     if (!postSlug) return;
 
     const controller = new AbortController();
@@ -733,11 +734,19 @@
       cachedHeadings = next;
     }
 
+    let roTimer = 0;
+    const scheduleMeasureLayout = () => {
+      window.clearTimeout(roTimer);
+      roTimer = window.setTimeout(() => {
+        if (!signal.aborted) measureLayout();
+      }, 140);
+    };
     const ro = typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(() => measureLayout())
+      ? new ResizeObserver(scheduleMeasureLayout)
       : null;
     ro?.observe(prose);
-    window.addEventListener('resize', measureLayout, { passive: true, signal });
+    window.addEventListener('resize', scheduleMeasureLayout, { passive: true, signal });
+    signal.addEventListener('abort', () => window.clearTimeout(roTimer), { once: true });
 
     function computeCurrentPosition(): { progress: number; headingId: string; headingText: string } {
       const scrollY = window.scrollY || window.pageYOffset || 0;
@@ -1355,6 +1364,11 @@
   initReadingBookmark();
   if (!(window as any)[LISTENER_KEY]) {
     document.addEventListener('astro:page-load', initReadingBookmark);
+    document.addEventListener('reader:doc-change', (e: any) => {
+      const phase = e?.detail?.phase;
+      if (phase && phase !== 'core') return;
+      initReadingBookmark();
+    });
     (window as any)[LISTENER_KEY] = true;
   }
 </script>

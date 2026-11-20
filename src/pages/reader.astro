@@ -1,0 +1,3448 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import MermaidRenderer from '../components/MermaidRenderer.astro';
+import CompanionLayout from '../components/CompanionLayout.astro';
+import InkAsk from '../components/InkAsk.astro';
+import PinWorkbench from '../components/PinWorkbench.astro';
+import ArticleSearch from '../components/ArticleSearch.astro';
+import ArticleSelectionDock from '../components/ArticleSelectionDock.astro';
+import ReadingBookmark from '../components/ReadingBookmark.astro';
+---
+
+<BaseLayout
+  title="Reader - 梦付千秋"
+  description="本地 Markdown 书架与沉浸阅读器：支持文件夹与图片导入、代码高亮、公式图表、划线批注、夹签续读、导图生成与墨问 AI 伴读"
+>
+  <Header />
+
+  <main
+    id="main-content"
+    tabindex="-1"
+    class="container-wide flex-1 pt-6 pb-28 lg:pt-8 outline-none min-h-[calc(100vh-140px)]"
+  >
+    <!-- 隐藏文件选择器 -->
+    <input
+      id="reader-file-input"
+      type="file"
+      multiple
+      accept=".md,.markdown,.mdown,.mkd,.txt,image/*"
+      hidden
+    />
+    <input
+      id="reader-folder-input"
+      type="file"
+      webkitdirectory
+      directory
+      multiple
+      hidden
+    />
+    <input
+      id="reader-reimport-input"
+      type="file"
+      multiple
+      accept=".md,.markdown,.mdown,.mkd,.txt,image/*"
+      hidden
+    />
+    <input
+      id="reader-assets-input"
+      type="file"
+      multiple
+      accept="image/*"
+      hidden
+    />
+
+    <!-- ==================== 视图 A：本地书架 ==================== -->
+    <div id="reader-shelf-view" class="reader-shelf-view space-y-8">
+      <!-- 顶部标题与统计胶囊条 -->
+      <section
+        class="panel pb-8 border-b border-[var(--rule)]"
+        style="border-image: linear-gradient(to right, transparent 3%, var(--rule-strong) 50%, transparent 97%) 1;"
+      >
+        <p class="eyebrow" data-enter="top">Local Reader</p>
+        <div class="mt-4 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between flex-wrap">
+          <div class="max-w-2xl">
+            <h1 class="section-title" data-enter="left">Reader</h1>
+            <p class="mt-3 text-[0.95rem] leading-relaxed text-[var(--muted-strong)]" data-enter="left">
+              把本地 <code class="reader-inline-pill">.md</code> 文稿与配套图片装进浏览器书架，原文仅存本机 IndexedDB，畅享全套划线批注、夹签续读、导图生成与墨问 AI 伴读。
+            </p>
+          </div>
+
+          <div class="archive-stats-wrap self-start lg:self-auto" data-enter="bloom" data-reader-stats-strip>
+            <div class="archive-stats-strip notes-stats-strip" id="reader-stats-strip" aria-label="本地书架统计">
+              <span class="stats-glider" id="reader-stats-glider" data-reader-stats-glider aria-hidden="true"></span>
+
+              <div class="stats-item notes-stat-item is-active" data-reader-stat="all" role="button" tabindex="0" aria-pressed="true" title="查看全部文稿">
+                <span class="stats-label">DOCS</span>
+                <strong class="stats-value" id="reader-stat-total">0</strong>
+                <span class="stats-subnote">篇书架文稿</span>
+              </div>
+
+              <span class="stats-separator" aria-hidden="true"></span>
+
+              <div class="stats-item notes-stat-item" data-reader-stat="reading" role="button" tabindex="0" aria-pressed="false" title="筛选正在阅读中的文稿">
+                <span class="stats-label">READING</span>
+                <strong class="stats-value" id="reader-stat-reading">0</strong>
+                <span class="stats-subnote">篇在读中</span>
+              </div>
+
+              <span class="stats-separator" aria-hidden="true"></span>
+
+              <div class="stats-item notes-stat-item" data-reader-stat="words" role="button" tabindex="0" aria-pressed="false" title="书架累计字数">
+                <span class="stats-label">WORDS</span>
+                <strong class="stats-value" id="reader-stat-words">0</strong>
+                <span class="stats-subnote">总字数</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 导入操作工具栏 -->
+        <div class="mt-7 flex flex-wrap items-center gap-3" data-enter="bottom">
+          <button type="button" id="reader-import-files-btn" class="btn-primary reader-action-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span>导入 Markdown</span>
+          </button>
+
+          <button type="button" id="reader-import-folder-btn" class="btn-secondary reader-action-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>导入文件夹（含图片）</span>
+          </button>
+
+          <button type="button" id="reader-paste-btn" class="btn-secondary reader-action-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+            </svg>
+            <span>粘贴新建</span>
+          </button>
+
+          <span class="reader-drop-hint">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="8 17 12 21 16 17"></polyline>
+              <line x1="12" y1="12" x2="12" y2="21"></line>
+              <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"></path>
+            </svg>
+            <span>支持直接拖拽 .md 或整个文件夹到页面任意处</span>
+          </span>
+        </div>
+      </section>
+
+      <!-- 分类筛选与搜索条 -->
+      <section class="reader-toolbar flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between" id="reader-filter-bar" data-enter="bottom">
+        <div class="reader-cat-rail-wrap">
+          <div class="reader-cat-rail" id="reader-cat-bar" role="tablist" aria-label="文稿分类筛选">
+            <span class="reader-cat-glider" id="reader-cat-glider" aria-hidden="true"></span>
+            <!-- 由 Nanostores 状态同步注入分类胶囊 -->
+          </div>
+          <button
+            type="button"
+            id="reader-add-cat-btn"
+            class="reader-add-cat-btn"
+            title="新建书架分类"
+            aria-label="新建书架分类"
+          >
+            + 分类
+          </button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <label class="reader-search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              id="reader-search-input"
+              type="search"
+              placeholder="搜索标题、文件名、标签或摘要..."
+              autocomplete="off"
+              aria-label="搜索书架文稿"
+            />
+          </label>
+
+          <select id="reader-sort-select" class="reader-sort-select" aria-label="排序方式">
+            <option value="recent">最近阅读</option>
+            <option value="updated">最近导入</option>
+            <option value="title">按标题</option>
+            <option value="words">按字数</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- React 19 + Motion 书架卡片网格 Island（Nanostores 驱动，含 3D 宣纸物理微倾与空状态动画） -->
+      <div id="reader-shelf-island-host" data-enter-hold></div>
+    </div>
+
+    <!-- ==================== 视图 B：沉浸阅读舞台 ==================== -->
+    <div id="reader-stage-view" class="reader-stage-wrap" hidden>
+      <!-- 顶部阅读器工具栏 -->
+      <div class="reader-stage-bar panel" id="reader-stage-bar">
+        <div class="reader-stage-bar-left">
+          <button type="button" id="reader-back-shelf-btn" class="reader-bar-btn is-strong">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            <span>返回书架</span>
+          </button>
+
+          <select id="reader-doc-switcher" class="reader-doc-switcher" aria-label="切换本地书架文稿"></select>
+        </div>
+
+        <div class="reader-stage-bar-right">
+          <button type="button" id="reader-reimport-btn" class="reader-bar-btn" title="重新导入同名或更新版 .md 文件（保留当前划线与书签）">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+            <span>重导更新</span>
+          </button>
+
+          <button type="button" id="reader-export-notes-btn" class="reader-bar-btn" title="将本文划线高亮与批注导出为 Markdown">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>导出笔记</span>
+          </button>
+
+          <button type="button" id="reader-to-mindmap-btn" class="reader-bar-btn" title="根据本文标题结构与划线批注一键生成思维导图">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="5" cy="12" r="2.5"></circle>
+              <circle cx="19" cy="6" r="2.5"></circle>
+              <circle cx="19" cy="18" r="2.5"></circle>
+              <path d="M7.5 12h4c1.5 0 2-6 5-6"></path>
+              <path d="M11.5 12c1.5 0 2 6 5 6"></path>
+            </svg>
+            <span>生成导图</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 与 PostLayout 高度一致的沉浸文章结构 -->
+      <article class="space-y-10 mt-6" data-reader-article>
+        <header class="panel flex flex-col" data-post-header id="reader-stage-header">
+          <div class="flex flex-wrap items-center gap-3 font-mono text-[0.72rem] tracking-[0.1em] uppercase text-[var(--muted)]">
+            <button type="button" id="reader-crumb-shelf" class="transition hover:text-[var(--accent)] cursor-pointer bg-transparent border-0 p-0 font-inherit uppercase tracking-inherit text-inherit">
+              Reader
+            </button>
+            <span class="opacity-40">/</span>
+            <span id="reader-meta-date"></span>
+            <span class="opacity-40">/</span>
+            <span id="reader-meta-category"></span>
+            <span class="opacity-40">/</span>
+            <span id="reader-meta-minutes"></span>
+            <span class="reader-local-badge" id="reader-meta-badge">本地文稿</span>
+          </div>
+
+          <h1
+            class="section-title post-title mt-7 mb-5 max-w-3xl"
+            style="font-size: clamp(2rem, 4.2vw, 3.05rem);"
+            data-post-title
+          >
+            <span class="post-title-calligraphy">
+              <span class="post-title-text" id="reader-doc-title"></span>
+            </span>
+          </h1>
+
+          <p
+            id="reader-doc-desc"
+            class="mt-3 max-w-2xl text-[1.02rem] leading-[1.78] text-[var(--muted-strong)]"
+            style="font-family: var(--font-serif); font-style: italic;"
+            hidden
+          ></p>
+
+          <div
+            id="reader-doc-tags-wrap"
+            class="mt-8 pt-5 border-t border-[var(--rule)]"
+            style="border-image: linear-gradient(to right, transparent 5%, var(--rule) 50%, transparent 95%) 1;"
+            hidden
+          >
+            <div id="reader-doc-tags" class="flex flex-wrap gap-2"></div>
+          </div>
+        </header>
+
+        <!-- 本地图片缺失提示条（按需展示） -->
+        <div id="reader-missing-assets-banner" class="reader-missing-banner panel" hidden>
+          <div class="reader-missing-banner-info">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <span id="reader-missing-assets-text">本文引用了尚未导入的本地图片。</span>
+          </div>
+          <button type="button" id="reader-attach-assets-btn" class="reader-bar-btn is-strong">
+            <span>补充上传图片</span>
+          </button>
+        </div>
+
+        <div class="space-y-6">
+          <!-- 动态目录面板（含可打断 WAAPI 平滑展开/收拢） -->
+          <details class="post-toc panel" id="reader-toc" open aria-labelledby="reader-toc-title" data-lenis-prevent>
+            <summary class="post-toc-summary" data-lenis-prevent>
+              <div class="flex items-center gap-2">
+                <span class="post-toc-caret" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </span>
+                <span class="post-toc-kicker">Navigation</span>
+                <span class="opacity-30">/</span>
+                <span id="reader-toc-title" class="post-toc-title">文章目录</span>
+              </div>
+              <div class="post-toc-tools flex items-center gap-2">
+                <button
+                  type="button"
+                  id="post-toc-search-btn"
+                  class="post-toc-search-btn max-sm:hidden"
+                  data-article-search-trigger
+                  aria-label="搜索本文 (⌘F 或 /)"
+                  title="搜索本文 (⌘F 或 /)"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                  <span>搜本文</span>
+                  <kbd class="post-toc-search-kbd">⌘F</kbd>
+                </button>
+                <button
+                  type="button"
+                  id="post-toc-notes-btn"
+                  class="post-toc-search-btn max-sm:hidden"
+                  data-article-notes-trigger
+                  aria-label="查看文章高亮笔记"
+                  title="查看高亮笔记"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="m9 11-6 6v3h3l6-6"></path>
+                    <path d="m22 2-2.5 2.5a2.12 2.12 0 0 1-3 0l-1-1a2.12 2.12 0 0 1 0-3L18 0z"></path>
+                    <path d="M14.5 5.5 18.5 9.5"></path>
+                  </svg>
+                  <span>笔记</span>
+                  <span class="post-toc-notes-badge" data-notes-count>0</span>
+                </button>
+                <button
+                  type="button"
+                  id="post-toc-bookmarks-btn"
+                  class="post-toc-search-btn max-sm:hidden"
+                  data-article-bookmarks-trigger
+                  aria-label="查看或添加本文夹签 (B)"
+                  title="本文书签夹签 (快捷键 B)"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
+                  </svg>
+                  <span>夹签</span>
+                  <span class="post-toc-notes-badge" data-bookmarks-count>0</span>
+                </button>
+                <span class="post-toc-badge" id="reader-toc-count">0 节</span>
+              </div>
+            </summary>
+            <div class="post-toc-expander" id="reader-toc-expander">
+              <div class="post-toc-inner" data-lenis-prevent>
+                <nav class="post-toc-nav" id="reader-toc-nav" aria-label="文章目录" data-lenis-prevent></nav>
+              </div>
+            </div>
+          </details>
+
+          <!-- 正文宣纸容器 -->
+          <div class="panel post-body rounded-[20px] px-4 py-6 sm:px-6 md:px-10 md:py-10" data-post-body>
+            <div class="post-spine" aria-hidden="true" data-post-spine>
+              <svg preserveAspectRatio="none" viewBox="0 0 2 100">
+                <line x1="1" y1="0" x2="1" y2="100" pathLength="1" data-post-spine-line />
+              </svg>
+            </div>
+            <div
+              class="prose"
+              id="reader-prose"
+              data-post-prose
+              data-article-slug="__inactive__"
+            ></div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </main>
+
+  <!-- 全局拖拽上传提示蒙层（零全屏 backdrop-filter 掉帧） -->
+  <div id="reader-drop-overlay" class="reader-drop-overlay" hidden aria-hidden="true">
+    <div class="reader-drop-card">
+      <div class="reader-drop-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+      </div>
+      <p class="reader-drop-title">松开即可导入本地书架</p>
+      <p class="reader-drop-sub">支持单个/多个 .md 文件，或直接拖入包含图片的整个文件夹</p>
+    </div>
+  </div>
+
+  <!-- 粘贴新建 Markdown 弹窗（3D 宣纸 workbenchMotion.animatePaperModal 展开） -->
+  <div id="reader-paste-modal" class="reader-modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="reader-paste-modal-title">
+    <div class="reader-modal-card" id="reader-paste-modal-card" data-lenis-prevent>
+      <div class="reader-modal-head">
+        <div>
+          <span class="eyebrow">Quick Paste</span>
+          <h2 id="reader-paste-modal-title" class="reader-modal-title">粘贴 Markdown 新建文稿</h2>
+        </div>
+        <button type="button" class="reader-modal-close" data-modal-close aria-label="关闭弹窗">×</button>
+      </div>
+      <form id="reader-paste-form" class="reader-modal-body">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <label class="sm:col-span-2 reader-field">
+            <span>文稿标题（留空则自动从 Frontmatter 或首行 # 标题提取）</span>
+            <input id="reader-paste-title" type="text" placeholder="例如：UE5 渲染管线笔记" />
+          </label>
+          <label class="reader-field">
+            <span>分类</span>
+            <select id="reader-paste-category"></select>
+          </label>
+        </div>
+        <label class="reader-field mt-4">
+          <span>Markdown 内容</span>
+          <textarea
+            id="reader-paste-content"
+            rows="12"
+            required
+            placeholder="在此粘贴 Markdown 正文（支持 Frontmatter、LaTeX 公式、Mermaid、代码块与 [!NOTE] 提示框）..."
+          ></textarea>
+        </label>
+        <div class="reader-modal-actions">
+          <button type="button" class="btn-secondary" data-modal-close>取消</button>
+          <button type="submit" class="btn-primary">导入并立即阅读 →</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 同名文件冲突确认弹窗 -->
+  <div id="reader-dup-modal" class="reader-modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="reader-dup-modal-title">
+    <div class="reader-modal-card reader-modal-card--sm" id="reader-dup-modal-card" data-lenis-prevent>
+      <div class="reader-modal-head">
+        <div>
+          <span class="eyebrow">Duplicate Detected</span>
+          <h2 id="reader-dup-modal-title" class="reader-modal-title">发现同名文稿</h2>
+        </div>
+        <button type="button" class="reader-modal-close" data-dup-action="skip" aria-label="取消">×</button>
+      </div>
+      <div class="reader-modal-body">
+        <p id="reader-dup-desc" class="text-sm leading-relaxed text-[var(--muted-strong)]"></p>
+        <div class="mt-6 flex flex-col gap-2.5">
+          <button type="button" class="btn-primary w-full justify-center" data-dup-action="overwrite">
+            覆盖更新正文（尽量保留原划线、批注与书签）
+          </button>
+          <button type="button" class="btn-secondary w-full justify-center" data-dup-action="new">
+            作为新文稿另存一份
+          </button>
+          <button type="button" class="reader-bar-btn w-full justify-center" data-dup-action="skip">
+            跳过此文件
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 轻提示 Toast -->
+  <div id="reader-toast" class="reader-toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- 复用博客全套阅读伴读生态组件 -->
+  <MermaidRenderer />
+  <CompanionLayout />
+  <InkAsk />
+  <PinWorkbench />
+  <ArticleSearch />
+  <ArticleSelectionDock />
+  <ReadingBookmark />
+
+  <div class="article-floating-actions" id="article-floating-actions">
+    <script is:inline data-astro-rerun>
+      (() => {
+        const container = document.getElementById('article-floating-actions');
+        const notesPill = document.getElementById('article-highlights-floating-pill');
+        const searchPill = document.getElementById('article-search-floating-pill');
+        if (container && notesPill && searchPill) {
+          if (notesPill.parentElement !== container) container.appendChild(notesPill);
+          if (searchPill.parentElement !== container) container.appendChild(searchPill);
+        }
+      })();
+    </script>
+  </div>
+</BaseLayout>
+
+<script>
+  import { animate } from 'motion';
+  import {
+    $readerActiveCategory,
+    $readerAllCategories,
+    $readerCategories,
+    $readerCategoryCounts,
+    $readerDocs,
+    $readerShelfStats,
+    $readerStatFilter,
+    addReaderCategoryToStore,
+    hydrateReaderShelf,
+    localReaderStore,
+    refreshReaderTelemetryMaps,
+    resetLocalReaderStore,
+    setReaderActiveCategory,
+    setReaderActiveDocId,
+    setReaderSearchKeyword,
+    setReaderSortMode,
+    setReaderStatFilter,
+    type ReaderSortMode,
+    type ReaderStatFilter,
+  } from '../stores/localReaderStore';
+  import { setModalOpenState } from '../stores/shellStore';
+  import {
+    mountReaderShelfIsland,
+    type ReaderShelfIslandHandle,
+  } from '../components/islands/ReaderShelfGrid';
+  import {
+    animateCountValue,
+    animatePaperModal,
+    animatePillGlider,
+    computeInversePillRadius,
+    stopPillGlider,
+  } from '../utils/workbenchMotion';
+  import { readArticleMotion } from '../utils/articleMotion';
+  import {
+    buildLocalReaderSlug,
+    createLocalDocId,
+    deleteLocalDoc,
+    dirnameOfPath,
+    findDuplicateDocByFileName,
+    getDocAssets,
+    getLocalDoc,
+    isSupportedImageFileName,
+    isSupportedMarkdownFileName,
+    listLocalDocs,
+    normalizeAssetPath,
+    saveLocalDoc,
+    saveReaderCategories,
+    updateLocalDocMeta,
+    type LocalReaderAssetInput,
+    type LocalReaderDocument,
+  } from '../utils/localReaderStorage';
+  import {
+    detectCodeLanguages,
+    loadCodeHighlighter,
+    parseMarkdownDocument,
+    renderLocalMarkdownBody,
+    SAMPLE_READER_MARKDOWN,
+  } from '../utils/localMarkdownRenderer';
+  import {
+    exportHighlightsAsMarkdown,
+    loadHighlights,
+  } from '../utils/articleHighlightEngine';
+  import {
+    buildMindMapFromArticle,
+    upsertMindMap,
+  } from '../utils/mindmapEngine';
+
+  const CLEANUP_KEY = '__areSetLocalReaderCleanup__';
+  const LISTENER_KEY = '__areSetLocalReaderBound__';
+
+  interface ImportedFileItem {
+    file: File;
+    relativePath: string;
+  }
+
+  function escapeHtml(raw: string): string {
+    return String(raw || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatWordCount(count: number): string {
+    if (count >= 10000) return `${(count / 10000).toFixed(1)}w`;
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+    return String(Math.round(count || 0));
+  }
+
+  function revealKind(el: HTMLElement): string {
+    const tag = el.tagName;
+    if (tag === 'H2') return 'heading';
+    if (tag === 'H3' || tag === 'H4') return 'subheading';
+    if (tag === 'PRE') return 'code';
+    if (el.classList.contains('mermaid-block')) return 'mermaid';
+    if (tag === 'BLOCKQUOTE' || el.classList.contains('callout-card')) return 'quote';
+    if (tag === 'TABLE' || el.classList.contains('table-scroll-wrap')) return 'table';
+    if (tag === 'UL' || tag === 'OL') return 'list';
+    if (tag === 'HR') return 'rule';
+    if (tag === 'FIGURE' || (tag === 'P' && el.children.length === 1 && el.children[0].tagName === 'IMG')) {
+      return 'image';
+    }
+    return 'block';
+  }
+
+  async function collectDroppedFiles(dataTransfer: DataTransfer): Promise<ImportedFileItem[]> {
+    const out: ImportedFileItem[] = [];
+    const items = Array.from(dataTransfer.items || []);
+
+    const walkEntry = async (entry: any, prefix = ''): Promise<void> => {
+      if (!entry) return;
+      if (entry.isFile) {
+        await new Promise<void>((resolve) => {
+          entry.file(
+            (file: File) => {
+              const rel = prefix ? `${prefix}/${file.name}` : file.name;
+              out.push({ file, relativePath: rel });
+              resolve();
+            },
+            () => resolve(),
+          );
+        });
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        const readAll = async (): Promise<any[]> => {
+          const entries: any[] = [];
+          while (true) {
+            const batch = await new Promise<any[]>((resolve) => {
+              reader.readEntries((res: any[]) => resolve(res || []), () => resolve([]));
+            });
+            if (!batch.length) break;
+            entries.push(...batch);
+          }
+          return entries;
+        };
+        const children = await readAll();
+        const nextPrefix = prefix ? `${prefix}/${entry.name}` : entry.name;
+        for (const child of children) {
+          await walkEntry(child, nextPrefix);
+        }
+      }
+    };
+
+    const entries = items
+      .map((item) => (typeof (item as any).webkitGetAsEntry === 'function' ? (item as any).webkitGetAsEntry() : null))
+      .filter(Boolean);
+
+    if (entries.length > 0) {
+      for (const entry of entries) {
+        await walkEntry(entry, '');
+      }
+      return out;
+    }
+
+    for (const file of Array.from(dataTransfer.files || [])) {
+      const rel = (file as any).webkitRelativePath || file.name;
+      out.push({ file, relativePath: rel });
+    }
+    return out;
+  }
+
+  function extractStructuredTextFromProse(proseEl: HTMLElement): string {
+    const SKIP = '.code-block-toolbar, .mermaid-block-header, .mermaid-block-actions, .mermaid-source, .code-expand-veil, .heading-anchor-btn, button, svg, script, style';
+    const blocks: string[] = [];
+    const children = Array.from(proseEl.children);
+    for (const child of children) {
+      if (!(child instanceof HTMLElement)) continue;
+      if (child.classList.contains('mermaid-block')) {
+        const title = child.querySelector('.mermaid-block-title-text')?.textContent?.trim();
+        if (title) blocks.push(`[图表: ${title}]`);
+        continue;
+      }
+      const clone = child.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll(SKIP).forEach((el) => el.remove());
+      const raw = (clone.textContent || '')
+        .replace(/[ \t\f\r\u00a0]+/g, ' ')
+        .replace(/ *\n */g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      if (!raw) continue;
+      const tag = child.tagName.toUpperCase();
+      if (/^H[1-6]$/.test(tag)) {
+        const level = Number(tag[1]) || 2;
+        blocks.push(`${'#'.repeat(level)} ${raw}`);
+      } else {
+        blocks.push(raw);
+      }
+    }
+    return blocks.join('\n\n').slice(0, 26_000);
+  }
+
+  function initLocalReaderPage() {
+    const prevCleanup = (window as any)[CLEANUP_KEY];
+    if (typeof prevCleanup === 'function') prevCleanup();
+
+    const shelfView = document.getElementById('reader-shelf-view');
+    const stageView = document.getElementById('reader-stage-view');
+    const prose = document.getElementById('reader-prose');
+    const shelfHost = document.getElementById('reader-shelf-island-host');
+    if (!shelfView || !stageView || !prose || !shelfHost) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    // 暴露 Nanostores 供跨脚本与调试检查
+    (window as any).__localReaderStore = localReaderStore;
+
+    // ---------- DOM 引用 ----------
+    const fileInput = document.getElementById('reader-file-input') as HTMLInputElement | null;
+    const folderInput = document.getElementById('reader-folder-input') as HTMLInputElement | null;
+    const reimportInput = document.getElementById('reader-reimport-input') as HTMLInputElement | null;
+    const assetsInput = document.getElementById('reader-assets-input') as HTMLInputElement | null;
+
+    const importFilesBtn = document.getElementById('reader-import-files-btn');
+    const importFolderBtn = document.getElementById('reader-import-folder-btn');
+    const pasteBtn = document.getElementById('reader-paste-btn');
+    const addCatBtn = document.getElementById('reader-add-cat-btn');
+
+    const statsStrip = document.getElementById('reader-stats-strip');
+    const statsGlider = document.getElementById('reader-stats-glider');
+    const statTotalEl = document.getElementById('reader-stat-total');
+    const statReadingEl = document.getElementById('reader-stat-reading');
+    const statWordsEl = document.getElementById('reader-stat-words');
+
+    const filterBar = document.getElementById('reader-filter-bar');
+    const catBar = document.getElementById('reader-cat-bar');
+    const catGlider = document.getElementById('reader-cat-glider');
+    const searchInput = document.getElementById('reader-search-input') as HTMLInputElement | null;
+    const sortSelect = document.getElementById('reader-sort-select') as HTMLSelectElement | null;
+
+    const dropOverlay = document.getElementById('reader-drop-overlay');
+    const toastEl = document.getElementById('reader-toast');
+
+    // Stage 元素
+    const stageBar = document.getElementById('reader-stage-bar');
+    const stageHeader = document.getElementById('reader-stage-header');
+    const backShelfBtn = document.getElementById('reader-back-shelf-btn');
+    const crumbShelfBtn = document.getElementById('reader-crumb-shelf');
+    const docSwitcher = document.getElementById('reader-doc-switcher') as HTMLSelectElement | null;
+    const reimportBtn = document.getElementById('reader-reimport-btn');
+    const exportNotesBtn = document.getElementById('reader-export-notes-btn');
+    const toMindmapBtn = document.getElementById('reader-to-mindmap-btn');
+    const metaDateEl = document.getElementById('reader-meta-date');
+    const metaCategoryEl = document.getElementById('reader-meta-category');
+    const metaMinutesEl = document.getElementById('reader-meta-minutes');
+    const metaBadgeEl = document.getElementById('reader-meta-badge');
+    const docTitleEl = document.getElementById('reader-doc-title');
+    const docDescEl = document.getElementById('reader-doc-desc');
+    const docTagsWrap = document.getElementById('reader-doc-tags-wrap');
+    const docTagsEl = document.getElementById('reader-doc-tags');
+    const missingBanner = document.getElementById('reader-missing-assets-banner');
+    const missingText = document.getElementById('reader-missing-assets-text');
+    const attachAssetsBtn = document.getElementById('reader-attach-assets-btn');
+    const tocDetails = document.getElementById('reader-toc') as HTMLDetailsElement | null;
+    const tocExpander = document.getElementById('reader-toc-expander');
+    const tocNav = document.getElementById('reader-toc-nav');
+    const tocCountEl = document.getElementById('reader-toc-count');
+    const postBodyEl = document.querySelector<HTMLElement>('[data-post-body]');
+    const spineEl = document.querySelector<HTMLElement>('[data-post-spine]');
+    const spineLine = document.querySelector<SVGLineElement>('[data-post-spine-line]');
+
+    // Modals
+    const pasteModal = document.getElementById('reader-paste-modal');
+    const pasteModalCard = document.getElementById('reader-paste-modal-card');
+    const pasteForm = document.getElementById('reader-paste-form') as HTMLFormElement | null;
+    const pasteTitleInput = document.getElementById('reader-paste-title') as HTMLInputElement | null;
+    const pasteCatSelect = document.getElementById('reader-paste-category') as HTMLSelectElement | null;
+    const pasteContentInput = document.getElementById('reader-paste-content') as HTMLTextAreaElement | null;
+    const dupModal = document.getElementById('reader-dup-modal');
+    const dupModalCard = document.getElementById('reader-dup-modal-card');
+    const dupDesc = document.getElementById('reader-dup-desc');
+
+    // ---------- 运行态 ----------
+    let activeDoc: LocalReaderDocument | null = null;
+    let activeObjectUrls: string[] = [];
+    let proseController: AbortController | null = null;
+    let tocObserver: IntersectionObserver | null = null;
+    let shelfIsland: ReaderShelfIslandHandle | null = null;
+    let searchDebounceTimer = 0;
+    let companionPhaseTimer = 0;
+    let deepLinkTimer = 0;
+    let openToken = 0;
+    let toastTimer = 0;
+    let dragDepth = 0;
+    let reimportTargetId: string | null = null;
+    let lastModalTrigger: HTMLElement | null = null;
+    let hasStatsAnimatedOnce = false;
+    const storeUnsubs: Array<() => void> = [];
+
+    const prefersReducedMotion = () =>
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+    function refreshScroll(options: { clamp?: boolean } = {}) {
+      try {
+        (window as any).lenis?.resize?.();
+      } catch {}
+      if (options.clamp !== false) {
+        try {
+          (window as any).ScrollTrigger?.refresh?.();
+        } catch {}
+      }
+    }
+
+    function returnToFilterBar() {
+      if (window.scrollY <= 80 || !filterBar) return;
+      if ((window as any).lenis) {
+        (window as any).lenis.scrollTo(filterBar, { offset: -90, duration: 0.65 });
+      } else {
+        filterBar.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+      }
+    }
+
+    function showToast(msg: string) {
+      if (!toastEl) return;
+      window.clearTimeout(toastTimer);
+      toastEl.textContent = msg;
+      toastEl.hidden = false;
+      toastEl.classList.remove('is-visible');
+      void toastEl.offsetWidth;
+      toastEl.classList.add('is-visible');
+      toastTimer = window.setTimeout(() => {
+        toastEl.classList.remove('is-visible');
+        window.setTimeout(() => {
+          if (!toastEl.classList.contains('is-visible')) toastEl.hidden = true;
+        }, 220);
+      }, 2800);
+    }
+
+    function revokeActiveAssetUrls() {
+      for (const url of activeObjectUrls) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {}
+      }
+      activeObjectUrls = [];
+    }
+
+    function trapModalFocus(modalEl: HTMLElement, e: KeyboardEvent) {
+      if (e.key !== 'Tab') return;
+      const focusables = Array.from(
+        modalEl.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => el.offsetParent !== null);
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !modalEl.contains(document.activeElement))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !modalEl.contains(document.activeElement))) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+
+    // ---------- 顶部统计条：workbenchMotion 弹簧游标 + 平滑计数 ----------
+
+    function initStatsGlider() {
+      if (!statsStrip || !statsGlider) return;
+      const items = Array.from(statsStrip.querySelectorAll<HTMLElement>('.stats-item'));
+
+      const moveHoverGlider = (target: HTMLElement) => {
+        const wasHidden = statsGlider.style.opacity !== '1';
+        statsGlider.style.opacity = '1';
+        animatePillGlider(statsGlider, target, {
+          container: statsStrip,
+          immediate: wasHidden,
+          opacity: 1,
+        });
+        items.forEach((it) => it.classList.remove('is-hovered'));
+        target.classList.add('is-hovered');
+      };
+
+      const hideHoverGlider = () => {
+        stopPillGlider(statsGlider);
+        statsGlider.style.opacity = '0';
+        items.forEach((it) => it.classList.remove('is-hovered'));
+      };
+
+      items.forEach((item) => {
+        item.addEventListener('mouseenter', () => moveHoverGlider(item), { signal });
+        item.addEventListener('focus', () => moveHoverGlider(item), { signal });
+        const activate = () => {
+          const rect = item.getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 8);
+          const key = item.dataset.readerStat;
+          if (key === 'words') return;
+          const cur = $readerStatFilter.get();
+          const nextFilter: ReaderStatFilter = key === 'reading' && cur !== 'reading' ? 'reading' : 'all';
+          if (nextFilter === cur) return;
+          setReaderStatFilter(nextFilter);
+          returnToFilterBar();
+        };
+        item.addEventListener('click', activate, { signal });
+        item.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            activate();
+          }
+        }, { signal });
+      });
+
+      statsStrip.addEventListener('mouseleave', hideHoverGlider, { signal });
+    }
+
+    function syncStatsStripActive(activeStat: ReaderStatFilter) {
+      if (!statsStrip) return;
+      statsStrip.querySelectorAll<HTMLElement>('.stats-item').forEach((el) => {
+        const isAct = (el.dataset.readerStat || 'all') === activeStat;
+        el.classList.toggle('is-active', isAct);
+        el.setAttribute('aria-pressed', String(isAct));
+      });
+    }
+
+    function renderStatsDisplay(animateNums: boolean) {
+      const stats = $readerShelfStats.get();
+      const canAnimate = animateNums && !prefersReducedMotion();
+      if (canAnimate) {
+        if (statTotalEl) animateCountValue(statTotalEl, stats.totalDocs, { durationSec: 0.42 });
+        if (statReadingEl) animateCountValue(statReadingEl, stats.readingDocs, { durationSec: 0.45 });
+        if (statWordsEl) {
+          animateCountValue(statWordsEl, stats.totalWords, {
+            durationSec: 0.48,
+            formatter: formatWordCount,
+          });
+        }
+      } else {
+        if (statTotalEl) statTotalEl.textContent = String(stats.totalDocs);
+        if (statReadingEl) statReadingEl.textContent = String(stats.readingDocs);
+        if (statWordsEl) statWordsEl.textContent = formatWordCount(stats.totalWords);
+      }
+    }
+
+    // ---------- 分类胶囊栏：workbenchMotion.animatePillGlider 纯 GPU 弹簧滑块 ----------
+
+    function syncCatGlider(immediate = false) {
+      if (!catBar || !catGlider) return;
+      const activeBtn = catBar.querySelector<HTMLElement>('.reader-cat-pill.is-active');
+      if (!activeBtn) return;
+      const w = activeBtn.offsetWidth;
+      const h = catGlider.offsetHeight || activeBtn.offsetHeight;
+      if (!w || !h) return;
+      const metrics = computeInversePillRadius(w, h, activeBtn.offsetLeft, 0);
+      catGlider.style.setProperty('--pill-rx', `${metrics.rx.toFixed(2)}px`);
+      catGlider.style.setProperty('--pill-ry', `${metrics.ry.toFixed(2)}px`);
+      animatePillGlider(catGlider, activeBtn, {
+        container: catBar,
+        immediate,
+        opacity: 1,
+      });
+    }
+
+    function renderCategoryBar(immediateGlider = false) {
+      if (!catBar) return;
+      const allCats = $readerAllCategories.get();
+      const counts = $readerCategoryCounts.get();
+      const activeCat = $readerActiveCategory.get();
+
+      catBar.querySelectorAll('.reader-cat-pill').forEach((b) => b.remove());
+
+      for (const cat of allCats) {
+        const count = counts[cat] || 0;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `reader-cat-pill${activeCat === cat ? ' is-active' : ''}`;
+        btn.dataset.cat = cat;
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', String(activeCat === cat));
+        btn.innerHTML = `<span>${escapeHtml(cat === 'all' ? '全部' : cat)}</span><span class="reader-cat-count">${count}</span>`;
+        btn.addEventListener('click', () => {
+          const rect = btn.getBoundingClientRect();
+          (window as any).__inkSplash?.(rect.left + rect.width / 2, rect.top + rect.height / 2, 7);
+          if ($readerActiveCategory.get() === cat) return;
+          setReaderActiveCategory(cat);
+          catBar.querySelectorAll<HTMLElement>('.reader-cat-pill').forEach((el) => {
+            const match = el.dataset.cat === cat;
+            el.classList.toggle('is-active', match);
+            el.setAttribute('aria-selected', String(match));
+          });
+          syncCatGlider(false);
+          returnToFilterBar();
+        }, { signal });
+        catBar.appendChild(btn);
+      }
+
+      if (pasteCatSelect) {
+        const customCats = allCats.filter((c) => c !== 'all');
+        const prev = pasteCatSelect.value;
+        pasteCatSelect.innerHTML = customCats
+          .map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
+          .join('');
+        if (prev && customCats.includes(prev)) pasteCatSelect.value = prev;
+      }
+
+      requestAnimationFrame(() => syncCatGlider(immediateGlider));
+    }
+
+    function syncDocSwitcher() {
+      if (!docSwitcher) return;
+      const docs = $readerDocs.get();
+      docSwitcher.innerHTML = docs
+        .map((d) => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.title)}</option>`)
+        .join('');
+      if (activeDoc) {
+        docSwitcher.value = activeDoc.id;
+      }
+    }
+
+    async function refreshShelfFromIndexedDb() {
+      const loaded = await listLocalDocs();
+      if (signal.aborted) return loaded;
+      hydrateReaderShelf(loaded);
+      renderCategoryBar(false);
+      syncDocSwitcher();
+      return loaded;
+    }
+
+    // ---------- 3D 宣纸弹窗（workbenchMotion.animatePaperModal + shellStore.setModalOpenState） ----------
+
+    function openAnimatedModal(backdrop: HTMLElement, card: HTMLElement | null, modalId: string) {
+      backdrop.dataset.closing = '0';
+      backdrop.hidden = false;
+      backdrop.classList.add('is-open');
+      setModalOpenState(modalId, true, { emitDomEvent: true });
+      animatePaperModal(backdrop, card, 'open', { variant: 'slip' });
+    }
+
+    function closeAnimatedModal(backdrop: HTMLElement, card: HTMLElement | null, modalId: string, onClosed?: () => void) {
+      if (backdrop.hidden || backdrop.dataset.closing === '1') return;
+      backdrop.dataset.closing = '1';
+      setModalOpenState(modalId, false, { emitDomEvent: true });
+      animatePaperModal(backdrop, card, 'close', {
+        variant: 'slip',
+        closeDurationSec: 0.22,
+        onComplete: () => {
+          backdrop.dataset.closing = '0';
+          backdrop.classList.remove('is-open');
+          backdrop.hidden = true;
+          onClosed?.();
+        },
+      });
+    }
+
+    function askDuplicateAction(existingTitle: string, fileName: string): Promise<'overwrite' | 'new' | 'skip'> {
+      return new Promise((resolve) => {
+        if (!dupModal || !dupDesc) {
+          resolve('overwrite');
+          return;
+        }
+        dupDesc.textContent = `书架中已存在同名文件「${fileName}」（当前标题：《${existingTitle}》）。你可以覆盖更新正文并保留已有的划线批注与书签，或者另存为一份新文稿。`;
+        openAnimatedModal(dupModal, dupModalCard, 'reader-dup');
+
+        const finish = (choice: 'overwrite' | 'new' | 'skip') => {
+          closeAnimatedModal(dupModal, dupModalCard, 'reader-dup');
+          dupModal.removeEventListener('click', onClick);
+          window.removeEventListener('keydown', onKey);
+          resolve(choice);
+        };
+
+        const onClick = (e: MouseEvent) => {
+          const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-dup-action]');
+          if (btn) {
+            const act = btn.dataset.dupAction as 'overwrite' | 'new' | 'skip';
+            finish(act || 'skip');
+          } else if (e.target === dupModal) {
+            finish('skip');
+          }
+        };
+
+        const onKey = (e: KeyboardEvent) => {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            finish('skip');
+          } else if (e.key === 'Tab') {
+            trapModalFocus(dupModal, e);
+          }
+        };
+
+        dupModal.addEventListener('click', onClick);
+        window.addEventListener('keydown', onKey);
+        dupModal.querySelector<HTMLButtonElement>('[data-dup-action="overwrite"]')?.focus();
+      });
+    }
+
+    // ---------- 载入示例文稿 ----------
+
+    async function loadSampleDocument() {
+      const parsed = parseMarkdownDocument(SAMPLE_READER_MARKDOWN, 'local-reader-guide.md', '技术文档');
+      const now = Date.now();
+      const sampleDoc: LocalReaderDocument = {
+        id: createLocalDocId(),
+        title: parsed.title,
+        fileName: 'local-reader-guide.md',
+        docDir: '',
+        folderName: '',
+        category: parsed.category,
+        tags: parsed.tags,
+        description: parsed.description,
+        pubDate: parsed.pubDate,
+        markdown: SAMPLE_READER_MARKDOWN,
+        wordCount: parsed.wordCount,
+        readingMinutes: parsed.readingMinutes,
+        headings: parsed.headings,
+        assetPaths: [],
+        createdAt: now,
+        updatedAt: now,
+        lastOpenedAt: now,
+      };
+      await saveLocalDoc(sampleDoc);
+      await refreshShelfFromIndexedDb();
+      showToast('已载入示例文稿，开始体验吧');
+      await openDocument(sampleDoc.id, { pushHistory: true });
+    }
+
+    // ---------- 导入管线（单文件 / 多文件 / 文件夹 / 重导更新） ----------
+
+    async function handleImportedFiles(items: ImportedFileItem[], opts: { targetDocId?: string } = {}) {
+      if (!items.length) return;
+
+      const mdItems = items.filter((it) => isSupportedMarkdownFileName(it.file.name));
+      const imageItems = items.filter((it) => isSupportedImageFileName(it.file.name));
+
+      if (!mdItems.length && imageItems.length > 0 && (opts.targetDocId || activeDoc)) {
+        const targetId = opts.targetDocId || activeDoc!.id;
+        const targetDoc = await getLocalDoc(targetId);
+        if (targetDoc) {
+          const assets: LocalReaderAssetInput[] = imageItems.map((it) => ({
+            path: normalizeAssetPath(it.relativePath || it.file.name),
+            fileName: it.file.name,
+            mimeType: it.file.type || 'application/octet-stream',
+            blob: it.file,
+            size: it.file.size,
+          }));
+          await saveLocalDoc(targetDoc, assets, { replaceAssets: false });
+          await refreshShelfFromIndexedDb();
+          showToast(`已为《${targetDoc.title}》补充关联 ${assets.length} 张本地图片`);
+          if (activeDoc && activeDoc.id === targetDoc.id) {
+            await openDocument(targetDoc.id, { pushHistory: false, preserveScroll: true });
+          }
+          return;
+        }
+      }
+
+      if (!mdItems.length) {
+        showToast('未检测到 .md / .markdown / .txt 文件');
+        return;
+      }
+
+      const sharedAssets: LocalReaderAssetInput[] = imageItems.map((it) => ({
+        path: normalizeAssetPath(it.relativePath || it.file.name),
+        fileName: it.file.name,
+        mimeType: it.file.type || 'application/octet-stream',
+        blob: it.file,
+        size: it.file.size,
+      }));
+
+      let lastImportedId: string | null = null;
+      let importedCount = 0;
+      let updatedCount = 0;
+
+      const currentDocs = $readerDocs.get();
+      const activeCat = $readerActiveCategory.get();
+
+      for (const mdItem of mdItems) {
+        const rawText = await mdItem.file.text();
+        const relPath = normalizeAssetPath(mdItem.relativePath || mdItem.file.name);
+        const docDir = dirnameOfPath(relPath);
+        const topFolder = relPath.includes('/') ? relPath.split('/')[0] : '';
+        const defaultCat = activeCat !== 'all' ? activeCat : '技术文档';
+        const parsed = parseMarkdownDocument(rawText, mdItem.file.name, defaultCat);
+
+        if (opts.targetDocId && mdItems.length === 1) {
+          const existing = await getLocalDoc(opts.targetDocId);
+          if (existing) {
+            const updated: LocalReaderDocument = {
+              ...existing,
+              title: parsed.title,
+              fileName: mdItem.file.name,
+              docDir: docDir || existing.docDir,
+              folderName: topFolder || existing.folderName,
+              description: parsed.description,
+              tags: parsed.tags.length ? parsed.tags : existing.tags,
+              pubDate: parsed.pubDate || existing.pubDate,
+              markdown: rawText,
+              wordCount: parsed.wordCount,
+              readingMinutes: parsed.readingMinutes,
+              headings: parsed.headings,
+              updatedAt: Date.now(),
+            };
+            await saveLocalDoc(updated, sharedAssets.length ? sharedAssets : undefined, {
+              replaceAssets: false,
+            });
+            lastImportedId = updated.id;
+            updatedCount += 1;
+            continue;
+          }
+        }
+
+        const dup = findDuplicateDocByFileName(currentDocs, mdItem.file.name);
+        let overwriteId: string | null = null;
+        if (dup) {
+          const decision = await askDuplicateAction(dup.title, mdItem.file.name);
+          if (decision === 'skip') continue;
+          if (decision === 'overwrite') overwriteId = dup.id;
+        }
+
+        const now = Date.now();
+        if (overwriteId) {
+          const existing = await getLocalDoc(overwriteId);
+          if (existing) {
+            const updated: LocalReaderDocument = {
+              ...existing,
+              title: parsed.title,
+              docDir: docDir || existing.docDir,
+              folderName: topFolder || existing.folderName,
+              description: parsed.description,
+              tags: parsed.tags.length ? parsed.tags : existing.tags,
+              pubDate: parsed.pubDate || existing.pubDate,
+              markdown: rawText,
+              wordCount: parsed.wordCount,
+              readingMinutes: parsed.readingMinutes,
+              headings: parsed.headings,
+              updatedAt: now,
+            };
+            await saveLocalDoc(updated, sharedAssets.length ? sharedAssets : undefined, {
+              replaceAssets: sharedAssets.length > 0,
+            });
+            lastImportedId = updated.id;
+            updatedCount += 1;
+            continue;
+          }
+        }
+
+        const knownCats = $readerCategories.get();
+        if (parsed.category && !knownCats.includes(parsed.category)) {
+          saveReaderCategories([...knownCats, parsed.category]);
+        }
+
+        const newDoc: LocalReaderDocument = {
+          id: createLocalDocId(),
+          title: parsed.title,
+          fileName: mdItem.file.name,
+          docDir,
+          folderName: topFolder,
+          category: parsed.category,
+          tags: parsed.tags,
+          description: parsed.description,
+          pubDate: parsed.pubDate,
+          markdown: rawText,
+          wordCount: parsed.wordCount,
+          readingMinutes: parsed.readingMinutes,
+          headings: parsed.headings,
+          assetPaths: [],
+          createdAt: now,
+          updatedAt: now,
+          lastOpenedAt: now,
+        };
+        await saveLocalDoc(newDoc, sharedAssets, { replaceAssets: true });
+        lastImportedId = newDoc.id;
+        importedCount += 1;
+      }
+
+      await refreshShelfFromIndexedDb();
+
+      if (importedCount + updatedCount === 0) return;
+
+      if (importedCount === 1 && updatedCount === 0 && lastImportedId) {
+        showToast(sharedAssets.length ? `导入成功（已关联 ${sharedAssets.length} 张图片）` : '导入成功，正在展卷…');
+        await openDocument(lastImportedId, { pushHistory: true });
+      } else if (updatedCount === 1 && importedCount === 0 && lastImportedId) {
+        showToast('已覆盖更新正文并保留原划线与书签');
+        await openDocument(lastImportedId, { pushHistory: !activeDoc || activeDoc.id !== lastImportedId });
+      } else {
+        const msgParts = [];
+        if (importedCount) msgParts.push(`新增 ${importedCount} 篇`);
+        if (updatedCount) msgParts.push(`更新 ${updatedCount} 篇`);
+        if (sharedAssets.length) msgParts.push(`关联 ${sharedAssets.length} 张图片`);
+        showToast(`批量导入完成：${msgParts.join(' · ')}`);
+      }
+    }
+
+    // ---------- 目录 WAAPI 可打断展开/收拢（与 PostLayout 100% 对齐） ----------
+
+    function bindSmoothToc(docSignal: AbortSignal) {
+      if (!tocDetails || !tocExpander) return;
+      const summary = tocDetails.querySelector<HTMLElement>('.post-toc-summary');
+      if (!summary) return;
+
+      let isOpening = false;
+      let isClosing = false;
+      let tocAnim: Animation | null = null;
+      const layoutEase = readArticleMotion().layoutEase;
+
+      summary.querySelectorAll('button, a, input').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          event.preventDefault();
+          if (btn.matches('#post-toc-notes-btn, [data-article-notes-trigger]')) {
+            if ((window as any).__articleHighlights?.openDrawer) {
+              (window as any).__articleHighlights.openDrawer();
+            } else {
+              document.getElementById('article-highlights-floating-pill')?.click();
+            }
+          } else if (btn.matches('#post-toc-search-btn, [data-article-search-trigger]')) {
+            (window as any).__articleSearch?.open?.();
+          } else if (btn.matches('#post-toc-bookmarks-btn, [data-article-bookmarks-trigger]')) {
+            (window as any).__readingBookmarks?.openPopover?.();
+          }
+        }, { signal: docSignal });
+      });
+
+      summary.addEventListener('click', (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest('button, a, input, [role="button"]')) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        event.preventDefault();
+
+        if (prefersReducedMotion()) {
+          tocAnim?.cancel();
+          tocAnim = null;
+          isOpening = false;
+          isClosing = false;
+          tocDetails.open = !tocDetails.open;
+          tocDetails.classList.toggle('is-collapsed', !tocDetails.open);
+          tocExpander.style.height = '';
+          tocExpander.style.overflow = '';
+          tocExpander.style.opacity = '';
+          refreshScroll();
+          return;
+        }
+
+        const shouldOpen = isClosing || (!isOpening && !tocDetails.open);
+        if (shouldOpen) {
+          isClosing = false;
+          isOpening = true;
+          let currentH = 0;
+          let currentOp = 0;
+          if (tocAnim) {
+            currentH = tocExpander.getBoundingClientRect().height;
+            currentOp = parseFloat(getComputedStyle(tocExpander).opacity) || 0;
+            tocAnim.onfinish = null;
+            tocAnim.oncancel = null;
+            tocAnim.cancel();
+            tocAnim = null;
+          }
+          tocDetails.open = true;
+          tocDetails.classList.remove('is-collapsed');
+          tocExpander.style.overflow = 'hidden';
+          const targetH = tocExpander.scrollHeight;
+          const frac = targetH > 0 ? (targetH - currentH) / targetH : 1;
+          const baseMs = Math.min(480, Math.max(300, 250 + targetH * 0.32));
+          const duration = Math.max(180, Math.round(baseMs * Math.min(1, Math.max(0.24, frac))));
+
+          tocAnim = tocExpander.animate(
+            [{ height: `${currentH}px`, opacity: currentOp }, { height: `${targetH}px`, opacity: 1 }],
+            { duration, easing: layoutEase },
+          );
+          tocAnim.onfinish = () => {
+            isOpening = false;
+            tocAnim = null;
+            tocExpander.style.height = '';
+            tocExpander.style.overflow = '';
+            tocExpander.style.opacity = '';
+            refreshScroll();
+          };
+          tocAnim.oncancel = () => {
+            isOpening = false;
+          };
+        } else {
+          isOpening = false;
+          isClosing = true;
+          const currentH = tocExpander.getBoundingClientRect().height;
+          const currentOp = tocAnim ? parseFloat(getComputedStyle(tocExpander).opacity) || 1 : 1;
+          if (tocAnim) {
+            tocAnim.onfinish = null;
+            tocAnim.oncancel = null;
+            tocAnim.cancel();
+            tocAnim = null;
+          }
+          tocDetails.classList.add('is-collapsed');
+          tocExpander.style.overflow = 'hidden';
+          const duration = Math.min(420, Math.max(220, Math.round(210 + currentH * 0.24)));
+
+          tocAnim = tocExpander.animate(
+            [{ height: `${currentH}px`, opacity: currentOp }, { height: '0px', opacity: 0 }],
+            { duration, easing: layoutEase },
+          );
+          tocAnim.onfinish = () => {
+            isClosing = false;
+            tocAnim = null;
+            tocDetails.open = false;
+            tocExpander.style.height = '';
+            tocExpander.style.overflow = '';
+            tocExpander.style.opacity = '';
+            refreshScroll();
+          };
+          tocAnim.oncancel = () => {
+            isClosing = false;
+          };
+        }
+      }, { signal: docSignal });
+
+      docSignal.addEventListener('abort', () => {
+        tocAnim?.cancel();
+        tocAnim = null;
+      });
+    }
+
+    // ---------- 正文交互与 120fps 书斋动效增强（零 scroll 重排！） ----------
+
+    function enhanceReaderProse(proseEl: HTMLElement, docSignal: AbortSignal) {
+      const COPY_SVG =
+        '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+      const CHECK_SVG =
+        '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+      const reduceMotion = prefersReducedMotion();
+      const motion = readArticleMotion();
+
+      // 1. 单次宣纸显形（对齐 PostLayout .prose .pr + H2 书法墨线自左向右铺展）
+      const blocks = Array.from(proseEl.children) as HTMLElement[];
+      blocks.forEach((el) => {
+        const kind = el.dataset.pr || revealKind(el);
+        el.dataset.pr = kind;
+        el.classList.add('pr');
+        if (kind === 'table') el.querySelectorAll('tr').forEach((row, i) => row.style.setProperty('--i', String(Math.min(i, 3))));
+        if (kind === 'list') Array.from(el.children).forEach((li, i) => (li as HTMLElement).style.setProperty('--i', String(Math.min(i, 3))));
+      });
+
+      if (reduceMotion) {
+        blocks.forEach((el) => el.classList.add('is-in'));
+      } else {
+        const revealIo = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) return;
+              const el = entry.target as HTMLElement;
+              if (el.classList.contains('is-in')) {
+                revealIo.unobserve(el);
+                return;
+              }
+              if (entry.boundingClientRect.top < 0) {
+                el.classList.add('pr-instant', 'is-in');
+                requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('pr-instant')));
+              } else {
+                el.classList.add('is-in');
+              }
+              revealIo.unobserve(el);
+            });
+          },
+          { rootMargin: '0px 0px -4% 0px', threshold: 0 },
+        );
+        blocks.forEach((el) => revealIo.observe(el));
+        docSignal.addEventListener('abort', () => revealIo.disconnect());
+
+        requestAnimationFrame(() => {
+          if (docSignal.aborted) return;
+          const vh = window.innerHeight || 800;
+          blocks.forEach((el, idx) => {
+            if (el.classList.contains('is-in')) return;
+            const r = el.getBoundingClientRect();
+            if ((r.top < vh * 0.96 && r.bottom > 0) || (idx < 3 && r.top < vh)) {
+              el.classList.add('is-in');
+              revealIo.unobserve(el);
+            } else if (r.bottom <= 0 && r.top !== 0) {
+              el.classList.add('pr-instant', 'is-in');
+              revealIo.unobserve(el);
+              requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('pr-instant')));
+            }
+          });
+        });
+      }
+
+      // 2. 代码块工具栏 + WAAPI 平滑折叠/展开（对齐 PostLayout）
+      proseEl.querySelectorAll('pre').forEach((pre) => {
+        if (pre.dataset.codeEnhanced === 'true') return;
+        if (pre.closest('.mermaid-block')) return;
+        const code = pre.querySelector('code');
+        if (!code) return;
+        pre.dataset.codeEnhanced = 'true';
+
+        const className = code.className || '';
+        const langMatch = className.match(/(?:language|lang)-([a-z0-9_+#.-]+)/i);
+        const language = (langMatch?.[1] || pre.getAttribute('data-language') || 'code').toLowerCase();
+
+        const toolbar = document.createElement('div');
+        toolbar.className = 'code-block-toolbar';
+
+        const fileName = pre.getAttribute('data-title');
+        if (fileName) {
+          toolbar.dataset.titled = 'true';
+          const titleEl = document.createElement('span');
+          titleEl.className = 'code-block-title';
+          titleEl.textContent = fileName;
+          toolbar.appendChild(titleEl);
+        }
+
+        const label = document.createElement('span');
+        label.className = 'code-block-language';
+        label.textContent = language;
+
+        const lineElements = code.querySelectorAll('.line');
+        const lineCount = lineElements.length || (code.textContent || '').replace(/\n$/, '').split('\n').length;
+
+        let collapseButton: HTMLButtonElement | null = null;
+        let expandVeil: HTMLDivElement | null = null;
+        let collapseAnim: Animation | null = null;
+
+        const setCollapsed = (collapsed: boolean) => {
+          const COLLAPSED_H = 240;
+          const startH = pre.getBoundingClientRect().height;
+          if (collapseAnim) {
+            collapseAnim.onfinish = null;
+            collapseAnim.oncancel = null;
+            collapseAnim.cancel();
+            collapseAnim = null;
+          }
+          pre.style.maxHeight = '';
+          if (collapsed) {
+            pre.classList.add('is-code-collapsed');
+            if (collapseButton) {
+              collapseButton.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg><span>展开 (${lineCount}行)</span>`;
+              collapseButton.setAttribute('aria-expanded', 'false');
+            }
+            if (expandVeil) expandVeil.hidden = false;
+            if (!reduceMotion && startH > COLLAPSED_H) {
+              const duration = Math.round(Math.min(480, Math.max(260, 220 + (startH - COLLAPSED_H) * 0.2)));
+              collapseAnim = pre.animate(
+                [{ maxHeight: `${startH}px` }, { maxHeight: `${COLLAPSED_H}px` }],
+                { duration, easing: motion.layoutEase },
+              );
+              collapseAnim.onfinish = () => {
+                collapseAnim = null;
+                pre.style.maxHeight = '';
+                refreshScroll();
+              };
+            }
+          } else {
+            pre.classList.remove('is-code-collapsed');
+            if (collapseButton) {
+              collapseButton.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"></polyline></svg><span>折叠 (${lineCount}行)</span>`;
+              collapseButton.setAttribute('aria-expanded', 'true');
+            }
+            if (expandVeil) expandVeil.hidden = true;
+            const endH = pre.scrollHeight;
+            if (!reduceMotion && endH > startH) {
+              const duration = Math.round(Math.min(540, Math.max(280, 240 + (endH - startH) * 0.22)));
+              collapseAnim = pre.animate(
+                [{ maxHeight: `${startH}px` }, { maxHeight: `${endH}px` }],
+                { duration, easing: motion.layoutEase },
+              );
+              collapseAnim.onfinish = () => {
+                collapseAnim = null;
+                pre.style.maxHeight = '';
+                refreshScroll();
+              };
+            }
+          }
+        };
+
+        if (lineCount > 18) {
+          pre.dataset.lineCount = String(lineCount);
+          collapseButton = document.createElement('button');
+          collapseButton.className = 'code-collapse-button';
+          collapseButton.type = 'button';
+          collapseButton.setAttribute('aria-expanded', 'true');
+          collapseButton.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"></polyline></svg><span>折叠 (${lineCount}行)</span>`;
+          collapseButton.addEventListener('click', () => {
+            setCollapsed(!pre.classList.contains('is-code-collapsed'));
+          }, { signal: docSignal });
+
+          expandVeil = document.createElement('div');
+          expandVeil.className = 'code-expand-veil';
+          expandVeil.hidden = true;
+          const veilBtn = document.createElement('button');
+          veilBtn.type = 'button';
+          veilBtn.className = 'code-expand-veil-btn';
+          veilBtn.innerHTML = `<span>展开全部 ${lineCount} 行代码</span><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+          veilBtn.addEventListener('click', () => setCollapsed(false), { signal: docSignal });
+          expandVeil.appendChild(veilBtn);
+        }
+
+        const copyButton = document.createElement('button');
+        copyButton.className = 'code-copy-button';
+        copyButton.type = 'button';
+        copyButton.innerHTML = `${COPY_SVG}<span>Copy</span>`;
+        copyButton.setAttribute('aria-label', '复制代码');
+        let copyTimer = 0;
+
+        copyButton.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(code.textContent || '');
+            window.clearTimeout(copyTimer);
+            copyButton.classList.remove('is-copied');
+            void copyButton.offsetWidth;
+            copyButton.classList.add('is-copied');
+            copyButton.innerHTML = `${CHECK_SVG}<span>已复制</span>`;
+            copyTimer = window.setTimeout(() => {
+              copyButton.classList.remove('is-copied');
+              copyButton.innerHTML = `${COPY_SVG}<span>Copy</span>`;
+            }, 1600);
+          } catch {}
+        }, { signal: docSignal });
+
+        if (!pre.id) {
+          pre.id = `reader-code-${Math.random().toString(36).slice(2, 9)}`;
+        }
+        const pinButton = document.createElement('button');
+        pinButton.className = 'code-pin-button';
+        pinButton.type = 'button';
+        pinButton.setAttribute('aria-label', '钉住对照');
+        pinButton.title = '钉到分屏工作台对照';
+        pinButton.setAttribute('data-pin-btn', 'true');
+        pinButton.setAttribute('data-pin-id', pre.id);
+        pinButton.innerHTML = `
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="17" x2="12" y2="22"></line>
+            <path d="M5 17h14v-2l-2-2V5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v8l-2 2v2z"></path>
+          </svg>
+          <span>Pin</span>
+        `;
+
+        if (collapseButton) toolbar.append(label, collapseButton, copyButton, pinButton);
+        else toolbar.append(label, copyButton, pinButton);
+
+        pre.prepend(toolbar);
+        if (expandVeil) pre.appendChild(expandVeil);
+      });
+
+      // 3. 章节标题锚点自复制 + 水墨轻拂高亮
+      const pulseHeading = (el: HTMLElement) => {
+        el.classList.remove('is-anchor-target');
+        void el.offsetWidth;
+        el.classList.add('is-anchor-target');
+        window.setTimeout(() => el.classList.remove('is-anchor-target'), 1100);
+      };
+
+      proseEl.querySelectorAll<HTMLElement>('h2[id], h3[id]').forEach((heading) => {
+        if (heading.dataset.anchorEnhanced === 'true') return;
+        heading.dataset.anchorEnhanced = 'true';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'heading-anchor-btn';
+        btn.setAttribute('aria-label', '复制本节链接');
+        btn.title = '复制章节锚点链接';
+        btn.textContent = '#';
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const url = `${window.location.origin}${window.location.pathname}${window.location.search}#${encodeURIComponent(heading.id)}`;
+          try {
+            await navigator.clipboard.writeText(url);
+            btn.classList.add('is-copied');
+            btn.textContent = '✓';
+            showToast('已复制章节定位链接');
+            window.setTimeout(() => {
+              btn.classList.remove('is-copied');
+              btn.textContent = '#';
+            }, 1400);
+          } catch {}
+          pulseHeading(heading);
+        }, { signal: docSignal });
+        heading.appendChild(btn);
+      });
+
+      // 4. 文内锚点平滑滚动
+      proseEl.addEventListener('click', (event) => {
+        if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        const anchor = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null;
+        if (!anchor) return;
+        const href = anchor.getAttribute('href') || '';
+        if (href.length <= 1) return;
+        const targetId = decodeURIComponent(href.slice(1));
+        const targetEl = document.getElementById(targetId) || proseEl.querySelector<HTMLElement>(`#${CSS.escape(targetId)}`);
+        if (targetEl) {
+          event.preventDefault();
+          if ((window as any).lenis) (window as any).lenis.scrollTo(targetEl, { offset: -76 });
+          else targetEl.scrollIntoView({ behavior: 'smooth' });
+          pulseHeading(targetEl);
+        }
+      }, { signal: docSignal });
+
+      // 5. TOC ScrollSpy
+      if (tocObserver) {
+        tocObserver.disconnect();
+        tocObserver = null;
+      }
+      const tocLinks = Array.from(tocNav?.querySelectorAll<HTMLAnchorElement>('.post-toc-link') || []);
+      const headingEls = Array.from(proseEl.querySelectorAll<HTMLElement>('h2[id], h3[id]'));
+      if (tocLinks.length > 0 && headingEls.length > 0) {
+        const linkById = new Map(tocLinks.map((a) => [a.dataset.tocLink || '', a]));
+        const setActiveToc = (id: string) => {
+          tocLinks.forEach((a) => a.classList.toggle('is-active', a.dataset.tocLink === id));
+        };
+        tocObserver = new IntersectionObserver(
+          (entries) => {
+            const visible = entries
+              .filter((en) => en.isIntersecting)
+              .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+            if (visible[0]?.target?.id && linkById.has(visible[0].target.id)) {
+              setActiveToc(visible[0].target.id);
+            }
+          },
+          { rootMargin: '-80px 0px -68% 0px', threshold: 0 },
+        );
+        headingEls.forEach((h) => tocObserver?.observe(h));
+      }
+
+      // 6. 左侧水墨书脊（H2 节点光晕 + 零 scroll 重排阻尼笔触进度线）
+      if (postBodyEl && spineEl && spineLine) {
+        spineEl.querySelectorAll('.post-spine-dot').forEach((n) => n.remove());
+        const h2s = Array.from(proseEl.querySelectorAll<HTMLElement>('h2'));
+        const dots: HTMLElement[] = [];
+        h2s.forEach(() => {
+          const dot = document.createElement('i');
+          dot.className = 'post-spine-dot';
+          spineEl.appendChild(dot);
+          dots.push(dot);
+        });
+
+        let cachedBodyTop = 0;
+        let cachedBodyHeight = 1;
+        let cachedViewportH = window.innerHeight || 800;
+
+        const measureSpineGeometry = () => {
+          if (docSignal.aborted || !postBodyEl.isConnected) return;
+          const scrollY = window.scrollY || window.pageYOffset || 0;
+          const bodyRect = postBodyEl.getBoundingClientRect();
+          cachedBodyTop = bodyRect.top + scrollY;
+          cachedBodyHeight = Math.max(1, bodyRect.height);
+          cachedViewportH = window.innerHeight || 800;
+
+          const tops = h2s.map((h2) => Math.round(h2.getBoundingClientRect().top - bodyRect.top + 14));
+          tops.forEach((top, i) => {
+            if (dots[i]) dots[i].style.top = `${top}px`;
+          });
+        };
+
+        let targetDash = 1;
+        let currentDash = 1;
+        let spineRaf = 0;
+        spineLine.style.strokeDashoffset = reduceMotion ? '0' : '1';
+
+        const stepSpine = () => {
+          spineRaf = 0;
+          if (docSignal.aborted) return;
+          const diff = targetDash - currentDash;
+          if (Math.abs(diff) <= 0.0015 || reduceMotion) {
+            currentDash = targetDash;
+            spineLine.style.strokeDashoffset = currentDash.toFixed(4);
+            return;
+          }
+          currentDash += diff * 0.24;
+          spineLine.style.strokeDashoffset = currentDash.toFixed(4);
+          spineRaf = requestAnimationFrame(stepSpine);
+        };
+
+        const onScrollSpine = () => {
+          const scrollY = window.scrollY || window.pageYOffset || 0;
+          const startY = cachedBodyTop - cachedViewportH * 0.65;
+          const endY = cachedBodyTop + cachedBodyHeight - cachedViewportH * 0.55;
+          const span = Math.max(1, endY - startY);
+          const progress = Math.max(0, Math.min(1, (scrollY - startY) / span));
+          targetDash = 1 - progress;
+          if (!spineRaf && !docSignal.aborted) {
+            spineRaf = requestAnimationFrame(stepSpine);
+          }
+        };
+
+        const litIo = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              const index = h2s.indexOf(entry.target as HTMLElement);
+              const dot = dots[index];
+              if (!dot) return;
+              dot.classList.toggle('is-lit', entry.isIntersecting || entry.boundingClientRect.top < 0);
+            });
+          },
+          { rootMargin: '-32% 0px -32% 0px' },
+        );
+        h2s.forEach((h) => litIo.observe(h));
+
+        let roTimer = 0;
+        const ro = new ResizeObserver(() => {
+          window.clearTimeout(roTimer);
+          roTimer = window.setTimeout(() => {
+            measureSpineGeometry();
+            onScrollSpine();
+          }, 160);
+        });
+        ro.observe(proseEl);
+
+        requestAnimationFrame(() => {
+          measureSpineGeometry();
+          onScrollSpine();
+        });
+
+        window.addEventListener('scroll', onScrollSpine, { passive: true, signal: docSignal });
+        window.addEventListener('resize', () => {
+          measureSpineGeometry();
+          onScrollSpine();
+        }, { passive: true, signal: docSignal });
+
+        docSignal.addEventListener('abort', () => {
+          if (spineRaf) cancelAnimationFrame(spineRaf);
+          window.clearTimeout(roTimer);
+          litIo.disconnect();
+          ro.disconnect();
+        });
+      }
+
+      // 7. 绑定平滑目录折叠
+      bindSmoothToc(docSignal);
+    }
+
+    // ---------- 舞台入场微动效（motion.animate 纯 GPU 合成，零重排） ----------
+
+    function playStageEntrance() {
+      if (prefersReducedMotion()) return;
+      const targets = [stageBar, stageHeader, tocDetails, postBodyEl].filter(
+        (el): el is HTMLElement => Boolean(el && !el.hidden),
+      );
+      targets.forEach((el, idx) => {
+        try {
+          animate(
+            el,
+            {
+              opacity: [0, 1],
+              transform: ['translate3d(0px, 14px, 0px)', 'translate3d(0px, 0px, 0px)'],
+            },
+            {
+              duration: 0.42,
+              delay: idx * 0.055,
+              ease: [0.22, 1, 0.36, 1],
+            },
+          );
+        } catch {}
+      });
+    }
+
+    // ---------- 打开 / 关闭阅读视图 ----------
+
+    interface OpenDocOptions {
+      pushHistory?: boolean;
+      preserveScroll?: boolean;
+      resume?: boolean;
+      bookmarkId?: string;
+      highlightId?: string;
+    }
+
+    async function openDocument(docId: string, opts: OpenDocOptions = {}) {
+      const token = ++openToken;
+      const doc = await getLocalDoc(docId);
+      if (signal.aborted || token !== openToken) return;
+      if (!doc) {
+        showToast('未在本地书架找到该文稿（可能仅保存在另一台设备上）');
+        closeDocument({ pushHistory: false });
+        return;
+      }
+
+      const savedScrollY = opts.preserveScroll ? window.scrollY : 0;
+
+      window.clearTimeout(companionPhaseTimer);
+      window.clearTimeout(deepLinkTimer);
+      proseController?.abort();
+      proseController = new AbortController();
+      const docSignal = proseController.signal;
+      revokeActiveAssetUrls();
+
+      activeDoc = doc;
+      setReaderActiveDocId(doc.id);
+      updateLocalDocMeta(doc.id, { lastOpenedAt: Date.now() }).catch(() => {});
+
+      const parsed = parseMarkdownDocument(doc.markdown, doc.fileName, doc.category);
+      const usedLangs = detectCodeLanguages(parsed.body);
+
+      const [assets, hljs] = await Promise.all([
+        getDocAssets(doc.id),
+        usedLangs.length > 0 ? loadCodeHighlighter(usedLangs) : Promise.resolve(null),
+      ]);
+      if (signal.aborted || token !== openToken) return;
+
+      const assetUrlMap = new Map<string, string>();
+      for (const a of assets) {
+        if (a.blob) {
+          const url = URL.createObjectURL(a.blob);
+          activeObjectUrls.push(url);
+          assetUrlMap.set(a.normalizedPath, url);
+        }
+      }
+
+      const rendered = renderLocalMarkdownBody(parsed.body, {
+        docDir: doc.docDir,
+        assetUrlMap,
+        highlighter: hljs,
+      });
+
+      shelfView.hidden = true;
+      stageView.hidden = false;
+
+      if (metaDateEl) metaDateEl.textContent = doc.pubDate || new Date(doc.updatedAt).toISOString().slice(0, 10);
+      if (metaCategoryEl) metaCategoryEl.textContent = doc.category || '技术文档';
+      if (metaMinutesEl) metaMinutesEl.textContent = `${doc.readingMinutes || 1} min read`;
+      if (metaBadgeEl) {
+        metaBadgeEl.textContent = assets.length > 0 ? `本地文稿 · ${assets.length} 图` : '本地文稿';
+      }
+      if (docTitleEl) docTitleEl.textContent = doc.title;
+      document.title = `${doc.title} - Reader - 梦付千秋`;
+
+      if (docDescEl) {
+        if (doc.description) {
+          docDescEl.textContent = doc.description;
+          docDescEl.hidden = false;
+        } else {
+          docDescEl.hidden = true;
+        }
+      }
+
+      if (docTagsWrap && docTagsEl) {
+        if (doc.tags && doc.tags.length > 0) {
+          docTagsEl.innerHTML = doc.tags
+            .map((tag) => `<span class="tag-chip">#${escapeHtml(tag)}</span>`)
+            .join('');
+          docTagsWrap.hidden = false;
+        } else {
+          docTagsEl.innerHTML = '';
+          docTagsWrap.hidden = true;
+        }
+      }
+
+      if (missingBanner && missingText) {
+        if (rendered.missingAssets.length > 0) {
+          missingText.textContent = `文中引用了 ${rendered.missingAssets.length} 处本地图片尚未关联（如 ${rendered.missingAssets[0]}），点击右侧可补充上传并立即显示。`;
+          missingBanner.hidden = false;
+        } else {
+          missingBanner.hidden = true;
+        }
+      }
+
+      const tocHeadings = rendered.headings.filter((h) => h.depth >= 2 && h.depth <= 3);
+      if (tocDetails && tocNav && tocCountEl) {
+        tocCountEl.textContent = `${tocHeadings.length} 节`;
+        if (tocHeadings.length > 0) {
+          tocDetails.open = true;
+          tocDetails.classList.remove('is-collapsed');
+          tocNav.innerHTML = tocHeadings
+            .map(
+              (h) => `
+              <a href="#${escapeHtml(h.slug)}" class="post-toc-link depth-${h.depth}" data-toc-link="${escapeHtml(h.slug)}">
+                <span class="toc-bullet"></span>
+                <span class="toc-text">${escapeHtml(h.text)}</span>
+              </a>
+            `,
+            )
+            .join('');
+          tocNav.querySelectorAll<HTMLAnchorElement>('.post-toc-link').forEach((link) => {
+            link.addEventListener('click', (e) => {
+              e.preventDefault();
+              const id = link.dataset.tocLink || '';
+              const el = document.getElementById(id);
+              if (el) {
+                if ((window as any).lenis) (window as any).lenis.scrollTo(el, { offset: -76 });
+                else el.scrollIntoView({ behavior: 'smooth' });
+                el.classList.remove('is-anchor-target');
+                void el.offsetWidth;
+                el.classList.add('is-anchor-target');
+                window.setTimeout(() => el.classList.remove('is-anchor-target'), 1100);
+              }
+            }, { signal: docSignal });
+          });
+          tocDetails.hidden = false;
+        } else {
+          tocNav.innerHTML = '';
+          tocDetails.hidden = true;
+        }
+      }
+
+      const virtualSlug = buildLocalReaderSlug(doc.id);
+      prose.innerHTML = rendered.html;
+      prose.dataset.articleSlug = virtualSlug;
+
+      (window as any).__localReaderActiveDoc = () => ({
+        id: doc.id,
+        title: doc.title,
+        content: extractStructuredTextFromProse(prose),
+      });
+
+      // Phase 1：正文动效与工具栏增强 + 舞台展卷入场
+      enhanceReaderProse(prose, docSignal);
+      syncDocSwitcher();
+      if (!opts.preserveScroll) {
+        window.scrollTo({ top: 0 });
+        playStageEntrance();
+      } else {
+        window.scrollTo({ top: savedScrollY });
+      }
+
+      if (opts.pushHistory) {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('doc', doc.id);
+        nextUrl.searchParams.delete('resume');
+        nextUrl.searchParams.delete('bm');
+        nextUrl.searchParams.delete('noteId');
+        window.history.pushState({ readerDocId: doc.id }, '', nextUrl.pathname + nextUrl.search);
+      }
+
+      // Phase 2（下一帧）：挂载核心伴读（划线批注 / 夹签续读 / 文内搜索），避免同帧布局风暴
+      requestAnimationFrame(() => {
+        if (docSignal.aborted || token !== openToken) return;
+        document.dispatchEvent(
+          new CustomEvent('reader:doc-change', { detail: { docId: doc.id, slug: virtualSlug, phase: 'core' } }),
+        );
+        refreshScroll({ clamp: false });
+
+        const urlHash = window.location.hash || '';
+        const hashHighlightId = urlHash.startsWith('#highlight-')
+          ? decodeURIComponent(urlHash.slice('#highlight-'.length))
+          : '';
+        const targetHighlightId = opts.highlightId || hashHighlightId;
+
+        if (targetHighlightId || opts.bookmarkId || opts.resume) {
+          deepLinkTimer = window.setTimeout(() => {
+            if (docSignal.aborted || token !== openToken) return;
+            if (targetHighlightId) {
+              (window as any).__articleNotes?.jumpToHighlight?.(targetHighlightId);
+            } else if (opts.bookmarkId) {
+              (window as any).__readingBookmarks?.jumpToBookmark?.(opts.bookmarkId);
+            } else if (opts.resume) {
+              (window as any).__readingBookmarks?.resumeProgress?.();
+            }
+          }, 180);
+        }
+      });
+
+      // Phase 3（错峰挂载）：钉板 / 墨问 AI / Mermaid 渲染，与入场帧彻底错开实现满帧丝滑
+      companionPhaseTimer = window.setTimeout(() => {
+        if (docSignal.aborted || token !== openToken) return;
+        document.dispatchEvent(
+          new CustomEvent('reader:doc-change', { detail: { docId: doc.id, slug: virtualSlug, phase: 'companion' } }),
+        );
+      }, 130);
+    }
+
+    function closeDocument(opts: { pushHistory?: boolean } = {}) {
+      openToken += 1;
+      window.clearTimeout(companionPhaseTimer);
+      window.clearTimeout(deepLinkTimer);
+      proseController?.abort();
+      proseController = null;
+      if (tocObserver) {
+        tocObserver.disconnect();
+        tocObserver = null;
+      }
+      revokeActiveAssetUrls();
+      activeDoc = null;
+      setReaderActiveDocId(null);
+      (window as any).__localReaderActiveDoc = null;
+
+      prose.dataset.articleSlug = '__inactive__';
+      prose.innerHTML = '';
+      stageView.hidden = true;
+      shelfView.hidden = false;
+      document.title = 'Reader - 梦付千秋';
+
+      // 不传 phase -> 所有 6 大伴读组件同步退回静默态
+      document.dispatchEvent(new CustomEvent('reader:doc-change', { detail: { docId: null, slug: '__inactive__' } }));
+
+      if (opts.pushHistory) {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.delete('doc');
+        nextUrl.searchParams.delete('resume');
+        nextUrl.searchParams.delete('bm');
+        nextUrl.searchParams.delete('noteId');
+        window.history.pushState({ readerDocId: null }, '', nextUrl.pathname + nextUrl.search);
+      }
+
+      refreshShelfFromIndexedDb().then(() => {
+        if (signal.aborted) return;
+        requestAnimationFrame(() => syncCatGlider(true));
+        window.scrollTo({ top: 0 });
+        refreshScroll();
+      });
+    }
+
+    // 暴露给 BaseLayout ⌘K 同页秒切
+    (window as any).__localReaderOpenDoc = (
+      docId: string,
+      opts?: { resume?: boolean; bookmarkId?: string; highlightId?: string },
+    ) => {
+      openDocument(docId, {
+        pushHistory: true,
+        resume: opts?.resume,
+        bookmarkId: opts?.bookmarkId,
+        highlightId: opts?.highlightId,
+      });
+    };
+
+    // ---------- 挂载 React 19 + Motion 书架 Island ----------
+
+    shelfIsland = mountReaderShelfIsland(shelfHost, {
+      onOpenDoc: (docId) => {
+        void openDocument(docId, { pushHistory: true });
+      },
+      onReimportDoc: (docId) => {
+        reimportTargetId = docId;
+        reimportInput?.click();
+      },
+      onChangeCategory: (doc) => {
+        const nextCat = prompt(`为《${doc.title}》设置分类（当前：${doc.category}）：`, doc.category);
+        if (!nextCat || !nextCat.trim()) return;
+        const clean = nextCat.trim().slice(0, 24);
+        const curCats = $readerCategories.get();
+        if (!curCats.includes(clean)) {
+          saveReaderCategories([...curCats, clean]);
+        }
+        updateLocalDocMeta(doc.id, { category: clean }).then(async () => {
+          await refreshShelfFromIndexedDb();
+          showToast(`已归入「${clean}」`);
+        });
+      },
+      onDeleteDoc: (doc) => {
+        if (!confirm(`确认从本地书架移除《${doc.title}》吗？（你在 /notes 中保存的划线摘录不会被删除）`)) {
+          return;
+        }
+        deleteLocalDoc(doc.id).then(async () => {
+          await refreshShelfFromIndexedDb();
+          showToast(`已移除《${doc.title}》`);
+        });
+      },
+      onImportFiles: () => {
+        fileInput?.click();
+      },
+      onLoadSample: () => {
+        void loadSampleDocument();
+      },
+    });
+
+    // ---------- Nanostores 响应式订阅 ----------
+
+    storeUnsubs.push(
+      $readerShelfStats.subscribe(() => {
+        renderStatsDisplay(hasStatsAnimatedOnce);
+      }),
+      $readerStatFilter.subscribe((stat) => {
+        syncStatsStripActive(stat);
+      }),
+    );
+
+    // ---------- 事件绑定 ----------
+
+    initStatsGlider();
+
+    importFilesBtn?.addEventListener('click', () => fileInput?.click(), { signal });
+    importFolderBtn?.addEventListener('click', () => folderInput?.click(), { signal });
+
+    fileInput?.addEventListener('change', async () => {
+      const files = Array.from(fileInput.files || []).map((file) => ({ file, relativePath: file.name }));
+      fileInput.value = '';
+      await handleImportedFiles(files);
+    }, { signal });
+
+    folderInput?.addEventListener('change', async () => {
+      const files = Array.from(folderInput.files || []).map((file) => ({
+        file,
+        relativePath: (file as any).webkitRelativePath || file.name,
+      }));
+      folderInput.value = '';
+      await handleImportedFiles(files);
+    }, { signal });
+
+    reimportInput?.addEventListener('change', async () => {
+      const files = Array.from(reimportInput.files || []).map((file) => ({ file, relativePath: file.name }));
+      reimportInput.value = '';
+      const targetId = reimportTargetId || activeDoc?.id || undefined;
+      reimportTargetId = null;
+      await handleImportedFiles(files, { targetDocId: targetId });
+    }, { signal });
+
+    assetsInput?.addEventListener('change', async () => {
+      const files = Array.from(assetsInput.files || []).map((file) => ({ file, relativePath: file.name }));
+      assetsInput.value = '';
+      if (activeDoc) {
+        await handleImportedFiles(files, { targetDocId: activeDoc.id });
+      }
+    }, { signal });
+
+    addCatBtn?.addEventListener('click', () => {
+      const name = prompt('输入新的书架分类名称（最多 12 字）：');
+      if (!name || !name.trim()) return;
+      const created = addReaderCategoryToStore(name);
+      if (!created) return;
+      renderCategoryBar(false);
+      showToast(`已创建分类「${created}」`);
+    }, { signal });
+
+    // 搜索防抖（120ms），由 Nanostores + React 岛增量重算
+    searchInput?.addEventListener('input', () => {
+      const val = searchInput.value;
+      window.clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = window.setTimeout(() => {
+        setReaderSearchKeyword(val);
+      }, 120);
+    }, { signal });
+
+    sortSelect?.addEventListener('change', () => {
+      setReaderSortMode(sortSelect.value as ReaderSortMode);
+    }, { signal });
+
+    // 粘贴新建弹窗
+    const closePasteModal = () => {
+      if (!pasteModal) return;
+      closeAnimatedModal(pasteModal, pasteModalCard, 'reader-paste', () => {
+        lastModalTrigger?.focus();
+      });
+    };
+
+    pasteBtn?.addEventListener('click', () => {
+      if (!pasteModal) return;
+      lastModalTrigger = pasteBtn;
+      if (pasteTitleInput) pasteTitleInput.value = '';
+      if (pasteContentInput) pasteContentInput.value = '';
+      openAnimatedModal(pasteModal, pasteModalCard, 'reader-paste');
+      pasteContentInput?.focus();
+    }, { signal });
+
+    pasteModal?.addEventListener('click', (e) => {
+      if (e.target === pasteModal || (e.target as HTMLElement).closest('[data-modal-close]')) {
+        closePasteModal();
+      }
+    }, { signal });
+
+    pasteForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const raw = pasteContentInput?.value || '';
+      if (!raw.trim()) return;
+      const customTitle = pasteTitleInput?.value.trim() || '';
+      const chosenCat = pasteCatSelect?.value || '技术文档';
+      const fileName = `${(customTitle || 'pasted-note').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 48)}.md`;
+      const parsed = parseMarkdownDocument(raw, fileName, chosenCat);
+      const now = Date.now();
+      const newDoc: LocalReaderDocument = {
+        id: createLocalDocId(),
+        title: customTitle || parsed.title,
+        fileName,
+        docDir: '',
+        folderName: '',
+        category: chosenCat || parsed.category,
+        tags: parsed.tags,
+        description: parsed.description,
+        pubDate: parsed.pubDate,
+        markdown: raw,
+        wordCount: parsed.wordCount,
+        readingMinutes: parsed.readingMinutes,
+        headings: parsed.headings,
+        assetPaths: [],
+        createdAt: now,
+        updatedAt: now,
+        lastOpenedAt: now,
+      };
+      await saveLocalDoc(newDoc);
+      await refreshShelfFromIndexedDb();
+      closePasteModal();
+      showToast('已保存到本地书架');
+      await openDocument(newDoc.id, { pushHistory: true });
+    }, { signal });
+
+    window.addEventListener('keydown', (e) => {
+      if (pasteModal && !pasteModal.hidden) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closePasteModal();
+        } else if (e.key === 'Tab') {
+          trapModalFocus(pasteModal, e);
+        }
+      }
+    }, { signal });
+
+    // 阅读视图按钮
+    backShelfBtn?.addEventListener('click', () => closeDocument({ pushHistory: true }), { signal });
+    crumbShelfBtn?.addEventListener('click', () => closeDocument({ pushHistory: true }), { signal });
+
+    docSwitcher?.addEventListener('change', () => {
+      const nextId = docSwitcher.value;
+      if (nextId && nextId !== activeDoc?.id) {
+        openDocument(nextId, { pushHistory: true });
+      }
+    }, { signal });
+
+    reimportBtn?.addEventListener('click', () => {
+      if (!activeDoc) return;
+      reimportTargetId = activeDoc.id;
+      reimportInput?.click();
+    }, { signal });
+
+    attachAssetsBtn?.addEventListener('click', () => {
+      if (!activeDoc) return;
+      assetsInput?.click();
+    }, { signal });
+
+    exportNotesBtn?.addEventListener('click', () => {
+      if (!activeDoc) return;
+      const slug = buildLocalReaderSlug(activeDoc.id);
+      const records = loadHighlights(slug);
+      if (!records.length) {
+        showToast('本文暂无划线或批注记录');
+        return;
+      }
+      const md = exportHighlightsAsMarkdown(activeDoc.title, window.location.href, records);
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${activeDoc.title.replace(/[\\/:*?"<>|]+/g, '_')}-笔记.md`;
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast(`已导出 ${records.length} 条划线与批注`);
+    }, { signal });
+
+    toMindmapBtn?.addEventListener('click', () => {
+      if (!activeDoc) return;
+      const slug = buildLocalReaderSlug(activeDoc.id);
+      const highlights = loadHighlights(slug);
+      const created = buildMindMapFromArticle(
+        {
+          slug,
+          title: activeDoc.title,
+          headings: activeDoc.headings || [],
+          notes: highlights,
+        },
+        { includeNotes: true },
+      );
+      upsertMindMap(created);
+      window.location.href = `/mindmap/?map=${encodeURIComponent(created.id)}`;
+    }, { signal });
+
+    // 全局拖拽上传
+    const hasFilePayload = (e: DragEvent) => Array.from(e.dataTransfer?.types || []).includes('Files');
+
+    window.addEventListener('dragenter', (e) => {
+      if (!hasFilePayload(e)) return;
+      e.preventDefault();
+      dragDepth += 1;
+      if (dropOverlay && dropOverlay.hidden) {
+        dropOverlay.hidden = false;
+        dropOverlay.setAttribute('aria-hidden', 'false');
+        void dropOverlay.offsetWidth;
+        dropOverlay.classList.add('is-open');
+      }
+    }, { signal });
+
+    window.addEventListener('dragover', (e) => {
+      if (!hasFilePayload(e)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    }, { signal });
+
+    const hideDropOverlay = () => {
+      if (!dropOverlay) return;
+      dropOverlay.classList.remove('is-open');
+      dropOverlay.setAttribute('aria-hidden', 'true');
+      window.setTimeout(() => {
+        if (!dropOverlay.classList.contains('is-open')) dropOverlay.hidden = true;
+      }, 180);
+    };
+
+    window.addEventListener('dragleave', (e) => {
+      if (!hasFilePayload(e)) return;
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) hideDropOverlay();
+    }, { signal });
+
+    window.addEventListener('drop', async (e) => {
+      if (!hasFilePayload(e)) return;
+      e.preventDefault();
+      dragDepth = 0;
+      hideDropOverlay();
+      if (!e.dataTransfer) return;
+      const items = await collectDroppedFiles(e.dataTransfer);
+      await handleImportedFiles(items);
+    }, { signal });
+
+    window.addEventListener('popstate', () => {
+      const docId = new URLSearchParams(window.location.search).get('doc');
+      if (docId) {
+        if (activeDoc?.id !== docId) {
+          openDocument(docId, { pushHistory: false });
+        }
+      } else if (activeDoc) {
+        closeDocument({ pushHistory: false });
+      }
+    }, { signal });
+
+    window.addEventListener('resize', () => {
+      syncCatGlider(true);
+    }, { passive: true, signal });
+
+    window.addEventListener('article-notes:changed', () => {
+      if (!activeDoc) refreshReaderTelemetryMaps();
+    }, { signal });
+
+    // 清理函数注册
+    (window as any)[CLEANUP_KEY] = () => {
+      openToken += 1;
+      controller.abort();
+      proseController?.abort();
+      tocObserver?.disconnect();
+      storeUnsubs.forEach((unsub) => {
+        try {
+          unsub();
+        } catch {}
+      });
+      storeUnsubs.length = 0;
+      shelfIsland?.unmount();
+      shelfIsland = null;
+      stopPillGlider(statsGlider);
+      stopPillGlider(catGlider);
+      revokeActiveAssetUrls();
+      window.clearTimeout(searchDebounceTimer);
+      window.clearTimeout(companionPhaseTimer);
+      window.clearTimeout(deepLinkTimer);
+      window.clearTimeout(toastTimer);
+      setModalOpenState('reader-paste', false, { emitDomEvent: true });
+      setModalOpenState('reader-dup', false, { emitDomEvent: true });
+      resetLocalReaderStore();
+      (window as any).__localReaderActiveDoc = null;
+      (window as any).__localReaderOpenDoc = null;
+    };
+
+    // ---------- 首次装载：注水 Nanostores 并释放 data-enter-hold ----------
+    listLocalDocs().then(async (loaded) => {
+      if (signal.aborted) return;
+      hydrateReaderShelf(loaded);
+      hasStatsAnimatedOnce = true;
+      renderStatsDisplay(true);
+      renderCategoryBar(true);
+      syncDocSwitcher();
+
+      const params = new URLSearchParams(window.location.search);
+      const initialDocId = params.get('doc');
+      shelfHost.removeAttribute('data-enter-hold');
+      (window as any).__releasePageEnter?.();
+
+      if (initialDocId) {
+        await openDocument(initialDocId, {
+          pushHistory: false,
+          resume: params.get('resume') === '1',
+          bookmarkId: params.get('bm') || undefined,
+          highlightId: params.get('noteId') || undefined,
+        });
+      }
+    });
+  }
+
+  initLocalReaderPage();
+
+  if (!(window as any)[LISTENER_KEY]) {
+    (window as any)[LISTENER_KEY] = true;
+    document.addEventListener('astro:page-load', () => {
+      initLocalReaderPage();
+    });
+    document.addEventListener('astro:before-swap', () => {
+      (window as any)[CLEANUP_KEY]?.();
+    });
+  }
+</script>
+
+<style is:global>
+  /* ================= 本地书架样式（120fps 单色水墨宣纸 + Motion 弹簧规范） ================= */
+  .reader-inline-pill {
+    font-family: var(--font-mono);
+    font-size: 0.84em;
+    padding: 0.08em 0.42em;
+    border-radius: 6px;
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    color: var(--text-strong);
+  }
+
+  /* 顶部统计胶囊磁吸滑块：固定 width: 100px + 反向圆角补偿，由 workbenchMotion.animatePillGlider 驱动 */
+  [data-reader-stats-strip] [data-reader-stats-glider] {
+    width: 100px !important;
+    left: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: var(--pill-rx, 9999px) / var(--pill-ry, 9999px) !important;
+    transform-origin: left center !important;
+    transition: opacity 220ms var(--ease) !important;
+  }
+
+  .reader-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .reader-drop-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    border: 1px dashed var(--rule);
+    background: var(--bg-soft);
+  }
+
+  .reader-cat-rail-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+
+  .reader-cat-rail {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 999px;
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    overflow-x: auto;
+    max-width: 100%;
+    scrollbar-width: none;
+  }
+  .reader-cat-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 纯 GPU transform: translate3d + scaleX 滑块 + 反向圆角补偿（由 workbenchMotion 弹簧驱动） */
+  .reader-cat-glider {
+    position: absolute;
+    top: 0.25rem;
+    left: 0;
+    width: 100px;
+    height: calc(100% - 0.5rem);
+    border-radius: var(--pill-rx, 999px) / var(--pill-ry, 999px);
+    background: var(--text-strong);
+    opacity: 0;
+    transform-origin: left center;
+    will-change: transform;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+    z-index: 0;
+  }
+
+  .reader-cat-pill {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.34rem 0.78rem;
+    border-radius: 999px;
+    border: 0;
+    background: transparent;
+    color: var(--muted-strong);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 200ms ease;
+  }
+  .reader-cat-pill.is-active {
+    color: var(--bg-base);
+    font-weight: 600;
+  }
+  .reader-cat-count {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    opacity: 0.72;
+  }
+
+  .reader-add-cat-btn {
+    padding: 0.35rem 0.72rem;
+    border-radius: 999px;
+    border: 1px dashed var(--rule-strong);
+    background: transparent;
+    color: var(--muted-strong);
+    font-size: 0.76rem;
+    cursor: pointer;
+    transition: border-color 180ms ease, color 180ms ease, background 180ms ease, transform 180ms ease;
+  }
+  .reader-add-cat-btn:hover {
+    border-color: var(--text-strong);
+    color: var(--text-strong);
+    background: var(--bg-soft);
+    transform: translateY(-1px);
+  }
+
+  .reader-search-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.42rem 0.85rem;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    background: var(--bg-soft);
+    color: var(--muted);
+    min-width: 240px;
+    transition: border-color 180ms ease;
+  }
+  .reader-search-box:focus-within {
+    border-color: var(--text-strong);
+  }
+  .reader-search-box input {
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--text-strong);
+    font-size: 0.84rem;
+    width: 100%;
+  }
+
+  .reader-sort-select,
+  .reader-doc-switcher {
+    padding: 0.42rem 0.8rem;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    background: var(--bg-soft);
+    color: var(--text-strong);
+    font-size: 0.8rem;
+    cursor: pointer;
+    outline: none;
+  }
+  .reader-doc-switcher {
+    max-width: 260px;
+    text-overflow: ellipsis;
+  }
+
+  /* 书架卡片网格 */
+  .reader-shelf-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.25rem;
+  }
+
+  /* 3D 宣纸卡片（与 initPaperCardPhysics + motion.article 协同：GPU 合成层、纸面光泽跟手） */
+  .reader-doc-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 1.3rem 1.35rem 1.2rem !important;
+    border-radius: 18px !important;
+    border: 1px solid var(--rule);
+    background: var(--bg-elev, var(--bg-soft));
+    cursor: pointer;
+    overflow: hidden;
+    contain: layout style;
+    transform-style: preserve-3d;
+    transition: border-color 200ms ease;
+  }
+  .reader-doc-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: radial-gradient(
+      260px circle at var(--paper-x, 50%) var(--paper-y, 50%),
+      rgba(255, 255, 255, 0.22),
+      transparent 70%
+    );
+    opacity: var(--paper-sheen-opacity, 0);
+    z-index: 2;
+  }
+  [data-theme="dark"] .reader-doc-card::after {
+    background: radial-gradient(
+      260px circle at var(--paper-x, 50%) var(--paper-y, 50%),
+      rgba(255, 255, 255, 0.08),
+      transparent 70%
+    );
+  }
+  .reader-doc-card.is-paper-hovered,
+  .reader-doc-card:hover {
+    border-color: var(--rule-strong);
+  }
+
+  .reader-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.85rem;
+  }
+  .reader-card-badges {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .reader-card-cat {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.16rem 0.56rem;
+    border-radius: 999px;
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    color: var(--text-strong);
+  }
+  .reader-card-asset-pill {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    padding: 0.14rem 0.5rem;
+    border-radius: 999px;
+    background: transparent;
+    border: 1px dashed var(--rule);
+    color: var(--muted-strong);
+  }
+
+  .reader-card-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    opacity: 0.72;
+    transition: opacity 180ms ease;
+  }
+  .reader-doc-card:hover .reader-card-actions,
+  .reader-doc-card:focus-within .reader-card-actions {
+    opacity: 1;
+  }
+
+  .reader-card-icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted-strong);
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+  }
+  .reader-card-icon-btn:hover {
+    background: var(--bg-soft);
+    border-color: var(--rule);
+    color: var(--text-strong);
+  }
+
+  .reader-card-title {
+    margin: 0;
+    font-family: var(--font-hand-title, var(--font-display));
+    font-size: 1.14rem;
+    font-weight: 700;
+    line-height: 1.42;
+    color: var(--text-strong);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .reader-card-desc {
+    margin: 0.55rem 0 0;
+    font-size: 0.84rem;
+    line-height: 1.62;
+    color: var(--muted-strong);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    flex: 1;
+  }
+
+  .reader-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.8rem;
+  }
+  .reader-card-tag {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--muted);
+  }
+
+  .reader-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 0.72rem;
+    border-top: 1px dashed var(--rule-soft, var(--rule));
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+  .reader-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+  .reader-card-meta > span:first-child {
+    max-width: 115px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .reader-card-progress-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    background: var(--bg-soft);
+    border: 1px solid var(--rule-strong);
+    color: var(--text-strong);
+    white-space: nowrap;
+  }
+  .reader-card-progress-track {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: rgba(0, 0, 0, 0.05);
+  }
+  .reader-card-progress-track > span {
+    display: block;
+    height: 100%;
+    background: var(--accent, var(--text-strong));
+    transition: width 320ms ease;
+  }
+
+  /* ================= 沉浸阅读舞台 ================= */
+  .reader-stage-wrap {
+    max-width: 56rem;
+    margin: 0 auto;
+  }
+
+  .reader-stage-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.72rem 1rem !important;
+    border-radius: 16px !important;
+    border: 1px solid var(--rule);
+    background: var(--bg-soft);
+  }
+  .reader-stage-bar-left,
+  .reader-stage-bar-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .reader-bar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+    padding: 0.38rem 0.78rem;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    background: var(--bg-base);
+    color: var(--text-strong);
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .reader-bar-btn:hover {
+    border-color: var(--rule-strong);
+    transform: translateY(-1px);
+  }
+  .reader-bar-btn:active {
+    transform: scale(0.97);
+  }
+  .reader-bar-btn.is-strong {
+    background: var(--text-strong);
+    border-color: var(--text-strong);
+    color: var(--bg-base);
+  }
+
+  .reader-local-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--rule-strong);
+    background: var(--bg-soft);
+    color: var(--text-strong);
+    font-size: 0.66rem;
+    letter-spacing: 0.04em;
+  }
+
+  .reader-missing-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 1.15rem !important;
+    border-radius: 14px !important;
+    border: 1px dashed var(--rule-strong);
+    background: var(--bg-soft);
+    font-size: 0.84rem;
+    color: var(--text-strong);
+  }
+  .reader-missing-banner[hidden] {
+    display: none !important;
+  }
+  .reader-missing-banner-info {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .reader-missing-asset {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.85rem;
+    margin: 0.5rem 0;
+    border-radius: 10px;
+    border: 1px dashed var(--rule-strong);
+    background: var(--bg-soft);
+    color: var(--muted-strong);
+    font-size: 0.82rem;
+  }
+
+  /* ================= 零 backdrop-filter 拖拽蒙层 / 3D 宣纸弹窗 / Toast ================= */
+  .reader-drop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100200;
+    display: grid;
+    place-items: center;
+    background: rgba(15, 15, 16, 0.68);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 180ms ease;
+  }
+  .reader-drop-overlay.is-open {
+    opacity: 1;
+  }
+  .reader-drop-overlay[hidden] {
+    display: none !important;
+  }
+  .reader-drop-card {
+    padding: 2.2rem 2.8rem;
+    border-radius: 22px;
+    border: 2px dashed var(--rule-strong);
+    background: var(--bg-elev, var(--bg-base));
+    color: var(--text-strong);
+    text-align: center;
+    box-shadow: 0 28px 60px rgba(0, 0, 0, 0.28);
+    transform: scale(0.95);
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .reader-drop-overlay.is-open .reader-drop-card {
+    transform: scale(1);
+  }
+  .reader-drop-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    background: var(--bg-soft);
+    display: grid;
+    place-items: center;
+    margin: 0 auto 1rem;
+  }
+  .reader-drop-title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+  .reader-drop-sub {
+    margin: 0.45rem 0 0;
+    font-size: 0.85rem;
+    color: var(--muted-strong);
+  }
+
+  .reader-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100150;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: rgba(12, 12, 14, 0.64);
+    opacity: 0;
+  }
+  .reader-modal-backdrop.is-open {
+    opacity: 1;
+  }
+  .reader-modal-backdrop[hidden] {
+    display: none !important;
+  }
+  .reader-modal-card {
+    width: min(680px, 100%);
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 20px;
+    border: 1px solid var(--rule-strong);
+    background: var(--bg-elev, var(--bg-base));
+    box-shadow: 0 28px 64px rgba(0, 0, 0, 0.28);
+    will-change: transform, opacity;
+  }
+  .reader-modal-card--sm {
+    width: min(460px, 100%);
+  }
+  .reader-modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1.4rem 0.9rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .reader-modal-title {
+    margin: 0.25rem 0 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-strong);
+  }
+  .reader-modal-close {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    background: var(--bg-soft);
+    color: var(--text-strong);
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .reader-modal-body {
+    padding: 1.25rem 1.4rem 1.4rem;
+  }
+  .reader-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .reader-field > span {
+    font-size: 0.76rem;
+    color: var(--muted-strong);
+  }
+  .reader-field input,
+  .reader-field select,
+  .reader-field textarea {
+    width: 100%;
+    padding: 0.62rem 0.8rem;
+    border-radius: 12px;
+    border: 1px solid var(--rule);
+    background: var(--bg-soft);
+    color: var(--text-strong);
+    font-size: 0.88rem;
+    outline: none;
+  }
+  .reader-field textarea {
+    font-family: var(--font-mono);
+    line-height: 1.6;
+    resize: vertical;
+  }
+  .reader-field input:focus,
+  .reader-field select:focus,
+  .reader-field textarea:focus {
+    border-color: var(--text-strong);
+  }
+  .reader-modal-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    margin-top: 1.15rem;
+  }
+
+  .reader-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 2rem;
+    z-index: 100300;
+    transform: translate3d(-50%, 10px, 0);
+    opacity: 0;
+    padding: 0.55rem 1.15rem;
+    border-radius: 999px;
+    border: 1px solid var(--rule-strong);
+    background: var(--text-strong);
+    color: var(--bg-base);
+    font-size: 0.82rem;
+    font-weight: 500;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+    transition: opacity 200ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .reader-toast.is-visible {
+    opacity: 1;
+    transform: translate3d(-50%, 0, 0);
+  }
+
+  /* ================= 复用 PostLayout 同款目录、折叠代码块与章节水墨轻拂样式 ================= */
+  .post-toc {
+    border-radius: 18px !important;
+    padding: 1.1rem 1.4rem !important;
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    transition: border-color 0.2s ease;
+    overscroll-behavior: contain !important;
+  }
+  @media (max-width: 640px) {
+    .post-toc {
+      padding: 0.85rem 0.9rem !important;
+    }
+    .post-toc-tools .post-toc-search-btn {
+      display: none !important;
+    }
+  }
+  .post-toc:hover {
+    border-color: var(--rule-strong);
+  }
+  .post-toc-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    outline: none;
+  }
+  .post-toc-summary::-webkit-details-marker {
+    display: none;
+  }
+  .post-toc-caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    transition: transform 360ms var(--article-ease-layout, ease), color 200ms ease;
+  }
+  .post-toc:not([open]) .post-toc-caret,
+  .post-toc.is-collapsed .post-toc-caret {
+    transform: rotate(-90deg) !important;
+  }
+  .post-toc-expander {
+    overflow: hidden;
+  }
+  .post-toc-kicker {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .post-toc-title {
+    font-family: var(--font-hand);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-strong);
+    white-space: nowrap;
+  }
+  .post-toc-badge {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--muted-strong);
+    background: rgba(0, 0, 0, 0.04);
+    padding: 0.15rem 0.55rem;
+    border-radius: 9999px;
+    border: 1px solid var(--rule-soft);
+    white-space: nowrap;
+  }
+  .post-toc-search-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--muted-strong);
+    background: rgba(0, 0, 0, 0.04);
+    padding: 0.15rem 0.6rem;
+    border-radius: 9999px;
+    border: 1px solid var(--rule-soft);
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    white-space: nowrap;
+  }
+  .post-toc-search-btn:hover {
+    color: var(--text-strong);
+    border-color: var(--rule-strong);
+    background: rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
+  }
+  .post-toc-search-kbd,
+  .post-toc-notes-badge {
+    display: inline-block;
+    font-size: 0.62rem;
+    padding: 0.05rem 0.28rem;
+    border-radius: 3px;
+    background: var(--bg-base);
+    border: 1px solid var(--rule-soft);
+    opacity: 0.8;
+  }
+  .post-toc-inner {
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+    border-top: 1px dashed var(--rule);
+  }
+  .post-toc-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    max-height: 22rem;
+    overflow-y: auto;
+    padding-right: 0.4rem;
+  }
+  .post-toc-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.28rem 0.55rem;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--muted-strong);
+    text-decoration: none !important;
+    transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  }
+  .post-toc-link .toc-bullet {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--rule-strong);
+    flex-shrink: 0;
+    opacity: 0.45;
+    transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+  }
+  .post-toc-link.depth-2 {
+    font-weight: 600;
+    color: var(--text-strong);
+    margin-top: 0.35rem;
+  }
+  .post-toc-link.depth-3 {
+    padding-left: 1.4rem;
+    font-size: 0.82rem;
+  }
+  .post-toc-link.depth-3 .toc-bullet {
+    width: 3.5px;
+    height: 3.5px;
+  }
+  .post-toc-link:hover {
+    color: var(--text-strong);
+    background: rgba(0, 0, 0, 0.04);
+    transform: translateX(3px);
+  }
+  .post-toc-link.is-active {
+    color: var(--text-strong);
+    font-weight: 700;
+    background: rgba(0, 0, 0, 0.05);
+  }
+  [data-theme="dark"] .post-toc-link:hover,
+  [data-theme="dark"] .post-toc-link.is-active {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .post-toc-link.is-active .toc-bullet {
+    opacity: 1;
+    background: var(--accent);
+    transform: scale(1.3);
+  }
+
+  .code-copy-button,
+  .code-collapse-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: transform 200ms ease, color 160ms ease, border-color 160ms ease, background 160ms ease;
+  }
+  .code-collapse-button {
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    padding: 0.2rem 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    line-height: 1.2;
+    color: #e4e4e7;
+    background: rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+  }
+  .code-copy-button.is-copied {
+    border-color: rgba(255, 255, 255, 0.44) !important;
+    color: #f4f4f5 !important;
+    background: rgba(255, 255, 255, 0.14) !important;
+    animation: readerCodeCopyPulse 260ms var(--article-ease-surface, ease);
+  }
+  @keyframes readerCodeCopyPulse {
+    0% { transform: scale(0.95); opacity: 0.84; }
+    58% { transform: scale(1.03); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .prose pre.is-code-collapsed {
+    max-height: 240px;
+    overflow: hidden !important;
+    position: relative;
+  }
+  .code-expand-veil {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 82px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 12px;
+    background: linear-gradient(to bottom, rgba(20, 20, 22, 0), rgba(20, 20, 22, 0.92) 65%, rgba(20, 20, 22, 0.98));
+    z-index: 4;
+  }
+  .code-expand-veil[hidden] {
+    display: none !important;
+  }
+  .code-expand-veil-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.34rem 0.95rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    background: rgba(255, 255, 255, 0.12);
+    color: #f4f4f5;
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .prose h2[id],
+  .prose h3[id] {
+    position: relative;
+    scroll-margin-top: 84px;
+  }
+  .prose h2[id]::after,
+  .prose h3[id]::after {
+    content: '';
+    position: absolute;
+    inset: -4px -8px;
+    border-left: 2.5px solid var(--vermilion);
+    border-radius: 3px 6px 6px 3px;
+    background: linear-gradient(
+      90deg,
+      var(--vermilion-soft) 0%,
+      rgba(var(--vermilion-rgb, 0, 0, 0), 0.04) 46%,
+      transparent 100%
+    );
+    opacity: 0;
+    transform: scaleX(0.08);
+    transform-origin: left center;
+    pointer-events: none;
+    z-index: -1;
+  }
+  .prose .is-anchor-target {
+    isolation: isolate;
+  }
+  .prose .is-anchor-target::after {
+    animation: readerHeadingInkSweep 1050ms var(--article-ease-surface, ease) forwards;
+  }
+  @keyframes readerHeadingInkSweep {
+    0% { opacity: 0; transform: scaleX(0.06); }
+    24% { opacity: 1; transform: scaleX(1); }
+    62% { opacity: 0.78; transform: scaleX(1); }
+    100% { opacity: 0; transform: scaleX(1); }
+  }
+  .heading-anchor-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 0.42rem;
+    padding: 0 0.34rem;
+    height: 1.35em;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.72em;
+    opacity: 0;
+    transform: translateX(-3px);
+    cursor: pointer;
+    transition: opacity 180ms ease, transform 200ms ease, color 160ms ease, background 160ms ease;
+  }
+  .prose h2[id]:hover .heading-anchor-btn,
+  .prose h3[id]:hover .heading-anchor-btn,
+  .heading-anchor-btn:focus-visible,
+  .heading-anchor-btn.is-copied {
+    opacity: 0.9;
+    transform: translateX(0);
+  }
+
+  /* ================= highlight.js 深色代码面配色（对齐 Shiki 风格） ================= */
+  .prose pre.reader-code code {
+    color: #e4e4e7;
+  }
+  .prose pre.reader-code .hljs-comment,
+  .prose pre.reader-code .hljs-quote {
+    color: #7c8594;
+    font-style: italic;
+  }
+  .prose pre.reader-code .hljs-keyword,
+  .prose pre.reader-code .hljs-selector-tag,
+  .prose pre.reader-code .hljs-subst {
+    color: #c792ea;
+  }
+  .prose pre.reader-code .hljs-type,
+  .prose pre.reader-code .hljs-title.class_,
+  .prose pre.reader-code .hljs-built_in {
+    color: #ffcb6b;
+  }
+  .prose pre.reader-code .hljs-title.function_,
+  .prose pre.reader-code .hljs-section {
+    color: #82aaff;
+  }
+  .prose pre.reader-code .hljs-string,
+  .prose pre.reader-code .hljs-regexp,
+  .prose pre.reader-code .hljs-addition {
+    color: #c3e88d;
+  }
+  .prose pre.reader-code .hljs-number,
+  .prose pre.reader-code .hljs-literal,
+  .prose pre.reader-code .hljs-symbol {
+    color: #f78c6c;
+  }
+  .prose pre.reader-code .hljs-meta,
+  .prose pre.reader-code .hljs-attr,
+  .prose pre.reader-code .hljs-attribute {
+    color: #89ddff;
+  }
+  .prose pre.reader-code .hljs-variable,
+  .prose pre.reader-code .hljs-params,
+  .prose pre.reader-code .hljs-property {
+    color: #d6deeb;
+  }
+  .prose pre.reader-code .hljs-deletion,
+  .prose pre.reader-code .hljs-name,
+  .prose pre.reader-code .hljs-selector-id {
+    color: #f07178;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reader-cat-glider,
+    [data-reader-stats-strip] [data-reader-stats-glider],
+    .reader-doc-card,
+    .reader-drop-overlay,
+    .reader-drop-card,
+    .reader-modal-backdrop,
+    .reader-modal-card,
+    .reader-toast {
+      transition: none !important;
+    }
+  }
+</style>

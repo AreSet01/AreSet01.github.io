@@ -17,6 +17,12 @@ import {
   type ManualBookmarkRecord,
   type ReadingProgressRecord,
 } from './readingBookmarkEngine.ts';
+import {
+  buildLocalReaderSlug,
+  buildReaderDocUrl,
+  parseLocalReaderSlug,
+  type LocalReaderIndexEntry,
+} from './localReaderStorage.ts';
 import { formatDate } from './date.ts';
 
 export const stripMarkdownForSearch = (source: string = '') =>
@@ -492,6 +498,16 @@ export function buildDefaultCommands(ctx: {
       priority: 58,
     },
     {
+      id: 'cmd:nav-reader',
+      title: '前往：本地 Markdown 阅读器 (/reader)',
+      summary: '导入本地 .md 文稿与图片文件夹，享全套划线批注、夹签与墨问伴读',
+      keywords: 'reader local markdown md 阅读器 本地 文档 书架 上传',
+      badge: '导航',
+      section: '页面直达',
+      href: `${base}reader/`,
+      priority: 57,
+    },
+    {
       id: 'cmd:nav-timeline',
       title: '前往：年轮横向手卷 (/timeline)',
       summary: '展开横向宣纸手卷按时间脉络漫游',
@@ -587,6 +603,7 @@ function flattenMindMapNodes(
 
 export interface PaletteDataSources {
   posts?: RawPostSearchEntry[];
+  localDocs?: LocalReaderIndexEntry[];
   noteBuckets?: Array<{ postSlug: string; records: ArticleHighlightRecord[] }>;
   bookmarks?: ManualBookmarkRecord[];
   recentReading?: ReadingProgressRecord[];
@@ -613,10 +630,34 @@ export function queryCommandPalette(
   const base = (sources.basePath || '/').replace(/\/?$/, '/');
 
   const posts = sources.posts ?? [];
+  const localDocs = sources.localDocs ?? [];
   const postTitleBySlug = new Map<string, string>();
   for (const p of posts) {
     postTitleBySlug.set(normalizeReadingSlug(p.slug), p.title);
   }
+  for (const d of localDocs) {
+    const slug = buildLocalReaderSlug(d.id);
+    if (slug) postTitleBySlug.set(slug, d.title);
+  }
+
+  const resolveDocHref = (
+    slug: string,
+    opts: { resume?: boolean; bookmarkId?: string; highlightId?: string; noteId?: string } = {},
+  ): string => {
+    const localDocId = parseLocalReaderSlug(slug);
+    if (localDocId) {
+      return buildReaderDocUrl(localDocId, {
+        resume: opts.resume,
+        bookmarkId: opts.bookmarkId,
+        highlightId: opts.highlightId || opts.noteId,
+        basePath: base,
+      });
+    }
+    if (opts.resume) return `${base}posts/${slug}/?resume=1`;
+    if (opts.bookmarkId) return `${base}posts/${slug}/?bm=${encodeURIComponent(opts.bookmarkId)}`;
+    if (opts.noteId) return `${base}posts/${slug}/?noteId=${encodeURIComponent(opts.noteId)}`;
+    return `${base}posts/${slug}/`;
+  };
 
   // 1. 构建「最近在读」条目
   const resumeCandidates: PaletteResultItem[] = (sources.recentReading ?? []).map((prog) => {
@@ -648,15 +689,51 @@ export function queryCommandPalette(
       badgeTone: 'vermilion',
       metaRight: formatShortDate(prog.updatedAt) || `/${prog.postSlug}`,
       chips: prog.headingText ? [truncateText(prog.headingText, 24)] : [],
-      href: `${base}posts/${prog.postSlug}/?resume=1`,
+      href: resolveDocHref(prog.postSlug, { resume: true }),
       progressRatio: prog.progress,
       score,
       timestamp: prog.updatedAt,
     };
   });
 
-  // 2. 构建「文章」条目
-  const postCandidates: PaletteResultItem[] = posts.map((post) => {
+  // 2. 构建「文章 + 本地书架文稿」条目
+  const localDocCandidates: PaletteResultItem[] = localDocs.map((doc) => {
+    const slug = buildLocalReaderSlug(doc.id);
+    const score = cleanQuery
+      ? scoreFields(
+          [
+            { text: normalizePaletteText(doc.title), exactBoost: 126, tokenBoost: 36 },
+            { text: normalizePaletteText(doc.fileName), exactBoost: 90, tokenBoost: 26 },
+            { text: normalizePaletteText((doc.tags ?? []).join(' ')), exactBoost: 76, tokenBoost: 22 },
+            { text: normalizePaletteText(doc.category), exactBoost: 62, tokenBoost: 18 },
+            { text: normalizePaletteText(doc.description), exactBoost: 48, tokenBoost: 14 },
+            { text: '本地 文稿 阅读器 reader markdown md', exactBoost: 38, tokenBoost: 12 },
+          ],
+          cleanQuery,
+          tokens
+        )
+      : 420;
+
+    return {
+      uid: `post:${slug}`,
+      kind: 'post',
+      category: 'posts',
+      sectionLabel: '本地阅读器书架',
+      title: doc.title,
+      summary: doc.description || `${doc.fileName} · 约 ${doc.wordCount} 字（本地 IndexedDB 留存）`,
+      badge: '本地文稿',
+      badgeTone: 'ink',
+      metaRight: formatShortDate(doc.lastOpenedAt || doc.updatedAt) || doc.category,
+      chips: (doc.tags ?? []).slice(0, 3),
+      href: buildReaderDocUrl(doc.id, { basePath: base }),
+      score,
+      timestamp: Number(doc.lastOpenedAt || doc.updatedAt || 0),
+    };
+  });
+
+  const postCandidates: PaletteResultItem[] = [
+    ...localDocCandidates,
+    ...posts.map((post) => {
     const isLocked = Boolean(post.locked);
     const safeContent = isLocked ? '' : (post.content || '');
     const titleNorm = normalizePaletteText(post.title);
@@ -699,7 +776,8 @@ export function queryCommandPalette(
       score,
       timestamp: Number(post.publishedAt) || 0,
     };
-  });
+  }),
+  ];
 
   // 3. 构建「笔记 + 手动夹签」条目
   const noteCandidates: PaletteResultItem[] = [];
@@ -728,7 +806,7 @@ export function queryCommandPalette(
       const href =
         kind === 'free' || !recSlug
           ? `${base}notes/?noteId=${encodeURIComponent(rec.id)}`
-          : `${base}posts/${recSlug}/?noteId=${encodeURIComponent(rec.id)}`;
+          : resolveDocHref(recSlug, { noteId: rec.id });
 
       const badge = kind === 'free' ? '随记' : kind === 'ai' ? '墨问摘录' : '划线批注';
       const score = cleanQuery
@@ -800,7 +878,7 @@ export function queryCommandPalette(
       badgeTone: 'vermilion',
       metaRight: truncateText(postTitle, 20),
       chips: bm.headingText ? [truncateText(bm.headingText, 22)] : [],
-      href: `${base}posts/${bm.postSlug}/?bm=${encodeURIComponent(bm.id)}`,
+      href: resolveDocHref(bm.postSlug, { bookmarkId: bm.id }),
       progressRatio: bm.progress,
       score,
       timestamp: bm.updatedAt,

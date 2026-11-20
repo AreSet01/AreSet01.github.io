@@ -245,6 +245,14 @@
     const prevCleanup = (window as any)[CLEANUP_KEY];
     if (typeof prevCleanup === 'function') prevCleanup();
 
+    const activeProse = document.querySelector<HTMLElement>('[data-post-prose]');
+    const searchPillEl = document.getElementById('article-search-floating-pill');
+    if (activeProse?.dataset.articleSlug === '__inactive__') {
+      if (searchPillEl) searchPillEl.hidden = true;
+      return;
+    }
+    if (searchPillEl) searchPillEl.hidden = false;
+
     const hud = document.getElementById('article-search-hud');
     const input = document.getElementById('article-search-input') as HTMLInputElement | null;
     const clearBtn = document.getElementById('article-search-clear-btn');
@@ -1429,6 +1437,12 @@
 
   if (!(window as any)[LISTENER_KEY]) {
     document.addEventListener('astro:page-load', () => {
+      initialized = false;
+      runInit();
+    });
+    document.addEventListener('reader:doc-change', (e: any) => {
+      const phase = e?.detail?.phase;
+      if (phase && phase !== 'core') return;
       initialized = false;
       runInit();
     });

@@ -421,11 +421,17 @@
 
     const prose = document.querySelector<HTMLElement>('[data-post-prose]');
     if (!prose) return;
+    const pillEl = document.getElementById('article-highlights-floating-pill');
+    if (prose.dataset.articleSlug === '__inactive__') {
+      if (pillEl) pillEl.hidden = true;
+      return;
+    }
+    if (pillEl) pillEl.hidden = false;
 
     const controller = new AbortController();
     const { signal } = controller;
 
-    const postSlug = window.location.pathname;
+    const postSlug = prose.dataset.articleSlug || window.location.pathname;
     let storedRecords: ArticleHighlightRecord[] = loadHighlights(postSlug);
     const postTitle = () => document.querySelector<HTMLElement>('[data-post-title]')?.textContent?.trim() || document.title;
 
@@ -3528,7 +3534,18 @@
     function closeNotesDrawer(opts?: { instant?: boolean } | Event) {
       if (!drawer || !backdrop) return;
       const closeVersion = ++drawerCloseVersion;
+      const wasOpen = drawer.classList.contains('is-open');
       const isInstant = Boolean(opts && !(opts instanceof Event) && opts.instant);
+      if (!wasOpen) {
+        drawer.classList.remove('is-open', 'is-maximized');
+        backdrop.classList.remove('is-open');
+        document.body.classList.remove('notes-drawer-open', 'notes-drawer-maximized');
+        drawer.hidden = true;
+        drawer.style.display = 'none';
+        backdrop.hidden = true;
+        backdrop.style.display = 'none';
+        return;
+      }
       lockScrollAnchor(readArticleMotion().panelMs + 100);
       const wasMax = drawer.classList.contains('is-maximized');
 
@@ -3938,6 +3955,11 @@
 
   if (!(window as any)[LISTENER_KEY]) {
     document.addEventListener('astro:page-load', () => {
+      initArticleHighlights();
+    });
+    document.addEventListener('reader:doc-change', (e: any) => {
+      const phase = e?.detail?.phase;
+      if (phase && phase !== 'core') return;
       initArticleHighlights();
     });
     document.addEventListener('astro:after-swap', () => {

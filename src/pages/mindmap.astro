@@ -2516,6 +2516,13 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   import { getAllNotesAcrossSite } from '../utils/articleHighlightEngine';
   import { initMindmapSync, syncMindMapsNow } from '../utils/mindmapSync';
   import { renderMarkdown } from '../utils/inkAskMarkdown';
+  import { buildReaderDocUrl, parseLocalReaderSlug } from '../utils/localReaderStorage';
+
+  function resolveLinkedPostHref(slug?: string | null): string {
+    const localId = parseLocalReaderSlug(slug);
+    if (localId) return buildReaderDocUrl(localId);
+    return slug ? `/posts/${slug}/` : '/archive/';
+  }
   import { createMarkdownToolbar, handleMarkdownKeydown } from '../utils/markdownShortcuts';
   import {
     $filteredMindMaps,
@@ -3595,7 +3602,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
         ${
           postDisplay || record.tags.length > 0
             ? `<div class="mm-card-tags">
-                ${postDisplay ? `<a href="/posts/${escapeHtml(record.postSlug)}/" class="mm-card-post-link" title="打开关联文章">§ ${escapeHtml(postDisplay)}</a>` : ''}
+                ${postDisplay ? `<a href="${escapeHtml(resolveLinkedPostHref(record.postSlug))}" class="mm-card-post-link" title="打开关联文章">§ ${escapeHtml(postDisplay)}</a>` : ''}
                 ${record.tags.map((t) => `<span class="mm-card-tag"># ${escapeHtml(t)}</span>`).join('')}
               </div>`
             : ''
@@ -6840,7 +6847,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
 
     function syncOpenPostLink() {
       if (activeMap?.postSlug) {
-        wbOpenPostLink.href = `/posts/${activeMap.postSlug}/`;
+        wbOpenPostLink.href = resolveLinkedPostHref(activeMap.postSlug);
         wbOpenPostLink.classList.remove('hidden');
       } else {
         wbOpenPostLink.classList.add('hidden');
