@@ -72,6 +72,24 @@
   const useSheet = () => window.innerWidth < 768;
   const prose = () => document.querySelector<HTMLElement>('[data-post-prose]');
   const postTitle = () => document.querySelector<HTMLElement>('[data-post-title]')?.textContent?.trim() || document.title || '本文';
+  const getArticlePath = () => {
+    const slug = prose()?.dataset.articleSlug;
+    if (slug && slug !== '__inactive__') {
+      return `/${slug.replace(/^\/+/, '')}`;
+    }
+    return location.pathname;
+  };
+  const getLocalAskExtra = () => {
+    const path = getArticlePath();
+    if (!path.startsWith('/reader/')) return {};
+    const provider = (window as any).__localReaderActiveDoc;
+    const payload = typeof provider === 'function' ? provider() : null;
+    if (!payload || typeof payload.content !== 'string') return {};
+    return {
+      localTitle: payload.title || postTitle(),
+      localContent: payload.content,
+    };
+  };
 
   // 探测后端服务是否可用
   function probe(): Promise<boolean> {
@@ -1034,7 +1052,7 @@
     onRecall?: (turn: HTMLElement, question: string) => void,
   ) {
     thread.innerHTML = '';
-    const active = getActiveSession(location.pathname);
+    const active = getActiveSession(getArticlePath());
     if (active.turns.length > 0) {
       for (const t of active.turns) {
         renderSavedTurn(thread, t, onRecall);
@@ -1107,11 +1125,12 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          path: location.pathname,
+          path: getArticlePath(),
           selection: s.anchor.text,
           prefix: s.anchor.prefix,
           suffix: s.anchor.suffix,
           question,
+          ...getLocalAskExtra(),
         }),
         signal: controller.signal,
       });
@@ -1153,7 +1172,7 @@
       paint();
       if (!finish?.cached) settleCaret(answer);
       addSaveNoteButton(turn, () => text, question, answer);
-      storeAppendTurn(location.pathname, {
+      storeAppendTurn(getArticlePath(), {
         question: question || s.anchor.text,
         answer: text,
         selection: s.anchor.text,
@@ -1688,7 +1707,7 @@
       const historyClearBtn = sidebarDrawer.querySelector<HTMLButtonElement>('.ink-ask-history-clear')!;
 
       function renderHistoryList() {
-        const store = loadArticleAskStore(location.pathname);
+        const store = loadArticleAskStore(getArticlePath());
         historyList.innerHTML = '';
         const validSessions = store.sessions.filter((s) => s.turns.length > 0 || s.id === store.activeSessionId);
         if (historyCount) historyCount.textContent = String(validSessions.length);
@@ -1723,7 +1742,7 @@
               sidebarController = null;
               form.classList.remove('is-busy');
             }
-            switchActiveSession(location.pathname, s.id);
+            switchActiveSession(getArticlePath(), s.id);
             loadAndRenderActiveSession(thread, welcome, (tTurn, q) => recallDrawerTurn(tTurn, q));
             toggleHistoryPanel(false);
           });
@@ -1736,7 +1755,7 @@
           delBtn.innerHTML = CLOSE_ICON;
           delBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            storeDeleteSession(location.pathname, s.id);
+            storeDeleteSession(getArticlePath(), s.id);
             loadAndRenderActiveSession(thread, welcome, (tTurn, q) => recallDrawerTurn(tTurn, q));
             renderHistoryList();
           });
@@ -1764,7 +1783,7 @@
       historyClearBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
         if (confirm('确认清空当前文章的所有墨问历史对话记录吗？此操作无法撤销。')) {
-          clearAllSessions(location.pathname);
+          clearAllSessions(getArticlePath());
           loadAndRenderActiveSession(thread, welcome, (tTurn, q) => recallDrawerTurn(tTurn, q));
           renderHistoryList();
           toggleHistoryPanel(false);
@@ -1793,7 +1812,7 @@
           return;
         }
 
-        archiveAndNewSession(location.pathname);
+        archiveAndNewSession(getArticlePath());
 
         isResetting = true;
         thread.classList.add('is-clearing');
@@ -1874,7 +1893,7 @@
         const textToRestore = qText || targetTurn.dataset.question || targetTurn.querySelector('.ink-ask-q-text')?.textContent || '';
 
         if (targetTurn.dataset.turnId) {
-          storeRemoveTurn(location.pathname, targetTurn.dataset.turnId);
+          storeRemoveTurn(getArticlePath(), targetTurn.dataset.turnId);
         }
 
         targetTurn.classList.add('is-recalling');
@@ -1998,8 +2017,8 @@
         sidebarController = controller;
         form.classList.add('is-busy');
 
-        const recentHistory = getRecentHistoryMessages(location.pathname, 3);
-        const storedTurn = storeAppendTurn(location.pathname, { question });
+        const recentHistory = getRecentHistoryMessages(getArticlePath(), 3);
+        const storedTurn = storeAppendTurn(getArticlePath(), { question });
 
         const { turn, answer, status } = addTurn(thread, question, () => {
           recallDrawerTurn(turn, question);
@@ -2046,10 +2065,11 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              path: location.pathname,
+              path: getArticlePath(),
               isArticle: true,
               question,
               history: recentHistory,
+              ...getLocalAskExtra(),
             }),
             signal: controller.signal,
           });
@@ -2097,7 +2117,7 @@
           renderAnswer();
           if (!finish?.cached) settleCaret(answer);
           addSaveNoteButton(turn, () => text, question, answer);
-          updateActiveTurnAnswer(location.pathname, storedTurn.id, text, { cached: Boolean(finish?.cached) });
+          updateActiveTurnAnswer(getArticlePath(), storedTurn.id, text, { cached: Boolean(finish?.cached) });
           if (finish?.truncated) note(turn, '回答太长，后面被截断了');
         } catch (error) {
           if (controller.signal.aborted) return;
@@ -2107,9 +2127,9 @@
           if (text) {
             displayed = text.length;
             renderAnswer();
-            updateActiveTurnAnswer(location.pathname, storedTurn.id, text, { cached: false });
+            updateActiveTurnAnswer(getArticlePath(), storedTurn.id, text, { cached: false });
           } else if (storedTurn?.id) {
-            storeRemoveTurn(location.pathname, storedTurn.id);
+            storeRemoveTurn(getArticlePath(), storedTurn.id);
           }
           status.hidden = false;
           status.classList.remove('is-leaving');
@@ -2121,7 +2141,7 @@
           retry.textContent = '再试一次';
           retry.addEventListener('click', () => {
             if (turn.dataset.turnId) {
-              storeRemoveTurn(location.pathname, turn.dataset.turnId);
+              storeRemoveTurn(getArticlePath(), turn.dataset.turnId);
             }
             turn.remove();
             askDrawer(question);
@@ -2184,7 +2204,15 @@
 
   function closeSidebar(opts?: { instant?: boolean } | Event) {
     const closeVersion = ++sidebarCloseVersion;
+    const wasOpen = Boolean(sidebarDrawer?.classList.contains('is-open'));
     const isInstant = Boolean(opts && !(opts instanceof Event) && opts.instant);
+    if (!wasOpen) {
+      sidebarOverlay?.classList.remove('is-open');
+      sidebarDrawer?.classList.remove('is-open', 'is-maximized');
+      document.body.classList.remove('ink-ask-drawer-open', 'ink-ask-drawer-maximized');
+      sidebarController?.abort();
+      return;
+    }
     lockScrollAnchor(readArticleMotion().panelMs + 100);
     const wasMax = sidebarDrawer?.classList.contains('is-maximized');
 
@@ -2309,7 +2337,11 @@
   // ---------- 全局监听 ----------
 
   function initInkAsk() {
-    if (!prose()) return;
+    const p = prose();
+    if (!p || p.dataset.articleSlug === '__inactive__') {
+      (window as any).__areSetInkAskCleanup__?.();
+      return;
+    }
     ensureSidebar();
     probe().then(() => {});
   }
@@ -2468,6 +2500,14 @@
     });
 
     document.addEventListener('astro:page-load', () => {
+      initInkAsk();
+      reloadDrawerSession?.();
+    });
+
+    document.addEventListener('reader:doc-change', (e: any) => {
+      const phase = e?.detail?.phase;
+      if (phase && phase !== 'companion') return;
+      (window as any).__areSetInkAskCleanup__?.();
       initInkAsk();
       reloadDrawerSession?.();
     });

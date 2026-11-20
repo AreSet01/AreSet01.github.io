@@ -1744,6 +1744,11 @@
       document.addEventListener('astro:page-load', () => {
         (window as any).__initPinWorkbench?.();
       });
+      document.addEventListener('reader:doc-change', (e: any) => {
+        const phase = e?.detail?.phase;
+        if (phase && phase !== 'companion') return;
+        (window as any).__initPinWorkbench?.();
+      });
     }
 
     initPinWorkbench();

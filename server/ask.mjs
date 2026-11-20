@@ -877,6 +877,54 @@ async function loadPage(requestPath) {
   return { key: pathname, page };
 }
 
+function buildLocalReaderPage(requestPath, localTitle, localContent) {
+  let pathname;
+  try {
+    pathname = decodeURIComponent(requestPath).replace(/\/+$/, '');
+  } catch {
+    return null;
+  }
+  if (!/^\/reader\/[A-Za-z0-9._-]+$/.test(pathname)) return null;
+  const raw = typeof localContent === 'string' ? localContent.slice(0, 28_000) : '';
+  const cleanedRaw = raw.replace(/\r\n?/g, '\n').trim();
+  if (!cleanedRaw) return null;
+
+  const title = tidy(String(localTitle || '').slice(0, 200)) || '本地文稿';
+  const segments = cleanedRaw.split(/\n{2,}/);
+  const blocks = [];
+  let heading = '';
+
+  for (const seg of segments) {
+    const trimmed = seg.trim();
+    if (!trimmed) continue;
+    const hMatch = /^#{1,6}\s+(.+)$/.exec(trimmed);
+    if (hMatch && !trimmed.includes('\n')) {
+      const hText = tidy(hMatch[1].replace(/[*_`~]/g, ''));
+      if (hText) {
+        heading = hText;
+        blocks.push({ text: hText, norm: normalize(hText), heading });
+      }
+      continue;
+    }
+    const text = tidy(trimmed);
+    if (!text) continue;
+    blocks.push({ text, norm: normalize(text), heading });
+  }
+
+  if (!blocks.length) return null;
+  const offsets = [];
+  let joined = '';
+  for (const block of blocks) {
+    offsets.push(joined.length);
+    joined += block.norm;
+  }
+  const contentHash = createHash('sha1').update(cleanedRaw).digest('base64url').slice(0, 10);
+  return {
+    key: `${pathname}#${contentHash}`,
+    page: { title, blocks, offsets, joined },
+  };
+}
+
 // 找到选区在文章里的位置。同一段文字可能出现多次（比如两段代码都以同一个宏开头），
 // 所以前端还会带上选区前后各几十个字，先按「前文 + 选区 + 后文」整体去找
 function locate(page, selectionNorm, prefix, suffix) {
@@ -1243,7 +1291,13 @@ async function handleAsk(req, res) {
     }
   }
 
-  const loaded = typeof input.path === 'string' ? await loadPage(input.path) : null;
+  let loaded = null;
+  if (typeof input.path === 'string' && input.path.startsWith('/reader/')) {
+    if (!sameOrigin(req)) return sendJson(res, 403, { error: '请求来源不合法' });
+    loaded = buildLocalReaderPage(input.path, input.localTitle, input.localContent);
+  } else if (typeof input.path === 'string') {
+    loaded = await loadPage(input.path);
+  }
   if (!loaded) return sendJson(res, 404, { error: '找不到这篇文章' });
 
   let loc = null;

@@ -639,6 +639,11 @@ const {
       import { getAllBookmarks, getRecentReadingProgress } from '../utils/readingBookmarkEngine';
       import { initReadingSync } from '../utils/readingSync';
       import {
+        buildReaderDocUrl,
+        listLocalReaderIndex,
+        parseLocalReaderSlug,
+      } from '../utils/localReaderStorage';
+      import {
         buildDefaultCommands,
         computePaletteGliderGeometry,
         parsePaletteQuery,
@@ -659,21 +664,28 @@ const {
         runQuery(rawInput: string, selectedCategory: PaletteCategory, posts: RawPostSearchEntry[]) {
           const basePath = import.meta.env.BASE_URL ?? '/';
           const recentReading = getRecentReadingProgress(3);
-          const isArticlePage = Boolean(document.querySelector('[data-post-prose]'));
+          const isArticlePage = Boolean(document.querySelector('[data-post-prose]:not([data-article-slug="__inactive__"])'));
           const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
           const currentFont = document.documentElement.getAttribute('data-font') || 'pixel';
           const topResume = recentReading[0];
+          const topResumeLocalId = topResume ? parseLocalReaderSlug(topResume.postSlug) : null;
+          const topResumeHref = topResume
+            ? topResumeLocalId
+              ? buildReaderDocUrl(topResumeLocalId, { resume: true, basePath })
+              : `${basePath.replace(/\/?$/, '/')}posts/${topResume.postSlug}/?resume=1`
+            : undefined;
           const commands = buildDefaultCommands({
             isArticlePage,
             currentTheme,
             currentFont,
             hasRecentResume: Boolean(topResume),
             recentResumeTitle: topResume?.postTitle,
-            recentResumeHref: topResume ? `${basePath.replace(/\/?$/, '/')}posts/${topResume.postSlug}/?resume=1` : undefined,
+            recentResumeHref: topResumeHref,
             basePath,
           });
           return queryCommandPalette(rawInput, selectedCategory, {
             posts,
+            localDocs: listLocalReaderIndex(),
             noteBuckets: loadAllStoredNotes(),
             bookmarks: getAllBookmarks(),
             recentReading,
@@ -2620,6 +2632,24 @@ const {
             const cleanTargetPath = targetUrl.pathname.replace(/\/+$/, '');
             if (cleanCurPath !== cleanTargetPath) return false;
 
+            const curDoc = new URLSearchParams(window.location.search).get('doc');
+            const targetDoc = targetUrl.searchParams.get('doc');
+            if (targetDoc !== curDoc) {
+              if (targetDoc && typeof window.__localReaderOpenDoc === 'function') {
+                closeSearch(false);
+                const hashHighlight = targetUrl.hash.startsWith('#highlight-')
+                  ? decodeURIComponent(targetUrl.hash.slice('#highlight-'.length))
+                  : '';
+                window.__localReaderOpenDoc(targetDoc, {
+                  resume: targetUrl.searchParams.get('resume') === '1',
+                  bookmarkId: targetUrl.searchParams.get('bm') || '',
+                  highlightId: targetUrl.searchParams.get('noteId') || hashHighlight,
+                });
+                return true;
+              }
+              return false;
+            }
+
             if (targetUrl.searchParams.get('resume') === '1' && window.__readingBookmarks?.resumeProgress) {
               closeSearch(false);
               window.setTimeout(() => window.__readingBookmarks.resumeProgress(), 80);
@@ -4081,17 +4111,33 @@ const {
           if (old) old.remove();
 
           var prose = document.querySelector('.prose');
-          if (!prose) return;
+          if (!prose || prose.getAttribute('data-article-slug') === '__inactive__') return;
 
           var bar = document.createElement('div');
           bar.className = 'reading-progress';
           document.body.appendChild(bar);
 
-          function update() {
+          var cachedTop = 0;
+          var cachedHeight = 0;
+          var cachedVh = window.innerHeight || 800;
+
+          function measure() {
+            var scrollY = window.scrollY || window.pageYOffset || 0;
             var rect = prose.getBoundingClientRect();
-            var top = -rect.top;
-            var total = rect.height - window.innerHeight;
-            if (total <= 0) { bar.style.transform = 'scaleX(1)'; return; }
+            cachedTop = rect.top + scrollY;
+            cachedHeight = rect.height;
+            cachedVh = window.innerHeight || 800;
+          }
+
+          function update() {
+            var scrollY = window.scrollY || window.pageYOffset || 0;
+            var top = scrollY - cachedTop;
+            var total = cachedHeight - cachedVh;
+            if (total <= 0) {
+              bar.style.transform = 'scaleX(0)';
+              bar.classList.add('is-hidden');
+              return;
+            }
             var pct = Math.min(100, Math.max(0, (top / total) * 100));
             bar.style.transform = 'scaleX(' + (pct / 100) + ')';
             if (pct >= 99.5) {
@@ -4102,7 +4148,7 @@ const {
           }
 
           var progressTicking = false;
-          function onScrollOrResize() {
+          function onScroll() {
             if (!progressTicking) {
               progressTicking = true;
               requestAnimationFrame(function() {
@@ -4112,12 +4158,27 @@ const {
             }
           }
 
-          window.addEventListener('scroll', onScrollOrResize, { passive: true });
-          window.addEventListener('resize', onScrollOrResize, { passive: true });
+          var roTimer = 0;
+          function onResize() {
+            window.clearTimeout(roTimer);
+            roTimer = window.setTimeout(function() {
+              measure();
+              update();
+            }, 120);
+          }
+
+          var ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(onResize) : null;
+          if (ro) ro.observe(prose);
+
+          window.addEventListener('scroll', onScroll, { passive: true });
+          window.addEventListener('resize', onResize, { passive: true });
           cleanupListeners = function() {
-            window.removeEventListener('scroll', onScrollOrResize);
-            window.removeEventListener('resize', onScrollOrResize);
+            window.clearTimeout(roTimer);
+            if (ro) ro.disconnect();
+            window.removeEventListener('scroll', onScroll);
+            window.removeEventListener('resize', onResize);
           };
+          measure();
           update();
         }
 
@@ -4127,6 +4188,11 @@ const {
           setup();
         }
         document.addEventListener('astro:page-load', setup);
+        document.addEventListener('reader:doc-change', function(e) {
+          var phase = e && e.detail && e.detail.phase;
+          if (phase && phase !== 'core') return;
+          setup();
+        });
       })();
     </script>
 

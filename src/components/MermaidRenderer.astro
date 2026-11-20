@@ -1057,6 +1057,13 @@
       (window as any).__initMermaid?.();
     });
 
+    // 1.5 本地阅读器切换文档时动态渲染新载入的 Mermaid 图表
+    document.addEventListener('reader:doc-change', (e: any) => {
+      const phase = e?.detail?.phase;
+      if (phase && phase !== 'companion') return;
+      (window as any).__initMermaid?.();
+    });
+
     // 2. 主题切换时重新渲染
     window.addEventListener('theme-change', () => {
       (window as any).__initMermaid?.();

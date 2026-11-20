@@ -1280,6 +1280,12 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
   } from '../utils/articleHighlightEngine';
   import { initNotesSync, syncNow } from '../utils/notesSync';
   import { handleMarkdownKeydown, createMarkdownToolbar } from '../utils/markdownShortcuts';
+  import {
+    buildLocalReaderSlug,
+    buildReaderDocUrl,
+    listLocalReaderIndex,
+    parseLocalReaderSlug,
+  } from '../utils/localReaderStorage';
 
   const LISTENER_KEY = '__areSetNotesPageInit__';
   const CLEANUP_KEY = '__areSetNotesPageCleanup__';
@@ -1335,6 +1341,27 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       } catch (err) {
         console.warn('[notes] failed to parse postsMeta:', err);
       }
+    }
+
+    // 同步注入本地 Markdown 阅读器书架文稿元数据，支持在 /notes 中展示标题并一键跳回定位
+    for (const localDoc of listLocalReaderIndex()) {
+      const slug = buildLocalReaderSlug(localDoc.id);
+      const meta: PostMeta = {
+        slug,
+        title: `${localDoc.title} · 本地文稿`,
+        url: buildReaderDocUrl(localDoc.id),
+      };
+      postsMetaMap.set(slug, meta);
+      postsMetaByStorageKey.set(getStorageKey(slug), meta);
+      postsMetaByStorageKey.set(getStorageKey(`/${slug}`), meta);
+    }
+
+    function resolveArticleJumpUrl(slug: string, noteId?: string | null): string {
+      const localDocId = parseLocalReaderSlug(slug);
+      if (localDocId) {
+        return buildReaderDocUrl(localDocId, { highlightId: noteId || undefined });
+      }
+      return noteId ? `/posts/${slug}#highlight-${noteId}` : `/posts/${slug}`;
     }
 
     let notesDatabase: NoteItem[] = [];
@@ -2162,7 +2189,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
           const slug = btn.getAttribute('data-slug');
           const noteId = btn.getAttribute('data-id');
           if (slug) {
-            window.location.href = `/posts/${slug}#highlight-${noteId}`;
+            window.location.href = resolveArticleJumpUrl(slug, noteId);
           }
         }, { signal });
       });
@@ -3326,7 +3353,7 @@ const postsMetaJson = JSON.stringify(postsMeta).replace(/</g, '\\u003c');
       const slug = btn?.getAttribute('data-slug');
       const noteId = btn?.getAttribute('data-id');
       if (slug) {
-        window.location.href = `/posts/${slug}#highlight-${noteId}`;
+        window.location.href = resolveArticleJumpUrl(slug, noteId);
       }
     }, { signal });
 
